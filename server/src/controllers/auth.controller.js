@@ -1,29 +1,33 @@
 import jwt from 'jsonwebtoken';
 import nodemailer from 'nodemailer';
 
-// Almacenamiento temporal de OTPs (en producción usar Redis)
+// Almacenamiento temporal de OTPs (en producción usar Redis para persistencia)
 const otpStorage = new Map();
 
-// Verificar credenciales en .env
-if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
-  console.warn('⚠️  ADVERTENCIA: GMAIL_USER o GMAIL_APP_PASSWORD no están configurados en .env');
-  console.warn('El envío de emails NO funcionará sin estas credenciales.');
-  console.warn('Pasos para configurar:');
-  console.warn('1. Ve a: https://myaccount.google.com/security');
-  console.warn('2. Busca: "Contraseñas de aplicaciones"');
-  console.warn('3. Copia la contraseña de 16 caracteres');
-  console.warn('4. Pega en .env: GMAIL_APP_PASSWORD=xxxxxxxxxxxx');
+/**
+ * CONFIGURACIÓN DE VARIABLES DE ENTORNO
+ * Se extraen al inicio para validar que existan y evitar errores en tiempo de ejecución.
+ */
+const GMAIL_USER = process.env.GMAIL_USER;
+const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
+const JWT_SECRET = process.env.JWT_SECRET || 'clave_secreta_por_defecto_cambiar_urgente';
+const AUTHORIZED_EMAIL = (process.env.AUTHORIZED_EMAIL || 'centrokareh@gmail.com').toLowerCase();
+
+// Validación de credenciales críticas
+if (!GMAIL_USER || !GMAIL_APP_PASSWORD) {
+  console.warn('⚠️ ADVERTENCIA: GMAIL_USER o GMAIL_APP_PASSWORD no están configurados.');
 }
 
 // Configurar transportador de email
 const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 465,
-  secure: true,
+  service: 'gmail',
   auth: {
-    user: process.env.GMAIL_USER,
-    pass: process.env.GMAIL_APP_PASSWORD,
+    user: GMAIL_USER,
+    pass: GMAIL_APP_PASSWORD, // CORREGIDO: Se usa la variable, no texto plano con espacios
   },
+  tls: {
+    rejectUnauthorized: false // Útil para entornos locales o redes con firewalls
+  }
 });
 
 /**
@@ -32,97 +36,68 @@ const transporter = nodemailer.createTransport({
 export const requestOTP = async (req, res) => {
   try {
     const { email } = req.body;
-    const authorizedEmail = process.env.AUTHORIZED_EMAIL || 'centrokareh@gmail.com';
 
-    // Validar que sea un email válido
     if (!email || !email.includes('@')) {
       return res.status(400).json({ message: 'Email inválido' });
     }
 
+    const normalizedEmail = email.toLowerCase();
+
     // Validar que sea el email autorizado
-    if (email.toLowerCase() !== authorizedEmail.toLowerCase()) {
+    if (normalizedEmail !== AUTHORIZED_EMAIL) {
       return res.status(403).json({
         message: 'Acceso Denegado',
-        detail: `Solo ${authorizedEmail} puede acceder a esta aplicación.`
+        detail: `Solo ${AUTHORIZED_EMAIL} puede acceder a esta aplicación.`
       });
     }
 
     // Generar código OTP de 6 dígitos
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = Date.now() + 15 * 60 * 1000; // Válido por 15 minutos
+    const expiresAt = Date.now() + 15 * 60 * 1000; // 15 minutos
 
-    // Guardar OTP en almacenamiento temporal
-    otpStorage.set(email, { otp, expiresAt, attempts: 0 });
+    // Guardar OTP (usamos el email normalizado como llave)
+    otpStorage.set(normalizedEmail, { otp, expiresAt, attempts: 0 });
 
     // Enviar email con el OTP
     try {
       await transporter.sendMail({
-        from: `"Kareh Salud" <${process.env.GMAIL_USER || 'centrokareh@gmail.com'}>`,
-        to: email,
+        from: `"Kareh Salud" <${GMAIL_USER}>`,
+        to: normalizedEmail,
         subject: '🔐 Tu código de acceso a Kareh Salud',
         html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <div style="background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%); padding: 30px; text-align: center; border-radius: 10px;">
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #eee; border-radius: 10px; overflow: hidden;">
+            <div style="background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%); padding: 30px; text-align: center;">
               <h1 style="color: white; margin: 0; font-size: 28px;">🏥 Kareh Salud</h1>
             </div>
-            <div style="padding: 30px; background: #f8fafc; border-radius: 10px; margin-top: 20px;">
-              <p style="color: #334155; margin: 0; font-size: 16px;">Hola,</p>
-              <p style="color: #64748b; margin: 15px 0; font-size: 15px;">
-                Alguien solicitó acceso a tu cuenta de Kareh Salud. Si fuiste tú, usa este código:
-              </p>
-              <div style="background: white; padding: 25px; border-radius: 8px; margin: 25px 0; text-align: center;">
-                <p style="margin: 0; font-size: 12px; color: #94a3b8;">Código de Verificación</p>
-                <p style="margin: 10px 0; font-size: 36px; font-weight: bold; color: #0d9488; letter-spacing: 8px;">
-                  ${otp}
-                </p>
+            <div style="padding: 30px; background: #f8fafc;">
+              <p style="color: #334155; font-size: 16px;">Hola,</p>
+              <p style="color: #64748b; font-size: 15px;">Usa el siguiente código para acceder a tu cuenta:</p>
+              <div style="background: white; padding: 25px; border-radius: 8px; margin: 25px 0; text-align: center; border: 1px dashed #0d9488;">
+                <p style="margin: 0; font-size: 12px; color: #94a3b8; text-transform: uppercase;">Código de Verificación</p>
+                <p style="margin: 10px 0; font-size: 36px; font-weight: bold; color: #0d9488; letter-spacing: 8px;">${otp}</p>
               </div>
-              <p style="color: #94a3b8; margin: 15px 0; font-size: 13px;">
-                ⏱️ Este código expira en 15 minutos.
-              </p>
-              <p style="color: #94a3b8; margin: 15px 0; font-size: 13px;">
-                Si no solicitaste este código, ignora este email.
-              </p>
-              <div style="border-top: 1px solid #e2e8f0; padding-top: 20px; margin-top: 20px;">
-                <p style="color: #94a3b8; font-size: 12px; margin: 0;">
-                  © 2026 Kareh Salud - Centro de Kinesiología
-                </p>
+              <p style="color: #94a3b8; font-size: 13px;">⏱️ Este código expira en 15 minutos.</p>
+              <div style="border-top: 1px solid #e2e8f0; padding-top: 20px; margin-top: 20px; text-align: center;">
+                <p style="color: #94a3b8; font-size: 12px; margin: 0;">© 2026 Kareh Salud - Centro de Kinesiología</p>
               </div>
             </div>
           </div>
         `,
       });
 
-      console.log(`✅ OTP enviado a ${email}`);
-      res.json({
-        success: true,
-        message: 'Código OTP enviado a tu email',
-        expiresIn: 900, // 15 minutos en segundos
-      });
+      console.log(`✅ OTP enviado a ${normalizedEmail}`);
+      res.json({ success: true, message: 'Código OTP enviado a tu email' });
+
     } catch (emailError) {
       console.error('❌ Error enviando email:', emailError.message);
-      console.error('📧 GMAIL_USER:', process.env.GMAIL_USER);
-      console.error('🔑 GMAIL_APP_PASSWORD configurada:', !!process.env.GMAIL_APP_PASSWORD);
-      
-      // Identificar tipo de error para mensaje más útil
-      let errorDetail = 'Error desconocido al enviar email';
-      if (emailError.message.includes('invalid_grant')) {
-        errorDetail = 'Credenciales de Gmail inválidas. Regenera la contraseña de aplicación.';
-      } else if (emailError.message.includes('Invalid login')) {
-        errorDetail = 'Email o contraseña de aplicación son incorrectos.';
-      } else if (emailError.message.includes('ECONNREFUSED') || emailError.message.includes('getaddrinfo')) {
-        errorDetail = 'No se puede conectar a Gmail SMTP. Verifica tu conexión a Internet.';
-      } else if (emailError.message.includes('GMAIL_APP_PASSWORD')) {
-        errorDetail = 'GMAIL_APP_PASSWORD no está configurada en .env';
-      }
-      
       return res.status(500).json({
-        message: errorDetail,
+        message: 'No se pudo enviar el correo. Verifica la configuración SMTP.',
         detail: process.env.NODE_ENV === 'development' ? emailError.message : undefined
       });
     }
   } catch (error) {
     console.error('❌ Error en requestOTP:', error);
-    res.status(500).json({ message: 'Error interno del servidor', error: error.message });
+    res.status(500).json({ message: 'Error interno del servidor' });
   }
 };
 
@@ -132,43 +107,28 @@ export const requestOTP = async (req, res) => {
 export const verifyOTP = async (req, res) => {
   try {
     const { email, otp } = req.body;
-    const authorizedEmail = process.env.AUTHORIZED_EMAIL || 'centrokareh@gmail.com';
 
-    // Validaciones básicas
     if (!email || !otp) {
       return res.status(400).json({ message: 'Email y OTP requeridos' });
     }
 
-    // Validar que sea el email autorizado
-    if (email.toLowerCase() !== authorizedEmail.toLowerCase()) {
-      return res.status(403).json({
-        message: 'Email no autorizado'
-      });
-    }
-
-    // Obtener OTP almacenado
-    const storedData = otpStorage.get(email);
+    const normalizedEmail = email.toLowerCase();
+    const storedData = otpStorage.get(normalizedEmail);
 
     if (!storedData) {
-      return res.status(400).json({
-        message: 'No hay código pendiente. Solicita uno nuevo.'
-      });
+      return res.status(400).json({ message: 'No hay código pendiente o ya fue usado.' });
     }
 
     // Validar expiración
     if (Date.now() > storedData.expiresAt) {
-      otpStorage.delete(email);
-      return res.status(400).json({
-        message: 'Código expirado. Solicita uno nuevo.'
-      });
+      otpStorage.delete(normalizedEmail);
+      return res.status(400).json({ message: 'Código expirado. Solicita uno nuevo.' });
     }
 
-    // Validar intentos (máx 5 por OTP)
+    // Validar intentos (máx 5)
     if (storedData.attempts >= 5) {
-      otpStorage.delete(email);
-      return res.status(429).json({
-        message: 'Demasiados intentos. Solicita un nuevo código.'
-      });
+      otpStorage.delete(normalizedEmail);
+      return res.status(429).json({ message: 'Demasiados intentos. Solicita un nuevo código.' });
     }
 
     // Validar código
@@ -180,65 +140,49 @@ export const verifyOTP = async (req, res) => {
       });
     }
 
-    // ✅ Código correcto - Generar JWT
-    otpStorage.delete(email); // Limpiar OTP usado
+    // ✅ ÉXITO - Generar JWT
+    otpStorage.delete(normalizedEmail); 
 
     const jwtToken = jwt.sign(
-      {
-        email: email,
-        type: 'otp-verified',
-        iat: Math.floor(Date.now() / 1000),
-      },
-      process.env.JWT_SECRET || 'default_secret_key_change_me',
-      { expiresIn: '30d' } // Token válido por 30 días
+      { email: normalizedEmail, type: 'otp-verified' },
+      JWT_SECRET,
+      { expiresIn: '30d' }
     );
 
     res.json({
       success: true,
       message: 'Acceso concedido',
       token: jwtToken,
-      user: {
-        email: email,
-        name: 'Usuario',
-      }
+      user: { email: normalizedEmail, name: 'Administrador' }
     });
   } catch (error) {
     console.error('❌ Error en verifyOTP:', error);
-    res.status(500).json({ message: 'Error interno del servidor', error: error.message });
+    res.status(500).json({ message: 'Error interno del servidor' });
   }
 };
 
 /**
- * 3. Verificar Token JWT
+ * 3. Verificar Token JWT (Para proteger rutas)
  */
 export const verifyToken = (req, res) => {
   try {
-    const token = req.headers.authorization?.split(' ')[1];
+    const authHeader = req.headers.authorization;
+    const token = authHeader && authHeader.split(' ')[1];
 
     if (!token) {
       return res.status(401).json({ message: 'Token no encontrado' });
     }
 
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET || 'default_secret_key_change_me'
-    );
-
-    res.json({
-      valid: true,
-      user: decoded
-    });
+    const decoded = jwt.verify(token, JWT_SECRET);
+    res.json({ valid: true, user: decoded });
   } catch (error) {
-    res.status(401).json({ message: 'Token inválido o expirado', error: error.message });
+    res.status(401).json({ message: 'Token inválido o expirado' });
   }
 };
 
 /**
- * 4. Logout (limpieza en frontend)
+ * 4. Logout
  */
 export const logout = (req, res) => {
-  res.json({ 
-    success: true, 
-    message: 'Sesión cerrada correctamente'
-  });
+  res.json({ success: true, message: 'Sesión cerrada correctamente' });
 };
