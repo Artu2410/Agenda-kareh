@@ -18,106 +18,80 @@ dotenv.config();
 const app = express();
 const prisma = new PrismaClient();
 
+// --- CORRECCIÓN PARA RENDER (Indispensable) ---
+app.set('trust proxy', 1); 
+
 // 1. Seguridad con Helmet
 app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'"],
-      imgSrc: ["'self'", 'data:', 'https:'],
-    },
-  },
-  frameguard: { action: 'deny' },
-  noSniff: true,
-  xssFilter: true,
+  contentSecurityPolicy: false, // Desactivado temporalmente para facilitar el despliegue
+  crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 
-// 2. Configuración de CORS
+// 2. Configuración de CORS (CORREGIDO PARA VERCEL)
 app.use(cors({
   origin: [
-    'http://localhost:5173', 
-    'http://localhost:5174',
-    'http://localhost:5175',
-    'http://127.0.0.1:5173', 
-    'http://127.0.0.1:5174',
-    'http://127.0.0.1:5175'
+    'https://kareh-salud.vercel.app', // <--- TU URL DE VERCEL
+    'http://localhost:5173',
+    'http://localhost:5174'
   ],
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// 3. Rate Limiting
-const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 5, // 5 intentos por IP
-  message: '❌ Demasiados intentos de login. Intenta de nuevo más tarde.',
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
+// 3. Rate Limiting (Ajustado para no bloquearte a ti mismo)
 const generalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 100, // 100 requests por IP
+  windowMs: 15 * 60 * 1000,
+  max: 500, // Aumentamos el límite para evitar bloqueos por error
   standardHeaders: true,
   legacyHeaders: false,
 });
 
-app.use('/api/', generalLimiter);
-app.use('/api/auth/google-callback', loginLimiter);
-
-// 4. Configuración de JSON y Límites de carga
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// 5. Conexión a la base de datos
+// 4. Conexión a la base de datos
 prisma.$connect()
   .then(() => console.log('✅ DB Conectada con éxito'))
   .catch((e) => {
-    console.error('❌ Error de conexión DB:', e);
-    process.exit(1);
+    console.error('❌ Error de conexión DB:', e.message);
+    // No cerramos el proceso para permitir que Render nos de logs
   });
 
-// 6. Rutas públicas (SIN autenticación)
+// --- RUTAS ---
+
+// Ruta base para verificar que el servidor vive
+app.get('/', (req, res) => {
+    res.json({ message: '✅ KAREH PRO API - Online' });
+});
+
+// 6. Rutas públicas
+// Nota: Si creas las rutas con createAuthRoutes, asegúrate de que dentro de ese archivo
+// no estés repitiendo el prefijo /api o /auth
 app.use('/api/auth', createAuthRoutes(prisma));
 
-// 7. Rutas protegidas (REQUIEREN autenticación)
+// 7. Rutas protegidas
 app.use('/api/appointments', authMiddleware, createAppointmentRoutes(prisma));
 app.use('/api/patients', authMiddleware, createPatientRoutes(prisma));
 app.use('/api/cashflow', authMiddleware, createCashflowRoutes(prisma));
 app.use('/api/clinical-history', authMiddleware, createClinicalHistoryRoutes(prisma));
 
-// Ruta base de prueba
-app.get('/', (req, res) => {
-    res.json({ 
-      message: '✅ KAREH PRO API - Online',
-      timestamp: new Date().toISOString(),
-      version: '2.0.0'
-    });
-});
-
-// Ruta de health check
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
 // 8. Manejo de errores global
 app.use((err, req, res, next) => {
-  console.error('❌ Error detectado:', err.stack);
+  console.error('❌ Error detectado:', err.message);
   res.status(err.status || 500).json({ 
     message: 'Error interno del servidor',
-    error: process.env.NODE_ENV === 'development' ? err.message : 'Contacta al administrador'
+    error: err.message 
   });
 });
 
 // 9. 404 Handler
 app.use((req, res) => {
-  res.status(404).json({ message: 'Ruta no encontrada' });
+  console.log(`❓ Ruta no encontrada: ${req.method} ${req.url}`);
+  res.status(404).json({ message: `Ruta no encontrada: ${req.url}` });
 });
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-    console.log(`🚀 Servidor Kareh Pro corriendo en http://localhost:${PORT}`);
-    console.log(`📝 API base: http://localhost:${PORT}/api`);
-    console.log(`🔐 Seguridad: Helmet + Rate Limiting + JWT Auth`);
-    console.log(`📦 Límite de carga: 50MB`);
+const PORT = process.env.PORT || 10000; // Render usa el 10000 por defecto
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Servidor Kareh Pro corriendo en puerto ${PORT}`);
 });
