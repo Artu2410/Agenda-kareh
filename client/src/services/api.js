@@ -1,7 +1,17 @@
 import axios from 'axios';
 
+/**
+ * CONFIGURACIÓN DE URL
+ * Priorizamos la variable de entorno, pero dejamos la de Render como fallback directo
+ * para evitar que 'import.meta.env' falle en tiempo de ejecución.
+ */
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://kareh-backend.onrender.com/api';
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'https://kareh-backend.onrender.com/api',
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json'
+  }
 });
 
 // Interceptor para añadir el JWT a cada petición
@@ -20,30 +30,45 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    let message = 'Ocurri� un error inesperado';
+    let message = 'Ocurrió un error inesperado';
 
     if (error.response) {
-      // The server responded with an error code (4xx, 5xx)
+      // El servidor respondió con un código de error (4xx, 5xx)
       const status = error.response.status;
       
-      if (status === 503) message = 'El servidor de Kareh Pro est� fuera de l�nea. Revisa el backend.';
-      if (status === 409) message = 'Este horario ya est� ocupado por otro paciente.';
-      if (status === 400) message = 'Datos inv�lidos. Revisa el formulario.';
+      if (status === 401) message = 'Sesión expirada. Por favor, inicia sesión nuevamente.';
+      if (status === 403) message = 'No tienes permiso para realizar esta acción.';
+      if (status === 409) message = 'Este horario ya está ocupado por otro paciente.';
+      if (status === 400) message = 'Datos inválidos. Revisa el formulario.';
+      if (status === 500) message = 'Error en el servidor de Kareh Pro. Revisa el backend.';
+      if (status === 503) message = 'El servidor está temporalmente fuera de línea.';
       
-      // If the backend sent a specific message, we use it
+      // Si el backend envió un mensaje específico, lo usamos
       message = error.response.data?.message || message;
     } else if (error.request) {
-      // The request was made but there was no response (Network Error)
-      message = 'No se pudo conectar con el servidor. Verifica tu conexi�n.';
+      // La petición se hizo pero no hubo respuesta (Error de red o CORS)
+      message = 'No se pudo conectar con el servidor. Verifica tu conexión o el estado del backend.';
     }
 
-    // We return a cleaner error object
+    // Retornamos un objeto de error más limpio para el frontend
     return Promise.reject({ ...error, friendlyMessage: message });
   }
 );
 
 export default api;
-// Funciones específicas para Appointments
+
+// --- FUNCIONES ESPECÍFICAS ---
+
+// Auth - Petición de OTP (Hardcoded para asegurar que funcione)
+export const requestOTP = async (email) => {
+  return api.post('/auth/request-otp', { email });
+};
+
+export const verifyOTP = async (email, otp) => {
+  return api.post('/auth/verify-otp', { email, otp });
+};
+
+// Appointments
 export const deleteAppointment = async (appointmentId) => {
   return api.delete(`/appointments/${appointmentId}`);
 };
