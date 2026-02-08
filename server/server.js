@@ -26,7 +26,7 @@ import professionalRoutes from './src/routes/professionalRoutes.js';
 import { authMiddleware } from './src/middlewares/authMiddleware.js';
 
 const app = express();
-const prisma = new PrismaClient();
+app.set('trust proxy', 1);
 
 // ========================================
 // SEGURIDAD Y MIDDLEWARES
