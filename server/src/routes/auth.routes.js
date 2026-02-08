@@ -4,17 +4,24 @@ import { requestOTP, verifyOTP, verifyToken, logout } from '../controllers/auth.
 export default function createAuthRoutes(prisma) {
   const router = Router();
 
-  // POST /api/auth/request-otp - Solicitar código OTP
-  router.post('/request-otp', (req, res) => requestOTP(req, res));
+  // Inyectamos prisma en el request para que los controladores puedan usarlo
+  router.use((req, res, next) => {
+    req.prisma = prisma;
+    next();
+  });
 
-  // POST /api/auth/verify-otp - Verificar código OTP y obtener JWT
-  router.post('/verify-otp', (req, res) => verifyOTP(req, res));
+  // POST /api/auth/request-otp
+  // Quitamos la envoltura innecesaria para que el controlador reciba req y res directamente
+  router.post('/request-otp', requestOTP);
 
-  // GET /api/auth/verify - Verificar que el token sea válido
-  router.get('/verify', (req, res) => verifyToken(req, res));
+  // POST /api/auth/verify-otp
+  router.post('/verify-otp', verifyOTP);
 
-  // POST /api/auth/logout - Cierra sesión
-  router.post('/logout', (req, res) => logout(req, res));
+  // GET /api/auth/verify
+  router.get('/verify', verifyToken);
+
+  // POST /api/auth/logout
+  router.post('/logout', logout);
 
   return router;
 }

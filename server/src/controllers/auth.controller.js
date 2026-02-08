@@ -6,7 +6,6 @@ const otpStorage = new Map();
 
 /**
  * CONFIGURACIÓN DE VARIABLES DE ENTORNO
- * Se extraen al inicio para validar que existan y evitar errores en tiempo de ejecución.
  */
 const GMAIL_USER = process.env.GMAIL_USER;
 const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
@@ -18,24 +17,31 @@ if (!GMAIL_USER || !GMAIL_APP_PASSWORD) {
   console.warn('⚠️ ADVERTENCIA: GMAIL_USER o GMAIL_APP_PASSWORD no están configurados.');
 }
 
-// Configurar transportador de email
+// ==========================================
+// CONFIGURACIÓN DE TRANSPORTADOR (CORREGIDA PARA RENDER)
+// ==========================================
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: "smtp.gmail.com",
+  port: 587,
+  secure: false, // false para puerto 587
   auth: {
     user: GMAIL_USER,
-    pass: GMAIL_APP_PASSWORD, // CORREGIDO: Se usa la variable, no texto plano con espacios
+    pass: GMAIL_APP_PASSWORD,
   },
   tls: {
-    rejectUnauthorized: false // Útil para entornos locales o redes con firewalls
+    rejectUnauthorized: false, // Evita problemas de certificados en redes restringidas
+    minVersion: 'TLSv1.2'
   }
 });
 
 /**
- * 1. Solicitar OTP - El usuario ingresa su email
+ * 1. Solicitar OTP
  */
 export const requestOTP = async (req, res) => {
   try {
     const { email } = req.body;
+    // req.prisma ya está disponible gracias al middleware de rutas que hicimos antes
+    const prisma = req.prisma; 
 
     if (!email || !email.includes('@')) {
       return res.status(400).json({ message: 'Email inválido' });
@@ -47,15 +53,13 @@ export const requestOTP = async (req, res) => {
     if (normalizedEmail !== AUTHORIZED_EMAIL) {
       return res.status(403).json({
         message: 'Acceso Denegado',
-        detail: `Solo ${AUTHORIZED_EMAIL} puede acceder a esta aplicación.`
+        detail: `Solo ${AUTHORIZED_EMAIL} puede acceder.`
       });
     }
 
-    // Generar código OTP de 6 dígitos
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = Date.now() + 15 * 60 * 1000; // 15 minutos
+    const expiresAt = Date.now() + 15 * 60 * 1000;
 
-    // Guardar OTP (usamos el email normalizado como llave)
     otpStorage.set(normalizedEmail, { otp, expiresAt, attempts: 0 });
 
     // Enviar email con el OTP
@@ -85,14 +89,14 @@ export const requestOTP = async (req, res) => {
         `,
       });
 
-      console.log(`✅ OTP enviado a ${normalizedEmail}`);
+      console.log(`✅ OTP enviado exitosamente a ${normalizedEmail}`);
       res.json({ success: true, message: 'Código OTP enviado a tu email' });
 
     } catch (emailError) {
-      console.error('❌ Error enviando email:', emailError.message);
+      console.error('❌ Error de conexión SMTP (Nodemailer):', emailError.message);
       return res.status(500).json({
-        message: 'No se pudo enviar el correo. Verifica la configuración SMTP.',
-        detail: process.env.NODE_ENV === 'development' ? emailError.message : undefined
+        message: 'Error de red al enviar el correo. Intenta de nuevo.',
+        error: emailError.message
       });
     }
   } catch (error) {
@@ -102,7 +106,7 @@ export const requestOTP = async (req, res) => {
 };
 
 /**
- * 2. Verificar OTP - El usuario ingresa el código
+ * 2. Verificar OTP
  */
 export const verifyOTP = async (req, res) => {
   try {
@@ -116,22 +120,19 @@ export const verifyOTP = async (req, res) => {
     const storedData = otpStorage.get(normalizedEmail);
 
     if (!storedData) {
-      return res.status(400).json({ message: 'No hay código pendiente o ya fue usado.' });
+      return res.status(400).json({ message: 'No hay código pendiente.' });
     }
 
-    // Validar expiración
     if (Date.now() > storedData.expiresAt) {
       otpStorage.delete(normalizedEmail);
-      return res.status(400).json({ message: 'Código expirado. Solicita uno nuevo.' });
+      return res.status(400).json({ message: 'Código expirado.' });
     }
 
-    // Validar intentos (máx 5)
     if (storedData.attempts >= 5) {
       otpStorage.delete(normalizedEmail);
-      return res.status(429).json({ message: 'Demasiados intentos. Solicita un nuevo código.' });
+      return res.status(429).json({ message: 'Demasiados intentos.' });
     }
 
-    // Validar código
     if (otp !== storedData.otp) {
       storedData.attempts += 1;
       return res.status(401).json({
@@ -140,7 +141,6 @@ export const verifyOTP = async (req, res) => {
       });
     }
 
-    // ✅ ÉXITO - Generar JWT
     otpStorage.delete(normalizedEmail); 
 
     const jwtToken = jwt.sign(
@@ -162,21 +162,19 @@ export const verifyOTP = async (req, res) => {
 };
 
 /**
- * 3. Verificar Token JWT (Para proteger rutas)
+ * 3. Verificar Token JWT
  */
 export const verifyToken = (req, res) => {
   try {
     const authHeader = req.headers.authorization;
     const token = authHeader && authHeader.split(' ')[1];
 
-    if (!token) {
-      return res.status(401).json({ message: 'Token no encontrado' });
-    }
+    if (!token) return res.status(401).json({ message: 'Sin token' });
 
     const decoded = jwt.verify(token, JWT_SECRET);
     res.json({ valid: true, user: decoded });
   } catch (error) {
-    res.status(401).json({ message: 'Token inválido o expirado' });
+    res.status(401).json({ message: 'Token inválido' });
   }
 };
 
@@ -184,5 +182,5 @@ export const verifyToken = (req, res) => {
  * 4. Logout
  */
 export const logout = (req, res) => {
-  res.json({ success: true, message: 'Sesión cerrada correctamente' });
+  res.json({ success: true, message: 'Sesión cerrada' });
 };
