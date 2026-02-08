@@ -28,8 +28,9 @@ const transporter = nodemailer.createTransport({
     user: process.env.GMAIL_USER,
     pass: process.env.GMAIL_APP_PASSWORD,
   },
+  family: 4, // Obliga a usar IPv4 para evitar el error ENETUNREACH
   tls: {
-    rejectUnauthorized: false, // Evita bloqueos por certificados en la red de Render
+    rejectUnauthorized: false,
     minVersion: 'TLSv1.2'
   }
 });
