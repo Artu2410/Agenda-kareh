@@ -5,7 +5,7 @@ import AppointmentsPage from './pages/AppointmentsPage';
 import CashflowPage from './pages/CashflowPage';
 import SettingsPage from './pages/SettingsPage';
 import PatientsPage from './pages/PatientsPage';
-// IMPORT CORREGIDO: Solo usamos el que tiene la "s" al final
+// Solo un import, usando exactamente el nombre que tienes en tu carpeta
 import ClinicalHistoriesPage from './pages/ClinicalHistoriesPage'; 
 import DashboardPage from './pages/DashboardPage';
 import LoginPage from './pages/LoginPage';
@@ -38,7 +38,6 @@ function App() {
       }
       setIsVerifying(false);
     };
-
     verifyAuth();
   }, []);
 
@@ -56,26 +55,22 @@ function App() {
   return (
     <Router>
       <CustomToaster />
-
       <div className="flex h-screen w-full bg-slate-50 text-slate-900 overflow-hidden font-sans">
         {localStorage.getItem('auth_token') && <Sidebar />}
-
         <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/" element={<Navigate to={localStorage.getItem('auth_token') ? '/dashboard' : '/login'} replace />} />
-
             <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
             <Route path="/appointments" element={<ProtectedRoute><AppointmentsPage /></ProtectedRoute>} />
             <Route path="/patients" element={<ProtectedRoute><PatientsPage /></ProtectedRoute>} />
             
-            {/* AMBAS RUTAS APUNTAN A ClinicalHistoriesPage (con s) */}
+            {/* Ambas rutas usan el mismo componente que SI existe */}
             <Route path="/clinical-histories" element={<ProtectedRoute><ClinicalHistoriesPage /></ProtectedRoute>} />
             <Route path="/clinical-history/:patientId" element={<ProtectedRoute><ClinicalHistoriesPage /></ProtectedRoute>} />
             
             <Route path="/cashflow" element={<ProtectedRoute><CashflowPage /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
-
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </main>
