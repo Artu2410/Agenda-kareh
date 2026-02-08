@@ -5,8 +5,8 @@ import AppointmentsPage from './pages/AppointmentsPage';
 import CashflowPage from './pages/CashflowPage';
 import SettingsPage from './pages/SettingsPage';
 import PatientsPage from './pages/PatientsPage';
-import ClinicalHistoryPage from './pages/ClinicalHistoryPage';
-import ClinicalHistoriesPage from './pages/ClinicalHistoriesPage';
+// IMPORT CORREGIDO: Solo usamos el que tiene la "s" al final
+import ClinicalHistoriesPage from './pages/ClinicalHistoriesPage'; 
 import DashboardPage from './pages/DashboardPage';
 import LoginPage from './pages/LoginPage';
 import Sidebar from './components/layout/Sidebar';
@@ -58,7 +58,6 @@ function App() {
       <CustomToaster />
 
       <div className="flex h-screen w-full bg-slate-50 text-slate-900 overflow-hidden font-sans">
-        {/* Sidebar solo si hay token */}
         {localStorage.getItem('auth_token') && <Sidebar />}
 
         <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
@@ -69,12 +68,14 @@ function App() {
             <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
             <Route path="/appointments" element={<ProtectedRoute><AppointmentsPage /></ProtectedRoute>} />
             <Route path="/patients" element={<ProtectedRoute><PatientsPage /></ProtectedRoute>} />
+            
+            {/* AMBAS RUTAS APUNTAN A ClinicalHistoriesPage (con s) */}
             <Route path="/clinical-histories" element={<ProtectedRoute><ClinicalHistoriesPage /></ProtectedRoute>} />
-            <Route path="/clinical-history/:patientId" element={<ProtectedRoute><ClinicalHistoryPage /></ProtectedRoute>} />
+            <Route path="/clinical-history/:patientId" element={<ProtectedRoute><ClinicalHistoriesPage /></ProtectedRoute>} />
+            
             <Route path="/cashflow" element={<ProtectedRoute><CashflowPage /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
 
-            {/* Fallback */}
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </main>
