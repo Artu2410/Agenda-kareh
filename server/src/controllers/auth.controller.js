@@ -22,13 +22,13 @@ if (!GMAIL_USER || !GMAIL_APP_PASSWORD) {
 // ==========================================
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
-  port: 587,         // Puerto estándar para TLS
-  secure: false,      // Debe ser false para el puerto 587
+  port: 587,
+  secure: false,
   auth: {
     user: process.env.GMAIL_USER,
     pass: process.env.GMAIL_APP_PASSWORD,
   },
-  family: 4, // Obliga a usar IPv4 para evitar el error ENETUNREACH
+  family: 4, // <--- REVISA QUE ESTA LÍNEA ESTÉ AQUÍ Y EL ARCHIVO GUARDADO
   tls: {
     rejectUnauthorized: false,
     minVersion: 'TLSv1.2'
