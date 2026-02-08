@@ -1,0 +1,136 @@
+@import "tailwindcss";
+
+@theme {
+  --color-kareh-teal: #0d9488;
+  --color-kareh-bg: #f8fafc;
+  --radius-kareh: 2.5rem;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-kareh-bg);
+    color: #1e293b;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+/* --- SCROLL PERSONALIZADO PARA EL MODAL (Historia Clínica) --- */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 #f1f5f9;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+  display: block !important;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background-clip: padding-box;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* --- TIPOGRAFÍA FLUIDA Y ADAPTATIVA --- */
+@layer base {
+  h1 {
+    font-size: clamp(1.875rem, 5vw, 3.75rem);
+    line-height: 1.2;
+  }
+  h2 {
+    font-size: clamp(1.5rem, 4vw, 2.25rem);
+    line-height: 1.3;
+  }
+  h3 {
+    font-size: clamp(1.125rem, 3vw, 1.875rem);
+    line-height: 1.4;
+  }
+  body {
+    font-size: clamp(0.875rem, 2vw, 1rem);
+    line-height: 1.6;
+  }
+}
+
+/* --- SCROLLBAR TÁCTIL (MÓVIL) --- */
+@media (max-width: 640px) {
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(16, 185, 129, 0.4);
+    border-radius: 6px;
+  }
+}
+
+/* --- CONTENEDOR DEL CALENDARIO --- */
+.calendar-scroll-container {
+  max-height: 80vh;
+  overflow: auto;
+  border-radius: 1rem;
+  position: relative;
+}
+
+/* --- ESTILOS STICKY (CABECERAS FIJAS) --- */
+.sticky-day-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background-color: #f8fafc !important;
+  box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.05);
+}
+
+.sticky-time-column {
+  position: sticky;
+  left: 0;
+  z-index: 30;
+  background-color: #f8fafc !important;
+  border-right: 2px solid #e2e8f0;
+}
+
+.sticky-corner {
+  position: sticky;
+  top: 0;
+  left: 0;
+  z-index: 50;
+  background-color: #f1f5f9 !important;
+}
+
+/* --- GRILLA DEL CALENDARIO (SIN DOMINGO) --- */
+[class*="grid-cols-8"] {
+  display: grid !important;
+  /* 85px para la hora, y 6 columnas iguales para Lunes-Sábado */
+  grid-template-columns: 85px repeat(6, minmax(150px, 1fr)) !important;
+}
+
+/* Ocultar la octava columna (Domingo) y cualquier rastro */
+[class*="grid-cols-8"] > :nth-child(8n),
+.calendar-sunday {
+  display: none !important;
+}
+
+/* Scrollbar estética del Calendario */
+.calendar-scroll-container::-webkit-scrollbar { 
+  width: 8px; 
+  height: 8px; 
+}
+
+.calendar-scroll-container::-webkit-scrollbar-thumb { 
+  background: #cbd5e1; 
+  border-radius: 10px; 
+}
+
+.calendar-scroll-container::-webkit-scrollbar-thumb:hover { 
+  background: var(--color-kareh-teal); 
+}

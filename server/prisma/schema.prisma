@@ -1,0 +1,148 @@
+// ---------------------------------------------------------
+// CONFIGURACIÓN DE CONEXIÓN
+// ---------------------------------------------------------
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ---------------------------------------------------------
+// 1. CONFIGURACIÓN GLOBAL DE LA APP
+// ---------------------------------------------------------
+model AgendaConfig {
+  id                String   @id @default(cuid())
+  weekdayStartTime  String
+  weekdayEndTime    String
+  saturdayEnabled   Boolean  @default(false)
+  saturdayStartTime String?
+  saturdayEndTime   String?
+  slotDuration      Int      @default(30)
+  capacityPerSlot   Int      @default(5)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+// ---------------------------------------------------------
+// 2. PACIENTES
+// ---------------------------------------------------------
+model Patient {
+  id              String            @id @default(cuid())
+  dni             String            @unique
+  fullName        String
+  email           String?
+  birthDate       DateTime
+  healthInsurance String?
+  phone           String?
+  address         String?
+  hasCancer       Boolean           @default(false)
+  hasMarcapasos   Boolean           @default(false)
+  usesEA          Boolean           @default(false)
+  medicalNotes    String?           @db.Text
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  
+  appointments    Appointment[]
+  clinicalHistory ClinicalHistory[]
+  treatmentCycles TreatmentCycle[]
+}
+
+// ---------------------------------------------------------
+// 3. STAFF PROFESIONAL
+// ---------------------------------------------------------
+model Professional {
+  id              String            @id @default(cuid())
+  fullName        String
+  licenseNumber   String            @unique
+  specialty       String            @default("Kinesiología")
+  isActive        Boolean           @default(true)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  
+  appointments    Appointment[]
+  clinicalHistories ClinicalHistory[]
+  workSchedule    WorkSchedule[]
+}
+
+model WorkSchedule {
+  id             String       @id @default(cuid())
+  professionalId String
+  professional   Professional @relation(fields: [professionalId], references: [id])
+  dayOfWeek      Int
+  startTime      String
+  endTime        String
+
+  @@unique([professionalId, dayOfWeek])
+}
+
+// ---------------------------------------------------------
+// 4. AGENDA Y TRATAMIENTOS
+// ---------------------------------------------------------
+model TreatmentCycle {
+  id            String        @id @default(cuid())
+  patientId     String
+  patient       Patient       @relation(fields: [patientId], references: [id])
+  diagnosis     String
+  startDate     DateTime      @default(now())
+  totalSessions Int
+  appointments  Appointment[]
+  createdAt     DateTime      @default(now())
+}
+
+model Appointment {
+  id             String          @id @default(cuid())
+  date           DateTime
+  time           String
+  slotNumber     Int
+  diagnosis      String?
+  patientId      String
+  patient        Patient         @relation(fields: [patientId], references: [id])
+  professionalId String
+  professional   Professional    @relation(fields: [professionalId], references: [id])
+  cycleId        String?
+  treatmentCycle TreatmentCycle? @relation(fields: [cycleId], references: [id])
+  sessionNumber  Int?
+  isFirstSession Boolean         @default(false)
+  status         String          @default("SCHEDULED")
+  payment        CashFlow?
+
+  @@unique([date, time, slotNumber, professionalId])
+}
+
+// ---------------------------------------------------------
+// 5. HISTORIA CLÍNICA (CORREGIDA)
+// ---------------------------------------------------------
+model ClinicalHistory {
+  id             String        @id @default(cuid())
+  patientId      String        // DEBE SER STRING PARA COINCIDIR CON PATIENT.ID
+  patient        Patient       @relation(fields: [patientId], references: [id])
+  professionalId String?
+  professional   Professional? @relation(fields: [professionalId], references: [id])
+  date           DateTime      @default(now())
+  diagnosis      String?
+  evolution      String        @db.Text
+  attachments    String?
+  createdAt      DateTime      @default(now())
+}
+
+// ---------------------------------------------------------
+// 6. FINANZAS
+// ---------------------------------------------------------
+model CashFlow {
+  id            String      @id @default(cuid())
+  type          FlowType
+  amount        Decimal     @db.Decimal(10, 2)
+  concept       String
+  paymentMethod String
+  appointmentId String?     @unique
+  appointment   Appointment? @relation(fields: [appointmentId], references: [id])
+  date          DateTime    @default(now())
+}
+
+enum FlowType {
+  INCOME
+  EXPENSE
+}
