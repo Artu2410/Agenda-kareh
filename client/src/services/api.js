@@ -2,10 +2,9 @@ import axios from 'axios';
 
 /**
  * CONFIGURACIÓN DE URL
- * Priorizamos la variable de entorno, pero dejamos la de Render como fallback directo
- * para evitar que 'import.meta.env' falle en tiempo de ejecución.
+ * Dejamos la base solo con el dominio para evitar confusiones de rutas.
  */
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://kareh-backend.onrender.com/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://kareh-backend.onrender.com';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -33,7 +32,6 @@ api.interceptors.response.use(
     let message = 'Ocurrió un error inesperado';
 
     if (error.response) {
-      // El servidor respondió con un código de error (4xx, 5xx)
       const status = error.response.status;
       
       if (status === 401) message = 'Sesión expirada. Por favor, inicia sesión nuevamente.';
@@ -43,40 +41,38 @@ api.interceptors.response.use(
       if (status === 500) message = 'Error en el servidor de Kareh Pro. Revisa el backend.';
       if (status === 503) message = 'El servidor está temporalmente fuera de línea.';
       
-      // Si el backend envió un mensaje específico, lo usamos
       message = error.response.data?.message || message;
     } else if (error.request) {
-      // La petición se hizo pero no hubo respuesta (Error de red o CORS)
       message = 'No se pudo conectar con el servidor. Verifica tu conexión o el estado del backend.';
     }
 
-    // Retornamos un objeto de error más limpio para el frontend
     return Promise.reject({ ...error, friendlyMessage: message });
   }
 );
 
 export default api;
 
-// --- FUNCIONES ESPECÍFICAS ---
+// --- FUNCIONES ESPECÍFICAS CORREGIDAS (Añadido /api/ en todas) ---
 
-// Auth - Petición de OTP (Hardcoded para asegurar que funcione)
+// Auth
 export const requestOTP = async (email) => {
-  return api.post('/auth/request-otp', { email });
+  // Coincide con app.use('/api/auth', ...) en tu server
+  return api.post('/api/auth/request-otp', { email });
 };
 
 export const verifyOTP = async (email, otp) => {
-  return api.post('/auth/verify-otp', { email, otp });
+  return api.post('/api/auth/verify-otp', { email, otp });
 };
 
 // Appointments
 export const deleteAppointment = async (appointmentId) => {
-  return api.delete(`/appointments/${appointmentId}`);
+  return api.delete(`/api/appointments/${appointmentId}`);
 };
 
 export const cancelFutureAppointments = async (patientId, fromDate = null) => {
-  return api.post(`/appointments/patients/${patientId}/cancel-future`, { fromDate });
+  return api.post(`/api/appointments/patients/${patientId}/cancel-future`, { fromDate });
 };
 
 export const updateAppointment = async (appointmentId, data) => {
-  return api.patch(`/appointments/${appointmentId}`, data);
+  return api.patch(`/api/appointments/${appointmentId}`, data);
 };
