@@ -21,17 +21,15 @@ if (!GMAIL_USER || !GMAIL_APP_PASSWORD) {
 // CONFIGURACIÓN DE TRANSPORTADOR (CORREGIDA PARA RENDER)
 // ==========================================
 const transporter = nodemailer.createTransport({
-  host: "74.125.193.108", // <--- Esta es la IP directa (IPv4) de smtp.gmail.com
-  port: 587,
-  secure: false,
+  host: "smtp.gmail.com",
+  port: 465,               // Cambiamos a puerto SSL
+  secure: true,            // Debe ser TRUE para el puerto 465
   auth: {
     user: process.env.GMAIL_USER,
     pass: process.env.GMAIL_APP_PASSWORD,
   },
   tls: {
-    rejectUnauthorized: false,
-    minVersion: 'TLSv1.2',
-    servername: 'smtp.gmail.com' // Necesario para que el certificado sea válido
+    rejectUnauthorized: false // Esto evita bloqueos por certificados en Render
   }
 });
 /**
