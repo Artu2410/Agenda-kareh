@@ -21,15 +21,22 @@ if (!GMAIL_USER || !GMAIL_APP_PASSWORD) {
 // CONFIGURACIÓN DE TRANSPORTADOR (CORREGIDA PARA RENDER)
 // ==========================================
 const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 465,               // Cambiamos a puerto SSL
-  secure: true,            // Debe ser TRUE para el puerto 465
+  service: 'gmail', // Usamos el alias directo de Gmail
+  host: 'smtp.gmail.com',
+  port: 465,
+  secure: true,
   auth: {
     user: process.env.GMAIL_USER,
     pass: process.env.GMAIL_APP_PASSWORD,
   },
+  // ESTA CONFIGURACIÓN ES PARA REDES RESTRICTIVAS:
+  family: 4, 
+  connectionTimeout: 10000, // 10 segundos de espera
+  greetingTimeout: 5000,
+  socketTimeout: 10000,
   tls: {
-    rejectUnauthorized: false // Esto evita bloqueos por certificados en Render
+    rejectUnauthorized: false,
+    minVersion: 'TLSv1.2'
   }
 });
 /**
