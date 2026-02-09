@@ -21,20 +21,19 @@ if (!GMAIL_USER || !GMAIL_APP_PASSWORD) {
 // CONFIGURACIÓN DE TRANSPORTADOR (CORREGIDA PARA RENDER)
 // ==========================================
 const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
+  host: "74.125.193.108", // <--- Esta es la IP directa (IPv4) de smtp.gmail.com
   port: 587,
   secure: false,
   auth: {
     user: process.env.GMAIL_USER,
     pass: process.env.GMAIL_APP_PASSWORD,
   },
-  family: 4, // <--- REVISA QUE ESTA LÍNEA ESTÉ AQUÍ Y EL ARCHIVO GUARDADO
   tls: {
     rejectUnauthorized: false,
-    minVersion: 'TLSv1.2'
+    minVersion: 'TLSv1.2',
+    servername: 'smtp.gmail.com' // Necesario para que el certificado sea válido
   }
 });
-
 /**
  * 1. Solicitar OTP
  */
