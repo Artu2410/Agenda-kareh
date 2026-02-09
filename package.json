@@ -12,6 +12,7 @@
     "date-fns": "^4.x.x",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "resend": "^6.9.1",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

@@ -1,43 +1,20 @@
 import jwt from 'jsonwebtoken';
-import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 
-// Almacenamiento temporal de OTPs (en producción usar Redis para persistencia)
+// 1. Configuración de Resend y Variables de Entorno
+const resend = new Resend(process.env.RESEND_API_KEY);
+const JWT_SECRET = process.env.JWT_SECRET || 'clave_secreta_provisional';
+const AUTHORIZED_EMAIL = (process.env.AUTHORIZED_EMAIL || 'centrokareh@gmail.com').toLowerCase();
+
+// Almacenamiento temporal de OTPs
 const otpStorage = new Map();
 
 /**
- * CONFIGURACIÓN DE VARIABLES DE ENTORNO
- */
-const GMAIL_USER = process.env.GMAIL_USER;
-const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
-const JWT_SECRET = process.env.JWT_SECRET || 'clave_secreta_por_defecto_cambiar_urgente';
-const AUTHORIZED_EMAIL = (process.env.AUTHORIZED_EMAIL || 'centrokareh@gmail.com').toLowerCase();
-
-// Validación de credenciales críticas
-if (!GMAIL_USER || !GMAIL_APP_PASSWORD) {
-  console.warn('⚠️ ADVERTENCIA: GMAIL_USER o GMAIL_APP_PASSWORD no están configurados.');
-}
-
-// ==========================================
-// CONFIGURACIÓN DE TRANSPORTADOR (CORREGIDA PARA RENDER)
-// ==========================================
-const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 465,
-  secure: true, // true para puerto 465
-  auth: {
-    user: process.env.GMAIL_USER,
-    pass: process.env.GMAIL_APP_PASSWORD,
-  },
-  family: 4 // Forzamos IPv4 a nivel de socket
-});
-/**
- * 1. Solicitar OTP
+ * 1. SOLICITAR OTP (Vía Resend API)
  */
 export const requestOTP = async (req, res) => {
   try {
     const { email } = req.body;
-    // req.prisma ya está disponible gracias al middleware de rutas que hicimos antes
-    const prisma = req.prisma; 
 
     if (!email || !email.includes('@')) {
       return res.status(400).json({ message: 'Email inválido' });
@@ -45,7 +22,7 @@ export const requestOTP = async (req, res) => {
 
     const normalizedEmail = email.toLowerCase();
 
-    // Validar que sea el email autorizado
+    // Validar autorización
     if (normalizedEmail !== AUTHORIZED_EMAIL) {
       return res.status(403).json({
         message: 'Acceso Denegado',
@@ -53,48 +30,48 @@ export const requestOTP = async (req, res) => {
       });
     }
 
+    // Generar OTP y expiración (15 min)
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = Date.now() + 15 * 60 * 1000;
 
+    // Guardar en memoria
     otpStorage.set(normalizedEmail, { otp, expiresAt, attempts: 0 });
 
-    // Enviar email con el OTP
+    // Enviar Email mediante la API de Resend
     try {
-      await transporter.sendMail({
-        from: `"Kareh Salud" <${GMAIL_USER}>`,
+      const { data, error } = await resend.emails.send({
+        from: 'Kareh Salud <onboarding@resend.dev>', // Cambia esto cuando tengas dominio propio
         to: normalizedEmail,
         subject: '🔐 Tu código de acceso a Kareh Salud',
         html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #eee; border-radius: 10px; overflow: hidden;">
-            <div style="background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%); padding: 30px; text-align: center;">
-              <h1 style="color: white; margin: 0; font-size: 28px;">🏥 Kareh Salud</h1>
+          <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #eee; border-radius: 10px; overflow: hidden;">
+            <div style="background: #0d9488; padding: 20px; text-align: center;">
+              <h1 style="color: white; margin: 0;">🏥 Kareh Salud</h1>
             </div>
-            <div style="padding: 30px; background: #f8fafc;">
-              <p style="color: #334155; font-size: 16px;">Hola,</p>
-              <p style="color: #64748b; font-size: 15px;">Usa el siguiente código para acceder a tu cuenta:</p>
-              <div style="background: white; padding: 25px; border-radius: 8px; margin: 25px 0; text-align: center; border: 1px dashed #0d9488;">
-                <p style="margin: 0; font-size: 12px; color: #94a3b8; text-transform: uppercase;">Código de Verificación</p>
-                <p style="margin: 10px 0; font-size: 36px; font-weight: bold; color: #0d9488; letter-spacing: 8px;">${otp}</p>
+            <div style="padding: 30px; background: #ffffff;">
+              <p>Usa el siguiente código para iniciar sesión:</p>
+              <div style="background: #f1f5f9; padding: 20px; text-align: center; border-radius: 8px; margin: 20px 0;">
+                <span style="font-size: 32px; font-weight: bold; color: #0d9488; letter-spacing: 5px;">${otp}</span>
               </div>
-              <p style="color: #94a3b8; font-size: 13px;">⏱️ Este código expira en 15 minutos.</p>
-              <div style="border-top: 1px solid #e2e8f0; padding-top: 20px; margin-top: 20px; text-align: center;">
-                <p style="color: #94a3b8; font-size: 12px; margin: 0;">© 2026 Kareh Salud - Centro de Kinesiología</p>
-              </div>
+              <p style="font-size: 12px; color: #64748b;">Este código expira en 15 minutos.</p>
             </div>
           </div>
-        `,
+        `
       });
 
-      console.log(`✅ OTP enviado exitosamente a ${normalizedEmail}`);
+      if (error) {
+        console.error('❌ Error de Resend API:', error);
+        return res.status(500).json({ message: 'Error de Resend', error });
+      }
+
+      console.log('✅ Correo enviado vía Resend ID:', data.id);
       res.json({ success: true, message: 'Código OTP enviado a tu email' });
 
-    } catch (emailError) {
-      console.error('❌ Error de conexión SMTP (Nodemailer):', emailError.message);
-      return res.status(500).json({
-        message: 'Error de red al enviar el correo. Intenta de nuevo.',
-        error: emailError.message
-      });
+    } catch (resendErr) {
+      console.error('❌ Error crítico en Resend:', resendErr.message);
+      res.status(500).json({ message: 'No se pudo enviar el correo' });
     }
+
   } catch (error) {
     console.error('❌ Error en requestOTP:', error);
     res.status(500).json({ message: 'Error interno del servidor' });
@@ -102,22 +79,15 @@ export const requestOTP = async (req, res) => {
 };
 
 /**
- * 2. Verificar OTP
+ * 2. VERIFICAR OTP (Misma lógica anterior)
  */
 export const verifyOTP = async (req, res) => {
   try {
     const { email, otp } = req.body;
-
-    if (!email || !otp) {
-      return res.status(400).json({ message: 'Email y OTP requeridos' });
-    }
-
-    const normalizedEmail = email.toLowerCase();
+    const normalizedEmail = email?.toLowerCase();
     const storedData = otpStorage.get(normalizedEmail);
 
-    if (!storedData) {
-      return res.status(400).json({ message: 'No hay código pendiente.' });
-    }
+    if (!storedData) return res.status(400).json({ message: 'No hay código pendiente.' });
 
     if (Date.now() > storedData.expiresAt) {
       otpStorage.delete(normalizedEmail);
@@ -131,51 +101,45 @@ export const verifyOTP = async (req, res) => {
 
     if (otp !== storedData.otp) {
       storedData.attempts += 1;
-      return res.status(401).json({
-        message: 'Código incorrecto',
-        attemptsRemaining: 5 - storedData.attempts
-      });
+      return res.status(401).json({ message: 'Código incorrecto', attemptsRemaining: 5 - storedData.attempts });
     }
 
-    otpStorage.delete(normalizedEmail); 
+    // Éxito: Limpiar y generar Token
+    otpStorage.delete(normalizedEmail);
 
-    const jwtToken = jwt.sign(
-      { email: normalizedEmail, type: 'otp-verified' },
+    const token = jwt.sign(
+      { email: normalizedEmail, role: 'admin' },
       JWT_SECRET,
       { expiresIn: '30d' }
     );
 
     res.json({
       success: true,
-      message: 'Acceso concedido',
-      token: jwtToken,
+      token,
       user: { email: normalizedEmail, name: 'Administrador' }
     });
   } catch (error) {
-    console.error('❌ Error en verifyOTP:', error);
-    res.status(500).json({ message: 'Error interno del servidor' });
+    res.status(500).json({ message: 'Error en la verificación' });
   }
 };
 
 /**
- * 3. Verificar Token JWT
+ * 3. VERIFICAR TOKEN
  */
 export const verifyToken = (req, res) => {
   try {
-    const authHeader = req.headers.authorization;
-    const token = authHeader && authHeader.split(' ')[1];
-
-    if (!token) return res.status(401).json({ message: 'Sin token' });
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) return res.status(401).json({ message: 'No autorizado' });
 
     const decoded = jwt.verify(token, JWT_SECRET);
     res.json({ valid: true, user: decoded });
   } catch (error) {
-    res.status(401).json({ message: 'Token inválido' });
+    res.status(401).json({ message: 'Sesión inválida' });
   }
 };
 
 /**
- * 4. Logout
+ * 4. LOGOUT
  */
 export const logout = (req, res) => {
   res.json({ success: true, message: 'Sesión cerrada' });
