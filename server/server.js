@@ -79,7 +79,7 @@ app.use((err, req, res, next) => {
     console.error('❌ Error detectado:', err.message);
     res.status(500).json({ 
         error: "Error interno del servidor",
-        message: err.message 
+        message: err.message
     });
 });
 
