@@ -4,19 +4,17 @@ import { requestOTP, verifyOTP, verifyToken, logout } from '../controllers/auth.
 export default function createAuthRoutes(prisma) {
   const router = Router();
 
+  // Inyectamos prisma y log de depuración para ver qué llega
   router.use((req, res, next) => {
     req.prisma = prisma;
-    console.log(`📡 Solicitud recibida: ${req.method} ${req.originalUrl}`); 
+    console.log(`📡 Solicitud en Auth: ${req.method} ${req.originalUrl}`);
     next();
   });
 
-  // Estas rutas ahora serán /api/auth/request-otp, etc.
+  // Rutas estándar (con /api/auth/...)
   router.post('/request-otp', requestOTP);
   router.post('/verify-otp', verifyOTP);
-  
-  // Esta es la que falla (GET /api/auth/verify)
-  router.get('/verify', verifyToken);
-  
+  router.get('/verify', verifyToken); // <--- Esta es la que el frontend busca
   router.post('/logout', logout);
 
   return router;

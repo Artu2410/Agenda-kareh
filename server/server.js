@@ -9,13 +9,10 @@ import dns from 'node:dns';
 // ========================================
 // 1. CONFIGURACIÓN CRÍTICA DE RED (RENDER)
 // ========================================
-// Esto obliga a Node.js a ignorar IPv6 y usar IPv4, eliminando el error ENETUNREACH
+// Fuerza a Node.js a priorizar IPv4 para evitar errores de conexión SMTP/API
 dns.setDefaultResultOrder('ipv4first');
 
-// Carga de variables de entorno
 dotenv.config();
-
-// Inicialización de Prisma
 const prisma = new PrismaClient();
 
 // ========================================
@@ -33,7 +30,7 @@ const app = express();
 // ========================================
 // 3. MIDDLEWARES DE SEGURIDAD Y CONFIG.
 // ========================================
-app.set('trust proxy', 1); // Indispensable para Render
+app.set('trust proxy', 1); 
 
 app.use(helmet({
   contentSecurityPolicy: false,
@@ -51,13 +48,12 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// Aumentamos límites para evitar problemas con historiales clínicos pesados
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 1000, // Límite generoso
+  max: 1000, 
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -68,47 +64,40 @@ app.use(generalLimiter);
 // ========================================
 prisma.$connect()
   .then(() => console.log('✅ DB Conectada con éxito'))
-  .catch((e) => {
-    console.error('❌ Error de conexión DB:', e.message);
-  });
-
-// Verificación de entorno en consola de Render
-console.log('--- Verificación de Entorno ---');
-console.log('Email configurado:', process.env.GMAIL_USER ? '✅ SI' : '❌ NO');
-console.log('Pass configurada:', process.env.GMAIL_APP_PASSWORD ? '✅ SI' : '❌ NO');
-console.log('-------------------------------');
+  .catch((e) => console.error('❌ Error de conexión DB:', e.message));
 
 // ========================================
-// 5. DEFINICIÓN DE RUTAS
+// 5. DEFINICIÓN DE RUTAS (CORREGIDO)
 // ========================================
 
-// Ruta de salud para Render
-app.get('/health', (req, res) => res.json({ status: 'OK' }));
+// Guardamos las rutas de auth en una constante
+const authRoutes = createAuthRoutes(prisma);
 
-// Ruta base
-app.get('/', (req, res) => {
-    res.json({ message: '🚀 KAREH PRO API - Online' });
-});
+// REGISTRO DOBLE: Esto soluciona el error 404 del Frontend
+app.use('/api/auth', authRoutes); // Para llamadas estándar
+app.use('/auth', authRoutes);     // Para la llamada que hace tu frontend a /auth/verify
 
-// Rutas de la API
-app.use('/api/auth', createAuthRoutes(prisma));
-app.use('/auth/verify', createAuthRoutes(prisma));
+// Rutas protegidas por middleware
 app.use('/api/appointments', authMiddleware, createAppointmentRoutes(prisma));
 app.use('/api/patients', authMiddleware, createPatientRoutes(prisma));
 app.use('/api/cashflow', authMiddleware, createCashflowRoutes(prisma));
 app.use('/api/clinical-history', authMiddleware, createClinicalHistoryRoutes(prisma));
 
+// Rutas de utilidad
+app.get('/health', (req, res) => res.json({ status: 'OK', uptime: process.uptime() }));
+app.get('/', (req, res) => res.json({ message: '🚀 KAREH PRO API - Online' }));
+
 // ========================================
 // 6. MANEJO DE ERRORES
 // ========================================
 
-// Error 404
+// Error 404 para rutas no definidas
 app.use((req, res) => {
   console.log(`❓ Ruta no encontrada: ${req.method} ${req.url}`);
   res.status(404).json({ message: `Ruta no encontrada: ${req.url}` });
 });
 
-// Error Global
+// Manejador global de errores
 app.use((err, req, res, next) => {
   console.error('❌ Error detectado:', err.message);
   res.status(err.status || 500).json({ 
