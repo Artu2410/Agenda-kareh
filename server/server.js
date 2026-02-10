@@ -22,10 +22,9 @@ import { authMiddleware } from './src/middlewares/authMiddleware.js';
 
 // 3. Middlewares (CORS siempre primero)
 app.use(cors({
-    origin: ['https://kareh-salud.vercel.app', 'http://localhost:5173'],
+    origin: 'https://kareh-salud.vercel.app',
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie']
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'] // Asegúrate de incluir Authorization
 }));
 
 app.set('trust proxy', 1);

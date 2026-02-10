@@ -104,18 +104,19 @@ export const verifyOTP = async (req, res) => {
  */
 export const verifyToken = async (req, res) => {
   try {
-    // Extraer el token del header "Authorization: Bearer <TOKEN>"
+    // Buscamos el token en el Header Authorization: Bearer XXXXX
     const authHeader = req.headers.authorization;
-    const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
+    const token = authHeader && authHeader.startsWith('Bearer ') 
+                  ? authHeader.split(' ')[1] 
+                  : req.query.token; // También buscamos por query por si acaso
 
     if (!token) {
-      return res.status(401).json({ valid: false, message: "Token no proporcionado" });
+      return res.status(401).json({ valid: false, message: "Token no encontrado" });
     }
 
-    // Verificar el token
-    const decoded = jwt.verify(token, JWT_SECRET);
+    // Verificamos con la clave del proceso
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'clave_secreta_provisional');
 
-    // Si es válido, responder con los datos del usuario decodificados
     return res.status(200).json({ 
       valid: true, 
       user: {
@@ -124,9 +125,8 @@ export const verifyToken = async (req, res) => {
         name: 'Administrador'
       } 
     });
-
   } catch (error) {
-    console.error("❌ Error JWT:", error.message);
+    console.error("❌ Error de validación:", error.message);
     return res.status(401).json({ valid: false, message: "Token inválido o expirado" });
   }
 };
