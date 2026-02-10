@@ -67,18 +67,17 @@ app.get('/', (req, res) => res.status(200).json({ message: '🚀 KAREH PRO API O
 
 // Middleware para capturar cualquier ruta no definida y responder SIEMPRE en JSON
 app.use((req, res) => {
-    console.log(`📡 404 - Ruta no encontrada: ${req.method} ${req.originalUrl}`);
+    // Si el frontend pide algo que no existe, devolvemos JSON 404
     res.status(404).json({ 
-        error: "Endpoint no encontrado", 
-        method: req.method,
+        error: "Ruta no encontrada", 
         path: req.originalUrl 
     });
 });
 
-// Manejador de errores global para evitar que el servidor se caiga
 app.use((err, req, res, next) => {
-    console.error('❌ Error Interno:', err.stack);
-    res.status(err.status || 500).json({ 
+    // Si hay un error de código, devolvemos JSON 500
+    console.error('❌ Error detectado:', err.message);
+    res.status(500).json({ 
         error: "Error interno del servidor",
         message: err.message 
     });
