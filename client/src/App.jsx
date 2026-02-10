@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 
 import AppointmentsPage from './pages/AppointmentsPage';
@@ -17,64 +17,75 @@ function App() {
   const [isVerifying, setIsVerifying] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  // Función para verificar el token
-  const verifyAuth = async () => {
-  const token = localStorage.getItem('auth_token');
-  if (!token) {
-    setIsAuthenticated(false);
-    setIsVerifying(false);
-    return;
-  }
-
-  try {
-    // IMPORTANTE: Asegúrate de que esta URL sea la correcta de tu backend
-    const response = await fetch('https://kareh-backend.onrender.com/api/auth/verify', {
-      headers: { 
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/json' // Le pedimos explícitamente JSON
-      }
-    });
-
-    // Si recibimos HTML (error), lanzamos un error para que lo capture el catch
-    const contentType = response.headers.get("content-type");
-    if (!contentType || !contentType.includes("application/json")) {
-      throw new TypeError("El servidor no respondió con JSON. Revisa la URL del Backend.");
-    }
-
-    const data = await response.json();
-    if (data.valid) {
-      setIsAuthenticated(true);
-    } else {
-      localStorage.removeItem('auth_token');
+  const verifyAuth = useCallback(async () => {
+    const token = localStorage.getItem('auth_token');
+    
+    if (!token) {
       setIsAuthenticated(false);
+      setIsVerifying(false);
+      return;
     }
-  } catch (err) {
-    console.error('Error verificando token:', err);
-    setIsAuthenticated(false);
-  } finally {
-    setIsVerifying(false);
-  }
-};
+
+    try {
+      const baseUrl = import.meta.env.VITE_API_URL || 'https://kareh-backend.onrender.com/api';
+      const response = await fetch(`${baseUrl}/auth/verify`, {
+        method: 'GET',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
+      });
+
+      // Si el servidor responde con HTML o error, no es un JSON válido
+      const contentType = response.headers.get("content-type");
+      if (!response.ok || !contentType || !contentType.includes("application/json")) {
+        throw new Error("Respuesta no válida del servidor");
+      }
+
+      const data = await response.json();
+      
+      // Verificamos que data exista y tenga la propiedad valid
+      if (data && data.valid === true) {
+        setIsAuthenticated(true);
+      } else {
+        console.warn("Sesión inválida");
+        localStorage.removeItem('auth_token');
+        setIsAuthenticated(false);
+      }
+    } catch (err) {
+      console.error('Error verificando acceso:', err.message);
+      // No borramos el token aquí para evitar bucles si es un error temporal de red
+      setIsAuthenticated(false);
+    } finally {
+      // Importante: Marcar como finalizado para romper el bucle de carga
+      setIsVerifying(false);
+    }
+  }, []);
 
   useEffect(() => {
     verifyAuth();
     
-    // Escuchar cambios en el login (por si se loguea en otra pestaña o tras el login)
-    window.addEventListener('storage', verifyAuth);
-    return () => window.removeEventListener('storage', verifyAuth);
-  }, []);
+    // Sincronizar pestañas
+    const handleStorageChange = (e) => {
+      if (e.key === 'auth_token') verifyAuth();
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [verifyAuth]);
 
-  // Función para refrescar el estado tras el login
   const handleLoginSuccess = () => {
     setIsAuthenticated(true);
+    setIsVerifying(false);
   };
 
+  // Pantalla de carga inicial (Evita el "flash" de login/dashboard)
   if (isVerifying) {
     return (
-      <div className="w-full h-screen flex items-center justify-center bg-gradient-to-br from-teal-50 to-slate-100">
-        <div className="text-center space-y-4">
-          <div className="w-12 h-12 rounded-full border-4 border-teal-200 border-t-teal-600 animate-spin mx-auto"></div>
-          <p className="text-slate-600 font-semibold">Verificando acceso...</p>
+      <div className="w-full h-screen flex items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-4 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-slate-500 font-medium">Cargando Kareh Salud...</p>
         </div>
       </div>
     );
@@ -84,30 +95,45 @@ function App() {
     <Router>
       <CustomToaster />
       <div className="flex h-screen w-full bg-slate-50 text-slate-900 overflow-hidden font-sans">
-        {/* Usamos el ESTADO isAuthenticated para mostrar el Sidebar */}
         {isAuthenticated && <Sidebar />}
         
         <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
           <Routes>
+            {/* Rutas Públicas */}
             <Route path="/login" element={
               isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginPage onLoginSuccess={handleLoginSuccess} />
             } />
             
-            <Route path="/" element={
-              <Navigate to={isAuthenticated ? '/dashboard' : '/login'} replace />
+            {/* Rutas Privadas Protegidas */}
+            <Route path="/dashboard" element={
+              <ProtectedRoute isAuthenticated={isAuthenticated}><DashboardPage /></ProtectedRoute>
             } />
-            
-            <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-            <Route path="/appointments" element={<ProtectedRoute><AppointmentsPage /></ProtectedRoute>} />
-            <Route path="/patients" element={<ProtectedRoute><PatientsPage /></ProtectedRoute>} />
-            
-            <Route path="/clinical-histories" element={<ProtectedRoute><ClinicalHistoriesPage /></ProtectedRoute>} />
-            <Route path="/clinical-history/:patientId" element={<ProtectedRoute><ClinicalHistoriesPage /></ProtectedRoute>} />
-            
-            <Route path="/cashflow" element={<ProtectedRoute><CashflowPage /></ProtectedRoute>} />
-            <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
-            
-            <Route path="*" element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />} />
+            <Route path="/appointments" element={
+              <ProtectedRoute isAuthenticated={isAuthenticated}><AppointmentsPage /></ProtectedRoute>
+            } />
+            <Route path="/patients" element={
+              <ProtectedRoute isAuthenticated={isAuthenticated}><PatientsPage /></ProtectedRoute>
+            } />
+            <Route path="/clinical-histories" element={
+              <ProtectedRoute isAuthenticated={isAuthenticated}><ClinicalHistoriesPage /></ProtectedRoute>
+            } />
+            <Route path="/clinical-history/:patientId" element={
+              <ProtectedRoute isAuthenticated={isAuthenticated}><ClinicalHistoriesPage /></ProtectedRoute>
+            } />
+            <Route path="/cashflow" element={
+              <ProtectedRoute isAuthenticated={isAuthenticated}><CashflowPage /></ProtectedRoute>
+            } />
+            <Route path="/settings" element={
+              <ProtectedRoute isAuthenticated={isAuthenticated}><SettingsPage /></ProtectedRoute>
+            } />
+
+            {/* Redirección por defecto */}
+            <Route path="/" element={
+              <Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />
+            } />
+            <Route path="*" element={
+              <Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />
+            } />
           </Routes>
         </main>
       </div>
