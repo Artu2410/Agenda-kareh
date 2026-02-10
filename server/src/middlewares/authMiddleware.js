@@ -1,28 +1,21 @@
 import jwt from 'jsonwebtoken';
 
 export const authMiddleware = (req, res, next) => {
+  // 1. Buscamos el token en el Header o en las Cookies
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.split(' ')[1] || req.cookies?.auth_token;
+
+  if (!token) {
+    console.log("❌ Intento de acceso sin token");
+    return res.status(401).json({ message: "No autorizado" });
+  }
+
   try {
-    const token = req.headers.authorization?.split(' ')[1];
-
-    if (!token) {
-      return res.status(401).json({ message: 'No autorizado: token no encontrado' });
-    }
-
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET || 'default_secret_key_change_me'
-    );
-
-    // Verificar que el email sigue siendo el autorizado
-    const authorizedEmail = process.env.AUTHORIZED_EMAIL || 'centrokareh@gmail.com';
-    if (decoded.email !== authorizedEmail) {
-      return res.status(403).json({ message: 'Acceso denegado: usuario no autorizado' });
-    }
-
-    req.user = decoded;
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = decoded; // Guardamos el usuario para las siguientes rutas
     next();
   } catch (error) {
-    console.error('❌ Error en authMiddleware:', error.message);
-    res.status(401).json({ message: 'Token inválido o expirado' });
+    console.error("❌ Token inválido:", error.message);
+    return res.status(403).json({ message: "Token no válido" });
   }
 };
