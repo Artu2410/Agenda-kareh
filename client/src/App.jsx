@@ -19,41 +19,42 @@ function App() {
 
   // Función para verificar el token
   const verifyAuth = async () => {
-    const token = localStorage.getItem('auth_token');
-    if (!token) {
-      setIsAuthenticated(false);
-      setIsVerifying(false);
-      return;
+  const token = localStorage.getItem('auth_token');
+  if (!token) {
+    setIsAuthenticated(false);
+    setIsVerifying(false);
+    return;
+  }
+
+  try {
+    // IMPORTANTE: Asegúrate de que esta URL sea la correcta de tu backend
+    const response = await fetch('https://kareh-backend.onrender.com/api/auth/verify', {
+      headers: { 
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json' // Le pedimos explícitamente JSON
+      }
+    });
+
+    // Si recibimos HTML (error), lanzamos un error para que lo capture el catch
+    const contentType = response.headers.get("content-type");
+    if (!contentType || !contentType.includes("application/json")) {
+      throw new TypeError("El servidor no respondió con JSON. Revisa la URL del Backend.");
     }
 
-    try {
-      // URL LIMPIA: Aseguramos que llame a /auth/verify correctamente
-      const baseUrl = import.meta.env.VITE_API_URL || 'https://kareh-backend.onrender.com/api';
-      const response = await fetch(`${baseUrl}/auth/verify`, {
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json' // Forzamos respuesta JSON
-        }
-      });
-
-      // Si la respuesta no es OK, el token no sirve
-      if (!response.ok) throw new Error('Token inválido');
-
-      const data = await response.json();
-      
-      if (data.valid) {
-        setIsAuthenticated(true);
-      } else {
-        throw new Error('No válido');
-      }
-    } catch (err) {
-      console.error('Error verifying auth:', err);
+    const data = await response.json();
+    if (data.valid) {
+      setIsAuthenticated(true);
+    } else {
       localStorage.removeItem('auth_token');
       setIsAuthenticated(false);
-    } finally {
-      setIsVerifying(false);
     }
-  };
+  } catch (err) {
+    console.error('Error verificando token:', err);
+    setIsAuthenticated(false);
+  } finally {
+    setIsVerifying(false);
+  }
+};
 
   useEffect(() => {
     verifyAuth();
