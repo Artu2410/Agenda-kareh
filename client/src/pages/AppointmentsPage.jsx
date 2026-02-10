@@ -4,8 +4,7 @@ import { es } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, Plus, Loader2, FileDown } from 'lucide-react';
 import WeeklyCalendarGrid from '../components/agenda/WeeklyCalendarGrid';
 import AppointmentModal from '../components/AppointmentModal';
-import EvolutionModal from '../components/agenda/EvolutionModal';
-import api from '@/services/api';
+import api from '../services/api'; // Asegúrate que la ruta sea correcta
 import toast from 'react-hot-toast';
 import { exportWeeklyAppointmentsToExcel } from '../utils/exportToExcel';
 
@@ -15,7 +14,6 @@ const AppointmentsPage = () => {
   const [loading, setLoading] = useState(true);
   
   const [isAppointmentModalOpen, setIsAppointmentModalOpen] = useState(false);
-  const [isEvolutionModalOpen, setIsEvolutionModalOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
 
@@ -25,9 +23,15 @@ const AppointmentsPage = () => {
     try {
       const startDate = format(week, 'yyyy-MM-dd');
       const endDate = format(addDays(week, 6), 'yyyy-MM-dd');
-      const response = await api.get(`/appointments/week?startDate=${startDate}&endDate=${endDate}`);
+      
+      // Llamada corregida usando la instancia de API
+      const response = await api.get('/appointments/week', {
+        params: { startDate, endDate }
+      });
+      
       setAppointments(response.data || []);
     } catch (error) {
+      console.error("Error fetching appointments:", error);
       toast.error("No se pudieron cargar los turnos");
       setAppointments([]); 
     } finally {
@@ -52,7 +56,6 @@ const AppointmentsPage = () => {
 
   const handleCloseModals = () => {
     setIsAppointmentModalOpen(false);
-    setIsEvolutionModalOpen(false);
     setSelectedSlot(null);
     setSelectedAppointment(null);
   };
@@ -90,12 +93,10 @@ const AppointmentsPage = () => {
                 await exportWeeklyAppointmentsToExcel(appointments, currentWeek);
                 toast.success('✅ Agenda exportada a Excel');
               } catch (err) {
-                console.error('Error exportando agenda:', err);
                 toast.error('Error al exportar agenda');
               }
             }}
             className="bg-emerald-600 hover:bg-emerald-700 text-white font-black py-2.5 px-4 rounded-xl flex items-center gap-2 transition-all shadow-md text-sm uppercase"
-            title="Exportar agenda a Excel"
           >
             <FileDown size={18} /> Exportar
           </button>
@@ -110,10 +111,16 @@ const AppointmentsPage = () => {
 
       <main className="flex-1 overflow-auto p-4 relative">
         {loading ? (
-          <div className="flex items-center justify-center h-full"><Loader2 className="text-teal-500 animate-spin" size={40} /></div>
+          <div className="flex items-center justify-center h-full">
+            <Loader2 className="text-teal-500 animate-spin" size={40} />
+          </div>
         ) : (
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-            <WeeklyCalendarGrid currentDate={currentWeek} onSlotClick={handleSlotClick} appointments={appointments} />
+            <WeeklyCalendarGrid 
+              currentDate={currentWeek} 
+              onSlotClick={handleSlotClick} 
+              appointments={appointments} 
+            />
           </div>
         )}
       </main>
