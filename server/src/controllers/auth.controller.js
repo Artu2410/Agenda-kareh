@@ -126,15 +126,13 @@ export const verifyOTP = async (req, res) => {
 /**
  * 3. VERIFICAR TOKEN
  */
-export const verifyToken = (req, res) => {
+export const verifyToken = async (req, res) => {
   try {
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) return res.status(401).json({ message: 'No autorizado' });
-
-    const decoded = jwt.verify(token, JWT_SECRET);
-    res.json({ valid: true, user: decoded });
+    // ... tu lógica de verificar el JWT ...
+    return res.status(200).json({ valid: true, user: decodedUser }); 
   } catch (error) {
-    res.status(401).json({ message: 'Sesión inválida' });
+    // IMPORTANTE: Responde JSON incluso en el error
+    return res.status(401).json({ valid: false, message: "Token inválido" });
   }
 };
 

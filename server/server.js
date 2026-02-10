@@ -5,7 +5,7 @@ import helmet from 'helmet';
 import { PrismaClient } from '@prisma/client';
 import dns from 'node:dns';
 
-// 1. Configuración de Red e Inits
+// 1. Inits
 dns.setDefaultResultOrder('ipv4first');
 dotenv.config();
 const prisma = new PrismaClient();
@@ -20,7 +20,7 @@ import createClinicalHistoryRoutes from './src/routes/clinicalHistory.routes.js'
 import { verifyToken } from './src/controllers/auth.controller.js';
 import { authMiddleware } from './src/middlewares/authMiddleware.js';
 
-// 3. Middlewares Base (CORS DEBE IR PRIMERO)
+// 3. Middlewares (CORS siempre primero)
 app.use(cors({
     origin: ['https://kareh-salud.vercel.app', 'http://localhost:5173'],
     credentials: true,
@@ -32,47 +32,39 @@ app.set('trust proxy', 1);
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.json({ limit: '50mb' }));
 
-// Inyectar Prisma
+// Inyectar Prisma en cada request
 app.use((req, res, next) => {
     req.prisma = prisma;
     next();
 });
 
 // ==========================================
-// 4. RUTAS DE LA API (ORDEN CRÍTICO)
+// 4. RUTAS DE LA API (ORDEN DE PRIORIDAD)
 // ==========================================
 
-// Ruta de Verificación - DEBE ESTAR AQUÍ ARRIBA
+// Estas rutas devuelven JSON directamente, nada de HTML
 app.get('/api/auth/verify', verifyToken);
-app.get('/auth/verify', verifyToken); // Alias para el frontend
+app.get('/auth/verify', verifyToken); // Por si el frontend olvida el /api
 
-// Rutas del módulo Auth
+// Montamos las rutas
 app.use('/api/auth', createAuthRoutes(prisma));
-
-// Rutas Protegidas
 app.use('/api/appointments', authMiddleware, createAppointmentRoutes(prisma));
 app.use('/api/patients', authMiddleware, createPatientRoutes(prisma));
 app.use('/api/cashflow', authMiddleware, createCashflowRoutes(prisma));
 app.use('/api/clinical-history', authMiddleware, createClinicalHistoryRoutes(prisma));
 
 // Health Checks
-app.get('/health', (req, res) => res.json({ status: 'ok' }));
-app.get('/', (req, res) => res.json({ message: 'API Kareh Pro' }));
+app.get('/health', (req, res) => res.status(200).json({ status: 'ok' }));
+app.get('/', (req, res) => res.status(200).json({ message: 'API Kareh Pro' }));
 
 // ==========================================
 // 5. MANEJO DE ERRORES (EVITAR RESPUESTA HTML)
 // ==========================================
 
-// Si no entró en ninguna ruta de arriba, devolvemos JSON 404, NUNCA HTML
+// Captura cualquier ruta no definida y responde JSON, NUNCA HTML
 app.use((req, res) => {
-    console.log(`❓ 404 en: ${req.originalUrl}`);
-    res.status(404).json({ error: "Ruta de API no encontrada" });
-});
-
-// Manejador de errores interno
-app.use((err, req, res, next) => {
-    console.error('❌ Error:', err.stack);
-    res.status(500).json({ error: "Error interno del servidor" });
+    console.log(`📡 404 Detectado en: ${req.method} ${req.url}`);
+    res.status(404).json({ error: "Ruta no encontrada en la API", path: req.url });
 });
 
 const PORT = process.env.PORT || 10000;
