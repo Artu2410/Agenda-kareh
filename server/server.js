@@ -92,6 +92,7 @@ app.get('/', (req, res) => {
 
 // Rutas de la API
 app.use('/api/auth', createAuthRoutes(prisma));
+app.use('/auth/verify', createAuthRoutes(prisma));
 app.use('/api/appointments', authMiddleware, createAppointmentRoutes(prisma));
 app.use('/api/patients', authMiddleware, createPatientRoutes(prisma));
 app.use('/api/cashflow', authMiddleware, createCashflowRoutes(prisma));
