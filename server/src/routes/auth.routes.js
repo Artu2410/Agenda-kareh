@@ -4,23 +4,25 @@ import { requestOTP, verifyOTP, verifyToken, logout } from '../controllers/auth.
 export default function createAuthRoutes(prisma) {
   const router = Router();
 
-  // Inyectamos prisma en el request para que los controladores puedan usarlo
+  // Inyectamos prisma y log de depuración
   router.use((req, res, next) => {
     req.prisma = prisma;
+    console.log(`📡 Auth Route: ${req.method} ${req.url}`); // Esto te dirá qué llega a Render
     next();
   });
 
-  // POST /api/auth/request-otp
-  // Quitamos la envoltura innecesaria para que el controlador reciba req y res directamente
+  // 1. Solicitar código (Ya funciona)
   router.post('/request-otp', requestOTP);
 
-  // POST /api/auth/verify-otp
+  // 2. Verificar el código enviado al correo
+  // IMPORTANTE: Revisa que en el Frontend llames a /api/auth/verify-otp y no solo /verify
   router.post('/verify-otp', verifyOTP);
 
-  // GET /api/auth/verify
+  // 3. Verificar si la sesión es válida (Token)
+  // Esta es la que te da el 404 en la consola
   router.get('/verify', verifyToken);
 
-  // POST /api/auth/logout
+  // 4. Cerrar sesión
   router.post('/logout', logout);
 
   return router;
