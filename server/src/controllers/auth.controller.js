@@ -10,7 +10,7 @@ const AUTHORIZED_EMAIL = (process.env.AUTHORIZED_EMAIL || 'centrokareh@gmail.com
 const otpStorage = new Map();
 
 /**
- * 1. SOLICITAR OTP (Vía Resend API)
+ * 1. SOLICITAR OTP
  */
 export const requestOTP = async (req, res) => {
   try {
@@ -30,56 +30,41 @@ export const requestOTP = async (req, res) => {
       });
     }
 
-    // Generar OTP y expiración (15 min)
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = Date.now() + 15 * 60 * 1000;
 
-    // Guardar en memoria
     otpStorage.set(normalizedEmail, { otp, expiresAt, attempts: 0 });
 
-    // Enviar Email mediante la API de Resend
     try {
       const { data, error } = await resend.emails.send({
-        from: 'Kareh Salud <onboarding@resend.dev>', // Cambia esto cuando tengas dominio propio
+        from: 'Kareh Salud <onboarding@resend.dev>',
         to: normalizedEmail,
         subject: '🔐 Tu código de acceso a Kareh Salud',
         html: `
-          <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #eee; border-radius: 10px; overflow: hidden;">
-            <div style="background: #0d9488; padding: 20px; text-align: center;">
-              <h1 style="color: white; margin: 0;">🏥 Kareh Salud</h1>
+          <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #eee; border-radius: 10px; padding: 20px;">
+            <h2 style="color: #0d9488;">🏥 Kareh Salud</h2>
+            <p>Usa el siguiente código para iniciar sesión:</p>
+            <div style="background: #f1f5f9; padding: 20px; text-align: center; border-radius: 8px;">
+              <span style="font-size: 32px; font-weight: bold; color: #0d9488;">${otp}</span>
             </div>
-            <div style="padding: 30px; background: #ffffff;">
-              <p>Usa el siguiente código para iniciar sesión:</p>
-              <div style="background: #f1f5f9; padding: 20px; text-align: center; border-radius: 8px; margin: 20px 0;">
-                <span style="font-size: 32px; font-weight: bold; color: #0d9488; letter-spacing: 5px;">${otp}</span>
-              </div>
-              <p style="font-size: 12px; color: #64748b;">Este código expira en 15 minutos.</p>
-            </div>
+            <p style="font-size: 12px; color: #64748b;">Válido por 15 minutos.</p>
           </div>
         `
       });
 
-      if (error) {
-        console.error('❌ Error de Resend API:', error);
-        return res.status(500).json({ message: 'Error de Resend', error });
-      }
+      if (error) return res.status(500).json({ message: 'Error de Resend', error });
 
-      console.log('✅ Correo enviado vía Resend ID:', data.id);
-      res.json({ success: true, message: 'Código OTP enviado a tu email' });
-
+      res.json({ success: true, message: 'Código OTP enviado' });
     } catch (resendErr) {
-      console.error('❌ Error crítico en Resend:', resendErr.message);
       res.status(500).json({ message: 'No se pudo enviar el correo' });
     }
-
   } catch (error) {
-    console.error('❌ Error en requestOTP:', error);
-    res.status(500).json({ message: 'Error interno del servidor' });
+    res.status(500).json({ message: 'Error interno' });
   }
 };
 
 /**
- * 2. VERIFICAR OTP (Misma lógica anterior)
+ * 2. VERIFICAR OTP
  */
 export const verifyOTP = async (req, res) => {
   try {
@@ -88,25 +73,16 @@ export const verifyOTP = async (req, res) => {
     const storedData = otpStorage.get(normalizedEmail);
 
     if (!storedData) return res.status(400).json({ message: 'No hay código pendiente.' });
-
-    if (Date.now() > storedData.expiresAt) {
-      otpStorage.delete(normalizedEmail);
-      return res.status(400).json({ message: 'Código expirado.' });
-    }
-
-    if (storedData.attempts >= 5) {
-      otpStorage.delete(normalizedEmail);
-      return res.status(429).json({ message: 'Demasiados intentos.' });
-    }
+    if (Date.now() > storedData.expiresAt) return res.status(400).json({ message: 'Código expirado.' });
 
     if (otp !== storedData.otp) {
       storedData.attempts += 1;
-      return res.status(401).json({ message: 'Código incorrecto', attemptsRemaining: 5 - storedData.attempts });
+      return res.status(401).json({ message: 'Código incorrecto' });
     }
 
-    // Éxito: Limpiar y generar Token
     otpStorage.delete(normalizedEmail);
 
+    // Generamos el token con los datos del usuario
     const token = jwt.sign(
       { email: normalizedEmail, role: 'admin' },
       JWT_SECRET,
@@ -124,15 +100,34 @@ export const verifyOTP = async (req, res) => {
 };
 
 /**
- * 3. VERIFICAR TOKEN
+ * 3. VERIFICAR TOKEN (LÓGICA CORREGIDA)
  */
 export const verifyToken = async (req, res) => {
   try {
-    // ... tu lógica de verificar el JWT ...
-    return res.status(200).json({ valid: true, user: decodedUser }); 
+    // Extraer el token del header "Authorization: Bearer <TOKEN>"
+    const authHeader = req.headers.authorization;
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
+
+    if (!token) {
+      return res.status(401).json({ valid: false, message: "Token no proporcionado" });
+    }
+
+    // Verificar el token
+    const decoded = jwt.verify(token, JWT_SECRET);
+
+    // Si es válido, responder con los datos del usuario decodificados
+    return res.status(200).json({ 
+      valid: true, 
+      user: {
+        email: decoded.email,
+        role: decoded.role,
+        name: 'Administrador'
+      } 
+    });
+
   } catch (error) {
-    // IMPORTANTE: Responde JSON incluso en el error
-    return res.status(401).json({ valid: false, message: "Token inválido" });
+    console.error("❌ Error JWT:", error.message);
+    return res.status(401).json({ valid: false, message: "Token inválido o expirado" });
   }
 };
 
