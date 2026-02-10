@@ -5,14 +5,14 @@ import helmet from 'helmet';
 import { PrismaClient } from '@prisma/client';
 import dns from 'node:dns';
 
-// 1. Configuración de Red e Inicialización
+// 1. Configuración de Red
 dns.setDefaultResultOrder('ipv4first');
 dotenv.config();
 
 const prisma = new PrismaClient();
 const app = express();
 
-// 2. Importaciones de Rutas y Controladores
+// 2. Importaciones
 import createAuthRoutes from './src/routes/auth.routes.js';
 import createAppointmentRoutes from './src/routes/appointments.routes.js';
 import createPatientRoutes from './src/routes/patient.routes.js';
@@ -24,19 +24,16 @@ import { authMiddleware } from './src/middlewares/authMiddleware.js';
 // 3. Middlewares Globales
 app.set('trust proxy', 1);
 
-// CORS: Configuración estricta para Vercel
 app.use(cors({
     origin: ['https://kareh-salud.vercel.app', 'http://localhost:5173'],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie']
+    allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Inyectar Prisma en el objeto request
 app.use((req, res, next) => {
     req.prisma = prisma;
     next();
@@ -46,49 +43,39 @@ app.use((req, res, next) => {
 // 4. RUTAS DE LA API (ORDEN CRÍTICO)
 // ==========================================
 
-// Rutas de Verificación Inmediata (Evitan redirecciones HTML)
-app.get('/api/auth/verify', verifyToken);
-app.get('/auth/verify', verifyToken); 
+// Log de peticiones para debug (Ayuda a ver qué llega a Render)
+app.use((req, res, next) => {
+    console.log(`📡 Solicitud: ${req.method} ${req.originalUrl}`);
+    next();
+});
 
-// Montaje de módulos de rutas
+// Rutas de Verificación
+app.get('/api/auth/verify', verifyToken);
+
+// Módulos de rutas
 app.use('/api/auth', createAuthRoutes(prisma));
 app.use('/api/appointments', authMiddleware, createAppointmentRoutes(prisma));
 app.use('/api/patients', authMiddleware, createPatientRoutes(prisma));
 app.use('/api/cashflow', authMiddleware, createCashflowRoutes(prisma));
 app.use('/api/clinical-history', authMiddleware, createClinicalHistoryRoutes(prisma));
 
-// Utilidades del Servidor
-app.get('/health', (req, res) => res.status(200).json({ status: 'ok', timestamp: new Date() }));
-app.get('/', (req, res) => res.status(200).json({ message: '🚀 KAREH PRO API Online' }));
+// Health check
+app.get('/api/health', (req, res) => res.status(200).json({ status: 'ok' }));
 
 // ==========================================
-// 5. MANEJO DE ERRORES Y RUTAS NO ENCONTRADAS
+// 5. MANEJO DE ERRORES
 // ==========================================
 
-// Middleware para capturar cualquier ruta no definida y responder SIEMPRE en JSON
 app.use((req, res) => {
-    // Si el frontend pide algo que no existe, devolvemos JSON 404
-    res.status(404).json({ 
-        error: "Ruta no encontrada", 
-        path: req.originalUrl 
-    });
+    res.status(404).json({ error: "Ruta no encontrada", path: req.originalUrl });
 });
 
 app.use((err, req, res, next) => {
-    // Si hay un error de código, devolvemos JSON 500
-    console.error('❌ Error detectado:', err.message);
-    res.status(500).json({ 
-        error: "Error interno del servidor",
-        message: err.message
-    });
+    console.error('❌ Error detectado:', err.stack);
+    res.status(500).json({ error: "Error interno del servidor" });
 });
 
-// 6. Lanzamiento
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`
-    🚀 Servidor Kareh Pro iniciado con éxito
-    📡 Puerto: ${PORT}
-    🔗 URL: http://0.0.0.0:${PORT}
-    `);
+    console.log(`🚀 Servidor Kareh Pro en puerto ${PORT}`);
 });
