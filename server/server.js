@@ -45,7 +45,7 @@ app.use((req, res, next) => {
 // ==========================================
 // RUTAS DE LA API
 // ==========================================
-
+app.get('/auth/verify', verifyToken);
 // Auth pública
 app.use('/api/auth', createAuthRoutes(prisma));
 app.get('/api/auth/verify', verifyToken);

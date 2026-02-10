@@ -11,7 +11,6 @@ import ClinicalHistoriesPage from './pages/ClinicalHistoriesPage';
 import DashboardPage from './pages/DashboardPage';
 import LoginPage from './pages/LoginPage';
 import Sidebar from './components/layout/Sidebar';
-import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
   const [isVerifying, setIsVerifying] = useState(true);
@@ -27,7 +26,9 @@ function App() {
     }
 
     try {
+      // Forzamos la URL correcta: /api/auth/verify
       const baseUrl = import.meta.env.VITE_API_URL || 'https://kareh-backend.onrender.com/api';
+      
       const response = await fetch(`${baseUrl}/auth/verify`, {
         method: 'GET',
         headers: { 
@@ -36,7 +37,10 @@ function App() {
         }
       });
 
-      // Si el servidor nos manda HTML (un error de Render/Vercel), lo ignoramos
+      if (response.status === 401 || response.status === 403) {
+        throw new Error("Sesión expirada");
+      }
+
       const contentType = response.headers.get("content-type");
       if (!response.ok || !contentType || !contentType.includes("application/json")) {
         throw new Error("Respuesta no válida del servidor");
@@ -48,10 +52,11 @@ function App() {
       if (!data.valid) localStorage.removeItem('auth_token');
 
     } catch (err) {
-      console.error('Error de verificación:', err);
+      console.error('Error de verificación:', err.message);
+      localStorage.removeItem('auth_token');
       setIsAuthenticated(false);
     } finally {
-      setIsVerifying(false); // IMPORTANTE: Solo aquí termina la carga
+      setIsVerifying(false);
     }
   }, []);
 
@@ -64,7 +69,6 @@ function App() {
     setIsVerifying(false);
   };
 
-  // 1. MIENTRAS VERIFICA: Pantalla de carga limpia para evitar el bucle
   if (isVerifying) {
     return (
       <div className="w-full h-screen flex items-center justify-center bg-slate-50">
@@ -73,7 +77,6 @@ function App() {
     );
   }
 
-  // 2. RENDERIZADO FINAL
   return (
     <Router>
       <CustomToaster />
@@ -82,14 +85,12 @@ function App() {
         
         <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
           <Routes>
-            {/* Si NO estoy autenticado, solo puedo ver Login */}
             {!isAuthenticated ? (
               <>
                 <Route path="/login" element={<LoginPage onLoginSuccess={handleLoginSuccess} />} />
                 <Route path="*" element={<Navigate to="/login" replace />} />
               </>
             ) : (
-              /* Si SÍ estoy autenticado, estas son mis rutas */
               <>
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/appointments" element={<AppointmentsPage />} />
