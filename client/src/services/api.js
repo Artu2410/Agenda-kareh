@@ -2,9 +2,9 @@ import axios from 'axios';
 
 /**
  * CONFIGURACIÓN DE URL
- * Dejamos la base solo con el dominio para evitar confusiones de rutas.
+ * Agregamos /api a la baseURL para que todas las llamadas lo usen automáticamente.
  */
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://kareh-backend.onrender.com';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://kareh-backend.onrender.com/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -52,27 +52,15 @@ api.interceptors.response.use(
 
 export default api;
 
-// --- FUNCIONES ESPECÍFICAS CORREGIDAS (Añadido /api/ en todas) ---
+// --- FUNCIONES ESPECÍFICAS (Ahora sin el /api/ repetido, porque ya está en la baseURL) ---
 
 // Auth
-export const requestOTP = async (email) => {
-  // Coincide con app.use('/api/auth', ...) en tu server
-  return api.post('/api/auth/request-otp', { email });
-};
-
-export const verifyOTP = async (email, otp) => {
-  return api.post('/api/auth/verify-otp', { email, otp });
-};
+export const requestOTP = async (email) => api.post('/auth/request-otp', { email });
+export const verifyOTP = async (email, otp) => api.post('/auth/verify-otp', { email, otp });
 
 // Appointments
-export const deleteAppointment = async (appointmentId) => {
-  return api.delete(`/api/appointments/${appointmentId}`);
-};
+export const deleteAppointment = async (appointmentId) => api.delete(`/appointments/${appointmentId}`);
+export const cancelFutureAppointments = async (patientId, fromDate = null) => 
+  api.post(`/appointments/patients/${patientId}/cancel-future`, { fromDate });
 
-export const cancelFutureAppointments = async (patientId, fromDate = null) => {
-  return api.post(`/api/appointments/patients/${patientId}/cancel-future`, { fromDate });
-};
-
-export const updateAppointment = async (appointmentId, data) => {
-  return api.patch(`/api/appointments/${appointmentId}`, data);
-};
+export const updateAppointment = async (appointmentId, data) => api.patch(`/appointments/${appointmentId}`, data);
