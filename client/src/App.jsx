@@ -6,6 +6,7 @@ import CashflowPage from './pages/CashflowPage';
 import SettingsPage from './pages/SettingsPage';
 import PatientsPage from './pages/PatientsPage';
 import ClinicalHistoriesPage from './pages/ClinicalHistoriesPage'; 
+import ClinicalHistoryPage from './pages/ClinicalHistoryPage'; 
 import DashboardPage from './pages/DashboardPage';
 import LoginPage from './pages/LoginPage';
 import Sidebar from './components/layout/Sidebar';
@@ -23,7 +24,6 @@ function App() {
     }
 
     try {
-      // IMPORTANTE: Aseguramos que llame a /api/auth/verify
       const host = window.location.hostname === 'localhost' 
         ? 'http://localhost:10000/api' 
         : 'https://kareh-backend.onrender.com/api';
@@ -36,7 +36,6 @@ function App() {
         }
       });
 
-      // Si el servidor responde con HTML o error, lanzamos error
       const contentType = response.headers.get("content-type");
       if (!response.ok || !contentType || !contentType.includes("application/json")) {
         throw new Error("Sesión inválida");
@@ -89,7 +88,8 @@ function App() {
                 <Route path="/appointments" element={<AppointmentsPage />} />
                 <Route path="/patients" element={<PatientsPage />} />
                 <Route path="/clinical-histories" element={<ClinicalHistoriesPage />} />
-                <Route path="/clinical-history/:patientId" element={<ClinicalHistoriesPage />} />
+                {/* ESTA ES LA RUTA QUE FALTABA CONECTAR CORRECTAMENTE */}
+                <Route path="/clinical-history/:id" element={<ClinicalHistoryPage />} />
                 <Route path="/cashflow" element={<CashflowPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="*" element={<Navigate to="/dashboard" replace />} />
