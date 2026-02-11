@@ -13,16 +13,18 @@ import {
 export default function createPatientRoutes(prisma) {
   const router = Router();
   
-  // Rutas existentes con controladores
+  // Rutas GET
   router.get('/all', (req, res) => getAllPatients(req, res, prisma));
   router.get('/search', (req, res) => searchPatientByDni(req, res, prisma));
   router.get('/:dni/history', (req, res) => getPatientHistoryByDni(req, res, prisma));
   router.get('/:patientId/future-appointments', (req, res) => getFutureAppointments(req, res, prisma));
   router.get('/:id', (req, res) => getPatientById(req, res, prisma));
+  
+  // Rutas POST/DELETE
   router.post('/', (req, res) => createPatient(req, res, prisma));
   router.delete('/:id', (req, res) => deletePatient(req, res, prisma));
 
-  // PUT: Actualización completa del paciente (Sincronizado con ClinicalHistoryPage)
+  // PUT: Actualización completa
   router.put('/:id', async (req, res) => {
     const { id } = req.params;
     const { 
@@ -31,17 +33,11 @@ export default function createPatientRoutes(prisma) {
       hasMarcapasos, hasCancer, usesEA 
     } = req.body;
 
-    // Normalize birthDate to avoid timezone shifts
     const normalizeBirth = (d) => {
       if (!d) return null;
       try {
-        if (typeof d === 'string') {
-          const m = d.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-          if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12, 0, 0);
-          return new Date(d);
-        }
-        if (d instanceof Date) return d;
-        return new Date(d);
+        const date = new Date(d);
+        return isNaN(date.getTime()) ? null : date;
       } catch (e) { return null; }
     };
 
@@ -51,27 +47,24 @@ export default function createPatientRoutes(prisma) {
         data: {
           fullName,
           dni,
-          birthDate: birthDate ? normalizeBirth(birthDate) : null,
+          birthDate: normalizeBirth(birthDate),
           phone,
           address,
           healthInsurance,
           affiliateNumber,
-          hasMarcapasos: !!hasMarcapasos,
-          hasCancer: !!hasCancer,
-          usesEA: !!usesEA
+          hasMarcapasos: hasMarcapasos === true || hasMarcapasos === 'true',
+          hasCancer: hasCancer === true || hasCancer === 'true',
+          usesEA: usesEA === true || usesEA === 'true'
         }
       });
       res.json(updated);
     } catch (error) {
       console.error("ERROR ACTUALIZANDO PACIENTE:", error);
-      if (error.code === 'P2025') {
-        return res.status(404).json({ message: 'Paciente no encontrado' });
-      }
+      if (error.code === 'P2025') return res.status(404).json({ message: 'Paciente no encontrado' });
       res.status(500).json({ message: 'Error interno al actualizar paciente' });
     }
   });
 
-  // Mantengo PATCH por si lo usas en otras partes para actualizaciones parciales
   router.patch('/:id', (req, res) => updatePatient(req, res, prisma));
 
   return router;

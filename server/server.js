@@ -43,18 +43,36 @@ app.use((req, res, next) => {
 });
 
 // ==========================================
-// RUTAS DE LA API (TODAS BAJO /api)
+// RUTAS DE LA API
 // ==========================================
 
 // Auth Pública y Verificación
 app.use('/api/auth', createAuthRoutes(prisma));
-app.get('/api/auth/verify', verifyToken); // Esta es la ruta clave
+app.get('/api/auth/verify', verifyToken); 
 
 // Rutas protegidas
 app.use('/api/appointments', authMiddleware, createAppointmentRoutes(prisma));
 app.use('/api/patients', authMiddleware, createPatientRoutes(prisma));
 app.use('/api/cashflow', authMiddleware, createCashflowRoutes(prisma));
 app.use('/api/clinical-history', authMiddleware, createClinicalHistoryRoutes(prisma));
+
+// --- NUEVA RUTA DE MÉTRICAS PARA EL DASHBOARD ---
+app.get('/api/metrics', authMiddleware, async (req, res) => {
+    try {
+        const [patientsCount, appointmentsCount, cashflow] = await Promise.all([
+            prisma.patient.count(),
+            prisma.appointment.count(),
+            prisma.cashFlow.aggregate({ _sum: { amount: true } })
+        ]);
+        res.json({
+            totalPatients: patientsCount,
+            totalAppointments: appointmentsCount,
+            balance: cashflow._sum.amount || 0
+        });
+    } catch (error) {
+        res.status(500).json({ error: "Error al obtener métricas" });
+    }
+});
 
 // Utilidades
 app.get('/api/health', (req, res) => res.status(200).json({ status: 'ok' }));
@@ -63,12 +81,18 @@ app.get('/api/health', (req, res) => res.status(200).json({ status: 'ok' }));
 // MANEJO DE ERRORES (JSON SIEMPRE)
 // ==========================================
 
-// Esto atrapa cualquier cosa que empiece por /api y no exista
+// Catch-all para cualquier ruta que NO sea /api (evita devolver HTML)
+app.use((req, res, next) => {
+    if (!req.url.startsWith('/api')) {
+        return res.status(404).json({ error: "Ruta no encontrada. Recuerda usar el prefijo /api" });
+    }
+    next();
+});
+
 app.all('/api/*', (req, res) => {
     res.status(404).json({ error: "Endpoint no encontrado en la API", path: req.originalUrl });
 });
 
-// Error genérico
 app.use((err, req, res, next) => {
     console.error('❌ Error:', err.stack);
     res.status(500).json({ error: "Error interno del servidor" });
