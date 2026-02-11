@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, FileText, ChevronRight } from 'lucide-react';
+import { Search, FileText, ChevronRight, Loader2 } from 'lucide-react';
 import api from '../services/api';
 
 export default function ClinicalHistoriesPage() {
@@ -22,137 +22,124 @@ export default function ClinicalHistoriesPage() {
   const fetchPatients = async () => {
     try {
       setLoading(true);
+      // CAMBIO CLAVE: Usamos la ruta correcta que el backend reconoce
       const response = await api.get('/patients/all');
-      const sorted = response.data.sort((a, b) => {
-        const nameA = a.fullName.toLowerCase();
-        const nameB = b.fullName.toLowerCase();
-        return nameA.localeCompare(nameB);
-      });
+      
+      // Ordenamos por apellido (asumiendo que el apellido está al final o es parte del fullName)
+      const sorted = response.data.sort((a, b) => 
+        a.fullName.localeCompare(b.fullName, 'es', { sensitivity: 'base' })
+      );
+      
       setPatients(sorted);
       setError(null);
     } catch (err) {
       console.error('Error al cargar pacientes:', err);
-      setError('No se pudieron cargar los pacientes');
+      // Usamos el mensaje amigable de tu interceptor si existe
+      setError(err.friendlyMessage || 'No se pudieron cargar los pacientes. Verifica la conexión.');
     } finally {
       setLoading(false);
     }
   };
 
   const filterPatients = () => {
-    if (!searchTerm.trim()) {
+    const searchLower = searchTerm.toLowerCase().trim();
+    if (!searchLower) {
       setFilteredPatients(patients);
       return;
     }
 
-    const searchLower = searchTerm.toLowerCase();
-    const filtered = patients.filter(patient => {
-      const fullName = patient.fullName.toLowerCase();
-      const dni = patient.dni.toLowerCase();
-      return fullName.includes(searchLower) || dni.includes(searchLower);
-    });
+    const filtered = patients.filter(patient => 
+      patient.fullName.toLowerCase().includes(searchLower) || 
+      patient.dni.includes(searchLower)
+    );
 
     setFilteredPatients(filtered);
   };
 
+  // Esta función debe coincidir con la ruta en tu App.jsx
   const handleViewHistory = (patientId) => {
     navigate(`/clinical-history/${patientId}`);
   };
 
   return (
-    <div className="flex-1 overflow-auto">
-      <div className="p-8">
+    <div className="flex-1 overflow-auto bg-slate-50">
+      <div className="p-8 max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-2">
-            <FileText size={32} className="text-teal-600" />
-            <h1 className="text-4xl font-bold text-slate-900">Historia Clínica</h1>
+            <div className="p-3 bg-teal-100 rounded-2xl text-teal-600">
+              <FileText size={32} />
+            </div>
+            <div>
+              <h1 className="text-4xl font-black text-slate-900 uppercase tracking-tighter">Historias Clínicas</h1>
+              <p className="text-slate-500 font-medium">Selecciona un paciente para ver su ficha técnica</p>
+            </div>
           </div>
-          <p className="text-slate-600">Selecciona un paciente para ver su historia clínica</p>
         </div>
 
         {/* Search Bar */}
-        <div className="mb-6">
-          <div className="relative">
-            <Search className="absolute left-4 top-3 text-slate-400" size={20} />
+        <div className="mb-8">
+          <div className="relative group">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-teal-500 transition-colors" size={22} />
             <input
               type="text"
-              placeholder="Buscar por nombre, apellido o DNI..."
+              placeholder="Buscar por nombre o DNI..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+              className="w-full pl-12 pr-4 py-4 bg-white border border-slate-200 rounded-2xl shadow-sm outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all text-lg"
             />
           </div>
         </div>
 
         {/* Content */}
         {loading ? (
-          <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-500"></div>
+          <div className="flex flex-col justify-center items-center h-64 gap-4">
+            <Loader2 className="animate-spin text-teal-500" size={40} />
+            <p className="text-slate-400 font-bold uppercase text-xs tracking-widest">Cargando base de datos...</p>
           </div>
         ) : error ? (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-800">
-            {error}
+          <div className="bg-red-50 border border-red-200 rounded-2xl p-6 text-red-800 flex items-center gap-4">
+            <div className="bg-red-100 p-2 rounded-full">⚠️</div>
+            <p className="font-bold">{error}</p>
           </div>
         ) : filteredPatients.length === 0 ? (
-          <div className="bg-slate-50 border border-slate-200 rounded-lg p-8 text-center">
-            <p className="text-slate-600">
-              {searchTerm
-                ? 'No se encontraron pacientes que coincidan con tu búsqueda'
-                : 'No hay pacientes registrados'}
+          <div className="bg-white border-2 border-dashed border-slate-200 rounded-3xl p-20 text-center">
+            <p className="text-slate-400 font-bold uppercase tracking-widest">
+              {searchTerm ? 'Sin coincidencias' : 'No hay pacientes registrados'}
             </p>
           </div>
         ) : (
-          <>
-            {/* Stats */}
-            <div className="mb-6 text-sm text-slate-600">
-              Mostrando <span className="font-semibold">{filteredPatients.length}</span> de{' '}
-              <span className="font-semibold">{patients.length}</span> pacientes
-            </div>
-
-            {/* Patients List */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredPatients.map((patient) => (
-                <div
-                  key={patient.id}
-                  onClick={() => handleViewHistory(patient.id)}
-                  className="bg-white rounded-lg shadow hover:shadow-lg transition-all cursor-pointer border border-slate-200 hover:border-teal-400 hover:bg-teal-50 group"
-                >
-                  <div className="p-6">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex-1">
-                        <h3 className="text-lg font-bold text-slate-900 group-hover:text-teal-700 transition-colors">
-                          {patient.fullName}
-                        </h3>
-                        <p className="text-sm text-slate-500 mt-1">DNI: {patient.dni}</p>
-                      </div>
-                      <ChevronRight className="text-slate-300 group-hover:text-teal-600 transition-colors" size={24} />
-                    </div>
-
-                    {/* Patient Info */}
-                    <div className="space-y-2 text-sm">
-                      {patient.phone && (
-                        <p className="text-slate-600">
-                          <span className="font-semibold">Tel:</span> {patient.phone}
-                        </p>
-                      )}
-                      {patient.address && (
-                        <p className="text-slate-600">
-                          <span className="font-semibold">Dir:</span> {patient.address}
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Appointments Count */}
-                    <div className="mt-4 pt-4 border-t border-slate-200">
-                      <span className="inline-block bg-teal-100 text-teal-800 rounded-full px-3 py-1 text-xs font-semibold">
-                        {patient._count?.appointments || 0} cita{patient._count?.appointments !== 1 ? 's' : ''}
-                      </span>
-                    </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredPatients.map((patient) => (
+              <div
+                key={patient.id}
+                onClick={() => handleViewHistory(patient.id)}
+                className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 hover:border-teal-500 hover:shadow-xl hover:shadow-teal-900/5 transition-all cursor-pointer group relative overflow-hidden"
+              >
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <h3 className="text-xl font-black text-slate-800 group-hover:text-teal-600 transition-colors uppercase leading-tight">
+                      {patient.fullName}
+                    </h3>
+                    <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">DNI: {patient.dni}</p>
                   </div>
+                  <ChevronRight className="text-slate-300 group-hover:text-teal-500 transition-all group-hover:translate-x-1" size={24} />
                 </div>
-              ))}
-            </div>
-          </>
+
+                <div className="space-y-1 mb-6">
+                   <p className="text-sm text-slate-600 font-medium">{patient.healthInsurance || 'Sin Obra Social'}</p>
+                   <p className="text-xs text-slate-400">{patient.phone || 'Sin teléfono'}</p>
+                </div>
+
+                <div className="pt-4 border-t border-slate-100 flex justify-between items-center">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-teal-600 bg-teal-50 px-3 py-1 rounded-full">
+                    {patient._count?.appointments || 0} Sesiones
+                  </span>
+                  {patient.hasCancer && <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>}
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </div>
