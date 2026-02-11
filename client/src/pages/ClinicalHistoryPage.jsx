@@ -17,7 +17,31 @@ const ClinicalHistoryPage = () => {
   
   const timers = useRef({});
 
-  // --- 1. CARGA DE DATOS ---
+  // --- 1. FUNCIONES DE APOYO ---
+  
+  // FIX EDAD: Evita el error NaN asegurando formato ISO y validando el objeto Date
+  const calculateAge = (birthDate) => {
+    if (!birthDate) return '...';
+    const birth = new Date(birthDate.includes('T') ? birthDate : `${birthDate}T00:00:00`);
+    if (isNaN(birth.getTime())) return 'N/A';
+
+    const today = new Date();
+    let age = today.getFullYear() - birth.getFullYear();
+    const monthDiff = today.getMonth() - birth.getMonth();
+    
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+      age--;
+    }
+    return age < 0 ? 0 : age;
+  };
+
+  const ensureArray = (data) => {
+    if (!data) return [];
+    if (Array.isArray(data)) return data;
+    try { return JSON.parse(data) || []; } catch { return []; }
+  };
+
+  // --- 2. CARGA DE DATOS ---
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -46,7 +70,7 @@ const ClinicalHistoryPage = () => {
     if (patientId) fetchData();
   }, [patientId]);
 
-  // --- 2. LÓGICA DE PERSISTENCIA (AUTOGUARDADO) ---
+  // --- 3. LÓGICA DE PERSISTENCIA (AUTOGUARDADO) ---
   const triggerAutoSave = (entry) => {
     const id = entry.id;
     setHistoryEntries(prev => prev.map(e => e.id === id ? { ...e, status: 'typing' } : e));
@@ -100,20 +124,6 @@ const ClinicalHistoryPage = () => {
     } catch (err) {
       toast.error("No se pudo eliminar");
     }
-  };
-
-  // --- 3. FUNCIONES DE APOYO ---
-  const calculateAge = (birthDate) => {
-    if (!birthDate) return 'N/A';
-    const birth = new Date(birthDate + 'T00:00:00');
-    const age = new Date().getFullYear() - birth.getFullYear();
-    return age;
-  };
-
-  const ensureArray = (data) => {
-    if (!data) return [];
-    if (Array.isArray(data)) return data;
-    try { return JSON.parse(data) || []; } catch { return []; }
   };
 
   const handleUpdatePatient = async (field, value) => {
@@ -180,7 +190,7 @@ const ClinicalHistoryPage = () => {
         setHistoryEntries(prev => prev.map(h => {
           if (h.id === entryId) {
             const updated = { ...h, attachments: [...h.attachments, newFile] };
-            saveEntry(updated);
+            saveEntry(updated); // Guardar automáticamente al subir
             return updated;
           }
           return h;
@@ -240,13 +250,17 @@ const ClinicalHistoryPage = () => {
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-          {/* COLUMNA INFO PACIENTE */}
           <div className="md:col-span-1 space-y-6 no-print">
             <section className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100 shadow-sm">
               <h3 className="text-[10px] font-black text-slate-400 uppercase mb-4 tracking-widest">Información Base</h3>
               <div className="space-y-3 text-[11px]">
                 <p className="flex justify-between border-b border-slate-200 pb-2"><b>DNI:</b> <span>{patient?.dni}</span></p>
-                <p className="flex justify-between border-b border-slate-200 pb-2"><b>EDAD:</b> <span className="bg-teal-100 px-2 rounded-lg font-black">{calculateAge(patient?.birthDate)} años</span></p>
+                <p className="flex justify-between border-b border-slate-200 pb-2">
+                  <b>EDAD:</b> 
+                  <span className="bg-teal-100 px-2 rounded-lg font-black">
+                    {calculateAge(patient?.birthDate)} años
+                  </span>
+                </p>
                 <p className="flex justify-between"><b>OS:</b> <span className="text-teal-600 font-black">{patient?.healthInsurance || 'Particular'}</span></p>
               </div>
             </section>
@@ -275,14 +289,13 @@ const ClinicalHistoryPage = () => {
             </section>
           </div>
 
-          {/* COLUMNA CRONOLOGÍA DE SESIONES */}
           <div className="md:col-span-3 space-y-6">
             <div className="flex flex-col md:flex-row justify-between items-center gap-4 no-print bg-slate-50 p-4 rounded-3xl border border-slate-100">
               <div className="relative w-full md:w-64">
                 <Search size={16} className="absolute left-3 top-2.5 text-slate-400" />
                 <input 
                   type="text" 
-                  placeholder="Buscar por fecha (AAAA-MM)..." 
+                  placeholder="Buscar por fecha..." 
                   className="w-full pl-10 pr-4 py-2 bg-white rounded-xl text-xs font-bold outline-none border border-slate-200 focus:border-teal-400 transition-all"
                   value={dateSearch}
                   onChange={(e) => setDateSearch(e.target.value)}
@@ -296,72 +309,49 @@ const ClinicalHistoryPage = () => {
               </button>
             </div>
 
-            {filteredEntries.length === 0 ? (
-              <div className="text-center py-20 bg-slate-50 rounded-[3rem] border-2 border-dashed border-slate-200">
-                <FileText className="mx-auto text-slate-300 mb-4" size={48} />
-                <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">No hay registros para este paciente</p>
-              </div>
-            ) : filteredEntries.map((entry) => (
-              <div 
-                key={entry.id} 
-                className={`session-card border-2 transition-all rounded-[2.5rem] bg-white overflow-hidden ${!entry.isVisible ? 'opacity-40 grayscale is-hidden' : 'border-slate-100 shadow-sm hover:shadow-md'}`}
-              >
-                {/* Header de la Sesión */}
+            {filteredEntries.map((entry) => (
+              <div key={entry.id} className={`session-card border-2 transition-all rounded-[2.5rem] bg-white overflow-hidden ${!entry.isVisible ? 'opacity-40 grayscale is-hidden' : 'border-slate-100 shadow-sm'}`}>
                 <div className="bg-slate-50 px-8 py-4 border-b flex justify-between items-center">
                   <input 
                     type="date" 
-                    className="bg-white px-3 py-1.5 rounded-xl border border-slate-200 font-black text-teal-700 text-[11px] outline-none shadow-sm focus:border-teal-400" 
+                    className="bg-white px-3 py-1.5 rounded-xl border border-slate-200 font-black text-teal-700 text-[11px] outline-none" 
                     value={entry.date} 
                     onChange={(e) => handleEntryChange(entry.id, 'date', e.target.value)} 
                   />
-                  
                   <div className="flex items-center gap-3 no-print">
-                    <button 
-                      onClick={() => toggleVisibility(entry.id)} 
-                      className={`p-2 rounded-xl border transition-all ${entry.isVisible ? 'bg-white text-slate-400 border-slate-200 hover:text-teal-600' : 'bg-amber-100 text-amber-600 border-amber-200'}`}
-                      title={entry.isVisible ? "Ocultar de impresión" : "Mostrar en impresión"}
-                    >
+                    <button onClick={() => toggleVisibility(entry.id)} className={`p-2 rounded-xl border ${entry.isVisible ? 'bg-white text-slate-400' : 'bg-amber-100 text-amber-600 border-amber-200'}`}>
                       {entry.isVisible ? <Eye size={16} /> : <EyeOff size={16} />}
                     </button>
-                    <button 
-                      onClick={() => deleteEntry(entry.id)} 
-                      className="p-2 bg-white text-red-400 border border-slate-200 rounded-xl hover:bg-red-50 hover:text-red-600 transition-all"
-                    >
+                    <button onClick={() => deleteEntry(entry.id)} className="p-2 bg-white text-red-400 border border-slate-200 rounded-xl hover:bg-red-50">
                       <Trash2 size={16} />
                     </button>
                     <div className="text-[9px] font-black uppercase ml-2 min-w-[70px]">
                       {entry.status === 'saved' && <span className="text-teal-500 italic">● Guardado</span>}
                       {entry.status === 'saving' && <span className="text-amber-500 animate-pulse">● Guardando...</span>}
-                      {entry.status === 'error' && <span className="text-red-500">● Error al guardar</span>}
                     </div>
                   </div>
                 </div>
 
-                {/* Contenido de la Sesión */}
                 <div className="p-8 space-y-4">
                   <input 
-                    className="w-full text-xl font-black text-slate-800 uppercase outline-none placeholder:text-slate-200 focus:placeholder:text-slate-100" 
-                    placeholder="DIAGNÓSTICO O MOTIVO DE CONSULTA..." 
+                    className="w-full text-xl font-black text-slate-800 uppercase outline-none placeholder:text-slate-200" 
+                    placeholder="DIAGNÓSTICO..." 
                     value={entry.diagnosis} 
                     onChange={(e) => handleEntryChange(entry.id, 'diagnosis', e.target.value)} 
                   />
                   <textarea 
-                    className="w-full text-sm text-slate-600 outline-none min-h-[140px] bg-slate-50/50 p-6 rounded-3xl resize-none focus:bg-white focus:shadow-inner transition-all leading-relaxed" 
-                    placeholder="Evolución detallada de la sesión, ejercicios realizados, observaciones..." 
+                    className="w-full text-sm text-slate-600 outline-none min-h-[140px] bg-slate-50/50 p-6 rounded-3xl resize-none focus:bg-white transition-all" 
+                    placeholder="Evolución detallada..." 
                     value={entry.evolution} 
                     onChange={(e) => handleEntryChange(entry.id, 'evolution', e.target.value)} 
                   />
 
-                  {/* Visualización de Adjuntos */}
                   {entry.attachments.length > 0 && (
-                    <div className="attachments-grid grid grid-cols-2 md:grid-cols-4 gap-4 pt-2">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-2">
                       {entry.attachments.map((file, idx) => (
-                        <div key={idx} className="relative group aspect-square rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
+                        <div key={idx} className="relative group aspect-square rounded-2xl overflow-hidden border border-slate-200">
                           <img src={file.data} alt="Adjunto" className="w-full h-full object-cover" />
-                          <button 
-                            onClick={() => removeAttachment(entry.id, idx)}
-                            className="absolute top-2 right-2 p-1.5 bg-red-600 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity shadow-lg no-print"
-                          >
+                          <button onClick={() => removeAttachment(entry.id, idx)} className="absolute top-2 right-2 p-1.5 bg-red-600 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity no-print">
                             <X size={12} />
                           </button>
                         </div>
@@ -369,18 +359,15 @@ const ClinicalHistoryPage = () => {
                     </div>
                   )}
 
-                  {/* Botones de Adjuntos */}
-                  <div className="pt-4 border-t border-slate-50 flex flex-wrap gap-4 no-print">
-                    <div className="flex gap-2">
-                      <label className="flex items-center gap-2 text-teal-600 text-[9px] font-black cursor-pointer bg-teal-50 px-4 py-2 rounded-xl border border-teal-100 hover:bg-teal-100 transition-colors">
-                        <Camera size={14}/> FOTOGRAFÍA
-                        <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleFileUpload(entry.id, e)} />
-                      </label>
-                      <label className="flex items-center gap-2 text-slate-500 text-[9px] font-black cursor-pointer bg-slate-50 px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-100 transition-colors">
-                        <Upload size={14}/> DOCUMENTO
-                        <input type="file" className="hidden" onChange={(e) => handleFileUpload(entry.id, e)} />
-                      </label>
-                    </div>
+                  <div className="pt-4 border-t border-slate-50 flex gap-2 no-print">
+                    <label className="flex items-center gap-2 text-teal-600 text-[9px] font-black cursor-pointer bg-teal-50 px-4 py-2 rounded-xl border border-teal-100">
+                      <Camera size={14}/> FOTOGRAFÍA
+                      <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleFileUpload(entry.id, e)} />
+                    </label>
+                    <label className="flex items-center gap-2 text-slate-500 text-[9px] font-black cursor-pointer bg-slate-50 px-4 py-2 rounded-xl border border-slate-200">
+                      <Upload size={14}/> DOCUMENTO
+                      <input type="file" className="hidden" onChange={(e) => handleFileUpload(entry.id, e)} />
+                    </label>
                   </div>
                 </div>
               </div>
