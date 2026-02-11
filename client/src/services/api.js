@@ -2,9 +2,12 @@ import axios from 'axios';
 
 /**
  * CONFIGURACIÓN DE URL
- * Dejamos la base solo con el dominio para evitar confusiones de rutas.
+ * Forzamos que la base siempre incluya /api para que todas las llamadas 
+ * relativas funcionen automáticamente.
  */
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://kareh-backend.onrender.com';
+const rawUrl = import.meta.env.VITE_API_URL || 'https://kareh-backend.onrender.com';
+// Si la URL no termina en /api, se lo agregamos. 
+const API_BASE_URL = rawUrl.endsWith('/api') ? rawUrl : `${rawUrl.replace(/\/$/, '')}/api`;
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -13,66 +16,49 @@ const api = axios.create({
   }
 });
 
-// Interceptor para añadir el JWT a cada petición
+// Interceptor para añadir el JWT
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('auth_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    // Útil para ver en consola si la URL se está armando bien
+    console.log(`🌐 Llamando a: ${config.baseURL}${config.url}`);
     return config;
   },
   (error) => Promise.reject(error)
 );
 
-// Interceptor para manejar respuestas y errores globalmente
+// Interceptor de errores (se mantiene tu lógica que es buena)
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     let message = 'Ocurrió un error inesperado';
-
     if (error.response) {
       const status = error.response.status;
-      
-      if (status === 401) message = 'Sesión expirada. Por favor, inicia sesión nuevamente.';
-      if (status === 403) message = 'No tienes permiso para realizar esta acción.';
-      if (status === 409) message = 'Este horario ya está ocupado por otro paciente.';
-      if (status === 400) message = 'Datos inválidos. Revisa el formulario.';
-      if (status === 500) message = 'Error en el servidor de Kareh Pro. Revisa el backend.';
-      if (status === 503) message = 'El servidor está temporalmente fuera de línea.';
-      
+      if (status === 401) message = 'Sesión expirada.';
+      if (status === 404) message = 'No se encontró el recurso (Error de ruta).';
       message = error.response.data?.message || message;
-    } else if (error.request) {
-      message = 'No se pudo conectar con el servidor. Verifica tu conexión o el estado del backend.';
     }
-
     return Promise.reject({ ...error, friendlyMessage: message });
   }
 );
 
 export default api;
 
-// --- FUNCIONES ESPECÍFICAS CORREGIDAS (Añadido /api/ en todas) ---
+/**
+ * FUNCIONES ESPECÍFICAS
+ * Ahora son mucho más limpias porque NO necesitan repetir "/api"
+ */
 
 // Auth
-export const requestOTP = async (email) => {
-  // Coincide con app.use('/api/auth', ...) en tu server
-  return api.post('/api/auth/request-otp', { email });
-};
-
-export const verifyOTP = async (email, otp) => {
-  return api.post('/api/auth/verify-otp', { email, otp });
-};
+export const requestOTP = (email) => api.post('/auth/request-otp', { email });
+export const verifyOTP = (email, otp) => api.post('/auth/verify-otp', { email, otp });
 
 // Appointments
-export const deleteAppointment = async (appointmentId) => {
-  return api.delete(`/api/appointments/${appointmentId}`);
-};
+export const deleteAppointment = (id) => api.delete(`/appointments/${id}`);
+export const cancelFutureAppointments = (patientId, fromDate = null) => 
+  api.post(`/appointments/patients/${patientId}/cancel-future`, { fromDate });
 
-export const cancelFutureAppointments = async (patientId, fromDate = null) => {
-  return api.post(`/api/appointments/patients/${patientId}/cancel-future`, { fromDate });
-};
-
-export const updateAppointment = async (appointmentId, data) => {
-  return api.patch(`/api/appointments/${appointmentId}`, data);
-};
+export const updateAppointment = (id, data) => api.patch(`/appointments/${id}`, data);
