@@ -6,7 +6,7 @@ import CashflowPage from './pages/CashflowPage';
 import SettingsPage from './pages/SettingsPage';
 import PatientsPage from './pages/PatientsPage';
 import ClinicalHistoriesPage from './pages/ClinicalHistoriesPage'; 
-import ClinicalHistoryPage from './pages/ClinicalHistoryPage'; // <--- IMPORTANTE: SINGULAR
+import ClinicalHistoryPage from './pages/ClinicalHistoryPage'; // Importación singular
 import DashboardPage from './pages/DashboardPage';
 import LoginPage from './pages/LoginPage';
 import Sidebar from './components/layout/Sidebar';
@@ -17,26 +17,18 @@ function App() {
 
   const verifyAuth = useCallback(async () => {
     const token = localStorage.getItem('auth_token');
-    if (!token) {
-      setIsAuthenticated(false);
-      setLoading(false);
-      return;
-    }
+    if (!token) { setIsAuthenticated(false); setLoading(false); return; }
     try {
       const host = window.location.hostname === 'localhost' 
         ? 'http://localhost:10000/api' 
         : 'https://kareh-backend.onrender.com/api';
-      
       const response = await fetch(`${host}/auth/verify`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { 'Authorization': 'Bearer ' + token }
       });
       const data = await response.json();
       setIsAuthenticated(!!data.valid);
-    } catch (err) {
-      setIsAuthenticated(false);
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { setIsAuthenticated(false); }
+    finally { setLoading(false); }
   }, []);
 
   useEffect(() => { verifyAuth(); }, [verifyAuth]);
@@ -56,21 +48,18 @@ function App() {
                 <Route path="*" element={<Navigate to="/login" replace />} />
               </>
             ) : (
-              <>
-                <Route path="/dashboard" element={<DashboardPage />} />
-                <Route path="/appointments" element={<AppointmentsPage />} />
-                <Route path="/patients" element={<PatientsPage />} />
-                
-                {/* LISTA (PLURAL) */}
-                <Route path="/clinical-histories" element={<ClinicalHistoriesPage />} />
-                
-                {/* FICHA (SINGULAR) - ESTA ES LA QUE TIENE QUE RECONOCER */}
-                <Route path="/clinical-history/:id" element={<ClinicalHistoryPage />} />
-                
-                <Route path="/cashflow" element={<CashflowPage />} />
-                <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/">
+                <Route index element={<Navigate to="/dashboard" replace />} />
+                <Route path="dashboard" element={<DashboardPage />} />
+                <Route path="appointments" element={<AppointmentsPage />} />
+                <Route path="patients" element={<PatientsPage />} />
+                <Route path="clinical-histories" element={<ClinicalHistoriesPage />} />
+                {/* RUTA DE LA TARJETA */}
+                <Route path="clinical-history/:id" element={<ClinicalHistoryPage />} />
+                <Route path="cashflow" element={<CashflowPage />} />
+                <Route path="settings" element={<SettingsPage />} />
                 <Route path="*" element={<Navigate to="/dashboard" replace />} />
-              </>
+              </Route>
             )}
           </Routes>
         </main>
