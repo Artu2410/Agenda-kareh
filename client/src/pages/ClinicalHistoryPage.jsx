@@ -19,10 +19,15 @@ const ClinicalHistoryPage = () => {
 
   // --- 1. FUNCIONES DE APOYO ---
   
-  // FIX EDAD: Evita el error NaN asegurando formato ISO y validando el objeto Date
+  // FIX DEFINITIVO EDAD: Maneja string vacío, null y desfase horario
   const calculateAge = (birthDate) => {
     if (!birthDate) return '...';
-    const birth = new Date(birthDate.includes('T') ? birthDate : `${birthDate}T00:00:00`);
+    
+    // Forzamos el parseo ignorando la hora local para evitar el salto de día
+    const dateParts = birthDate.split('T')[0].split('-');
+    if (dateParts.length !== 3) return 'N/A';
+    
+    const birth = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
     if (isNaN(birth.getTime())) return 'N/A';
 
     const today = new Date();
@@ -56,6 +61,7 @@ const ClinicalHistoryPage = () => {
         const formattedEntries = (Array.isArray(hRes.data) ? hRes.data : []).map(e => ({ 
           ...e, 
           attachments: ensureArray(e.attachments),
+          // FIX FECHA: Tomar solo la parte de la fecha YYYY-MM-DD
           date: e.createdAt ? e.createdAt.split('T')[0] : new Date().toISOString().split('T')[0],
           status: 'saved',
           isVisible: true 
@@ -70,7 +76,7 @@ const ClinicalHistoryPage = () => {
     if (patientId) fetchData();
   }, [patientId]);
 
-  // --- 3. LÓGICA DE PERSISTENCIA (AUTOGUARDADO) ---
+  // --- 3. LÓGICA DE PERSISTENCIA ---
   const triggerAutoSave = (entry) => {
     const id = entry.id;
     setHistoryEntries(prev => prev.map(e => e.id === id ? { ...e, status: 'typing' } : e));
@@ -116,13 +122,13 @@ const ClinicalHistoryPage = () => {
       setHistoryEntries(prev => prev.filter(e => e.id !== id));
       return;
     }
-    if (!window.confirm("¿Eliminar esta evolución permanentemente?")) return;
+    if (!window.confirm("¿Eliminar esta sesión de forma permanente?")) return;
     try {
       await api.delete(`/clinical-history/${id}`);
       setHistoryEntries(prev => prev.filter(e => e.id !== id));
-      toast.success("Evolución eliminada");
+      toast.success("Sesión eliminada");
     } catch (err) {
-      toast.error("No se pudo eliminar");
+      toast.error("Error al eliminar");
     }
   };
 
@@ -130,9 +136,9 @@ const ClinicalHistoryPage = () => {
     try {
       await api.patch(`/patients/${patientId}`, { [field]: value });
       setPatient(prev => ({ ...prev, [field]: value }));
-      toast.success("Ficha actualizada");
+      toast.success("Información actualizada");
     } catch (err) {
-      toast.error("Error al actualizar ficha");
+      toast.error("Error al actualizar");
     }
   };
 
@@ -151,18 +157,16 @@ const ClinicalHistoryPage = () => {
     setHistoryEntries(prev => prev.map(e => e.id === id ? { ...e, isVisible: !e.isVisible } : e));
   };
 
-  // --- 4. CARGA Y COMPRESIÓN DE ARCHIVOS ---
   const handleFileUpload = (entryId, e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    toast.loading("Procesando imagen...", { id: 'uploading' });
+    toast.loading("Comprimiendo imagen...", { id: 'uploading' });
 
     const reader = new FileReader();
     reader.onload = (event) => {
       const img = new Image();
       img.src = event.target.result;
-
       img.onload = () => {
         const canvas = document.createElement('canvas');
         const MAX_WIDTH = 1200;
@@ -180,7 +184,6 @@ const ClinicalHistoryPage = () => {
         ctx.drawImage(img, 0, 0, width, height);
 
         const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
-        
         const newFile = { 
           name: file.name.replace(/\.[^/.]+$/, "") + ".jpg", 
           type: "image/jpeg", 
@@ -190,13 +193,12 @@ const ClinicalHistoryPage = () => {
         setHistoryEntries(prev => prev.map(h => {
           if (h.id === entryId) {
             const updated = { ...h, attachments: [...h.attachments, newFile] };
-            saveEntry(updated); // Guardar automáticamente al subir
+            saveEntry(updated);
             return updated;
           }
           return h;
         }));
-        
-        toast.success("Imagen adjuntada", { id: 'uploading' });
+        toast.success("Foto guardada", { id: 'uploading' });
       };
     };
     reader.readAsDataURL(file);
@@ -234,55 +236,46 @@ const ClinicalHistoryPage = () => {
         `}</style>
         
         <button onClick={() => navigate('/clinical-histories')} className="no-print flex items-center gap-2 text-slate-400 hover:text-teal-600 font-black uppercase text-[10px] mb-6 transition-colors">
-          <ChevronLeft size={16} /> Volver al listado
+          <ChevronLeft size={16} /> Volver
         </button>
 
         <header className="mb-10 border-b border-slate-100 pb-6 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
           <div>
             <h1 className="text-[11px] font-black text-teal-600 uppercase tracking-[0.3em] mb-2">KAREH · Historia Clínica</h1>
-            <h2 className="text-4xl md:text-5xl font-black text-slate-800 uppercase italic tracking-tighter leading-none">
+            <h2 className="text-4xl md:text-5xl font-black text-slate-800 uppercase italic tracking-tighter">
               {patient?.fullName}
             </h2>
           </div>
-          <button onClick={() => window.print()} className="no-print px-6 py-3 bg-slate-900 text-white rounded-2xl font-black text-[10px] flex items-center gap-2 hover:bg-slate-800 transition-all shadow-lg">
-            <Printer size={16} /> IMPRIMIR SELECCIONADOS
+          <button onClick={() => window.print()} className="no-print px-6 py-3 bg-slate-900 text-white rounded-2xl font-black text-[10px] flex items-center gap-2">
+            <Printer size={16} /> IMPRIMIR SESIONES
           </button>
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div className="md:col-span-1 space-y-6 no-print">
             <section className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100 shadow-sm">
-              <h3 className="text-[10px] font-black text-slate-400 uppercase mb-4 tracking-widest">Información Base</h3>
+              <h3 className="text-[10px] font-black text-slate-400 uppercase mb-4 tracking-widest">Ficha Base</h3>
               <div className="space-y-3 text-[11px]">
                 <p className="flex justify-between border-b border-slate-200 pb-2"><b>DNI:</b> <span>{patient?.dni}</span></p>
                 <p className="flex justify-between border-b border-slate-200 pb-2">
                   <b>EDAD:</b> 
-                  <span className="bg-teal-100 px-2 rounded-lg font-black">
+                  <span className="bg-teal-100 px-2 rounded-lg font-black text-teal-700">
                     {calculateAge(patient?.birthDate)} años
                   </span>
                 </p>
-                <p className="flex justify-between"><b>OS:</b> <span className="text-teal-600 font-black">{patient?.healthInsurance || 'Particular'}</span></p>
+                <p className="flex justify-between"><b>OS:</b> <span className="text-teal-600 font-black uppercase">{patient?.healthInsurance || 'Particular'}</span></p>
               </div>
             </section>
 
             <section className="bg-amber-50/50 p-6 rounded-[2rem] border border-amber-100 shadow-sm">
-              <h3 className="text-[10px] font-black text-amber-600 uppercase mb-4 flex items-center gap-2 tracking-widest">
-                <AlertTriangle size={14} /> Alertas Médicas
+              <h3 className="text-[10px] font-black text-amber-600 uppercase mb-4 flex items-center gap-2">
+                <AlertTriangle size={14} /> Riesgos
               </h3>
               <div className="space-y-2">
-                {[
-                  { id: 'hasCancer', label: 'Cáncer' },
-                  { id: 'hasMarcapasos', label: 'Marcapasos' },
-                  { id: 'usesEA', label: 'Usa EA' }
-                ].map(item => (
-                  <label key={item.id} className="flex items-center justify-between p-3 bg-white rounded-2xl shadow-sm text-[10px] font-bold uppercase cursor-pointer hover:bg-amber-50 transition-colors">
-                    {item.label}
-                    <input 
-                      type="checkbox" 
-                      checked={!!patient?.[item.id]} 
-                      onChange={(e) => handleUpdatePatient(item.id, e.target.checked)} 
-                      className="w-4 h-4 accent-teal-600" 
-                    />
+                {[{id:'hasCancer', l:'Cáncer'}, {id:'hasMarcapasos', l:'Marcapasos'}, {id:'usesEA', l:'Usa EA'}].map(item => (
+                  <label key={item.id} className="flex items-center justify-between p-3 bg-white rounded-2xl shadow-sm text-[10px] font-bold uppercase cursor-pointer">
+                    {item.l}
+                    <input type="checkbox" checked={!!patient?.[item.id]} onChange={(e) => handleUpdatePatient(item.id, e.target.checked)} className="w-4 h-4 accent-teal-600" />
                   </label>
                 ))}
               </div>
@@ -295,17 +288,17 @@ const ClinicalHistoryPage = () => {
                 <Search size={16} className="absolute left-3 top-2.5 text-slate-400" />
                 <input 
                   type="text" 
-                  placeholder="Buscar por fecha..." 
-                  className="w-full pl-10 pr-4 py-2 bg-white rounded-xl text-xs font-bold outline-none border border-slate-200 focus:border-teal-400 transition-all"
+                  placeholder="Filtrar por fecha..." 
+                  className="w-full pl-10 pr-4 py-2 bg-white rounded-xl text-xs font-bold outline-none border border-slate-200"
                   value={dateSearch}
                   onChange={(e) => setDateSearch(e.target.value)}
                 />
               </div>
               <button 
                 onClick={() => setHistoryEntries([{ id: `temp-${Date.now()}`, date: new Date().toISOString().split('T')[0], diagnosis: '', evolution: '', attachments: [], status: 'typing', isVisible: true }, ...historyEntries])}
-                className="w-full md:w-auto bg-teal-600 text-white px-6 py-2.5 rounded-xl text-[10px] font-black flex items-center justify-center gap-2 shadow-lg shadow-teal-100 hover:bg-teal-700 transition-all"
+                className="w-full md:w-auto bg-teal-600 text-white px-6 py-2.5 rounded-xl text-[10px] font-black flex items-center justify-center gap-2 shadow-lg"
               >
-                <PlusCircle size={16} /> NUEVA SESIÓN
+                <PlusCircle size={16} /> NUEVA EVOLUCIÓN
               </button>
             </div>
 
@@ -325,9 +318,9 @@ const ClinicalHistoryPage = () => {
                     <button onClick={() => deleteEntry(entry.id)} className="p-2 bg-white text-red-400 border border-slate-200 rounded-xl hover:bg-red-50">
                       <Trash2 size={16} />
                     </button>
-                    <div className="text-[9px] font-black uppercase ml-2 min-w-[70px]">
-                      {entry.status === 'saved' && <span className="text-teal-500 italic">● Guardado</span>}
-                      {entry.status === 'saving' && <span className="text-amber-500 animate-pulse">● Guardando...</span>}
+                    <div className="text-[9px] font-black uppercase ml-2 min-w-[80px]">
+                      {entry.status === 'saved' && <span className="text-teal-500">● Guardado</span>}
+                      {entry.status === 'saving' && <span className="text-amber-500 animate-pulse">● Guardando</span>}
                     </div>
                   </div>
                 </div>
@@ -335,21 +328,21 @@ const ClinicalHistoryPage = () => {
                 <div className="p-8 space-y-4">
                   <input 
                     className="w-full text-xl font-black text-slate-800 uppercase outline-none placeholder:text-slate-200" 
-                    placeholder="DIAGNÓSTICO..." 
+                    placeholder="Diagnóstico / Motivo..." 
                     value={entry.diagnosis} 
                     onChange={(e) => handleEntryChange(entry.id, 'diagnosis', e.target.value)} 
                   />
                   <textarea 
                     className="w-full text-sm text-slate-600 outline-none min-h-[140px] bg-slate-50/50 p-6 rounded-3xl resize-none focus:bg-white transition-all" 
-                    placeholder="Evolución detallada..." 
+                    placeholder="Evolución clínica..." 
                     value={entry.evolution} 
                     onChange={(e) => handleEntryChange(entry.id, 'evolution', e.target.value)} 
                   />
 
                   {entry.attachments.length > 0 && (
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-2">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-2 attachments-grid">
                       {entry.attachments.map((file, idx) => (
-                        <div key={idx} className="relative group aspect-square rounded-2xl overflow-hidden border border-slate-200">
+                        <div key={idx} className="relative group aspect-square rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
                           <img src={file.data} alt="Adjunto" className="w-full h-full object-cover" />
                           <button onClick={() => removeAttachment(entry.id, idx)} className="absolute top-2 right-2 p-1.5 bg-red-600 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity no-print">
                             <X size={12} />
@@ -360,12 +353,12 @@ const ClinicalHistoryPage = () => {
                   )}
 
                   <div className="pt-4 border-t border-slate-50 flex gap-2 no-print">
-                    <label className="flex items-center gap-2 text-teal-600 text-[9px] font-black cursor-pointer bg-teal-50 px-4 py-2 rounded-xl border border-teal-100">
-                      <Camera size={14}/> FOTOGRAFÍA
+                    <label className="flex items-center gap-2 text-teal-600 text-[9px] font-black cursor-pointer bg-teal-50 px-4 py-2 rounded-xl border border-teal-100 hover:bg-teal-100">
+                      <Camera size={14}/> CAPTURAR
                       <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleFileUpload(entry.id, e)} />
                     </label>
-                    <label className="flex items-center gap-2 text-slate-500 text-[9px] font-black cursor-pointer bg-slate-50 px-4 py-2 rounded-xl border border-slate-200">
-                      <Upload size={14}/> DOCUMENTO
+                    <label className="flex items-center gap-2 text-slate-500 text-[9px] font-black cursor-pointer bg-slate-50 px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-100">
+                      <Upload size={14}/> ADJUNTAR
                       <input type="file" className="hidden" onChange={(e) => handleFileUpload(entry.id, e)} />
                     </label>
                   </div>
