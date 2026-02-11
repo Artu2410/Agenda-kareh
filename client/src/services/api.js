@@ -2,11 +2,9 @@ import axios from 'axios';
 
 /**
  * CONFIGURACIÓN DE URL
- * Usamos una lógica de limpieza para evitar doble barra // o falta de barra
+ * Dejamos la base solo con el dominio para evitar confusiones de rutas.
  */
-const rawUrl = import.meta.env.VITE_API_URL || 'https://kareh-backend.onrender.com/api';
-// Nos aseguramos de que la URL base no termine en '/' para que las rutas relativas funcionen siempre
-const API_BASE_URL = rawUrl.endsWith('/') ? rawUrl.slice(0, -1) : rawUrl;
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://kareh-backend.onrender.com';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -22,8 +20,6 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    // Log de depuración (puedes quitarlo luego de probar)
-    console.log(`🚀 Petición saliente: ${config.method.toUpperCase()} ${config.baseURL}${config.url}`);
     return config;
   },
   (error) => Promise.reject(error)
@@ -56,15 +52,27 @@ api.interceptors.response.use(
 
 export default api;
 
-// --- FUNCIONES ESPECÍFICAS ---
-// Nota: Todas empiezan con '/' y Axios las unirá a .../api correctamente
+// --- FUNCIONES ESPECÍFICAS CORREGIDAS (Añadido /api/ en todas) ---
 
-export const requestOTP = async (email) => api.post('/auth/request-otp', { email });
-export const verifyOTP = async (email, otp) => api.post('/auth/verify-otp', { email, otp });
+// Auth
+export const requestOTP = async (email) => {
+  // Coincide con app.use('/api/auth', ...) en tu server
+  return api.post('/api/auth/request-otp', { email });
+};
 
-export const deleteAppointment = async (appointmentId) => api.delete(`/appointments/${appointmentId}`);
-export const cancelFutureAppointments = async (patientId, fromDate = null) => 
-  api.post(`/appointments/patients/${patientId}/cancel-future`, { fromDate });
+export const verifyOTP = async (email, otp) => {
+  return api.post('/api/auth/verify-otp', { email, otp });
+};
 
-// Usamos PATCH para actualizaciones parciales (o PUT si cambiaste el backend a PUT)
-export const updateAppointment = async (appointmentId, data) => api.patch(`/appointments/${appointmentId}`, data);
+// Appointments
+export const deleteAppointment = async (appointmentId) => {
+  return api.delete(`/api/appointments/${appointmentId}`);
+};
+
+export const cancelFutureAppointments = async (patientId, fromDate = null) => {
+  return api.post(`/api/appointments/patients/${patientId}/cancel-future`, { fromDate });
+};
+
+export const updateAppointment = async (appointmentId, data) => {
+  return api.patch(`/api/appointments/${appointmentId}`, data);
+};
