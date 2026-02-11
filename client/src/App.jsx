@@ -6,7 +6,7 @@ import CashflowPage from './pages/CashflowPage';
 import SettingsPage from './pages/SettingsPage';
 import PatientsPage from './pages/PatientsPage';
 import ClinicalHistoriesPage from './pages/ClinicalHistoriesPage'; 
-import ClinicalHistoryPage from './pages/ClinicalHistoryPage'; 
+import ClinicalHistoryPage from './pages/ClinicalHistoryPage'; // <--- ESTE DEBE SER EL SINGULAR
 import DashboardPage from './pages/DashboardPage';
 import LoginPage from './pages/LoginPage';
 import Sidebar from './components/layout/Sidebar';
@@ -22,7 +22,6 @@ function App() {
       setIsVerifying(false);
       return;
     }
-
     try {
       const host = window.location.hostname === 'localhost' 
         ? 'http://localhost:10000/api' 
@@ -35,40 +34,18 @@ function App() {
           'Accept': 'application/json'
         }
       });
-
-      const contentType = response.headers.get("content-type");
-      if (!response.ok || !contentType || !contentType.includes("application/json")) {
-        throw new Error("Sesión inválida");
-      }
-
       const data = await response.json();
       setIsAuthenticated(!!data.valid);
-      if (!data.valid) localStorage.removeItem('auth_token');
-
     } catch (err) {
-      console.error('Auth error:', err.message);
       setIsAuthenticated(false);
-      localStorage.removeItem('auth_token');
     } finally {
       setIsVerifying(false);
     }
   }, []);
 
-  useEffect(() => {
-    verifyAuth();
-  }, [verifyAuth]);
+  useEffect(() => { verifyAuth(); }, [verifyAuth]);
 
-  const handleLoginSuccess = () => {
-    setIsAuthenticated(true);
-  };
-
-  if (isVerifying) {
-    return (
-      <div className="w-full h-screen flex items-center justify-center bg-slate-50">
-        <div className="w-10 h-10 border-4 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
-  }
+  if (isVerifying) return <div className="h-screen w-full flex items-center justify-center bg-slate-50"><div className="w-10 h-10 border-4 border-teal-500 border-t-transparent rounded-full animate-spin"></div></div>;
 
   return (
     <Router>
@@ -79,7 +56,7 @@ function App() {
           <Routes>
             {!isAuthenticated ? (
               <>
-                <Route path="/login" element={<LoginPage onLoginSuccess={handleLoginSuccess} />} />
+                <Route path="/login" element={<LoginPage onLoginSuccess={() => setIsAuthenticated(true)} />} />
                 <Route path="*" element={<Navigate to="/login" replace />} />
               </>
             ) : (
@@ -88,8 +65,10 @@ function App() {
                 <Route path="/appointments" element={<AppointmentsPage />} />
                 <Route path="/patients" element={<PatientsPage />} />
                 <Route path="/clinical-histories" element={<ClinicalHistoriesPage />} />
-                {/* ESTA ES LA RUTA QUE FALTABA CONECTAR CORRECTAMENTE */}
+                
+                {/* ESTA LÍNEA ES LA CLAVE: Ahora carga ClinicalHistoryPage (singular) */}
                 <Route path="/clinical-history/:id" element={<ClinicalHistoryPage />} />
+                
                 <Route path="/cashflow" element={<CashflowPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="*" element={<Navigate to="/dashboard" replace />} />
