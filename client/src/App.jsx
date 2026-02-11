@@ -6,7 +6,7 @@ import CashflowPage from './pages/CashflowPage';
 import SettingsPage from './pages/SettingsPage';
 import PatientsPage from './pages/PatientsPage';
 import ClinicalHistoriesPage from './pages/ClinicalHistoriesPage'; 
-import ClinicalHistoryPage from './pages/ClinicalHistoryPage'; 
+import ClinicalHistoryPage from './pages/ClinicalHistoryPage';
 import DashboardPage from './pages/DashboardPage';
 import LoginPage from './pages/LoginPage';
 import Sidebar from './components/layout/Sidebar';
@@ -54,7 +54,6 @@ function App() {
                 <Route path="appointments" element={<AppointmentsPage />} />
                 <Route path="patients" element={<PatientsPage />} />
                 <Route path="clinical-histories" element={<ClinicalHistoriesPage />} />
-                {/* CAMBIO AQUÍ: patientId para coincidir con el componente */}
                 <Route path="clinical-history/:patientId" element={<ClinicalHistoryPage />} />
                 <Route path="cashflow" element={<CashflowPage />} />
                 <Route path="settings" element={<SettingsPage />} />

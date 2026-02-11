@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
-import { Search, User, FileText, ChevronRight, Loader2 } from 'lucide-react';
+import { Search, User, ChevronRight, Loader2 } from 'lucide-react';
 
-// Cambiado el nombre de la función para evitar conflictos
 export default function ClinicalHistoriesPage() {
   const [patients, setPatients] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -13,10 +12,12 @@ export default function ClinicalHistoriesPage() {
   useEffect(() => {
     const fetchPatients = async () => {
       try {
-        const res = await api.get('/patients');
+        setLoading(true);
+        // Ajustado a la ruta que funciona en tu backend
+        const res = await api.get('/patients/all');
         setPatients(res.data);
       } catch (err) {
-        console.error("Error cargando pacientes");
+        console.error("Error cargando pacientes:", err);
       } finally {
         setLoading(false);
       }
@@ -35,7 +36,6 @@ export default function ClinicalHistoriesPage() {
     <div className="flex-1 overflow-auto bg-slate-50 p-8">
       <div className="max-w-4xl mx-auto">
         <h1 className="text-3xl font-black text-slate-800 uppercase mb-8 italic">Historias Clínicas</h1>
-        
         <div className="relative mb-6">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
           <input 
@@ -45,7 +45,6 @@ export default function ClinicalHistoriesPage() {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-
         <div className="grid gap-4">
           {filteredPatients.map(patient => (
             <div 
@@ -54,8 +53,8 @@ export default function ClinicalHistoriesPage() {
               className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between cursor-pointer hover:border-teal-500 transition-all group"
             >
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400 group-hover:bg-teal-50 group-hover:text-teal-600">
-                  <User size={24} />
+                <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400 group-hover:bg-teal-50 group-hover:text-teal-600 font-bold uppercase">
+                  {patient.fullName.charAt(0)}
                 </div>
                 <div>
                   <h3 className="font-bold text-slate-800 uppercase">{patient.fullName}</h3>
