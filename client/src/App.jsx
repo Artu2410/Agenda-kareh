@@ -6,7 +6,7 @@ import CashflowPage from './pages/CashflowPage';
 import SettingsPage from './pages/SettingsPage';
 import PatientsPage from './pages/PatientsPage';
 import ClinicalHistoriesPage from './pages/ClinicalHistoriesPage'; 
-import ClinicalHistoryPage from './pages/ClinicalHistoryPage'; // <--- ESTE DEBE SER EL SINGULAR
+import ClinicalHistoryPage from './pages/ClinicalHistoryPage'; 
 import DashboardPage from './pages/DashboardPage';
 import LoginPage from './pages/LoginPage';
 import Sidebar from './components/layout/Sidebar';
@@ -34,10 +34,13 @@ function App() {
           'Accept': 'application/json'
         }
       });
+      
       const data = await response.json();
       setIsAuthenticated(!!data.valid);
     } catch (err) {
+      console.error('Auth error:', err);
       setIsAuthenticated(false);
+      localStorage.removeItem('auth_token');
     } finally {
       setIsVerifying(false);
     }
@@ -45,7 +48,13 @@ function App() {
 
   useEffect(() => { verifyAuth(); }, [verifyAuth]);
 
-  if (isVerifying) return <div className="h-screen w-full flex items-center justify-center bg-slate-50"><div className="w-10 h-10 border-4 border-teal-500 border-t-transparent rounded-full animate-spin"></div></div>;
+  if (isVerifying) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-slate-50">
+        <div className="w-10 h-10 border-4 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
 
   return (
     <Router>
@@ -61,12 +70,15 @@ function App() {
               </>
             ) : (
               <>
+                {/* Rutas principales */}
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/appointments" element={<AppointmentsPage />} />
                 <Route path="/patients" element={<PatientsPage />} />
+                
+                {/* Historias Clínicas - LISTA */}
                 <Route path="/clinical-histories" element={<ClinicalHistoriesPage />} />
                 
-                {/* ESTA LÍNEA ES LA CLAVE: Ahora carga ClinicalHistoryPage (singular) */}
+                {/* Historia Clínica - FICHA INDIVIDUAL (Singular) */}
                 <Route path="/clinical-history/:id" element={<ClinicalHistoryPage />} />
                 
                 <Route path="/cashflow" element={<CashflowPage />} />
