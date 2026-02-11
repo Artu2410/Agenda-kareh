@@ -1,95 +1,125 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { 
-  Save, FileText, Eye, EyeOff, Trash2, AlertTriangle, PlusCircle, 
-  Loader, X, Upload, Camera, Printer, Calendar, CheckCircle2, ChevronLeft 
-} from 'lucide-center';
+import { Loader2, ChevronLeft, Printer, Calendar, User, FileText } from 'lucide-react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 
-const ClinicalHistoryPage = () => {
+export default function ClinicalHistoryPage() {
   const { patientId } = useParams();
   const navigate = useNavigate();
   const [patient, setPatient] = useState(null);
   const [historyEntries, setHistoryEntries] = useState([]);
   const [loading, setLoading] = useState(true);
-  const timers = useRef({});
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!patientId) return;
       try {
         setLoading(true);
-        // Intentamos obtener el paciente y su historia
+        // Intentamos traer ambos datos. Si falla uno, el catch lo atrapa.
         const [pRes, hRes] = await Promise.all([
           api.get(`/patients/${patientId}`),
           api.get(`/clinical-history/${patientId}`)
         ]);
         
         setPatient(pRes.data);
-        const formattedEntries = hRes.data.map(e => ({ 
-          ...e, 
-          attachments: e.attachments ? (typeof e.attachments === 'string' ? JSON.parse(e.attachments) : e.attachments) : [],
-          date: e.createdAt || e.date,
-          status: 'saved',
-          hiddenForPrint: false
-        }));
-        setHistoryEntries(formattedEntries);
+        setHistoryEntries(Array.isArray(hRes.data) ? hRes.data : []);
       } catch (err) {
         console.error("Error cargando ficha:", err);
-        toast.error('No se pudo cargar la información');
+        toast.error("Error al conectar con el servidor");
       } finally {
         setLoading(false);
       }
     };
-    fetchData();
+    if (patientId) fetchData();
   }, [patientId]);
 
-  // Funciones de apoyo (Mantener las que ya tienes: calculateAge, handleUpdatePatient, etc.)
-  const calculateAge = (birthDate) => {
-    if (!birthDate) return 'N/A';
-    const birth = new Date(birthDate);
-    const age = new Date().getFullYear() - birth.getFullYear();
-    return age;
-  };
-
-  if (loading) return <div className="h-screen flex items-center justify-center bg-slate-50"><Loader className="animate-spin text-teal-600 w-12 h-12" /></div>;
+  if (loading) return (
+    <div className="h-screen flex items-center justify-center bg-white">
+      <Loader2 className="animate-spin text-teal-600" size={48} />
+    </div>
+  );
 
   return (
-    <div className="max-w-6xl mx-auto p-6 bg-white min-h-screen relative shadow-2xl shadow-slate-200 overflow-y-auto">
-      <button onClick={() => navigate('/clinical-histories')} className="no-print flex items-center gap-2 text-slate-400 hover:text-teal-600 font-black uppercase text-[10px] tracking-widest mb-6">
-        <ChevronLeft size={16} /> Volver a Historias
-      </button>
-
-      <header className="mb-10 border-b border-slate-100 pb-6 flex justify-between items-end">
-        <div>
-          <h1 className="text-[11px] font-black text-teal-600 uppercase tracking-[0.3em] mb-2">KAREH · Historia Clínica</h1>
-          <h2 className="text-5xl font-black text-slate-800 uppercase tracking-tight italic">{patient?.fullName}</h2>
-        </div>
-        <button onClick={() => window.print()} className="no-print px-6 py-3 bg-teal-50 text-teal-700 rounded-2xl font-black text-[10px] border border-teal-100">
-          <Printer size={16} /> IMPRIMIR
+    <div className="min-h-screen bg-white p-4 md:p-8 overflow-y-auto">
+      <div className="max-w-5xl mx-auto">
+        {/* Botón Volver */}
+        <button 
+          onClick={() => navigate('/clinical-histories')}
+          className="no-print flex items-center gap-2 text-slate-400 hover:text-teal-600 font-black uppercase text-[10px] tracking-widest mb-8 transition-colors"
+        >
+          <ChevronLeft size={16} /> Volver a la lista
         </button>
-      </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-        <div className="md:col-span-1 space-y-6">
-           <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100">
-             <p className="text-[10px] font-black text-slate-400 uppercase mb-4">Datos Base</p>
-             <div className="text-[11px] space-y-2">
-               <p className="flex justify-between"><b>DNI:</b> {patient?.dni}</p>
-               <p className="flex justify-between"><b>EDAD:</b> {calculateAge(patient?.birthDate)} años</p>
-             </div>
-           </div>
-        </div>
-        
-        <div className="md:col-span-3">
-            {/* Aquí va tu mapeo de historyEntries.map(...) */}
-            <p className="text-slate-400 uppercase font-black text-[10px]">Historial de Sesiones</p>
-            {historyEntries.length === 0 && <p className="py-10 text-center text-slate-300 font-bold uppercase">No hay sesiones registradas</p>}
+        {/* Encabezado Ficha */}
+        <header className="mb-12 border-b-4 border-slate-900 pb-8 flex justify-between items-end">
+          <div>
+            <p className="text-[10px] font-black text-teal-600 uppercase tracking-[0.4em] mb-2">KAREH PRO · Historia Clínica</p>
+            <h1 className="text-5xl md:text-7xl font-black text-slate-900 uppercase italic tracking-tighter">
+              {patient?.fullName || 'Paciente'}
+            </h1>
+          </div>
+          <button 
+            onClick={() => window.print()}
+            className="no-print bg-slate-900 text-white px-6 py-3 rounded-full font-black text-[10px] tracking-widest hover:bg-teal-600 transition-all flex items-center gap-2"
+          >
+            <Printer size={16} /> IMPRIMIR
+          </button>
+        </header>
+
+        <div className="grid md:grid-cols-3 gap-12">
+          {/* Columna Info Lateral */}
+          <aside className="space-y-8">
+            <section className="bg-slate-50 p-6 rounded-[2.5rem] border border-slate-100">
+              <h3 className="text-[10px] font-black text-slate-400 uppercase mb-4 tracking-widest flex items-center gap-2">
+                <User size={14} /> Datos del Paciente
+              </h3>
+              <div className="space-y-3 text-sm font-bold text-slate-700">
+                <p className="flex justify-between border-b border-slate-200 pb-1">
+                  <span className="text-slate-400 uppercase text-[9px]">DNI</span>
+                  <span>{patient?.dni || '---'}</span>
+                </p>
+                <p className="flex justify-between border-b border-slate-200 pb-1">
+                  <span className="text-slate-400 uppercase text-[9px]">Teléfono</span>
+                  <span>{patient?.phone || '---'}</span>
+                </p>
+                <p className="flex justify-between">
+                  <span className="text-slate-400 uppercase text-[9px]">Cobertura</span>
+                  <span className="text-teal-600">{patient?.insurance || 'Particular'}</span>
+                </p>
+              </div>
+            </section>
+          </aside>
+
+          {/* Columna Evoluciones/Sesiones */}
+          <main className="md:col-span-2">
+            <h3 className="text-[10px] font-black text-slate-400 uppercase mb-6 tracking-widest flex items-center gap-2">
+              <FileText size={14} /> Registro de Sesiones
+            </h3>
+            
+            {historyEntries.length > 0 ? (
+              <div className="space-y-6">
+                {historyEntries.map((entry, idx) => (
+                  <article key={idx} className="border-l-2 border-teal-500 pl-6 py-2">
+                    <div className="flex items-center gap-2 text-[10px] font-black text-teal-600 uppercase mb-2">
+                      <Calendar size={12} />
+                      {new Date(entry.createdAt).toLocaleDateString()}
+                    </div>
+                    <p className="text-slate-700 leading-relaxed font-medium">
+                      {entry.content}
+                    </p>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-[2.5rem] p-12 text-center">
+                <p className="text-slate-400 font-black uppercase text-[10px] tracking-widest">
+                  No hay sesiones registradas aún
+                </p>
+              </div>
+            )}
+          </main>
         </div>
       </div>
     </div>
   );
-};
-
-export default ClinicalHistoryPage;
+}
