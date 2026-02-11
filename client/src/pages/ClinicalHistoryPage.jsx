@@ -19,21 +19,15 @@ const ClinicalHistoryPage = () => {
 
   // --- 1. FUNCIONES DE APOYO ---
   
-  // FIX DEFINITIVO EDAD: Maneja string vacío, null y desfase horario
   const calculateAge = (birthDate) => {
     if (!birthDate) return '...';
-    
-    // Forzamos el parseo ignorando la hora local para evitar el salto de día
     const dateParts = birthDate.split('T')[0].split('-');
     if (dateParts.length !== 3) return 'N/A';
-    
     const birth = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
     if (isNaN(birth.getTime())) return 'N/A';
-
     const today = new Date();
     let age = today.getFullYear() - birth.getFullYear();
     const monthDiff = today.getMonth() - birth.getMonth();
-    
     if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
       age--;
     }
@@ -55,13 +49,10 @@ const ClinicalHistoryPage = () => {
           api.get(`/patients/${patientId}`),
           api.get(`/clinical-history/${patientId}`)
         ]);
-        
         setPatient(pRes.data);
-        
         const formattedEntries = (Array.isArray(hRes.data) ? hRes.data : []).map(e => ({ 
           ...e, 
           attachments: ensureArray(e.attachments),
-          // FIX FECHA: Tomar solo la parte de la fecha YYYY-MM-DD
           date: e.createdAt ? e.createdAt.split('T')[0] : new Date().toISOString().split('T')[0],
           status: 'saved',
           isVisible: true 
@@ -86,7 +77,6 @@ const ClinicalHistoryPage = () => {
 
   const saveEntry = async (entry) => {
     if (!entry.evolution?.trim() && !entry.diagnosis?.trim() && entry.id.toString().startsWith('temp-')) return;
-    
     setHistoryEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'saving' } : e));
     try {
       const payload = {
@@ -96,13 +86,9 @@ const ClinicalHistoryPage = () => {
         createdAt: entry.date,
         attachments: JSON.stringify(entry.attachments)
       };
-
-      let res;
-      if (entry.id.toString().startsWith('temp-')) {
-        res = await api.post('/clinical-history', payload);
-      } else {
-        res = await api.put(`/clinical-history/${entry.id}`, payload);
-      }
+      let res = entry.id.toString().startsWith('temp-') 
+        ? await api.post('/clinical-history', payload)
+        : await api.put(`/clinical-history/${entry.id}`, payload);
       
       const savedData = { 
         ...res.data, 
@@ -160,9 +146,7 @@ const ClinicalHistoryPage = () => {
   const handleFileUpload = (entryId, e) => {
     const file = e.target.files[0];
     if (!file) return;
-
     toast.loading("Comprimiendo imagen...", { id: 'uploading' });
-
     const reader = new FileReader();
     reader.onload = (event) => {
       const img = new Image();
@@ -172,24 +156,20 @@ const ClinicalHistoryPage = () => {
         const MAX_WIDTH = 1200;
         let width = img.width;
         let height = img.height;
-
         if (width > MAX_WIDTH) {
           height *= MAX_WIDTH / width;
           width = MAX_WIDTH;
         }
-
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
-
         const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
         const newFile = { 
           name: file.name.replace(/\.[^/.]+$/, "") + ".jpg", 
           type: "image/jpeg", 
           data: compressedBase64 
         };
-
         setHistoryEntries(prev => prev.map(h => {
           if (h.id === entryId) {
             const updated = { ...h, attachments: [...h.attachments, newFile] };
@@ -235,7 +215,7 @@ const ClinicalHistoryPage = () => {
           }
         `}</style>
         
-        <button onClick={() => navigate('/clinical-histories')} className="no-print flex items-center gap-2 text-slate-400 hover:text-teal-600 font-black uppercase text-[10px] mb-6 transition-colors">
+        <button onClick={() => navigate('/clinical-histories')} className="no-print flex items-center gap-2 text-slate-400 hover:text-teal-600 font-black uppercase text-[10px] mb-6">
           <ChevronLeft size={16} /> Volver
         </button>
 
@@ -252,11 +232,24 @@ const ClinicalHistoryPage = () => {
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+          {/* COLUMNA IZQUIERDA: FICHA */}
           <div className="md:col-span-1 space-y-6 no-print">
             <section className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100 shadow-sm">
               <h3 className="text-[10px] font-black text-slate-400 uppercase mb-4 tracking-widest">Ficha Base</h3>
               <div className="space-y-3 text-[11px]">
                 <p className="flex justify-between border-b border-slate-200 pb-2"><b>DNI:</b> <span>{patient?.dni}</span></p>
+                
+                {/* FECHA DE NACIMIENTO (NUEVO) */}
+                <div className="border-b border-slate-200 pb-2">
+                  <p className="text-[9px] text-slate-400 font-black mb-1">FECHA NACIMIENTO:</p>
+                  <input 
+                    type="date" 
+                    value={patient?.birthDate ? patient.birthDate.split('T')[0] : ''}
+                    onChange={(e) => handleUpdatePatient('birthDate', e.target.value)}
+                    className="w-full bg-transparent font-bold text-slate-700 outline-none cursor-pointer"
+                  />
+                </div>
+
                 <p className="flex justify-between border-b border-slate-200 pb-2">
                   <b>EDAD:</b> 
                   <span className="bg-teal-100 px-2 rounded-lg font-black text-teal-700">
@@ -282,6 +275,7 @@ const ClinicalHistoryPage = () => {
             </section>
           </div>
 
+          {/* COLUMNA DERECHA: SESIONES */}
           <div className="md:col-span-3 space-y-6">
             <div className="flex flex-col md:flex-row justify-between items-center gap-4 no-print bg-slate-50 p-4 rounded-3xl border border-slate-100">
               <div className="relative w-full md:w-64">
