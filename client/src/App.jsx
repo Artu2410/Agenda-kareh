@@ -54,7 +54,6 @@ function App() {
                 <Route path="appointments" element={<AppointmentsPage />} />
                 <Route path="patients" element={<PatientsPage />} />
                 <Route path="clinical-histories" element={<ClinicalHistoriesPage />} />
-                {/* RUTA DE LA TARJETA */}
                 <Route path="clinical-history/:id" element={<ClinicalHistoryPage />} />
                 <Route path="cashflow" element={<CashflowPage />} />
                 <Route path="settings" element={<SettingsPage />} />
