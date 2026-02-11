@@ -43,12 +43,12 @@ app.use((req, res, next) => {
 });
 
 // ==========================================
-// RUTAS DE LA API
+// RUTAS DE LA API (TODAS BAJO /api)
 // ==========================================
-app.get('/auth/verify', verifyToken);
-// Auth pública
+
+// Auth Pública y Verificación
 app.use('/api/auth', createAuthRoutes(prisma));
-app.get('/api/auth/verify', verifyToken);
+app.get('/api/auth/verify', verifyToken); // Esta es la ruta clave
 
 // Rutas protegidas
 app.use('/api/appointments', authMiddleware, createAppointmentRoutes(prisma));
@@ -63,19 +63,18 @@ app.get('/api/health', (req, res) => res.status(200).json({ status: 'ok' }));
 // MANEJO DE ERRORES (JSON SIEMPRE)
 // ==========================================
 
-app.use('/api/*', (req, res) => {
+// Esto atrapa cualquier cosa que empiece por /api y no exista
+app.all('/api/*', (req, res) => {
     res.status(404).json({ error: "Endpoint no encontrado en la API", path: req.originalUrl });
 });
 
+// Error genérico
 app.use((err, req, res, next) => {
     console.error('❌ Error:', err.stack);
-    res.status(500).json({ 
-        error: "Error interno del servidor",
-        message: process.env.NODE_ENV === 'development' ? err.message : undefined 
-    });
+    res.status(500).json({ error: "Error interno del servidor" });
 });
 
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Servidor Kareh Pro iniciado en puerto ${PORT}`);
+    console.log(`🚀 Servidor Kareh Pro en puerto ${PORT}`);
 });

@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-// Detecta la URL automáticamente
+// Definimos la URL base asegurando que termine en /api
 const API_URL = window.location.hostname === 'localhost' 
   ? 'http://localhost:10000/api' 
   : 'https://kareh-backend.onrender.com/api';
@@ -13,7 +13,6 @@ const instance = axios.create({
   },
 });
 
-// Interceptor para añadir el token JWT
 instance.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('auth_token');
@@ -25,15 +24,13 @@ instance.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Manejo global de errores
 instance.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Si el token expiró, podrías redirigir al login
-      console.warn('Sesión expirada o no autorizada');
+      console.warn('Sesión no autorizada');
+      // Opcional: localStorage.removeItem('auth_token'); window.location.href = '/login';
     }
-    console.error('API Error:', error.response?.data || error.message);
     return Promise.reject(error);
   }
 );
