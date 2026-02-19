@@ -47,6 +47,10 @@ const PatientSearchResults = ({ patient, onClose }) => {
                   <Shield size={16} className="text-slate-500 shrink-0" />
                   <span>{patient.healthInsurance || 'N/A'}</span>
                 </div>
+                <div className="flex items-center gap-2">
+                  <Shield size={16} className="text-slate-500 shrink-0" />
+                  <span>{patient.affiliateNumber || 'N/A'}</span>
+                </div>
                 {/* Alertas Médicas */}
                 <div className="pt-2 space-y-2">
                   {patient.hasCancer && (

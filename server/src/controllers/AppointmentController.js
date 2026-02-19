@@ -75,6 +75,7 @@ export const createAppointment = async (req, res, prisma) => {
             update: { 
             fullName: patientData.fullName, 
             healthInsurance: patientData.healthInsurance, 
+            affiliateNumber: patientData.affiliateNumber || undefined,
             phone: phoneToUse || undefined,
             birthDate: birthDateToUse ? parseDateAvoidTZ(birthDateToUse) : undefined,
             hasMarcapasos: patientData.hasMarcapasos ?? false, 
@@ -85,6 +86,7 @@ export const createAppointment = async (req, res, prisma) => {
             dni: String(patientData.dni), 
             fullName: patientData.fullName, 
             healthInsurance: patientData.healthInsurance || 'Particular', 
+            affiliateNumber: patientData.affiliateNumber || null,
             phone: phoneToUse || null,
             birthDate: birthDateToUse ? parseDateAvoidTZ(birthDateToUse) : new Date(),
             hasMarcapasos: patientData.hasMarcapasos ?? false, 
@@ -196,6 +198,7 @@ export const updateEvolution = async (req, res, prisma) => {
           data: {
             fullName: patientData.fullName || undefined,
             healthInsurance: patientData.healthInsurance || undefined,
+            affiliateNumber: patientData.affiliateNumber || undefined,
             phone: patientData.phone || undefined,
             birthDate: patientData.birthDate ? parseDateAvoidTZ(patientData.birthDate) : undefined,
             hasCancer: patientData.hasCancer ?? undefined,
@@ -233,7 +236,7 @@ export const updateEvolution = async (req, res, prisma) => {
 // 4. ACTUALIZAR CITA Y DATOS DEL PACIENTE
 export const updateAppointment = async (req, res, prisma) => {
   const { id } = req.params;
-  const { patientId, phone, birthDate, date, time } = req.body;
+  const { patientId, phone, birthDate, affiliateNumber, date, time } = req.body;
 
   if (!patientId) {
     return res.status(400).json({ message: "patientId requerido" });
@@ -242,12 +245,13 @@ export const updateAppointment = async (req, res, prisma) => {
   try {
     const result = await prisma.$transaction(async (tx) => {
       // Actualizar datos del paciente
-      if (phone || birthDate) {
+      if (phone || birthDate || affiliateNumber) {
         await tx.patient.update({
           where: { id: patientId },
           data: {
             phone: phone || undefined,
-            birthDate: birthDate ? parseDateAvoidTZ(birthDate) : undefined
+            birthDate: birthDate ? parseDateAvoidTZ(birthDate) : undefined,
+            affiliateNumber: affiliateNumber || undefined
           }
         });
       }

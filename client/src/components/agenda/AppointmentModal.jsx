@@ -94,6 +94,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, selectedSlot, app
           lastName: nameParts[0] || '', firstName: nameParts.slice(1).join(' ') || '',
           dni: data.dni || prev.dni, phone: data.phone || '',
           healthInsurance: data.healthInsurance || 'particular',
+          affiliateNumber: data.affiliateNumber || '',
           hasCancer: data.hasCancer || false, hasMarcapasos: data.hasMarcapasos || false, usesEA: data.usesEA || false,
         }));
       }
@@ -155,16 +156,20 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, selectedSlot, app
 
             <div className="space-y-6">
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
+                <div className="space-y-1 col-span-2">
                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">DNI del Paciente</label>
                   <input className="w-full p-3 border rounded-2xl bg-slate-50 font-bold focus:ring-2 ring-teal-500 outline-none" value={patientData.dni} onChange={e => {setPatientData({...patientData, dni: e.target.value}); searchPatient('dni', e.target.value);}} />
                 </div>
+                <input placeholder="Apellido" className="p-3 border rounded-2xl bg-slate-50 font-bold" value={patientData.lastName} onChange={e => setPatientData({...patientData, lastName: e.target.value})} />
+                <input placeholder="Nombre" className="p-3 border rounded-2xl bg-slate-50 font-bold" value={patientData.firstName} onChange={e => setPatientData({...patientData, firstName: e.target.value})} />
                 <div className="space-y-1">
                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Obra Social</label>
                   <input className="w-full p-3 border rounded-2xl bg-slate-50 font-bold focus:ring-2 ring-teal-500 outline-none" value={patientData.healthInsurance} onChange={e => setPatientData({...patientData, healthInsurance: e.target.value})} />
                 </div>
-                <input placeholder="Apellido" className="p-3 border rounded-2xl bg-slate-50 font-bold" value={patientData.lastName} onChange={e => setPatientData({...patientData, lastName: e.target.value})} />
-                <input placeholder="Nombre" className="p-3 border rounded-2xl bg-slate-50 font-bold" value={patientData.firstName} onChange={e => setPatientData({...patientData, firstName: e.target.value})} />
+                <div className="space-y-1">
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">N° Afiliado</label>
+                  <input className="w-full p-3 border rounded-2xl bg-slate-50 font-bold focus:ring-2 ring-teal-500 outline-none" value={patientData.affiliateNumber || ''} onChange={e => setPatientData({...patientData, affiliateNumber: e.target.value})} />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
