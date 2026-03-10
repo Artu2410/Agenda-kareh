@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, FileText, ChevronRight, Loader2 } from 'lucide-react';
 import api from '../services/api';
+import { buildClinicalHistoryPath, persistClinicalHistoryContext } from '../utils/appRoutes';
 
 export default function ClinicalHistoriesPage() {
   const navigate = useNavigate();
@@ -11,15 +12,7 @@ export default function ClinicalHistoriesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    fetchPatients();
-  }, []);
-
-  useEffect(() => {
-    filterPatients();
-  }, [searchTerm, patients]);
-
-  const fetchPatients = async () => {
+  const fetchPatients = useCallback(async () => {
     try {
       setLoading(true);
       // RUTA CORRECTA: /patients/all
@@ -38,9 +31,9 @@ export default function ClinicalHistoriesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const filterPatients = () => {
+  const filterPatients = useCallback(() => {
     if (!searchTerm.trim()) {
       setFilteredPatients(patients);
       return;
@@ -54,10 +47,24 @@ export default function ClinicalHistoriesPage() {
     });
 
     setFilteredPatients(filtered);
-  };
+  }, [patients, searchTerm]);
 
-  const handleViewHistory = (patientId) => {
-    navigate(`/clinical-history/${patientId}`);
+  useEffect(() => {
+    fetchPatients();
+  }, [fetchPatients]);
+
+  useEffect(() => {
+    filterPatients();
+  }, [filterPatients]);
+
+  const handleViewHistory = (patient) => {
+    persistClinicalHistoryContext({ patientId: patient.id, patientName: patient.fullName });
+    navigate(buildClinicalHistoryPath(patient.fullName), {
+      state: {
+        patientId: patient.id,
+        patientName: patient.fullName,
+      },
+    });
   };
 
   return (
@@ -97,7 +104,7 @@ export default function ClinicalHistoriesPage() {
             {filteredPatients.map((patient) => (
               <div
                 key={patient.id}
-                onClick={() => handleViewHistory(patient.id)}
+                onClick={() => handleViewHistory(patient)}
                 className="bg-white rounded-2xl shadow-sm hover:shadow-md transition-all cursor-pointer border border-slate-200 hover:border-teal-400 hover:bg-teal-50 group p-6"
               >
                 <div className="flex items-start justify-between mb-3">

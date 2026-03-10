@@ -10,6 +10,8 @@ const ProfessionalModal = ({ isOpen, onClose, onSave, professional }) => {
     specialty: professional?.specialty || 'Kinesiología',
     isActive: professional?.isActive ?? true,
   });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
   // Manejador de cambios simple
   const handleChange = (e) => {
@@ -20,11 +22,21 @@ const ProfessionalModal = ({ isOpen, onClose, onSave, professional }) => {
     }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.fullName.trim()) return;
-    onSave(professional ? { ...formData, id: professional.id } : formData);
-    onClose();
+    setSaving(true);
+    setError('');
+    try {
+      const success = await onSave(professional ? { ...formData, id: professional.id } : formData);
+      if (success !== false) {
+        onClose();
+      }
+    } catch (err) {
+      setError(err.message || 'No se pudo guardar el profesional.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -106,12 +118,18 @@ const ProfessionalModal = ({ isOpen, onClose, onSave, professional }) => {
             </label>
           </div>
 
+          {error && (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+              {error}
+            </div>
+          )}
+
           <div className="flex gap-3 pt-4">
-            <button type="button" onClick={onClose} className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-100 rounded-xl transition-all">
+            <button type="button" onClick={onClose} disabled={saving} className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-100 rounded-xl transition-all disabled:opacity-50">
               Cancelar
             </button>
-            <button type="submit" className="flex-1 py-3 bg-teal-600 text-white font-bold rounded-xl shadow-lg hover:bg-teal-700 transition-all flex items-center justify-center gap-2">
-              <Save size={18} /> Guardar
+            <button type="submit" disabled={saving} className="flex-1 py-3 bg-teal-600 text-white font-bold rounded-xl shadow-lg hover:bg-teal-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50">
+              <Save size={18} /> {saving ? 'Guardando...' : 'Guardar'}
             </button>
           </div>
         </form>

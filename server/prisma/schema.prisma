@@ -36,6 +36,7 @@ model Patient {
   email           String?
   birthDate       DateTime
   healthInsurance String?
+  affiliateNumber String?
   phone           String?
   address         String?
   hasCancer       Boolean           @default(false)

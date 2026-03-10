@@ -4,8 +4,6 @@ import { es } from 'date-fns/locale';
 export const getMetrics = async (req, res, prisma) => {
   try {
     const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth();
 
     // --- SEMANAL ---
     const weekStart = startOfWeek(now, { weekStartsOn: 1 }); // Lunes
@@ -20,8 +18,10 @@ export const getMetrics = async (req, res, prisma) => {
     });
 
     const weeklyScheduled = weeklyAppointments.filter(a => a.status === 'SCHEDULED').length;
-    const weeklyCompleted = weeklyAppointments.filter(a => a.status !== 'SCHEDULED').length;
+    const weeklyCompleted = weeklyAppointments.filter(a => a.status === 'COMPLETED').length;
+    const weeklyNoShow = weeklyAppointments.filter(a => a.status === 'NO_SHOW').length;
     const weeklyTotal = weeklyAppointments.length;
+    const weeklyResolved = weeklyCompleted + weeklyNoShow;
 
     // --- MENSUAL (este mes vs mes anterior) ---
     const monthStart = startOfMonth(now);
@@ -43,6 +43,27 @@ export const getMetrics = async (req, res, prisma) => {
       }
     });
 
+    const [monthlyCompleted, monthlyNoShow, monthlyScheduled] = await Promise.all([
+      prisma.appointment.count({
+        where: {
+          date: { gte: monthStart, lte: monthEnd },
+          status: 'COMPLETED'
+        }
+      }),
+      prisma.appointment.count({
+        where: {
+          date: { gte: monthStart, lte: monthEnd },
+          status: 'NO_SHOW'
+        }
+      }),
+      prisma.appointment.count({
+        where: {
+          date: { gte: monthStart, lte: monthEnd },
+          status: 'SCHEDULED'
+        }
+      })
+    ]);
+
     const monthlyChange = lastMonthAppointments > 0
       ? ((currentMonthAppointments - lastMonthAppointments) / lastMonthAppointments * 100).toFixed(1)
       : (currentMonthAppointments > 0 ? 100 : 0);
@@ -60,12 +81,26 @@ export const getMetrics = async (req, res, prisma) => {
     });
 
     const annualPatientCount = uniquePatients.length;
-    const annualAppointmentCount = await prisma.appointment.count({
-      where: {
-        date: { gte: yearStart, lte: yearEnd },
-        status: { not: 'CANCELLED' }
-      }
-    });
+    const [annualAppointmentCount, annualCompletedCount, annualNoShowCount] = await Promise.all([
+      prisma.appointment.count({
+        where: {
+          date: { gte: yearStart, lte: yearEnd },
+          status: { not: 'CANCELLED' }
+        }
+      }),
+      prisma.appointment.count({
+        where: {
+          date: { gte: yearStart, lte: yearEnd },
+          status: 'COMPLETED'
+        }
+      }),
+      prisma.appointment.count({
+        where: {
+          date: { gte: yearStart, lte: yearEnd },
+          status: 'NO_SHOW'
+        }
+      })
+    ]);
 
     // --- GRÁFICO: Evolución mensual (12 meses) ---
     const monthlyData = [];
@@ -73,15 +108,31 @@ export const getMetrics = async (req, res, prisma) => {
       const monthDate = subMonths(now, i);
       const mStart = startOfMonth(monthDate);
       const mEnd = endOfMonth(monthDate);
-      const count = await prisma.appointment.count({
-        where: {
-          date: { gte: mStart, lte: mEnd },
-          status: { not: 'CANCELLED' }
-        }
-      });
+      const [count, completedCount, noShowCount] = await Promise.all([
+        prisma.appointment.count({
+          where: {
+            date: { gte: mStart, lte: mEnd },
+            status: { not: 'CANCELLED' }
+          }
+        }),
+        prisma.appointment.count({
+          where: {
+            date: { gte: mStart, lte: mEnd },
+            status: 'COMPLETED'
+          }
+        }),
+        prisma.appointment.count({
+          where: {
+            date: { gte: mStart, lte: mEnd },
+            status: 'NO_SHOW'
+          }
+        })
+      ]);
       monthlyData.push({
         month: format(monthDate, 'MMM', { locale: es }).toUpperCase(),
         appointmentCount: count,
+        completedCount,
+        noShowCount,
         label: format(monthDate, 'MMMM yyyy', { locale: es })
       });
     }
@@ -92,17 +143,25 @@ export const getMetrics = async (req, res, prisma) => {
         total: weeklyTotal,
         scheduled: weeklyScheduled,
         completed: weeklyCompleted,
-        percentage: weeklyTotal > 0 ? ((weeklyCompleted / weeklyTotal) * 100).toFixed(1) : 0
+        noShow: weeklyNoShow,
+        resolved: weeklyResolved,
+        percentage: weeklyTotal > 0 ? ((weeklyCompleted / weeklyTotal) * 100).toFixed(1) : 0,
+        attendanceRate: weeklyResolved > 0 ? ((weeklyCompleted / weeklyResolved) * 100).toFixed(1) : 0
       },
       monthly: {
         current: currentMonthAppointments,
         previous: lastMonthAppointments,
+        scheduled: monthlyScheduled,
+        completed: monthlyCompleted,
+        noShow: monthlyNoShow,
         change: monthlyChange,
         changeLabel: monthlyChange >= 0 ? `+${monthlyChange}%` : `${monthlyChange}%`
       },
       annual: {
         patientCount: annualPatientCount,
-        appointmentCount: annualAppointmentCount
+        appointmentCount: annualAppointmentCount,
+        completedCount: annualCompletedCount,
+        noShowCount: annualNoShowCount
       },
       monthlyTrend: monthlyData
     });

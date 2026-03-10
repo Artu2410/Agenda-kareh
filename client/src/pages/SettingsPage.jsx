@@ -4,6 +4,16 @@ import { Plus, Clock, Edit, Loader2 } from 'lucide-react';
 import ProfessionalModal from '../components/settings/ProfessionalModal';
 import ScheduleModal from '../components/settings/ScheduleModal';
 
+const dayLabels = {
+  0: 'Dom',
+  1: 'Lun',
+  2: 'Mar',
+  3: 'Mié',
+  4: 'Jue',
+  5: 'Vie',
+  6: 'Sáb',
+};
+
 const SettingsPage = () => {
   const [professionals, setProfessionals] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -16,7 +26,7 @@ const SettingsPage = () => {
   const fetchProfessionals = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('http://localhost:5000/api/professionals');
+      const response = await instance.get('/professionals');
       setProfessionals(response.data);
       setError(null);
     } catch (err) {
@@ -46,9 +56,32 @@ const SettingsPage = () => {
     setIsScheduleModalOpen(true);
   };
 
-  const handleSaveProfessional = () => {
-    handleCloseProfessionalModal();
-    fetchProfessionals();
+  const formatScheduleSummary = (workSchedule = []) => {
+    if (!workSchedule.length) {
+      return 'Sin horario configurado';
+    }
+
+    return workSchedule
+      .map((item) => `${dayLabels[item.dayOfWeek]} ${item.startTime}-${item.endTime}`)
+      .join(' • ');
+  };
+
+  const handleSaveProfessional = async (professionalData) => {
+    try {
+      if (professionalData.id) {
+        await instance.put(`/professionals/${professionalData.id}`, professionalData);
+      } else {
+        await instance.post('/professionals', professionalData);
+      }
+
+      handleCloseProfessionalModal();
+      await fetchProfessionals();
+      return true;
+    } catch (err) {
+      console.error(err);
+      setError('No se pudo guardar el profesional.');
+      return false;
+    }
   };
 
   const handleSaveSchedule = () => {
@@ -107,6 +140,9 @@ const SettingsPage = () => {
                       <p className="font-bold text-slate-800">{prof.fullName}</p>
                       <p className="text-xs text-slate-500 font-medium">
                         Matrícula: <span className="text-slate-700 font-bold">{prof.licenseNumber}</span> • {prof.specialty}
+                      </p>
+                      <p className="mt-1 text-[11px] text-slate-400 font-semibold">
+                        {formatScheduleSummary(prof.workSchedule)}
                       </p>
                     </div>
                   </div>

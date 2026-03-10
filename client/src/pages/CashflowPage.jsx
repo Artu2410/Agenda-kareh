@@ -3,8 +3,10 @@ import instance from '../api/axios';
 import { format } from 'date-fns';
 import { Plus, ArrowUp, ArrowDown, DollarSign, Trash2 } from 'lucide-react'; // Añadí Trash2
 import CashflowModal from '../components/cashflow/CashflowModal';
+import { useConfirmModal } from '../components/ConfirmModal';
 
 const CashflowPage = () => {
+  const { ConfirmModalComponent, openModal: openConfirmModal } = useConfirmModal();
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -46,17 +48,23 @@ const CashflowPage = () => {
   // --- ELIMINAR ---
   const handleDeleteTransaction = async (e, id) => {
     e.stopPropagation(); // Evita que al hacer clic en borrar se abra el modal de edición
-    
-    if (!window.confirm('¿Estás seguro de que deseas eliminar este movimiento?')) return;
 
-    try {
-      await instance.delete(`/cashflow/${id}`);
-      // Actualización optimista: filtramos el estado local
-      setTransactions(transactions.filter(t => t.id !== id));
-    } catch (error) {
-      console.error('Error al eliminar:', error);
-      alert('No se pudo eliminar el movimiento');
-    }
+    openConfirmModal({
+      title: 'Eliminar movimiento',
+      message: 'Este movimiento saldrá de caja de forma definitiva. ¿Deseas continuar?',
+      confirmText: 'Eliminar',
+      danger: true,
+      icon: Trash2,
+      onConfirm: async () => {
+        try {
+          await instance.delete(`/cashflow/${id}`);
+          setTransactions((prev) => prev.filter((transaction) => transaction.id !== id));
+        } catch (error) {
+          console.error('Error al eliminar:', error);
+          alert('No se pudo eliminar el movimiento');
+        }
+      },
+    });
   };
 
   const openModal = (transaction = null) => {
@@ -161,6 +169,7 @@ const CashflowPage = () => {
         onSave={handleSaveTransaction}
         transaction={selectedTransaction}
       />
+      {ConfirmModalComponent}
     </div>
   );
 };

@@ -1,11 +1,12 @@
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
-
-export const getAllProfessionals = async (req, res) => {
+export const getAllProfessionals = async (req, res, prisma) => {
   try {
     const professionals = await prisma.professional.findMany({
       orderBy: { fullName: 'asc' },
+      include: {
+        workSchedule: {
+          orderBy: { dayOfWeek: 'asc' }
+        }
+      }
     });
     res.status(200).json(professionals);
   } catch (error) {
@@ -13,7 +14,7 @@ export const getAllProfessionals = async (req, res) => {
   }
 };
 
-export const createProfessional = async (req, res) => {
+export const createProfessional = async (req, res, prisma) => {
   const { fullName, licenseNumber, specialty } = req.body;
   try {
     const newProfessional = await prisma.professional.create({
@@ -29,7 +30,7 @@ export const createProfessional = async (req, res) => {
   }
 };
 
-export const updateProfessional = async (req, res) => {
+export const updateProfessional = async (req, res, prisma) => {
   const { id } = req.params;
   const { fullName, licenseNumber, specialty, isActive } = req.body;
   try {
@@ -48,7 +49,7 @@ export const updateProfessional = async (req, res) => {
   }
 };
 
-export const getWorkSchedule = async (req, res) => {
+export const getWorkSchedule = async (req, res, prisma) => {
   const { id } = req.params;
   try {
     const workSchedule = await prisma.workSchedule.findMany({
@@ -61,7 +62,7 @@ export const getWorkSchedule = async (req, res) => {
   }
 };
 
-export const upsertWorkSchedule = async (req, res) => {
+export const upsertWorkSchedule = async (req, res, prisma) => {
   const { id } = req.params;
   const { schedules } = req.body; // Expecting an array of schedule objects
 

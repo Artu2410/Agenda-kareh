@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { TrendingUp, Users, Calendar } from 'lucide-react';
+import { TrendingUp, Users, Calendar, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import api from '../services/api'; // CAMBIO: Ruta relativa consistente
 import toast from 'react-hot-toast';
@@ -15,7 +15,7 @@ const DashboardPage = () => {
         setLoading(true);
         const { data } = await api.get('/metrics'); // Llama a /api/metrics
         setMetrics(data);
-      } catch (err) {
+      } catch {
         toast.error('Error al cargar métricas');
       } finally { setLoading(false); }
     };
@@ -41,8 +41,22 @@ const DashboardPage = () => {
           </div>
           <p className="text-5xl font-black text-slate-800">{metrics.weekly?.total || 0}</p>
           <div className="mt-4 bg-teal-50 p-3 rounded-lg border border-teal-200">
-            <p className="text-[10px] text-teal-700 font-bold uppercase">Completitud</p>
-            <p className="text-2xl font-black text-teal-600">{metrics.weekly?.percentage || 0}%</p>
+            <p className="text-[10px] text-teal-700 font-bold uppercase">Asistencia efectiva</p>
+            <p className="text-2xl font-black text-teal-600">{metrics.weekly?.attendanceRate || 0}%</p>
+          </div>
+          <div className="mt-4 grid grid-cols-3 gap-2 text-center text-[10px] font-black uppercase">
+            <div className="rounded-xl bg-slate-50 p-3 text-slate-600">
+              <p>{metrics.weekly?.scheduled || 0}</p>
+              <span className="text-slate-400">Programados</span>
+            </div>
+            <div className="rounded-xl bg-emerald-50 p-3 text-emerald-700">
+              <p>{metrics.weekly?.completed || 0}</p>
+              <span className="text-emerald-500">Asistieron</span>
+            </div>
+            <div className="rounded-xl bg-rose-50 p-3 text-rose-700">
+              <p>{metrics.weekly?.noShow || 0}</p>
+              <span className="text-rose-500">Inasist.</span>
+            </div>
           </div>
         </div>
 
@@ -57,6 +71,13 @@ const DashboardPage = () => {
             <p className="text-[10px] font-bold uppercase">Variación</p>
             <p className="text-2xl font-black">{metrics.monthly?.changeLabel || '0%'}</p>
           </div>
+          <div className="mt-4 flex items-center justify-between rounded-xl border border-rose-100 bg-rose-50 px-4 py-3">
+            <div className="flex items-center gap-2 text-rose-700">
+              <AlertTriangle size={16} />
+              <span className="text-[10px] font-black uppercase">Inasistencias</span>
+            </div>
+            <span className="text-xl font-black text-rose-700">{metrics.monthly?.noShow || 0}</span>
+          </div>
         </div>
 
         {/* ANUAL */}
@@ -67,6 +88,13 @@ const DashboardPage = () => {
           </div>
           <p className="text-5xl font-black text-slate-800">{metrics.annual?.patientCount || 0}</p>
           <p className="text-xs font-bold text-slate-400 uppercase mt-4">Pacientes registrados</p>
+          <div className="mt-4 flex items-center justify-between rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3">
+            <div className="flex items-center gap-2 text-emerald-700">
+              <CheckCircle2 size={16} />
+              <span className="text-[10px] font-black uppercase">Asistencias año</span>
+            </div>
+            <span className="text-xl font-black text-emerald-700">{metrics.annual?.completedCount || 0}</span>
+          </div>
         </div>
       </div>
 
@@ -87,6 +115,7 @@ const DashboardPage = () => {
                 <YAxis />
                 <Tooltip />
                 <Bar dataKey="appointmentCount" fill="#14b8a6" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="noShowCount" fill="#fb7185" radius={[4, 4, 0, 0]} />
               </BarChart>
             ) : (
               <LineChart data={metrics.monthlyTrend}>
@@ -95,6 +124,7 @@ const DashboardPage = () => {
                 <YAxis />
                 <Tooltip />
                 <Line type="monotone" dataKey="appointmentCount" stroke="#14b8a6" strokeWidth={3} dot={{r: 6}} />
+                <Line type="monotone" dataKey="noShowCount" stroke="#fb7185" strokeWidth={2} dot={{r: 4}} />
               </LineChart>
             )}
           </ResponsiveContainer>

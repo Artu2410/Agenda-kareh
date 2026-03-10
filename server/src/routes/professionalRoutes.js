@@ -7,13 +7,15 @@ import {
   upsertWorkSchedule,
 } from '../controllers/professionalController.js';
 
-const router = express.Router();
+export default function createProfessionalRoutes(prisma) {
+  const router = express.Router();
 
-router.get('/', getAllProfessionals);
-router.post('/', createProfessional);
-router.put('/:id', updateProfessional);
+  router.get('/', (req, res) => getAllProfessionals(req, res, prisma));
+  router.post('/', (req, res) => createProfessional(req, res, prisma));
+  router.put('/:id', (req, res) => updateProfessional(req, res, prisma));
 
-router.get('/:id/work-schedule', getWorkSchedule);
-router.post('/:id/work-schedule', upsertWorkSchedule);
+  router.get('/:id/work-schedule', (req, res) => getWorkSchedule(req, res, prisma));
+  router.post('/:id/work-schedule', (req, res) => upsertWorkSchedule(req, res, prisma));
 
-export default router;
+  return router;
+}

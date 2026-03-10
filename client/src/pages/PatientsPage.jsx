@@ -1,11 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { Search, Edit2, Trash2, X, FileText, Activity, Zap, AlertCircle } from 'lucide-react';
 import { MedicalAlertTooltip } from '../components/Tooltip';
+import { useConfirmModal } from '../components/ConfirmModal';
+import { buildClinicalHistoryPath, persistClinicalHistoryContext } from '../utils/appRoutes';
 
 export default function PatientsPage() {
   const navigate = useNavigate();
+  const { ConfirmModalComponent, openModal } = useConfirmModal();
   const [patients, setPatients] = useState([]);
   const [filteredPatients, setFilteredPatients] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -17,11 +20,8 @@ export default function PatientsPage() {
 
   const [formData, setFormData] = useState({
     fullName: '', dni: '', phone: '', email: '', address: '', birthDate: '', 
-    healthInsurance: '', hasCancer: false, hasMarcapasos: false, usesEA: false
+    healthInsurance: '', affiliateNumber: '', hasCancer: false, hasMarcapasos: false, usesEA: false
   });
-
-  useEffect(() => { fetchPatients(); }, []);
-  useEffect(() => { filterPatients(); }, [searchTerm, patients]);
 
   const sortByLastName = (arr) => [...arr].sort((a, b) => {
     const nameA = a.fullName.split(' ').pop().toLowerCase();
@@ -29,7 +29,7 @@ export default function PatientsPage() {
     return nameA.localeCompare(nameB, 'es');
   });
 
-  const fetchPatients = async () => {
+  const fetchPatients = useCallback(async () => {
     try {
       setLoading(true);
       const response = await api.get('/patients/all');
@@ -37,14 +37,17 @@ export default function PatientsPage() {
     } catch (err) {
       console.error('Error:', err);
     } finally { setLoading(false); }
-  };
+  }, []);
 
-  const filterPatients = () => {
+  const filterPatients = useCallback(() => {
     const filtered = patients.filter(p => 
       p.fullName.toLowerCase().includes(searchTerm.toLowerCase()) || p.dni.includes(searchTerm)
     );
     setFilteredPatients(sortByLastName(filtered));
-  };
+  }, [patients, searchTerm]);
+
+  useEffect(() => { fetchPatients(); }, [fetchPatients]);
+  useEffect(() => { filterPatients(); }, [filterPatients]);
 
   const openEditModal = (patient) => {
     setIsNewPatient(false);
@@ -79,11 +82,31 @@ export default function PatientsPage() {
   };
 
   const deletePatient = async (id) => {
-    if (!window.confirm('¿Eliminar paciente?')) return;
-    try {
-      await api.delete(`/patients/${id}`);
-      setPatients(p => p.filter(item => item.id !== id));
-    } catch (err) { alert('Error al eliminar'); }
+    openModal({
+      title: 'Eliminar paciente',
+      message: 'Esta acción quitará el paciente de la base clínica. ¿Deseas continuar?',
+      confirmText: 'Eliminar',
+      danger: true,
+      icon: Trash2,
+      onConfirm: async () => {
+        try {
+          await api.delete(`/patients/${id}`);
+          setPatients((prev) => prev.filter((item) => item.id !== id));
+        } catch {
+          alert('Error al eliminar');
+        }
+      },
+    });
+  };
+
+  const openClinicalHistory = (patient) => {
+    persistClinicalHistoryContext({ patientId: patient.id, patientName: patient.fullName });
+    navigate(buildClinicalHistoryPath(patient.fullName), {
+      state: {
+        patientId: patient.id,
+        patientName: patient.fullName,
+      },
+    });
   };
 
   return (
@@ -93,7 +116,7 @@ export default function PatientsPage() {
           <h1 className="text-4xl font-bold text-slate-900">Pacientes</h1>
           <p className="text-slate-600">Gestión de base de datos clínica</p>
         </div>
-        <button onClick={() => { setIsNewPatient(true); setFormData({fullName:'', dni:'', phone:'', email:'', address:'', birthDate:'', healthInsurance:'', hasCancer:false, hasMarcapasos:false, usesEA:false}); setShowModal(true); }} className="px-6 py-2 bg-teal-600 text-white rounded-lg font-medium">+ Nuevo Paciente</button>
+        <button onClick={() => { setIsNewPatient(true); setFormData({fullName:'', dni:'', phone:'', email:'', address:'', birthDate:'', healthInsurance:'', affiliateNumber:'', hasCancer:false, hasMarcapasos:false, usesEA:false}); setShowModal(true); }} className="px-6 py-2 bg-teal-600 text-white rounded-lg font-medium">+ Nuevo Paciente</button>
       </div>
 
       <div className="mb-6 relative">
@@ -110,6 +133,7 @@ export default function PatientsPage() {
                 <th className="px-6 py-4">Alertas</th>
                 <th className="px-6 py-4">DNI</th>
                 <th className="px-6 py-4">Obra Social</th>
+                <th className="px-6 py-4">N° Afiliado</th>
                 <th className="px-6 py-4 text-center">Acciones</th>
               </tr>
             </thead>
@@ -124,8 +148,9 @@ export default function PatientsPage() {
                   </td>
                   <td className="px-6 py-4 text-slate-600">{p.dni}</td>
                   <td className="px-6 py-4 text-slate-600">{p.healthInsurance || '-'}</td>
+                  <td className="px-6 py-4 text-slate-600">{p.affiliateNumber || '-'}</td>
                   <td className="px-6 py-4 flex gap-2 justify-center">
-                    <button onClick={() => navigate(`/clinical-history/${p.id}`)} className="p-2 hover:text-teal-600"><FileText size={18} /></button>
+                    <button onClick={() => openClinicalHistory(p)} className="p-2 hover:text-teal-600"><FileText size={18} /></button>
                     <button onClick={() => openEditModal(p)} className="p-2 hover:text-blue-600"><Edit2 size={18} /></button>
                     <button onClick={() => deletePatient(p.id)} className="p-2 hover:text-red-600"><Trash2 size={18} /></button>
                   </td>
@@ -144,6 +169,7 @@ export default function PatientsPage() {
               <input type="text" name="fullName" placeholder="Nombre completo" value={formData.fullName} onChange={handleInputChange} required className="w-full p-2 border rounded-lg" />
               <input type="text" name="dni" placeholder="DNI" value={formData.dni} onChange={handleInputChange} required className="w-full p-2 border rounded-lg" />
               <input type="text" name="healthInsurance" placeholder="Obra Social" value={formData.healthInsurance} onChange={handleInputChange} className="w-full p-2 border rounded-lg" />
+              <input type="text" name="affiliateNumber" placeholder="N° de afiliado" value={formData.affiliateNumber || ''} onChange={handleInputChange} className="w-full p-2 border rounded-lg" />
               
               <div className="p-3 bg-red-50 rounded-lg space-y-2">
                 <p className="text-[10px] font-bold text-red-400 uppercase">Alertas Médicas</p>
@@ -164,6 +190,8 @@ export default function PatientsPage() {
           </form>
         </div>
       )}
+
+      {ConfirmModalComponent}
     </div>
   );
 }

@@ -37,16 +37,21 @@ const parseDateAvoidTZ = (d) => {
 // 1. OBTENER TURNOS DE LA SEMANA
 export const getWeekAppointments = async (req, res, prisma) => {
   try {
-    const { startDate, endDate } = req.query;
+    const { startDate, endDate, professionalId } = req.query;
     if (!startDate || !endDate) return res.status(400).json({ message: "Fechas requeridas" });
     
     const start = new Date(startDate + 'T00:00:00Z');
     const end = new Date(endDate + 'T23:59:59Z');
+    const where = { date: { gte: start, lte: end } };
+
+    if (professionalId) {
+      where.professionalId = professionalId;
+    }
     
     const appointments = await prisma.appointment.findMany({
-      where: { date: { gte: start, lte: end } },
-      include: { patient: true },
-      orderBy: [{ date: 'asc' }, { time: 'asc' }]
+      where,
+      include: { patient: true, professional: true },
+      orderBy: APPOINTMENT_ORDER
     });
     res.json(appointments);
   } catch (error) {
@@ -56,7 +61,7 @@ export const getWeekAppointments = async (req, res, prisma) => {
 
 // 2. CREAR CITA (CON LÓGICA DE INGRESO Y SLOTS)
 export const createAppointment = async (req, res, prisma) => {
-  const { patientData, patientId, date, time, diagnosis, sessionCount, selectedDays, phone, birthDate } = req.body;
+  const { patientData, patientId, professionalId, date, time, diagnosis, sessionCount, selectedDays, phone, birthDate } = req.body;
 
   // Fallback: si phone o birthDate no están al nivel raíz, buscar en patientData
   const phoneToUse = phone !== undefined ? phone : (patientData?.phone || null);
@@ -107,9 +112,32 @@ export const createAppointment = async (req, res, prisma) => {
         patient = await tx.patient.findUnique({ where: { id: patientId } });
       }
 
-      const prof = await tx.professional.findFirst() || await tx.professional.create({
-        data: { fullName: 'Kinesiólogo Principal', licenseNumber: 'MN-1', specialty: 'Kinesiología' }
-      });
+      let prof = null;
+
+      if (professionalId) {
+        prof = await tx.professional.findUnique({ where: { id: professionalId } });
+
+        if (!prof) {
+          throw new Error('Profesional no encontrado');
+        }
+
+        if (!prof.isActive) {
+          throw new Error('El profesional seleccionado está inactivo');
+        }
+      }
+
+      if (!prof) {
+        prof = await tx.professional.findFirst({
+          where: { isActive: true },
+          orderBy: { fullName: 'asc' }
+        });
+      }
+
+      if (!prof) {
+        prof = await tx.professional.create({
+          data: { fullName: 'Kinesiólogo Principal', licenseNumber: 'MN-1', specialty: 'Kinesiología' }
+        });
+      }
 
       const appointmentsCreated = [];
       const numSessions = Math.max(1, parseInt(sessionCount) || 1);
@@ -126,6 +154,7 @@ export const createAppointment = async (req, res, prisma) => {
             where: { 
               date: new Date(currentDate.setHours(12,0,0,0)), 
               time, 
+              professionalId: prof.id,
               status: { not: 'CANCELLED' } 
             },
             select: { slotNumber: true }
@@ -146,7 +175,7 @@ export const createAppointment = async (req, res, prisma) => {
                 professionalId: prof.id,
                 status: 'SCHEDULED'
               },
-              include: { patient: true }
+              include: { patient: true, professional: true }
             });
             appointmentsCreated.push(newApt);
             sessionsCreated++;
@@ -244,6 +273,22 @@ export const updateAppointment = async (req, res, prisma) => {
 
   try {
     const result = await prisma.$transaction(async (tx) => {
+      const currentAppointment = await tx.appointment.findUnique({
+        where: { id },
+        select: {
+          date: true,
+          time: true,
+          slotNumber: true,
+          professionalId: true,
+        }
+      });
+
+      if (!currentAppointment) {
+        const error = new Error("Turno no encontrado");
+        error.statusCode = 404;
+        throw error;
+      }
+
       // Actualizar datos del paciente
       if (phone || birthDate || affiliateNumber) {
         await tx.patient.update({
@@ -258,32 +303,136 @@ export const updateAppointment = async (req, res, prisma) => {
 
       // Actualizar cita
       const updateData = {};
-      if (date) updateData.date = new Date(date);
-      if (time) updateData.time = time;
+      const nextDate = date ? parseDateAvoidTZ(date) : currentAppointment.date;
+      const nextTime = time || currentAppointment.time;
+      const hasScheduleChange =
+        nextTime !== currentAppointment.time || nextDate.getTime() !== currentAppointment.date.getTime();
 
-      const updated = await tx.appointment.update({
+      if (date) updateData.date = nextDate;
+      if (time) updateData.time = nextTime;
+
+      if (hasScheduleChange) {
+        const occupiedSlots = await tx.appointment.findMany({
+          where: {
+            id: { not: id },
+            professionalId: currentAppointment.professionalId,
+            date: nextDate,
+            time: nextTime,
+            status: { not: 'CANCELLED' }
+          },
+          select: { slotNumber: true }
+        });
+
+        const occupiedNumbers = occupiedSlots.map((slot) => slot.slotNumber);
+        const nextSlotNumber = [1, 2, 3, 4, 5].find((slot) => !occupiedNumbers.includes(slot));
+
+        if (!nextSlotNumber) {
+          const error = new Error("No hay cupos disponibles para ese día y horario.");
+          error.statusCode = 409;
+          throw error;
+        }
+
+        updateData.slotNumber = nextSlotNumber;
+      }
+
+      await tx.appointment.update({
         where: { id },
         data: updateData,
         include: { patient: true }
       });
 
-      return updated;
+      if (hasScheduleChange) {
+        await resequencePatientAppointments(tx, patientId);
+      }
+
+      return tx.appointment.findUnique({
+        where: { id },
+        include: { patient: true }
+      });
     });
 
     res.json({ success: true, appointment: result });
   } catch (error) {
     console.error("Error al actualizar cita:", error);
-    res.status(500).json({ message: "Error al actualizar", error: error.message });
+    res.status(error.statusCode || 500).json({ message: error.message || "Error al actualizar", error: error.message });
+  }
+};
+
+const APPOINTMENT_ORDER = [
+  { date: 'asc' },
+  { time: 'asc' },
+  { slotNumber: 'asc' },
+];
+
+const resequencePatientAppointments = async (tx, patientId) => {
+  const appointments = await tx.appointment.findMany({
+    where: {
+      patientId,
+      status: { not: 'CANCELLED' },
+    },
+    orderBy: APPOINTMENT_ORDER,
+    select: { id: true },
+  });
+
+  for (const [index, appointment] of appointments.entries()) {
+    await tx.appointment.update({
+      where: { id: appointment.id },
+      data: {
+        sessionNumber: index + 1,
+        isFirstSession: index === 0,
+      },
+    });
   }
 };
 
 // 5. ELIMINAR CITA
 export const deleteAppointment = async (req, res, prisma) => {
   try {
-    await prisma.appointment.delete({ where: { id: req.params.id } });
-    res.status(200).json({ success: true });
+    const { id } = req.params;
+    const deleteFuture = req.query.deleteFuture === 'true';
+
+    const result = await prisma.$transaction(async (tx) => {
+      const referenceAppointment = await tx.appointment.findUnique({
+        where: { id },
+        select: {
+          patientId: true,
+          date: true,
+          time: true,
+        }
+      });
+
+      if (!referenceAppointment) {
+        const error = new Error("Turno no encontrado");
+        error.statusCode = 404;
+        throw error;
+      }
+
+      if (!deleteFuture) {
+        await tx.appointment.delete({ where: { id } });
+        await resequencePatientAppointments(tx, referenceAppointment.patientId);
+        return { count: 1 };
+      }
+
+      const deleteResult = await tx.appointment.deleteMany({
+        where: {
+          patientId: referenceAppointment.patientId,
+          OR: [
+            { date: { gt: referenceAppointment.date } },
+            {
+              date: referenceAppointment.date,
+              time: { gt: referenceAppointment.time }
+            }
+          ]
+        }
+      });
+
+      await resequencePatientAppointments(tx, referenceAppointment.patientId);
+      return { count: deleteResult.count };
+    });
+
+    res.status(200).json({ success: true, count: result.count });
   } catch (error) {
-    res.status(500).json({ message: "Error al eliminar" });
+    res.status(error.statusCode || 500).json({ message: "Error al eliminar", error: error.message });
   }
 };
 
@@ -318,7 +467,7 @@ export const getAppointmentBatch = async (req, res, prisma) => {
         date: { gte: ref.date },
         status: { not: 'CANCELLED' }
       },
-      orderBy: { date: 'asc' },
+      orderBy: APPOINTMENT_ORDER,
       take: 10
     });
     res.json(batch);

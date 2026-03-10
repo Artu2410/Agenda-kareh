@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { CustomToaster } from './components/Toast';
 import AppointmentsPage from './pages/AppointmentsPage';
 import CashflowPage from './pages/CashflowPage';
@@ -10,6 +10,18 @@ import ClinicalHistoryPage from './pages/ClinicalHistoryPage';
 import DashboardPage from './pages/DashboardPage';
 import LoginPage from './pages/LoginPage';
 import Sidebar from './components/layout/Sidebar';
+import { API_BASE_URL } from './services/api';
+import { APP_ROUTES, getDocumentTitle } from './utils/appRoutes';
+
+function DocumentTitleSync() {
+  const location = useLocation();
+
+  useEffect(() => {
+    document.title = getDocumentTitle(location.pathname);
+  }, [location.pathname]);
+
+  return null;
+}
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -19,15 +31,22 @@ function App() {
     const token = localStorage.getItem('auth_token');
     if (!token) { setIsAuthenticated(false); setLoading(false); return; }
     try {
-      const host = window.location.hostname === 'localhost' 
-        ? 'http://localhost:10000/api' 
-        : 'https://kareh-backend.onrender.com/api';
-      const response = await fetch(`${host}/auth/verify`, {
+      const response = await fetch(`${API_BASE_URL}/auth/verify`, {
         headers: { 'Authorization': 'Bearer ' + token }
       });
       const data = await response.json();
-      setIsAuthenticated(!!data.valid);
-    } catch (err) { setIsAuthenticated(false); }
+      if (response.ok && data.valid) {
+        setIsAuthenticated(true);
+        return;
+      }
+
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('userEmail');
+      localStorage.removeItem('userName');
+      setIsAuthenticated(false);
+    } catch {
+      setIsAuthenticated(false);
+    }
     finally { setLoading(false); }
   }, []);
 
@@ -37,6 +56,7 @@ function App() {
 
   return (
     <Router>
+      <DocumentTitleSync />
       <CustomToaster />
       <div className="flex h-screen w-full bg-slate-50 overflow-hidden">
         {isAuthenticated && <Sidebar />}
@@ -44,21 +64,33 @@ function App() {
           <Routes>
             {!isAuthenticated ? (
               <>
-                <Route path="/login" element={<LoginPage onLoginSuccess={() => setIsAuthenticated(true)} />} />
-                <Route path="*" element={<Navigate to="/login" replace />} />
+                <Route path={APP_ROUTES.login} element={<LoginPage onLoginSuccess={() => setIsAuthenticated(true)} />} />
+                <Route path="/login" element={<Navigate to={APP_ROUTES.login} replace />} />
+                <Route path="*" element={<Navigate to={APP_ROUTES.login} replace />} />
               </>
             ) : (
-              <Route path="/">
-                <Route index element={<Navigate to="/dashboard" replace />} />
-                <Route path="dashboard" element={<DashboardPage />} />
-                <Route path="appointments" element={<AppointmentsPage />} />
-                <Route path="patients" element={<PatientsPage />} />
-                <Route path="clinical-histories" element={<ClinicalHistoriesPage />} />
-                <Route path="clinical-history/:patientId" element={<ClinicalHistoryPage />} />
-                <Route path="cashflow" element={<CashflowPage />} />
-                <Route path="settings" element={<SettingsPage />} />
-                <Route path="*" element={<Navigate to="/dashboard" replace />} />
-              </Route>
+              <>
+                <Route path="/" element={<Navigate to={APP_ROUTES.dashboard} replace />} />
+                <Route path={APP_ROUTES.dashboard} element={<DashboardPage />} />
+                <Route path={APP_ROUTES.appointments} element={<AppointmentsPage />} />
+                <Route path={APP_ROUTES.patients} element={<PatientsPage />} />
+                <Route path={APP_ROUTES.clinicalHistories} element={<ClinicalHistoriesPage />} />
+                <Route
+                  path={`${APP_ROUTES.clinicalHistoryDetailBase}/:patientSlug`}
+                  element={<ClinicalHistoryPage />}
+                />
+                <Route path={APP_ROUTES.cashflow} element={<CashflowPage />} />
+                <Route path={APP_ROUTES.settings} element={<SettingsPage />} />
+
+                <Route path="/dashboard" element={<Navigate to={APP_ROUTES.dashboard} replace />} />
+                <Route path="/appointments" element={<Navigate to={APP_ROUTES.appointments} replace />} />
+                <Route path="/patients" element={<Navigate to={APP_ROUTES.patients} replace />} />
+                <Route path="/clinical-histories" element={<Navigate to={APP_ROUTES.clinicalHistories} replace />} />
+                <Route path="/clinical-history/:legacyPatientId" element={<ClinicalHistoryPage />} />
+                <Route path="/cashflow" element={<Navigate to={APP_ROUTES.cashflow} replace />} />
+                <Route path="/settings" element={<Navigate to={APP_ROUTES.settings} replace />} />
+                <Route path="*" element={<Navigate to={APP_ROUTES.dashboard} replace />} />
+              </>
             )}
           </Routes>
         </main>

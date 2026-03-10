@@ -5,9 +5,12 @@ import axios from 'axios';
  * Forzamos que la base siempre incluya /api para que todas las llamadas 
  * relativas funcionen automáticamente.
  */
-const rawUrl = import.meta.env.VITE_API_URL || 'https://kareh-backend.onrender.com';
+const defaultApiUrl = import.meta.env.DEV
+  ? 'http://localhost:5000'
+  : 'https://kareh-backend.onrender.com';
+const rawUrl = import.meta.env.VITE_API_URL || defaultApiUrl;
 // Si la URL no termina en /api, se lo agregamos. 
-const API_BASE_URL = rawUrl.endsWith('/api') ? rawUrl : `${rawUrl.replace(/\/$/, '')}/api`;
+export const API_BASE_URL = rawUrl.endsWith('/api') ? rawUrl : `${rawUrl.replace(/\/$/, '')}/api`;
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -61,4 +64,4 @@ export const deleteAppointment = (id) => api.delete(`/appointments/${id}`);
 export const cancelFutureAppointments = (patientId, fromDate = null) => 
   api.post(`/appointments/patients/${patientId}/cancel-future`, { fromDate });
 
-export const updateAppointment = (id, data) => api.patch(`/appointments/${id}`, data);
+export const updateAppointment = (id, data) => api.put(`/appointments/${id}`, data);

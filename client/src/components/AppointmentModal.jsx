@@ -1,16 +1,32 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { X, AlertCircle, Calendar as CalendarIcon, Printer, Loader2, Trash2, Save, History } from 'lucide-react';
+import { Calendar as CalendarIcon, Printer, Loader2, Trash2, History, Pencil, Check, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import api from '@/services/api';
 import PrintSessions from './PrintSessions';
+import { useConfirmModal } from './ConfirmModal';
 
 const WEEK_DAYS = [
   { label: 'L', value: 1 }, { label: 'Ma', value: 2 }, { label: 'Mi', value: 3 },
   { label: 'J', value: 4 }, { label: 'V', value: 5 }, { label: 'S', value: 6 }, { label: 'D', value: 0 },
 ];
 
-const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, selectedSlot, appointment = null }) => {
+const APPOINTMENT_STATUSES = [
+  { value: 'SCHEDULED', label: 'Programado', classes: 'bg-slate-100 text-slate-600 border-slate-200' },
+  { value: 'COMPLETED', label: 'Asistió', classes: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
+  { value: 'NO_SHOW', label: 'Inasistencia', classes: 'bg-rose-100 text-rose-700 border-rose-200' },
+];
+
+const getInputDateValue = (value) => {
+  if (!value) return '';
+  if (typeof value === 'string') {
+    const match = value.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (match) return match[1];
+  }
+  return format(new Date(value), 'yyyy-MM-dd');
+};
+
+const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, selectedSlot, appointment = null, professional = null }) => {
   const [patientData, setPatientData] = useState({
     dni: '', lastName: '', firstName: '', phone: '', birthDate: '',
     healthInsurance: 'particular', affiliateNumber: '',
@@ -18,16 +34,38 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, selectedSlot, app
   });
 
   const [diagnosis, setDiagnosis] = useState('');
+  const [status, setStatus] = useState('SCHEDULED');
   const [sessionCount, setSessionCount] = useState(10);
   const [selectedDays, setSelectedDays] = useState([]);
-  const [isSearching, setIsSearching] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [createdAppointments, setCreatedAppointments] = useState([]);
   const [futureAppointments, setFutureAppointments] = useState([]);
+  const [editingFutureId, setEditingFutureId] = useState(null);
+  const [futureDraft, setFutureDraft] = useState({ date: '', time: '' });
+  const [savingFutureId, setSavingFutureId] = useState('');
+  const [ticketLoading, setTicketLoading] = useState(false);
+  const [closeAfterPrintPreview, setCloseAfterPrintPreview] = useState(false);
   
   const lastSearchedRef = useRef('');
+  const { ConfirmModalComponent, openModal } = useConfirmModal();
   const isEditMode = !!appointment?.id;
+  const modalDate = selectedSlot?.date || getInputDateValue(appointment?.date);
+  const modalTime = selectedSlot?.time || appointment?.time || '';
+
+  const loadFutureAppointments = useCallback(async () => {
+    if (!appointment?.patientId) {
+      setFutureAppointments([]);
+      return;
+    }
+
+    try {
+      const { data } = await api.get(`/patients/${appointment.patientId}/future-appointments`);
+      setFutureAppointments(data || []);
+    } catch (error) {
+      console.error(error);
+    }
+  }, [appointment?.patientId]);
 
   const projectedSessions = useMemo(() => {
     if (isEditMode) return [];
@@ -55,6 +93,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, selectedSlot, app
         lastName: nameParts[0] || '',
         firstName: nameParts.slice(1).join(' ') || '',
         phone: p.phone || '',
+        birthDate: p.birthDate ? p.birthDate.split('T')[0] : '',
         healthInsurance: p.healthInsurance || 'particular',
         affiliateNumber: p.affiliateNumber || '',
         hasCancer: p.hasCancer || false,
@@ -62,9 +101,10 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, selectedSlot, app
         usesEA: p.usesEA || false,
       });
       setDiagnosis(appointment.diagnosis || '');
-      api.get(`/patients/${appointment.patientId}/future-appointments`)
-         .then(r => setFutureAppointments(r.data))
-         .catch(err => console.error(err));
+      setStatus(appointment.status || 'SCHEDULED');
+      setEditingFutureId(null);
+      setFutureDraft({ date: '', time: '' });
+      loadFutureAppointments();
     } else {
       setPatientData({
         dni: '', lastName: '', firstName: '', phone: '',
@@ -72,18 +112,20 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, selectedSlot, app
         hasCancer: false, hasMarcapasos: false, usesEA: false,
       });
       setDiagnosis('');
+      setStatus('SCHEDULED');
       setSessionCount(10);
       setFutureAppointments([]);
+      setEditingFutureId(null);
+      setFutureDraft({ date: '', time: '' });
       if (selectedSlot) {
         const [y, m, d] = selectedSlot.date.split('-').map(Number);
         setSelectedDays([new Date(y, m - 1, d, 12, 0, 0).getDay()]);
       }
     }
-  }, [isOpen, isEditMode, appointment, selectedSlot]);
+  }, [isOpen, isEditMode, appointment, selectedSlot, loadFutureAppointments]);
 
   const searchPatient = useCallback(async (field, value) => {
     if (value.length < 5 || value === lastSearchedRef.current) return;
-    setIsSearching(true);
     lastSearchedRef.current = value;
     try {
       const { data } = await api.get(`/patients/search?${field}=${value}`);
@@ -93,12 +135,13 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, selectedSlot, app
           ...prev,
           lastName: nameParts[0] || '', firstName: nameParts.slice(1).join(' ') || '',
           dni: data.dni || prev.dni, phone: data.phone || '',
+          birthDate: data.birthDate ? data.birthDate.split('T')[0] : prev.birthDate,
           healthInsurance: data.healthInsurance || 'particular',
+          affiliateNumber: data.affiliateNumber || '',
           hasCancer: data.hasCancer || false, hasMarcapasos: data.hasMarcapasos || false, usesEA: data.usesEA || false,
         }));
       }
-    } catch (e) { console.log('Nuevo'); }
-    finally { setIsSearching(false); }
+    } catch { console.log('Nuevo'); }
   }, []);
 
   const handleAction = async () => {
@@ -107,6 +150,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, selectedSlot, app
     try {
       const payload = { 
         diagnosis, 
+        status,
         patientData: { 
           ...patientData, 
           fullName,
@@ -115,27 +159,145 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, selectedSlot, app
       };
       if (isEditMode) {
         await api.patch(`/appointments/${appointment.id}/evolution`, payload);
+        onSave();
+        onClose();
       } else {
-        const fullPayload = { ...payload, date: selectedSlot.date, time: selectedSlot.time, sessionCount, selectedDays };
+        if (!professional?.id) {
+          alert('Selecciona un profesional para agendar.');
+          return;
+        }
+
+        const fullPayload = {
+          ...payload,
+          professionalId: professional.id,
+          date: selectedSlot.date,
+          time: selectedSlot.time,
+          sessionCount,
+          selectedDays
+        };
         const { data } = await api.post('/appointments', fullPayload);
         setCreatedAppointments(data.appointments || []);
+        setCloseAfterPrintPreview(true);
         setShowPrintModal(true);
+        onRefresh?.();
       }
-      onSave();
-      if (isEditMode) onClose();
-    } catch (err) { alert('Error'); }
+    } catch { alert('Error'); }
     finally { setLoading(false); }
   };
 
-  const handleDelete = async (deleteNext = false) => {
-    if (!window.confirm('¿Confirmar eliminación?')) return;
+  const handleDelete = async (mode = 'single') => {
+    const confirmMessage = mode === 'future'
+      ? '¿Confirmar eliminación de las sesiones futuras?'
+      : '¿Confirmar eliminación de este turno?';
+
+    openModal({
+      title: mode === 'future' ? 'Eliminar sesiones futuras' : 'Eliminar turno',
+      message: confirmMessage,
+      confirmText: 'Eliminar',
+      danger: true,
+      icon: Trash2,
+      onConfirm: async () => {
+        try {
+          setLoading(true);
+          await api.delete(`/appointments/${appointment.id}`, {
+            params: mode === 'future' ? { deleteFuture: 'true' } : {},
+          });
+          onDelete();
+          onClose();
+        } catch {
+          alert('Error');
+        } finally {
+          setLoading(false);
+        }
+      },
+    });
+  };
+
+  const startEditingFutureAppointment = (futureAppointment) => {
+    setEditingFutureId(futureAppointment.id);
+    setFutureDraft({
+      date: getInputDateValue(futureAppointment.date),
+      time: futureAppointment.time || '',
+    });
+  };
+
+  const cancelEditingFutureAppointment = () => {
+    setEditingFutureId(null);
+    setFutureDraft({ date: '', time: '' });
+  };
+
+  const handleFutureAppointmentChange = (field, value) => {
+    setFutureDraft((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleFutureAppointmentSave = async (futureAppointment) => {
+    if (!futureDraft.date || !futureDraft.time) {
+      alert('Debes completar fecha y horario.');
+      return;
+    }
+
     try {
-      setLoading(true);
-      await api.delete(`/appointments/${appointment.id}`, { params: deleteNext ? { deleteNext: '10' } : {} });
-      onDelete();
-      onClose();
-    } catch (err) { alert('Error'); }
-    finally { setLoading(false); }
+      setSavingFutureId(futureAppointment.id);
+      await api.put(`/appointments/${futureAppointment.id}`, {
+        patientId: appointment.patientId,
+        phone: patientData.phone || undefined,
+        birthDate: patientData.birthDate || undefined,
+        affiliateNumber: patientData.affiliateNumber || undefined,
+        date: futureDraft.date,
+        time: futureDraft.time,
+      });
+      await loadFutureAppointments();
+      onRefresh?.();
+      cancelEditingFutureAppointment();
+    } catch (error) {
+      alert(error.friendlyMessage || error.response?.data?.message || 'No se pudo reprogramar la sesión.');
+    } finally {
+      setSavingFutureId('');
+    }
+  };
+
+  const handleOpenTicket = async () => {
+    try {
+      setTicketLoading(true);
+
+      if (isEditMode) {
+        const { data } = await api.get(`/appointments/${appointment.id}/batch`);
+        if (!data?.length) {
+          alert('No hay sesiones futuras para imprimir.');
+          return;
+        }
+        setCreatedAppointments(data);
+      } else {
+        const previewAppointments = projectedSessions.map((session) => ({
+          ...session,
+          date: format(session.date, 'yyyy-MM-dd'),
+        }));
+
+        if (!previewAppointments.length) {
+          alert('No hay sesiones para imprimir.');
+          return;
+        }
+
+        setCreatedAppointments(previewAppointments);
+      }
+
+      setCloseAfterPrintPreview(false);
+      setShowPrintModal(true);
+    } catch (error) {
+      alert(error.friendlyMessage || error.response?.data?.message || 'No se pudo generar el ticket.');
+    } finally {
+      setTicketLoading(false);
+    }
+  };
+
+  const handlePrintModalClose = () => {
+    setShowPrintModal(false);
+
+    if (closeAfterPrintPreview) {
+      onSave?.();
+      onClose?.();
+      setCloseAfterPrintPreview(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -151,11 +313,14 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, selectedSlot, app
               <div>
                 <h2 className="text-2xl font-black text-slate-800 italic uppercase tracking-tighter">{isEditMode ? 'Editar Turno' : 'Nuevo Turno'}</h2>
                 <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">
-                  {selectedSlot?.date ? format(new Date(selectedSlot.date + 'T12:00:00'), "eeee dd 'de' MMMM", { locale: es }) : ''}
+                  {modalDate ? format(new Date(`${modalDate}T12:00:00`), "eeee dd 'de' MMMM", { locale: es }) : ''}
+                </p>
+                <p className="text-teal-600 text-[10px] font-black uppercase tracking-widest mt-2">
+                  {isEditMode ? appointment?.professional?.fullName : professional?.fullName || 'Profesional no seleccionado'}
                 </p>
               </div>
               <div className="bg-teal-50 px-5 py-2 rounded-2xl border border-teal-100 text-center">
-                <p className="text-teal-600 font-black text-xl leading-none">{selectedSlot?.time}</p>
+                <p className="text-teal-600 font-black text-xl leading-none">{modalTime}</p>
                 <p className="text-[9px] text-teal-500 font-bold uppercase tracking-widest">Horario</p>
               </div>
             </div>
@@ -172,6 +337,10 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, selectedSlot, app
                 </div>
                 <input placeholder="Apellido" className="p-3 border rounded-2xl bg-slate-50 font-bold" value={patientData.lastName} onChange={e => setPatientData({...patientData, lastName: e.target.value})} />
                 <input placeholder="Nombre" className="p-3 border rounded-2xl bg-slate-50 font-bold" value={patientData.firstName} onChange={e => setPatientData({...patientData, firstName: e.target.value})} />
+                <div className="space-y-1 col-span-2">
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">N° Afiliado</label>
+                  <input className="w-full p-3 border rounded-2xl bg-slate-50 font-bold focus:ring-2 ring-teal-500 outline-none" value={patientData.affiliateNumber || ''} onChange={e => setPatientData({...patientData, affiliateNumber: e.target.value})} />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -189,6 +358,28 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, selectedSlot, app
                 <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Diagnóstico / Evolución</label>
                 <textarea className="w-full p-4 border rounded-2xl bg-slate-50 h-24 outline-none resize-none font-semibold uppercase focus:ring-2 ring-teal-500" value={diagnosis} onChange={e => setDiagnosis(e.target.value)} />
               </div>
+
+              {isEditMode && (
+                <div className="space-y-2">
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Estado del Turno</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {APPOINTMENT_STATUSES.map((item) => (
+                      <button
+                        key={item.value}
+                        type="button"
+                        onClick={() => setStatus(item.value)}
+                        className={`rounded-2xl border px-3 py-3 text-[10px] font-black uppercase transition-all ${
+                          status === item.value
+                            ? item.classes
+                            : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300'
+                        }`}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {!isEditMode && (
                 <div className="grid grid-cols-2 gap-6 items-center">
@@ -247,8 +438,8 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, selectedSlot, app
 
             {isEditMode && (
               <div className="mt-4 pt-6 border-t border-red-50 grid grid-cols-2 gap-3 pb-8">
-                <button onClick={() => handleDelete(false)} className="py-3 bg-red-50 text-red-600 font-black rounded-2xl text-[9px] uppercase hover:bg-red-100 transition-all flex items-center justify-center gap-2"><Trash2 size={14} /> Solo hoy</button>
-                <button onClick={() => handleDelete(true)} className="py-3 bg-red-600 text-white font-black rounded-2xl text-[9px] uppercase hover:bg-red-700 shadow-md transition-all flex items-center justify-center gap-2"><Trash2 size={14} /> Hoy + 10 futuros</button>
+                <button onClick={() => handleDelete('single')} className="py-3 bg-red-50 text-red-600 font-black rounded-2xl text-[9px] uppercase hover:bg-red-100 transition-all flex items-center justify-center gap-2"><Trash2 size={14} /> Solo hoy</button>
+                <button onClick={() => handleDelete('future')} className="py-3 bg-red-600 text-white font-black rounded-2xl text-[9px] uppercase hover:bg-red-700 shadow-md transition-all flex items-center justify-center gap-2"><Trash2 size={14} /> Sesiones futuras</button>
               </div>
             )}
           </div>
@@ -261,32 +452,104 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, selectedSlot, app
              {isEditMode ? `${futureAppointments.length} Sesiones Futuras` : `${projectedSessions.length} Proyectadas`}
           </h3>
           <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
-            {(isEditMode ? futureAppointments : projectedSessions).map((apt, idx) => (
-              <div key={idx} className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex justify-between items-center transition-all hover:border-teal-300">
-                <span className="text-[11px] font-bold text-slate-700">{format(new Date(apt.date), "dd 'de' MMMM", { locale: es })}</span>
-                <span className="text-[10px] font-black text-teal-600 bg-teal-50 px-2 py-1 rounded-lg">{apt.time} hs</span>
+            {(isEditMode ? futureAppointments : projectedSessions).map((apt, idx) => {
+              const displaySessionNumber = apt.sessionNumber || idx + 1;
+
+              return (
+              <div
+                key={apt.id || idx}
+                className={`bg-white p-3 rounded-xl border border-slate-200 shadow-sm transition-all hover:border-teal-300 ${
+                  editingFutureId === apt.id ? 'space-y-3' : 'flex justify-between items-center'
+                }`}
+              >
+                {editingFutureId === apt.id ? (
+                  <>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        type="date"
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-bold text-slate-700 outline-none focus:ring-2 ring-teal-500"
+                        value={futureDraft.date}
+                        onChange={(e) => handleFutureAppointmentChange('date', e.target.value)}
+                      />
+                      <input
+                        type="time"
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-bold text-slate-700 outline-none focus:ring-2 ring-teal-500"
+                        value={futureDraft.time}
+                        onChange={(e) => handleFutureAppointmentChange('time', e.target.value)}
+                      />
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={cancelEditingFutureAppointment}
+                        disabled={savingFutureId === apt.id}
+                        className="inline-flex items-center gap-1 rounded-xl border border-slate-200 px-3 py-2 text-[10px] font-black uppercase text-slate-400 transition-all hover:border-slate-300"
+                      >
+                        <X size={12} />
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleFutureAppointmentSave(apt)}
+                        disabled={savingFutureId === apt.id}
+                        className="inline-flex items-center gap-1 rounded-xl bg-teal-600 px-3 py-2 text-[10px] font-black uppercase text-white transition-all hover:bg-teal-700"
+                      >
+                        {savingFutureId === apt.id ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+                        Guardar
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="min-w-0">
+                      <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+                        Sesión {displaySessionNumber}
+                      </p>
+                      <span className="text-[11px] font-bold text-slate-700">{format(new Date(apt.date), "dd 'de' MMMM", { locale: es })}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-black text-teal-600 bg-teal-50 px-2 py-1 rounded-lg">{apt.time} hs</span>
+                      {isEditMode && apt.id && (
+                        <button
+                          type="button"
+                          onClick={() => startEditingFutureAppointment(apt)}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition-all hover:border-teal-400 hover:text-teal-600"
+                          aria-label="Editar sesión futura"
+                        >
+                          <Pencil size={13} />
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
-            ))}
+              );
+            })}
           </div>
           <button 
-            onClick={() => {
-              setCreatedAppointments(isEditMode ? futureAppointments : projectedSessions.map(s => ({...s, date: format(s.date, 'yyyy-MM-dd')})));
-              setShowPrintModal(true);
-            }}
+            onClick={handleOpenTicket}
+            disabled={ticketLoading}
             className="mt-6 w-full py-4 bg-white border-2 border-slate-200 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 hover:border-teal-500 hover:text-teal-600 transition-all shadow-sm"
-          ><Printer size={16}/> Vista Ticket</button>
+          >
+            {ticketLoading ? <Loader2 size={16} className="animate-spin" /> : <Printer size={16} />}
+            Vista Ticket
+          </button>
         </div>
       </div>
 
       {showPrintModal && (
         <PrintSessions 
           isOpen={showPrintModal} 
-          onClose={() => setShowPrintModal(false)}
+          onClose={handlePrintModalClose}
           appointments={createdAppointments} 
-          patientData={{ ...patientData, fullName: `${patientData.lastName} ${patientData.firstName}`.toUpperCase() }} 
+          patientData={{
+            ...patientData,
+            fullName: `${patientData.lastName} ${patientData.firstName}`.trim(),
+          }} 
           diagnosis={diagnosis} 
         />
       )}
+      {ConfirmModalComponent}
     </div>
   );
 };

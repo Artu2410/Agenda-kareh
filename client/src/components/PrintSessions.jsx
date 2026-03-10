@@ -8,9 +8,71 @@ const PrintSessions = ({ isOpen, onClose, appointments, patientData, diagnosis }
 
   if (!isOpen || !appointments || appointments.length === 0) return null;
 
+  const getPatientFullName = () => {
+    if (patientData?.fullName?.trim()) return patientData.fullName.trim().toUpperCase();
+
+    const composedName = [patientData?.lastName, patientData?.firstName]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+
+    return composedName ? composedName.toUpperCase() : 'N/A';
+  };
+
+  const formatBirthDate = (value) => {
+    if (!value) return 'N/A';
+
+    const date = value.includes?.('T')
+      ? new Date(value)
+      : new Date(`${value}T12:00:00`);
+
+    return Number.isNaN(date.getTime())
+      ? 'N/A'
+      : format(date, "dd/MM/yyyy", { locale: es });
+  };
+
+  const printablePatient = {
+    fullName: getPatientFullName(),
+    dni: patientData?.dni || 'N/A',
+    phone: patientData?.phone || 'N/A',
+    birthDate: formatBirthDate(patientData?.birthDate),
+    healthInsurance: patientData?.healthInsurance?.toUpperCase() || 'PARTICULAR',
+    affiliateNumber: patientData?.affiliateNumber || 'N/A',
+    hasCancer: !!patientData?.hasCancer,
+    hasMarcapasos: !!patientData?.hasMarcapasos,
+    usesEA: !!patientData?.usesEA,
+  };
+
+  function formatearFechaTicket(fechaString) {
+    if (!fechaString) return 'N/A';
+    
+    let fechaLocal;
+    if (fechaString.includes('T')) {
+        fechaLocal = new Date(fechaString);
+    } else {
+        const [year, month, day] = fechaString.split('-').map(Number);
+        fechaLocal = new Date(year, month - 1, day, 12, 0, 0);
+    }
+
+    return format(fechaLocal, "EEEE dd 'de' MMMM, yyyy", { locale: es }).toUpperCase();
+  }
+
+  const printableDiagnosis = diagnosis ? diagnosis.toUpperCase() : 'CONSULTAR HISTORIA CLINICA';
+  const sortedAppointments = [...appointments].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  const printableSchedule = sortedAppointments.map((appt, idx) => `
+    <div class="schedule-item">
+      <span class="index">${appt.sessionNumber || idx + 1}.</span>
+      <span class="schedule-date">${formatearFechaTicket(appt.date)}</span>
+      <span class="schedule-time">${appt.time} HS</span>
+    </div>
+  `).join('');
+
   const handlePrint = () => {
     const printWindow = window.open('', '', 'height=700,width=850');
-    const content = printRef.current.innerHTML;
+    if (!printWindow) {
+      alert('El navegador bloqueó la ventana de impresión.');
+      return;
+    }
 
     printWindow.document.write(`
       <html>
@@ -24,6 +86,8 @@ const PrintSessions = ({ isOpen, onClose, appointments, patientData, diagnosis }
             
             .section-label { font-size: 10px; font-weight: bold; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px; }
             .data-value { font-size: 14px; font-weight: bold; color: #1e293b; text-transform: uppercase; margin-bottom: 12px; }
+            .patient-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px 30px; margin-top: 14px; }
+            .patient-card { padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; }
             
             /* Diagnóstico resaltado para impresión */
             .diagnosis-box { 
@@ -44,6 +108,8 @@ const PrintSessions = ({ isOpen, onClose, appointments, patientData, diagnosis }
             .schedule { font-size: 12px; border-top: 1px solid #e2e8f0; padding-top: 10px; }
             .schedule-item { display: flex; justify-content: flex-start; gap: 10px; padding: 6px 0; border-bottom: 1px solid #f1f5f9; }
             .index { color: #0d9488; font-weight: bold; min-width: 25px; }
+            .schedule-date { font-weight: 600; }
+            .schedule-time { margin-left: auto; font-weight: 800; color: #0d9488; }
 
             .footer-info { margin-top: 25px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; font-size: 11px; border-top: 1px solid #e2e8f0; padding-top: 15px; }
             .contact-label { color: #0d9488; font-weight: bold; font-size: 9px; text-transform: uppercase; display: block; margin-bottom: 3px; }
@@ -55,34 +121,92 @@ const PrintSessions = ({ isOpen, onClose, appointments, patientData, diagnosis }
           </style>
         </head>
         <body>
-          ${content}
+          <div class="header">
+            <h1 class="title">KAREH</h1>
+            <p class="subtitle">Rehabilitación y Bienestar</p>
+          </div>
+
+          <div class="patient-section">
+            <div class="section-label">Paciente</div>
+            <div class="data-value">${printablePatient.fullName}</div>
+
+            <div class="diagnosis-box">
+              <div class="section-label" style="color: #0d9488;">Diagnóstico / Motivo</div>
+              <div class="diagnosis-text">${printableDiagnosis}</div>
+            </div>
+
+            <div class="alert-box">
+              <div class="alert-item" style="color: ${printablePatient.hasCancer ? '#e11d48' : '#94a3b8'};">
+                <span>${printablePatient.hasCancer ? '✔' : '▢'}</span> Oncológico
+              </div>
+              <div class="alert-item" style="color: ${printablePatient.hasMarcapasos ? '#2563eb' : '#94a3b8'};">
+                <span>${printablePatient.hasMarcapasos ? '✔' : '▢'}</span> Marcapasos
+              </div>
+              <div class="alert-item" style="color: ${printablePatient.usesEA ? '#d97706' : '#94a3b8'};">
+                <span>${printablePatient.usesEA ? '✔' : '▢'}</span> EA
+              </div>
+            </div>
+
+            <div class="patient-grid">
+              <div class="patient-card">
+                <div class="section-label">DNI</div>
+                <div class="data-value" style="font-size: 12px;">${printablePatient.dni}</div>
+              </div>
+              <div class="patient-card">
+                <div class="section-label">Teléfono</div>
+                <div class="data-value" style="font-size: 12px;">${printablePatient.phone}</div>
+              </div>
+              <div class="patient-card">
+                <div class="section-label">Cobertura</div>
+                <div class="data-value" style="font-size: 12px;">${printablePatient.healthInsurance}</div>
+              </div>
+              <div class="patient-card">
+                <div class="section-label">N° Afiliado</div>
+                <div class="data-value" style="font-size: 12px;">${printablePatient.affiliateNumber}</div>
+              </div>
+              <div class="patient-card">
+                <div class="section-label">Fecha Nacimiento</div>
+                <div class="data-value" style="font-size: 12px;">${printablePatient.birthDate}</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="session-count">
+            ${sortedAppointments.length} SESIONES PROGRAMADAS
+          </div>
+
+          <div class="section-label" style="margin-bottom: 8px; text-align: center;">Cronograma de Sesiones</div>
+          <div class="schedule">
+            ${printableSchedule}
+          </div>
+
+          <div class="footer-info">
+            <div>
+              <span class="contact-label">Contacto</span>
+              <strong>+54 9 11 3201-6039</strong>
+            </div>
+            <div style="text-align: right;">
+              <span class="contact-label">Ubicación</span>
+              <strong>Av. Senador Morón 782</strong>
+            </div>
+          </div>
+
+          <div style="margin-top: 20px; font-size: 9px; color: #94a3b8; text-align: center; border-top: 1px solid #f1f5f9; padding-top: 10px;">
+            Emitido el ${format(new Date(), "d 'de' MMMM, yyyy", { locale: es })}
+          </div>
         </body>
       </html>
     `);
 
     printWindow.document.close();
-    setTimeout(() => {
+    printWindow.onload = () => {
       printWindow.focus();
       printWindow.print();
+    };
+    printWindow.onafterprint = () => {
       printWindow.close();
-    }, 500);
+    };
   };
-
-  const formatearFechaTicket = (fechaString) => {
-    if (!fechaString) return 'N/A';
-    
-    let fechaLocal;
-    if (fechaString.includes('T')) {
-        fechaLocal = new Date(fechaString);
-    } else {
-        const [year, month, day] = fechaString.split('-').map(Number);
-        fechaLocal = new Date(year, month - 1, day, 12, 0, 0);
-    }
-
-    return format(fechaLocal, "EEEE dd 'de' MMMM, yyyy", { locale: es }).toUpperCase();
-  };
-
-  const sortedAppointments = [...appointments].sort((a, b) => a.date.localeCompare(b.date));
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex justify-center items-center z-[100] p-4">
@@ -108,36 +232,47 @@ const PrintSessions = ({ isOpen, onClose, appointments, patientData, diagnosis }
 
             <div className="patient-section">
               <div className="section-label">Paciente</div>
-              <div className="data-value">{patientData?.fullName || 'N/A'}</div>
+              <div className="data-value">{printablePatient.fullName}</div>
 
-              {/* ✅ DIAGNÓSTICO: SE MOSTRARÁ SI EXISTE LA PROP */}
               <div className="diagnosis-box">
                 <div className="section-label" style={{ color: '#0d9488' }}>Diagnóstico / Motivo</div>
                 <div className="diagnosis-text">
-                  {diagnosis ? diagnosis.toUpperCase() : "CONSULTAR HISTORIA CLÍNICA"}
+                  {printableDiagnosis}
                 </div>
               </div>
 
               <div className="alert-box">
-                <div className="alert-item" style={{color: patientData?.hasCancer ? '#e11d48' : '#94a3b8'}}>
-                  <span>{patientData?.hasCancer ? '✔' : '▢'}</span> Oncológico
+                <div className="alert-item" style={{color: printablePatient.hasCancer ? '#e11d48' : '#94a3b8'}}>
+                  <span>{printablePatient.hasCancer ? '✔' : '▢'}</span> Oncológico
                 </div>
-                <div className="alert-item" style={{color: patientData?.hasMarcapasos ? '#2563eb' : '#94a3b8'}}>
-                  <span>{patientData?.hasMarcapasos ? '✔' : '▢'}</span> Marcapasos
+                <div className="alert-item" style={{color: printablePatient.hasMarcapasos ? '#2563eb' : '#94a3b8'}}>
+                  <span>{printablePatient.hasMarcapasos ? '✔' : '▢'}</span> Marcapasos
                 </div>
-                <div className="alert-item" style={{color: patientData?.hasEA ? '#d97706' : '#94a3b8'}}>
-                  <span>{patientData?.hasEA ? '✔' : '▢'}</span> EA
+                <div className="alert-item" style={{color: printablePatient.usesEA ? '#d97706' : '#94a3b8'}}>
+                  <span>{printablePatient.usesEA ? '✔' : '▢'}</span> EA
                 </div>
               </div>
 
-              <div style={{display: 'flex', gap: '30px', marginTop: '10px'}}>
-                <div>
+              <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 20px', marginTop: '10px'}}>
+                <div style={{padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: '10px'}}>
                   <div className="section-label">DNI</div>
-                  <div className="data-value" style={{fontSize: '12px'}}>{patientData?.dni || 'N/A'}</div>
+                  <div className="data-value" style={{fontSize: '12px'}}>{printablePatient.dni}</div>
                 </div>
-                <div>
+                <div style={{padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: '10px'}}>
+                  <div className="section-label">Teléfono</div>
+                  <div className="data-value" style={{fontSize: '12px'}}>{printablePatient.phone}</div>
+                </div>
+                <div style={{padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: '10px'}}>
                   <div className="section-label">Cobertura</div>
-                  <div className="data-value" style={{fontSize: '12px'}}>{patientData?.healthInsurance?.toUpperCase() || 'PARTICULAR'}</div>
+                  <div className="data-value" style={{fontSize: '12px'}}>{printablePatient.healthInsurance}</div>
+                </div>
+                <div style={{padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: '10px'}}>
+                  <div className="section-label">N° Afiliado</div>
+                  <div className="data-value" style={{fontSize: '12px'}}>{printablePatient.affiliateNumber}</div>
+                </div>
+                <div style={{padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: '10px'}}>
+                  <div className="section-label">Fecha Nacimiento</div>
+                  <div className="data-value" style={{fontSize: '12px'}}>{printablePatient.birthDate}</div>
                 </div>
               </div>
             </div>
@@ -150,7 +285,7 @@ const PrintSessions = ({ isOpen, onClose, appointments, patientData, diagnosis }
             <div className="schedule">
               {sortedAppointments.map((appt, idx) => (
                 <div key={idx} className="schedule-item">
-                  <span className="index">{idx + 1}.</span>
+                  <span className="index">{appt.sessionNumber || idx + 1}.</span>
                   <span style={{fontWeight: '600'}}>{formatearFechaTicket(appt.date)}</span>
                   <span style={{marginLeft: 'auto', fontWeight: '800', color: '#0d9488'}}>{appt.time} HS</span>
                 </div>

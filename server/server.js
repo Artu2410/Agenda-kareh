@@ -16,6 +16,8 @@ import createAppointmentRoutes from './src/routes/appointments.routes.js';
 import createPatientRoutes from './src/routes/patient.routes.js';
 import createCashflowRoutes from './src/routes/cashflow.routes.js';
 import createClinicalHistoryRoutes from './src/routes/clinicalHistory.routes.js';
+import createMetricsRoutes from './src/routes/metrics.routes.js';
+import createProfessionalRoutes from './src/routes/professionalRoutes.js';
 import { verifyToken } from './src/controllers/auth.controller.js';
 import { authMiddleware } from './src/middlewares/authMiddleware.js';
 
@@ -30,6 +32,12 @@ app.use(cors({
 
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.json({ limit: '50mb' }));
+
+prisma.$connect()
+  .then(() => console.log('✅ DB conectada'))
+  .catch((error) => {
+    console.error('❌ Error de conexión DB:', error.message);
+  });
 
 app.use((req, res, next) => {
     req.prisma = prisma;
@@ -55,24 +63,8 @@ app.use('/api/appointments', authMiddleware, createAppointmentRoutes(prisma));
 app.use('/api/patients', authMiddleware, createPatientRoutes(prisma));
 app.use('/api/cashflow', authMiddleware, createCashflowRoutes(prisma));
 app.use('/api/clinical-history', authMiddleware, createClinicalHistoryRoutes(prisma));
-
-// --- NUEVA RUTA DE MÉTRICAS PARA EL DASHBOARD ---
-app.get('/api/metrics', authMiddleware, async (req, res) => {
-    try {
-        const [patientsCount, appointmentsCount, cashflow] = await Promise.all([
-            prisma.patient.count(),
-            prisma.appointment.count(),
-            prisma.cashFlow.aggregate({ _sum: { amount: true } })
-        ]);
-        res.json({
-            totalPatients: patientsCount,
-            totalAppointments: appointmentsCount,
-            balance: cashflow._sum.amount || 0
-        });
-    } catch (error) {
-        res.status(500).json({ error: "Error al obtener métricas" });
-    }
-});
+app.use('/api/metrics', authMiddleware, createMetricsRoutes(prisma));
+app.use('/api/professionals', authMiddleware, createProfessionalRoutes(prisma));
 
 // Utilidades
 app.get('/api/health', (req, res) => res.status(200).json({ status: 'ok' }));

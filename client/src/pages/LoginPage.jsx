@@ -9,16 +9,18 @@ import {
   ArrowRight 
 } from 'lucide-react';
 import { showErrorToast, showSuccessToast, showLoadingToast } from '../components/Toast';
+import { APP_ROUTES } from '../utils/appRoutes';
 
 // ✅ IMPORTACIÓN CORREGIDA: Usamos las funciones de tu api.js
 import { requestOTP, verifyOTP } from '../services/api'; 
 
-export default function LoginPage() {
+export default function LoginPage({ onLoginSuccess }) {
+  const MotionDiv = motion.div;
+  const MotionForm = motion.form;
   const [step, setStep] = useState('email'); // 'email' | 'otp'
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
   const [otpExpiry, setOtpExpiry] = useState(null);
 
   // Efecto para actualizar el contador visualmente cada segundo
@@ -32,7 +34,6 @@ export default function LoginPage() {
 
   const handleRequestOTP = async (e) => {
     if (e && e.preventDefault) e.preventDefault();
-    setError('');
 
     if (!email.trim()) {
       showErrorToast('Por favor ingresa tu email');
@@ -50,12 +51,14 @@ export default function LoginPage() {
         showSuccessToast('✅ Código enviado a tu email');
         setStep('otp');
         setOtpExpiry(Date.now() + 15 * 60 * 1000); 
-        setOtp('');
+        setOtp(response.data.devOtp || '');
+        if (response.data.devOtp) {
+          showSuccessToast(`🔑 Código local: ${response.data.devOtp}`);
+        }
       }
     } catch (err) {
       // ✅ CAMBIO: Usamos el friendlyMessage de nuestro interceptor
       const errorMsg = err.friendlyMessage || 'Error al solicitar código';
-      setError(errorMsg);
       showErrorToast(`❌ ${errorMsg}`);
     } finally {
       setLoading(false);
@@ -64,7 +67,6 @@ export default function LoginPage() {
 
   const handleVerifyOTP = async (e) => {
     e.preventDefault();
-    setError('');
 
     if (!otp.trim() || otp.length !== 6) {
       showErrorToast('El código debe tener 6 dígitos');
@@ -86,12 +88,12 @@ export default function LoginPage() {
         showSuccessToast('✅ ¡Acceso Concedido!');
         
         setTimeout(() => {
-          window.location.href = '/dashboard';
+          onLoginSuccess?.();
+          window.location.href = APP_ROUTES.dashboard;
         }, 800);
       }
     } catch (err) {
       const errorMsg = err.friendlyMessage || 'Error al verificar código';
-      setError(errorMsg);
       showErrorToast(`❌ ${errorMsg}`);
     } finally {
       setLoading(false);
@@ -112,7 +114,7 @@ export default function LoginPage() {
       <div className="absolute top-0 left-0 w-96 h-96 bg-teal-200/20 rounded-full blur-3xl"></div>
       <div className="absolute bottom-0 right-0 w-96 h-96 bg-blue-200/20 rounded-full blur-3xl"></div>
 
-      <motion.div
+      <MotionDiv
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         className="relative w-full max-w-md"
@@ -127,7 +129,7 @@ export default function LoginPage() {
           </div>
 
           {step === 'email' ? (
-            <motion.form
+            <MotionForm
               key="email-form"
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
@@ -156,9 +158,9 @@ export default function LoginPage() {
               >
                 {loading ? <Loader size={20} className="animate-spin" /> : <>Enviar Código <ArrowRight size={18}/></>}
               </button>
-            </motion.form>
+            </MotionForm>
           ) : (
-            <motion.div
+            <MotionDiv
               key="otp-form"
               initial={{ opacity: 0, x: 10 }}
               animate={{ opacity: 1, x: 0 }}
@@ -199,10 +201,10 @@ export default function LoginPage() {
                 <button onClick={() => handleRequestOTP()} className="text-teal-600 text-sm font-semibold hover:underline">Reenviar código</button>
                 <button onClick={() => setStep('email')} className="text-slate-500 text-sm hover:underline">Cambiar correo</button>
               </div>
-            </motion.div>
+            </MotionDiv>
           )}
         </div>
-      </motion.div>
+      </MotionDiv>
     </div>
   );
 }

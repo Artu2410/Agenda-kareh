@@ -1,21 +1,20 @@
 ﻿import React from 'react';
 import { BarChart3, Calendar, Users, DollarSign, Settings, FileText, LogOut } from 'lucide-react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { showSuccessToast } from '../Toast';
 import { useConfirmModal } from '../ConfirmModal';
+import { APP_ROUTES } from '../../utils/appRoutes';
 
 const Sidebar = () => {
   const location = useLocation();
-  const navigate = useNavigate();
-
   const { ConfirmModalComponent, openModal } = useConfirmModal();
   const menuItems = [
-    { icon: BarChart3, label: 'Dashboard', path: '/dashboard' },
-    { icon: Calendar, label: 'Turnos', path: '/appointments' },
-    { icon: Users, label: 'Pacientes', path: '/patients' },
-    { icon: FileText, label: 'Historia Clínica', path: '/clinical-histories' },
-    { icon: DollarSign, label: 'Caja', path: '/cashflow' },
-    { icon: Settings, label: 'Configuración', path: '/settings' },
+    { icon: BarChart3, label: 'Panel', path: APP_ROUTES.dashboard },
+    { icon: Calendar, label: 'Agenda', path: APP_ROUTES.appointments },
+    { icon: Users, label: 'Pacientes', path: APP_ROUTES.patients },
+    { icon: FileText, label: 'Historias Clínicas', path: APP_ROUTES.clinicalHistories },
+    { icon: DollarSign, label: 'Caja', path: APP_ROUTES.cashflow },
+    { icon: Settings, label: 'Configuración', path: APP_ROUTES.settings },
   ];
 
   const handleLogout = () => {
@@ -31,7 +30,7 @@ const Sidebar = () => {
         localStorage.removeItem('userEmail');
         showSuccessToast('Sesión cerrada correctamente');
         setTimeout(() => {
-          window.location.href = '/';
+          window.location.href = APP_ROUTES.login;
         }, 500);
       },
     });
@@ -44,14 +43,16 @@ const Sidebar = () => {
     <>
     <aside className="w-64 bg-slate-900 text-white h-screen flex flex-col shadow-xl">
       <div className="p-6 text-center border-b border-slate-800">
-        <h1 className="text-2xl font-bold text-teal-400 tracking-tight">KAREH PRO</h1>
+        <h1 className="text-2xl font-bold text-teal-400 tracking-tight uppercase">Agenda Kareh</h1>
         <p className="text-[10px] text-slate-500 uppercase font-black mt-1">Centro de Kinesiología</p>
       </div>
       
 <nav className="flex-1 mt-6 px-4 space-y-2">
         {menuItems.map((item) => {
           const Icon = item.icon;
-          const isActive = location.pathname === item.path;
+          const isActive = item.path === APP_ROUTES.clinicalHistories
+            ? location.pathname.startsWith(APP_ROUTES.clinicalHistories) || location.pathname.startsWith('/clinical-history')
+            : location.pathname === item.path;
           
           return (
             <Link

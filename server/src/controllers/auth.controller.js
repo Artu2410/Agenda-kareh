@@ -1,10 +1,26 @@
 import jwt from 'jsonwebtoken';
 import { Resend } from 'resend';
 
-// 1. Configuración de Resend y Variables de Entorno
-const resend = new Resend(process.env.RESEND_API_KEY);
-const JWT_SECRET = process.env.JWT_SECRET || 'clave_secreta_provisional';
-const AUTHORIZED_EMAIL = (process.env.AUTHORIZED_EMAIL || 'centrokareh@gmail.com').toLowerCase();
+// 1. Configuración de Variables de Entorno
+const OTP_TTL_MS = 15 * 60 * 1000;
+const DEFAULT_AUTHORIZED_EMAIL = 'centrokareh@gmail.com';
+const PLACEHOLDER_AUTHORIZED_EMAILS = new Set([
+  'tu_email@gmail.com',
+  'tu_correo@gmail.com',
+  'your_email@gmail.com',
+  'your_email@example.com'
+]);
+
+const getJwtSecret = () => process.env.JWT_SECRET || 'clave_secreta_provisional';
+const getAuthorizedEmail = () => {
+  const configuredEmail = (process.env.AUTHORIZED_EMAIL || DEFAULT_AUTHORIZED_EMAIL).trim().toLowerCase();
+  return PLACEHOLDER_AUTHORIZED_EMAILS.has(configuredEmail) ? DEFAULT_AUTHORIZED_EMAIL : configuredEmail;
+};
+const isProduction = () => process.env.NODE_ENV === 'production';
+const getResendClient = () => {
+  const apiKey = process.env.RESEND_API_KEY;
+  return apiKey ? new Resend(apiKey) : null;
+};
 
 // Almacenamiento temporal de OTPs
 const otpStorage = new Map();
@@ -15,6 +31,7 @@ const otpStorage = new Map();
 export const requestOTP = async (req, res) => {
   try {
     const { email } = req.body;
+    const authorizedEmail = getAuthorizedEmail();
 
     if (!email || !email.includes('@')) {
       return res.status(400).json({ message: 'Email inválido' });
@@ -23,20 +40,35 @@ export const requestOTP = async (req, res) => {
     const normalizedEmail = email.toLowerCase();
 
     // Validar autorización
-    if (normalizedEmail !== AUTHORIZED_EMAIL) {
+    if (normalizedEmail !== authorizedEmail) {
       return res.status(403).json({
         message: 'Acceso Denegado',
-        detail: `Solo ${AUTHORIZED_EMAIL} puede acceder.`
+        detail: `Solo ${authorizedEmail} puede acceder.`
       });
     }
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = Date.now() + 15 * 60 * 1000;
+    const expiresAt = Date.now() + OTP_TTL_MS;
 
     otpStorage.set(normalizedEmail, { otp, expiresAt, attempts: 0 });
+    const resend = getResendClient();
+
+    // Modo local: permite probar login aunque no exista RESEND_API_KEY.
+    if (!resend) {
+      if (isProduction()) {
+        return res.status(500).json({ message: 'Servicio de correo no configurado' });
+      }
+
+      console.warn(`⚠️ [DEV] RESEND_API_KEY no configurada. OTP local para ${normalizedEmail}: ${otp}`);
+      return res.json({
+        success: true,
+        message: 'Código OTP generado en modo desarrollo',
+        devOtp: otp
+      });
+    }
 
     try {
-      const { data, error } = await resend.emails.send({
+      const { error } = await resend.emails.send({
         from: 'Kareh Salud <onboarding@resend.dev>',
         to: normalizedEmail,
         subject: '🔐 Tu código de acceso a Kareh Salud',
@@ -85,7 +117,7 @@ export const verifyOTP = async (req, res) => {
     // Generamos el token con los datos del usuario
     const token = jwt.sign(
       { email: normalizedEmail, role: 'admin' },
-      JWT_SECRET,
+      getJwtSecret(),
       { expiresIn: '30d' }
     );
 
@@ -114,7 +146,7 @@ export const verifyToken = async (req, res) => {
     }
 
     // 2. Verificamos usando la variable de entorno de Render
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'clave_secreta_provisional');
+    const decoded = jwt.verify(token, getJwtSecret());
 
     console.log("✅ Token verificado para:", decoded.email);
     return res.status(200).json({ 

@@ -1,9 +1,10 @@
 import axios from 'axios';
 
-// Definimos la URL base asegurando que termine en /api
-const API_URL = window.location.hostname === 'localhost' 
-  ? 'http://localhost:10000/api' 
-  : 'https://kareh-backend.onrender.com/api';
+const defaultApiUrl = import.meta.env.DEV
+  ? 'http://localhost:5000'
+  : 'https://kareh-backend.onrender.com';
+const rawUrl = import.meta.env.VITE_API_URL || defaultApiUrl;
+const API_URL = rawUrl.endsWith('/api') ? rawUrl : `${rawUrl.replace(/\/$/, '')}/api`;
 
 const instance = axios.create({
   baseURL: API_URL,

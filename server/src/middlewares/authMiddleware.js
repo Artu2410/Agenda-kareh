@@ -4,6 +4,7 @@ export const authMiddleware = (req, res, next) => {
   // 1. Buscamos el token en el Header o en las Cookies
   const authHeader = req.headers.authorization;
   const token = authHeader?.split(' ')[1] || req.cookies?.auth_token;
+  const jwtSecret = process.env.JWT_SECRET || 'clave_secreta_provisional';
 
   if (!token) {
     console.log("❌ Intento de acceso sin token");
@@ -11,7 +12,7 @@ export const authMiddleware = (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, jwtSecret);
     req.user = decoded; // Guardamos el usuario para las siguientes rutas
     next();
   } catch (error) {

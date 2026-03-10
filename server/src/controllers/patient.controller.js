@@ -52,7 +52,7 @@ export const getAllPatients = async (req, res, prisma) => {
 };
 
 export const createPatient = async (req, res, prisma) => {
-  const { fullName, dni, phone, email, address, birthDate, healthInsurance } = req.body;
+  const { fullName, dni, phone, email, address, birthDate, healthInsurance, affiliateNumber } = req.body;
   try {
     if (!fullName || !dni) return res.status(400).json({ message: 'Nombre y DNI son requeridos' });
 
@@ -64,6 +64,7 @@ export const createPatient = async (req, res, prisma) => {
         fullName, dni, phone, email, address,
         birthDate: birthDate ? parseDateAvoidTZ(birthDate) : null,
         healthInsurance,
+        affiliateNumber,
       },
       include: { _count: { select: { appointments: true } } },
     });
@@ -78,7 +79,7 @@ export const updatePatient = async (req, res, prisma) => {
   // EXPANDIR PARA INCLUIR TODOS LOS CAMPOS SINCRONIZABLES
   const { 
     fullName, dni, phone, email, address, birthDate, healthInsurance,
-    hasMarcapasos, usesEA, hasCancer, medicalNotes 
+    affiliateNumber, hasMarcapasos, usesEA, hasCancer, medicalNotes 
   } = req.body;
 
   try {
@@ -92,6 +93,7 @@ export const updatePatient = async (req, res, prisma) => {
         fullName, dni, phone, email, address,
         birthDate: birthDate ? parseDateAvoidTZ(birthDate) : undefined,
         healthInsurance,
+        affiliateNumber,
         // AÑADIR CAMPOS MÉDICOS A LA ACTUALIZACIÓN
         hasMarcapasos,
         usesEA,
@@ -173,9 +175,11 @@ export const getFutureAppointments = async (req, res, prisma) => {
           gte: today,
         },
       },
-      orderBy: {
-        date: 'asc',
-      },
+      orderBy: [
+        { date: 'asc' },
+        { time: 'asc' },
+        { slotNumber: 'asc' },
+      ],
     });
     res.status(200).json(appointments);
   } catch (error) {

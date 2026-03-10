@@ -40,7 +40,7 @@ async function checkDatabase() {
     const endDate = new Date('2026-01-20');
     const weekAppointments = await prisma.appointment.findMany({
       where: {
-        startTime: {
+        date: {
           gte: startDate,
           lte: endDate,
         },
@@ -51,7 +51,7 @@ async function checkDatabase() {
 
     console.log('🎉 ¡Todo está funcionando correctamente!');
     console.log('\n📝 URL de API: http://localhost:5000/api');
-    console.log('💚 Health check: http://localhost:5000/health');
+    console.log('💚 Health check: http://localhost:5000/api/health');
     console.log('📅 Appointments week: http://localhost:5000/api/appointments/week?startDate=2026-01-14&endDate=2026-01-20');
 
   } catch (error) {
