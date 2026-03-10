@@ -82,6 +82,21 @@ const ClinicalHistoryPage = () => {
     return url.toLowerCase().endsWith('.pdf');
   };
 
+  const isImageAttachment = (file) => {
+    const url = getAttachmentUrl(file);
+    if (file?.type?.startsWith('image/')) return true;
+    if (url.startsWith('data:image/')) return true;
+    return /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(url);
+  };
+
+  const getAttachmentLabel = (file) => {
+    if (file?.name) return file.name;
+    const url = getAttachmentUrl(file);
+    if (!url) return 'Archivo';
+    const cleanUrl = url.split('?')[0];
+    return cleanUrl.split('/').pop() || 'Archivo';
+  };
+
   const openAttachment = (file) => {
     const url = getAttachmentUrl(file);
     if (!url) return;
@@ -226,11 +241,6 @@ const ClinicalHistoryPage = () => {
 
     const isPdf = file.type === 'application/pdf' || file.name?.toLowerCase().endsWith('.pdf');
     const isImage = file.type?.startsWith('image/');
-
-    if (!isPdf && !isImage) {
-      toast.error('Solo se permiten imágenes o PDF.');
-      return;
-    }
 
     toast.loading(isPdf ? 'Subiendo PDF...' : 'Procesando imagen...', { id: 'uploading' });
     try {
@@ -498,13 +508,18 @@ const ClinicalHistoryPage = () => {
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-2">
                         {entry.attachments.map((file, idx) => (
                           <div key={idx} className="relative group aspect-square rounded-2xl overflow-hidden border border-slate-200 bg-black">
-                            {isPdfAttachment(file) ? (
-                              <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-slate-900 text-slate-100">
-                                <FileText size={24} />
-                                <span className="text-[10px] font-black uppercase tracking-widest">PDF</span>
-                              </div>
-                            ) : (
+                            {isImageAttachment(file) ? (
                               <img src={getAttachmentUrl(file)} alt="Adjunto" className="w-full h-full object-cover opacity-90 hover:opacity-100" />
+                            ) : (
+                              <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-slate-900 text-slate-100 px-3 text-center">
+                                <FileText size={24} />
+                                <span className="text-[10px] font-black uppercase tracking-widest">
+                                  {isPdfAttachment(file) ? 'PDF' : 'ARCHIVO'}
+                                </span>
+                                <span className="text-[9px] text-slate-300 truncate w-full">
+                                  {getAttachmentLabel(file)}
+                                </span>
+                              </div>
                             )}
                             <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity no-print">
                               <button onClick={() => openAttachment(file)} className="bg-white p-2 rounded-full text-slate-800"><Maximize2 size={16} /></button>
@@ -531,7 +546,7 @@ const ClinicalHistoryPage = () => {
                       </label>
                       <label className="flex items-center gap-2 text-slate-500 text-[9px] font-black cursor-pointer bg-slate-50 px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-100">
                         <Upload size={14}/> ADJUNTAR
-                        <input type="file" accept="image/*,application/pdf" className="hidden" onChange={(e) => handleFileUpload(entry.id, e)} />
+                        <input type="file" className="hidden" onChange={(e) => handleFileUpload(entry.id, e)} />
                       </label>
                     </div>
                   </div>
@@ -618,13 +633,13 @@ const ClinicalHistoryPage = () => {
                       <div className="grid grid-cols-3 gap-4 border-t border-slate-100 pt-6">
                         {entry.attachments.map((file, idx) => (
                           <div key={idx} className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
-                            {isPdfAttachment(file) ? (
+                            {isImageAttachment(file) ? (
+                              <img src={getAttachmentUrl(file)} alt="Adjunto clínico" className="h-36 w-full object-cover" />
+                            ) : (
                               <div className="flex h-36 w-full items-center justify-center gap-2 text-[10px] font-black uppercase text-slate-500">
                                 <FileText size={16} />
-                                PDF
+                                {isPdfAttachment(file) ? 'PDF' : 'ARCHIVO'}
                               </div>
-                            ) : (
-                              <img src={getAttachmentUrl(file)} alt="Adjunto clínico" className="h-36 w-full object-cover" />
                             )}
                           </div>
                         ))}

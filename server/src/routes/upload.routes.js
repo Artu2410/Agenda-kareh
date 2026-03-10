@@ -10,12 +10,6 @@ const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: MAX_UPLOAD_BYTES },
-  fileFilter: (req, file, cb) => {
-    const isImage = file.mimetype?.startsWith('image/');
-    const isPdf = file.mimetype === 'application/pdf';
-    if (isImage || isPdf) return cb(null, true);
-    return cb(new Error('Tipo de archivo no permitido'));
-  },
 });
 
 const buildKey = ({ originalname, mimetype, patientId, entryId }) => {
@@ -49,7 +43,7 @@ export default function createUploadRoutes() {
       const url = await uploadBufferToStorage({
         buffer: req.file.buffer,
         key,
-        contentType: req.file.mimetype,
+        contentType: req.file.mimetype || 'application/octet-stream',
       });
 
       return res.status(201).json({
