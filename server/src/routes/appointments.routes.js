@@ -6,7 +6,8 @@ import {
   deleteAppointment, 
   updateEvolution, 
   cancelFutureAppointments,
-  getAppointmentBatch
+  getAppointmentBatch,
+  sendWhatsAppTicket
 } from '../controllers/AppointmentController.js';
 
 const createRouter = (prisma) => {
@@ -17,6 +18,9 @@ const createRouter = (prisma) => {
 
   // 2. Ticket: Obtener lote de 10 sesiones
   router.get('/:id/batch', (req, res) => getAppointmentBatch(req, res, prisma));
+
+  // 2b. Enviar ticket por WhatsApp
+  router.post('/:id/whatsapp-ticket', (req, res) => sendWhatsAppTicket(req, res, prisma));
 
   // 3. Crear citas (Ciclo completo)
   router.post('/', (req, res) => createAppointment(req, res, prisma));

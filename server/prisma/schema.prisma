@@ -109,6 +109,8 @@ model Appointment {
   isFirstSession Boolean         @default(false)
   status         String          @default("SCHEDULED")
   payment        CashFlow?
+  whatsappTicketSentAt   DateTime?
+  whatsappReminderSentAt DateTime?
 
   @@unique([date, time, slotNumber, professionalId])
 }

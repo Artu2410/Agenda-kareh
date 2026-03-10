@@ -554,7 +554,8 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
             ...patientData,
             fullName: `${patientData.lastName} ${patientData.firstName}`.trim(),
           }} 
-          diagnosis={diagnosis} 
+          diagnosis={diagnosis}
+          appointmentId={appointment?.id || createdAppointments?.[0]?.id}
         />
       )}
       {ConfirmModalComponent}

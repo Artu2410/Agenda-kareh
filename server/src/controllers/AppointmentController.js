@@ -1,4 +1,8 @@
 import { startOfWeek, endOfWeek, parseISO } from 'date-fns';
+import { uploadBufferToStorage } from '../services/storage.js';
+import { buildTicketPdf } from '../services/ticketPdf.js';
+import { sendTemplateMessage } from '../services/whatsapp.js';
+import { normalizePhone } from '../utils/phone.js';
 
 // Helper para evitar corrimientos de fecha por zona horaria.
 // Si la fecha viene en formato 'YYYY-MM-DD' la dejamos a mediodía local (12:00)
@@ -391,6 +395,143 @@ const resequencePatientAppointments = async (tx, patientId) => {
       },
     });
   }
+};
+
+const formatAppointmentDate = (value) => {
+  if (!value) return '';
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleDateString('es-AR');
+};
+
+const buildTicketTemplateComponents = ({ patientName, firstDate, firstTime, professionalName, ticketUrl }) => {
+  const bodyParams = [
+    { type: 'text', text: patientName || 'Paciente' },
+    { type: 'text', text: `${firstDate} ${firstTime}`.trim() },
+    { type: 'text', text: professionalName || 'Kareh' },
+    { type: 'text', text: ticketUrl || '' },
+  ];
+
+  const components = [{ type: 'body', parameters: bodyParams }];
+  return components;
+};
+
+const buildReminderTemplateComponents = ({ patientName, dateLabel, timeLabel, professionalName }) => ([
+  {
+    type: 'body',
+    parameters: [
+      { type: 'text', text: patientName || 'Paciente' },
+      { type: 'text', text: `${dateLabel} ${timeLabel}`.trim() },
+      { type: 'text', text: professionalName || 'Kareh' },
+    ],
+  },
+]);
+
+export const sendWhatsAppTicket = async (req, res, prisma) => {
+  const { id } = req.params;
+
+  try {
+    const appointment = await prisma.appointment.findUnique({
+      where: { id },
+      include: { patient: true, professional: true },
+    });
+
+    if (!appointment) {
+      return res.status(404).json({ message: 'Turno no encontrado' });
+    }
+
+    const phone = normalizePhone(appointment.patient?.phone);
+    if (!phone) {
+      return res.status(400).json({ message: 'El paciente no tiene teléfono válido' });
+    }
+
+    const batch = await prisma.appointment.findMany({
+      where: {
+        patientId: appointment.patientId,
+        date: { gte: appointment.date },
+        status: { not: 'CANCELLED' },
+      },
+      orderBy: APPOINTMENT_ORDER,
+      take: 10,
+      include: { professional: true },
+    });
+
+    const ticketPdf = await buildTicketPdf({
+      patient: appointment.patient,
+      professional: appointment.professional,
+      appointments: batch,
+      diagnosis: appointment.diagnosis,
+    });
+
+    const ticketKey = `tickets/${appointment.id}-${Date.now()}.pdf`;
+    const ticketUrl = await uploadBufferToStorage({
+      buffer: ticketPdf,
+      key: ticketKey,
+      contentType: 'application/pdf',
+    });
+
+    const templateName = process.env.WHATSAPP_TICKET_TEMPLATE;
+    if (!templateName) {
+      return res.status(500).json({ message: 'Template WhatsApp no configurado' });
+    }
+
+    const firstAppt = batch[0] || appointment;
+    const components = buildTicketTemplateComponents({
+      patientName: appointment.patient?.fullName,
+      firstDate: formatAppointmentDate(firstAppt.date),
+      firstTime: firstAppt.time,
+      professionalName: firstAppt.professional?.fullName || appointment.professional?.fullName,
+      ticketUrl,
+    });
+
+    await sendTemplateMessage({
+      to: phone,
+      name: templateName,
+      components,
+    });
+
+    await prisma.appointment.update({
+      where: { id: appointment.id },
+      data: { whatsappTicketSentAt: new Date() },
+    });
+
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('ERROR WHATSAPP TICKET:', error);
+    return res.status(500).json({ message: 'Error al enviar WhatsApp', detail: error.message });
+  }
+};
+
+export const sendWhatsAppReminder = async (appointment, prisma) => {
+  const templateName = process.env.WHATSAPP_REMINDER_TEMPLATE;
+  if (!templateName) {
+    throw new Error('Template de recordatorio no configurado');
+  }
+
+  const phone = normalizePhone(appointment.patient?.phone);
+  if (!phone) {
+    return { skipped: true, reason: 'no_phone' };
+  }
+
+  const components = buildReminderTemplateComponents({
+    patientName: appointment.patient?.fullName,
+    dateLabel: formatAppointmentDate(appointment.date),
+    timeLabel: appointment.time,
+    professionalName: appointment.professional?.fullName,
+  });
+
+  await sendTemplateMessage({
+    to: phone,
+    name: templateName,
+    components,
+  });
+
+  await prisma.appointment.update({
+    where: { id: appointment.id },
+    data: { whatsappReminderSentAt: new Date() },
+  });
+
+  return { skipped: false };
 };
 
 // 5. ELIMINAR CITA

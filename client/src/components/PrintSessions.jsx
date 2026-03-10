@@ -1,10 +1,12 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { X, Printer } from 'lucide-react';
+import api from '@/services/api';
 
-const PrintSessions = ({ isOpen, onClose, appointments, patientData, diagnosis }) => {
+const PrintSessions = ({ isOpen, onClose, appointments, patientData, diagnosis, appointmentId }) => {
   const printRef = useRef();
+  const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
   const UNKNOWN_BIRTHDATE = '1900-01-01';
 
   if (!isOpen || !appointments || appointments.length === 0) return null;
@@ -211,6 +213,22 @@ const PrintSessions = ({ isOpen, onClose, appointments, patientData, diagnosis }
     };
   };
 
+  const handleSendWhatsApp = async () => {
+    if (!appointmentId) {
+      alert('El turno todavía no está guardado.');
+      return;
+    }
+    try {
+      setSendingWhatsApp(true);
+      await api.post(`/appointments/${appointmentId}/whatsapp-ticket`);
+      alert('Ticket enviado por WhatsApp.');
+    } catch (error) {
+      alert(error?.friendlyMessage || error?.response?.data?.message || 'No se pudo enviar por WhatsApp.');
+    } finally {
+      setSendingWhatsApp(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex justify-center items-center z-[100] p-4">
       <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-lg flex flex-col overflow-hidden border border-white/20">
@@ -315,6 +333,13 @@ const PrintSessions = ({ isOpen, onClose, appointments, patientData, diagnosis }
         <div className="p-6 border-t bg-white flex justify-end gap-3">
           <button onClick={onClose} className="px-6 py-2.5 font-bold text-slate-400 hover:text-slate-600 transition-colors">
             Cerrar
+          </button>
+          <button
+            onClick={handleSendWhatsApp}
+            disabled={sendingWhatsApp}
+            className="px-8 py-3 bg-slate-900 text-white font-black rounded-2xl hover:bg-slate-800 transition-all flex items-center gap-2 shadow-xl shadow-slate-200"
+          >
+            {sendingWhatsApp ? 'Enviando...' : 'Enviar WhatsApp'}
           </button>
           <button
             onClick={handlePrint}
