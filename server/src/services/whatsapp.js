@@ -34,6 +34,8 @@ const sendMessage = async (payload) => {
   return data;
 };
 
+const buildGraphUrl = (path) => `https://graph.facebook.com/${WHATSAPP_API_VERSION}/${path}`;
+
 export const sendTemplateMessage = async ({ to, name, language, components }) => (
   sendMessage({
     messaging_product: 'whatsapp',
@@ -47,15 +49,38 @@ export const sendTemplateMessage = async ({ to, name, language, components }) =>
   })
 );
 
-export const sendDocumentMessage = async ({ to, link, filename, caption }) => (
+export const sendTextMessage = async ({ to, text }) => (
   sendMessage({
     messaging_product: 'whatsapp',
     to,
-    type: 'document',
-    document: {
-      link,
-      filename,
-      caption,
-    },
+    type: 'text',
+    text: { body: text },
   })
 );
+
+export const fetchMediaInfo = async (mediaId) => {
+  assertWhatsappConfig();
+  const response = await fetch(buildGraphUrl(mediaId), {
+    headers: { Authorization: `Bearer ${WHATSAPP_ACCESS_TOKEN}` },
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const errorMessage = data?.error?.message || 'Error al consultar media';
+    const error = new Error(errorMessage);
+    error.detail = data;
+    throw error;
+  }
+  return data;
+};
+
+export const downloadMedia = async (mediaUrl) => {
+  assertWhatsappConfig();
+  const response = await fetch(mediaUrl, {
+    headers: { Authorization: `Bearer ${WHATSAPP_ACCESS_TOKEN}` },
+  });
+  if (!response.ok) {
+    throw new Error('Error al descargar media');
+  }
+  const arrayBuffer = await response.arrayBuffer();
+  return Buffer.from(arrayBuffer);
+};

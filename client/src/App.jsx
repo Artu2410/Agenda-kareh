@@ -9,6 +9,7 @@ import ClinicalHistoriesPage from './pages/ClinicalHistoriesPage';
 import ClinicalHistoryPage from './pages/ClinicalHistoryPage';
 import DashboardPage from './pages/DashboardPage';
 import LoginPage from './pages/LoginPage';
+import WhatsAppPage from './pages/WhatsAppPage';
 import Sidebar from './components/layout/Sidebar';
 import { API_BASE_URL } from './services/api';
 import { APP_ROUTES, getDocumentTitle } from './utils/appRoutes';
@@ -80,6 +81,7 @@ function App() {
                   element={<ClinicalHistoryPage />}
                 />
                 <Route path={APP_ROUTES.cashflow} element={<CashflowPage />} />
+                <Route path={APP_ROUTES.whatsapp} element={<WhatsAppPage />} />
                 <Route path={APP_ROUTES.settings} element={<SettingsPage />} />
 
                 <Route path="/dashboard" element={<Navigate to={APP_ROUTES.dashboard} replace />} />
@@ -88,6 +90,7 @@ function App() {
                 <Route path="/clinical-histories" element={<Navigate to={APP_ROUTES.clinicalHistories} replace />} />
                 <Route path="/clinical-history/:legacyPatientId" element={<ClinicalHistoryPage />} />
                 <Route path="/cashflow" element={<Navigate to={APP_ROUTES.cashflow} replace />} />
+                <Route path="/whatsapp" element={<Navigate to={APP_ROUTES.whatsapp} replace />} />
                 <Route path="/settings" element={<Navigate to={APP_ROUTES.settings} replace />} />
                 <Route path="*" element={<Navigate to={APP_ROUTES.dashboard} replace />} />
               </>

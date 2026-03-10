@@ -20,6 +20,8 @@ import createMetricsRoutes from './src/routes/metrics.routes.js';
 import createProfessionalRoutes from './src/routes/professionalRoutes.js';
 import createUploadRoutes from './src/routes/upload.routes.js';
 import { runWhatsappReminders } from './src/services/whatsappReminders.js';
+import createWhatsAppRoutes from './src/routes/whatsapp.routes.js';
+import { verifyWhatsAppWebhook, handleWhatsAppWebhook } from './src/controllers/whatsapp.controller.js';
 import { verifyToken } from './src/controllers/auth.controller.js';
 import { authMiddleware } from './src/middlewares/authMiddleware.js';
 
@@ -75,6 +77,10 @@ app.use((req, res, next) => {
     next();
 });
 
+// WhatsApp Webhook (público)
+app.get('/api/webhooks/whatsapp', verifyWhatsAppWebhook);
+app.post('/api/webhooks/whatsapp', (req, res) => handleWhatsAppWebhook(req, res, prisma));
+
 // Cron hook (para recordatorios WhatsApp)
 app.post('/api/cron/whatsapp-reminders', async (req, res) => {
     const token = process.env.WHATSAPP_CRON_TOKEN;
@@ -116,6 +122,7 @@ app.use('/api/clinical-history', authMiddleware, createClinicalHistoryRoutes(pri
 app.use('/api/metrics', authMiddleware, createMetricsRoutes(prisma));
 app.use('/api/professionals', authMiddleware, createProfessionalRoutes(prisma));
 app.use('/api/uploads', authMiddleware, createUploadRoutes());
+app.use('/api/whatsapp', authMiddleware, createWhatsAppRoutes(prisma));
 
 // Utilidades
 app.get('/api/health', (req, res) => res.status(200).json({ status: 'ok' }));

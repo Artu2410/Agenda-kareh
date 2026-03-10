@@ -1,0 +1,237 @@
+import { uploadBufferToStorage } from '../services/storage.js';
+import { downloadMedia, fetchMediaInfo, sendTextMessage } from '../services/whatsapp.js';
+import { normalizePhone } from '../utils/phone.js';
+
+const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
+
+const MIME_EXTENSION = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/gif': 'gif',
+  'application/pdf': 'pdf',
+  'audio/ogg': 'ogg',
+  'audio/mpeg': 'mp3',
+  'video/mp4': 'mp4',
+};
+
+const getPreviewText = (message) => {
+  if (!message) return '';
+  if (message.type === 'text') return message.text?.body || '';
+  const caption = message[message.type]?.caption;
+  if (caption) return caption;
+  return `[${message.type || 'archivo'}]`;
+};
+
+const getMediaInfoFromMessage = (message) => {
+  if (!message) return null;
+  const payload = message[message.type];
+  if (!payload) return null;
+  return {
+    mediaId: payload.id,
+    mimeType: payload.mime_type,
+    sha256: payload.sha256,
+    filename: payload.filename || null,
+    caption: payload.caption || null,
+  };
+};
+
+const ensureConversation = async ({ prisma, waId, profileName, phone }) => {
+  const normalizedPhone = normalizePhone(phone || waId);
+  return prisma.whatsAppConversation.upsert({
+    where: { waId },
+    create: {
+      waId,
+      phone: normalizedPhone || waId,
+      profileName: profileName || null,
+      unreadCount: 0,
+    },
+    update: {
+      profileName: profileName || undefined,
+      phone: normalizedPhone || undefined,
+    },
+  });
+};
+
+const storeInboundMedia = async ({ mediaId, mimeType, conversationId }) => {
+  if (!mediaId) return null;
+  const mediaInfo = await fetchMediaInfo(mediaId);
+  const mediaUrl = mediaInfo.url;
+  const contentType = mimeType || mediaInfo.mime_type || 'application/octet-stream';
+  const buffer = await downloadMedia(mediaUrl);
+  const ext = MIME_EXTENSION[contentType] || 'bin';
+  const key = `whatsapp/${conversationId}/${mediaId}.${ext}`;
+  return uploadBufferToStorage({
+    buffer,
+    key,
+    contentType,
+  });
+};
+
+export const verifyWhatsAppWebhook = (req, res) => {
+  const mode = req.query['hub.mode'];
+  const token = req.query['hub.verify_token'];
+  const challenge = req.query['hub.challenge'];
+
+  if (mode === 'subscribe' && token && token === VERIFY_TOKEN) {
+    return res.status(200).send(challenge);
+  }
+  return res.sendStatus(403);
+};
+
+export const handleWhatsAppWebhook = async (req, res, prisma) => {
+  try {
+    const body = req.body;
+    if (!body || body.object !== 'whatsapp_business_account') {
+      return res.sendStatus(404);
+    }
+
+    const entries = body.entry || [];
+    for (const entry of entries) {
+      for (const change of entry.changes || []) {
+        const value = change.value || {};
+        const contacts = value.contacts || [];
+        const profileName = contacts[0]?.profile?.name || null;
+        const waId = contacts[0]?.wa_id || null;
+
+        if (Array.isArray(value.messages)) {
+          for (const message of value.messages) {
+            const conversation = await ensureConversation({
+              prisma,
+              waId: waId || message.from,
+              profileName,
+              phone: message.from,
+            });
+
+            const previewText = getPreviewText(message);
+            const mediaMeta = getMediaInfoFromMessage(message);
+            let mediaUrl = null;
+            let mediaMime = null;
+            let mediaSha = null;
+            let mediaName = null;
+
+            if (mediaMeta?.mediaId) {
+              mediaUrl = await storeInboundMedia({
+                mediaId: mediaMeta.mediaId,
+                mimeType: mediaMeta.mimeType,
+                conversationId: conversation.id,
+              });
+              mediaMime = mediaMeta.mimeType || null;
+              mediaSha = mediaMeta.sha256 || null;
+              mediaName = mediaMeta.filename || null;
+            }
+
+            await prisma.whatsAppMessage.create({
+              data: {
+                conversationId: conversation.id,
+                direction: 'inbound',
+                type: message.type,
+                text: previewText || mediaMeta?.caption || null,
+                mediaUrl,
+                mediaMime,
+                mediaSha256: mediaSha,
+                mediaName,
+                waMessageId: message.id,
+                status: 'received',
+              },
+            });
+
+            await prisma.whatsAppConversation.update({
+              where: { id: conversation.id },
+              data: {
+                lastMessageAt: new Date(),
+                lastMessageText: previewText || mediaMeta?.caption || `[${message.type}]`,
+                unreadCount: { increment: 1 },
+              },
+            });
+          }
+        }
+
+        if (Array.isArray(value.statuses)) {
+          for (const status of value.statuses) {
+            await prisma.whatsAppMessage.updateMany({
+              where: { waMessageId: status.id },
+              data: {
+                status: status.status,
+                statusAt: status.timestamp ? new Date(Number(status.timestamp) * 1000) : new Date(),
+              },
+            });
+          }
+        }
+      }
+    }
+
+    return res.sendStatus(200);
+  } catch (error) {
+    console.error('ERROR WHATSAPP WEBHOOK:', error);
+    return res.sendStatus(200);
+  }
+};
+
+export const listConversations = async (req, res, prisma) => {
+  const conversations = await prisma.whatsAppConversation.findMany({
+    orderBy: [{ lastMessageAt: 'desc' }, { createdAt: 'desc' }],
+  });
+  res.json(conversations);
+};
+
+export const listMessages = async (req, res, prisma) => {
+  const { id } = req.params;
+  const limit = Math.min(Number(req.query.limit || 50), 200);
+  const messages = await prisma.whatsAppMessage.findMany({
+    where: { conversationId: id },
+    orderBy: { createdAt: 'asc' },
+    take: limit,
+  });
+  res.json(messages);
+};
+
+export const markConversationRead = async (req, res, prisma) => {
+  const { id } = req.params;
+  await prisma.whatsAppConversation.update({
+    where: { id },
+    data: { unreadCount: 0 },
+  });
+  res.json({ success: true });
+};
+
+export const sendConversationMessage = async (req, res, prisma) => {
+  const { id } = req.params;
+  const { text } = req.body;
+  if (!text?.trim()) return res.status(400).json({ message: 'Mensaje requerido' });
+
+  const conversation = await prisma.whatsAppConversation.findUnique({ where: { id } });
+  if (!conversation) return res.status(404).json({ message: 'Conversación no encontrada' });
+
+  try {
+    const response = await sendTextMessage({
+      to: conversation.waId,
+      text,
+    });
+    const waMessageId = response?.messages?.[0]?.id || null;
+
+    await prisma.whatsAppMessage.create({
+      data: {
+        conversationId: conversation.id,
+        direction: 'outbound',
+        type: 'text',
+        text,
+        waMessageId,
+        status: 'sent',
+      },
+    });
+
+    await prisma.whatsAppConversation.update({
+      where: { id: conversation.id },
+      data: {
+        lastMessageAt: new Date(),
+        lastMessageText: text,
+      },
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('ERROR ENVIANDO WHATSAPP:', error);
+    res.status(500).json({ message: 'Error al enviar WhatsApp', detail: error.message });
+  }
+};

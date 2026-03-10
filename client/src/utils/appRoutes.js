@@ -7,6 +7,7 @@ export const APP_ROUTES = {
   clinicalHistoryDetailBase: '/historias-clinicas/ficha',
   cashflow: '/caja',
   settings: '/configuracion',
+  whatsapp: '/whatsapp',
 };
 
 export const CLINICAL_HISTORY_SESSION_KEY = 'agenda_kareh_selected_patient';
@@ -65,6 +66,7 @@ export const getDocumentTitle = (pathname) => {
     [APP_ROUTES.clinicalHistories]: 'Agenda Kareh | Historias Clinicas',
     [APP_ROUTES.cashflow]: 'Agenda Kareh | Caja',
     [APP_ROUTES.settings]: 'Agenda Kareh | Configuracion',
+    [APP_ROUTES.whatsapp]: 'Agenda Kareh | WhatsApp',
     '/login': 'Agenda Kareh | Acceso',
     '/dashboard': 'Agenda Kareh | Panel',
     '/appointments': 'Agenda Kareh | Agenda',
@@ -72,6 +74,7 @@ export const getDocumentTitle = (pathname) => {
     '/clinical-histories': 'Agenda Kareh | Historias Clinicas',
     '/cashflow': 'Agenda Kareh | Caja',
     '/settings': 'Agenda Kareh | Configuracion',
+    '/whatsapp': 'Agenda Kareh | WhatsApp',
   };
 
   return titleMap[pathname] || 'Agenda Kareh';

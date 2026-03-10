@@ -149,3 +149,39 @@ enum FlowType {
   INCOME
   EXPENSE
 }
+
+// ---------------------------------------------------------
+// 7. WHATSAPP INBOX
+// ---------------------------------------------------------
+model WhatsAppConversation {
+  id              String           @id @default(cuid())
+  waId            String           @unique
+  phone           String
+  profileName     String?
+  lastMessageAt   DateTime?
+  lastMessageText String?
+  unreadCount     Int              @default(0)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  messages        WhatsAppMessage[]
+}
+
+model WhatsAppMessage {
+  id             String   @id @default(cuid())
+  conversationId String
+  conversation   WhatsAppConversation @relation(fields: [conversationId], references: [id])
+  direction      String
+  type           String
+  text           String?
+  mediaUrl       String?
+  mediaMime      String?
+  mediaSha256    String?
+  mediaName      String?
+  waMessageId    String?  @unique
+  status         String?
+  statusAt       DateTime?
+  createdAt      DateTime @default(now())
+
+  @@index([conversationId])
+}
