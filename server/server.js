@@ -19,6 +19,7 @@ import createClinicalHistoryRoutes from './src/routes/clinicalHistory.routes.js'
 import createMetricsRoutes from './src/routes/metrics.routes.js';
 import createProfessionalRoutes from './src/routes/professionalRoutes.js';
 import createUploadRoutes from './src/routes/upload.routes.js';
+import { runWhatsappReminders } from './src/services/whatsappReminders.js';
 import { verifyToken } from './src/controllers/auth.controller.js';
 import { authMiddleware } from './src/middlewares/authMiddleware.js';
 
@@ -72,6 +73,25 @@ prisma.$connect()
 app.use((req, res, next) => {
     req.prisma = prisma;
     next();
+});
+
+// Cron hook (para recordatorios WhatsApp)
+app.post('/api/cron/whatsapp-reminders', async (req, res) => {
+    const token = process.env.WHATSAPP_CRON_TOKEN;
+    const provided = req.headers['x-cron-token'] || req.query?.token;
+    if (!token) {
+        return res.status(500).json({ message: 'Cron token no configurado' });
+    }
+    if (token !== provided) {
+        return res.status(403).json({ message: 'No autorizado' });
+    }
+    try {
+        const result = await runWhatsappReminders(prisma);
+        return res.json({ success: true, ...result });
+    } catch (error) {
+        console.error('❌ Error cron WhatsApp:', error);
+        return res.status(500).json({ message: 'Error en cron WhatsApp' });
+    }
 });
 
 // Logs para depuración
