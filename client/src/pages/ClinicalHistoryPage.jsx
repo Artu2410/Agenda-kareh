@@ -39,6 +39,8 @@ const ClinicalHistoryPage = () => {
   // --- 1. FUNCIONES DE APOYO ---
   
   const UNKNOWN_BIRTHDATE = '1900-01-01';
+  const MAX_UPLOAD_MB = Number(import.meta.env.VITE_UPLOAD_MAX_MB || 10);
+  const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
 
   const isUnknownBirthDate = (birthDate) => {
     if (!birthDate) return true;
@@ -71,9 +73,19 @@ const ClinicalHistoryPage = () => {
     try { return JSON.parse(data) || []; } catch { return []; }
   };
 
-  const openImage = (base64Data) => {
-    const win = window.open();
-    win.document.write(`<iframe src="${base64Data}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
+  const getAttachmentUrl = (file) => file?.url || file?.data || '';
+
+  const isPdfAttachment = (file) => {
+    const url = getAttachmentUrl(file);
+    if (file?.type === 'application/pdf') return true;
+    if (url.startsWith('data:application/pdf')) return true;
+    return url.toLowerCase().endsWith('.pdf');
+  };
+
+  const openAttachment = (file) => {
+    const url = getAttachmentUrl(file);
+    if (!url) return;
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   // --- 2. CARGA DE DATOS ---
@@ -164,10 +176,18 @@ const ClinicalHistoryPage = () => {
     }
   };
 
-  const handleFileUpload = (entryId, e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    toast.loading("Procesando imagen...", { id: 'uploading' });
+  const uploadAttachment = async (file, entryId) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (activePatientId) formData.append('patientId', activePatientId);
+    if (entryId && !entryId.toString().startsWith('temp-')) formData.append('entryId', entryId);
+    const response = await api.post('/uploads', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  };
+
+  const compressImage = (file) => new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (event) => {
       const img = new Image();
@@ -181,21 +201,54 @@ const ClinicalHistoryPage = () => {
         canvas.width = width; canvas.height = height;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
-        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.6);
-        const newFile = { name: "foto.jpg", type: "image/jpeg", data: compressedBase64 };
-        
-        setHistoryEntries(prev => prev.map(h => {
-          if (h.id === entryId) {
-            const updated = { ...h, attachments: [...h.attachments, newFile] };
-            saveEntry(updated);
-            return updated;
-          }
-          return h;
-        }));
-        toast.success("Imagen guardada", { id: 'uploading' });
+        canvas.toBlob((blob) => {
+          if (!blob) return reject(new Error('No se pudo procesar la imagen'));
+          const name = file.name?.toLowerCase().endsWith('.jpg') || file.name?.toLowerCase().endsWith('.jpeg')
+            ? file.name
+            : 'foto.jpg';
+          resolve(new File([blob], name, { type: 'image/jpeg' }));
+        }, 'image/jpeg', 0.6);
       };
+      img.onerror = () => reject(new Error('Imagen inválida'));
     };
+    reader.onerror = () => reject(new Error('No se pudo leer la imagen'));
     reader.readAsDataURL(file);
+  });
+
+  const handleFileUpload = async (entryId, e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (file.size > MAX_UPLOAD_BYTES) {
+      toast.error(`Archivo demasiado grande. Máximo ${MAX_UPLOAD_MB}MB.`);
+      return;
+    }
+
+    const isPdf = file.type === 'application/pdf' || file.name?.toLowerCase().endsWith('.pdf');
+    const isImage = file.type?.startsWith('image/');
+
+    if (!isPdf && !isImage) {
+      toast.error('Solo se permiten imágenes o PDF.');
+      return;
+    }
+
+    toast.loading(isPdf ? 'Subiendo PDF...' : 'Procesando imagen...', { id: 'uploading' });
+    try {
+      const fileToUpload = isImage ? await compressImage(file) : file;
+      const attachment = await uploadAttachment(fileToUpload, entryId);
+      setHistoryEntries(prev => prev.map(h => {
+        if (h.id === entryId) {
+          const updated = { ...h, attachments: [...(h.attachments || []), attachment] };
+          saveEntry(updated);
+          return updated;
+        }
+        return h;
+      }));
+      toast.success('Archivo guardado', { id: 'uploading' });
+    } catch (error) {
+      console.error('Error subiendo archivo:', error);
+      toast.error('No se pudo subir el archivo.', { id: 'uploading' });
+    }
   };
 
   // --- 4. RENDER ---
@@ -445,9 +498,16 @@ const ClinicalHistoryPage = () => {
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-2">
                         {entry.attachments.map((file, idx) => (
                           <div key={idx} className="relative group aspect-square rounded-2xl overflow-hidden border border-slate-200 bg-black">
-                            <img src={file.data} alt="Adjunto" className="w-full h-full object-cover opacity-90 hover:opacity-100" />
+                            {isPdfAttachment(file) ? (
+                              <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-slate-900 text-slate-100">
+                                <FileText size={24} />
+                                <span className="text-[10px] font-black uppercase tracking-widest">PDF</span>
+                              </div>
+                            ) : (
+                              <img src={getAttachmentUrl(file)} alt="Adjunto" className="w-full h-full object-cover opacity-90 hover:opacity-100" />
+                            )}
                             <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity no-print">
-                              <button onClick={() => openImage(file.data)} className="bg-white p-2 rounded-full text-slate-800"><Maximize2 size={16} /></button>
+                              <button onClick={() => openAttachment(file)} className="bg-white p-2 rounded-full text-slate-800"><Maximize2 size={16} /></button>
                             </div>
                             <button 
                               onClick={() => {
@@ -471,7 +531,7 @@ const ClinicalHistoryPage = () => {
                       </label>
                       <label className="flex items-center gap-2 text-slate-500 text-[9px] font-black cursor-pointer bg-slate-50 px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-100">
                         <Upload size={14}/> ADJUNTAR
-                        <input type="file" className="hidden" onChange={(e) => handleFileUpload(entry.id, e)} />
+                        <input type="file" accept="image/*,application/pdf" className="hidden" onChange={(e) => handleFileUpload(entry.id, e)} />
                       </label>
                     </div>
                   </div>
@@ -558,7 +618,14 @@ const ClinicalHistoryPage = () => {
                       <div className="grid grid-cols-3 gap-4 border-t border-slate-100 pt-6">
                         {entry.attachments.map((file, idx) => (
                           <div key={idx} className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
-                            <img src={file.data} alt="Adjunto clínico" className="h-36 w-full object-cover" />
+                            {isPdfAttachment(file) ? (
+                              <div className="flex h-36 w-full items-center justify-center gap-2 text-[10px] font-black uppercase text-slate-500">
+                                <FileText size={16} />
+                                PDF
+                              </div>
+                            ) : (
+                              <img src={getAttachmentUrl(file)} alt="Adjunto clínico" className="h-36 w-full object-cover" />
+                            )}
                           </div>
                         ))}
                       </div>

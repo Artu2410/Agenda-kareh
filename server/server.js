@@ -18,6 +18,7 @@ import createCashflowRoutes from './src/routes/cashflow.routes.js';
 import createClinicalHistoryRoutes from './src/routes/clinicalHistory.routes.js';
 import createMetricsRoutes from './src/routes/metrics.routes.js';
 import createProfessionalRoutes from './src/routes/professionalRoutes.js';
+import createUploadRoutes from './src/routes/upload.routes.js';
 import { verifyToken } from './src/controllers/auth.controller.js';
 import { authMiddleware } from './src/middlewares/authMiddleware.js';
 
@@ -94,6 +95,7 @@ app.use('/api/cashflow', authMiddleware, createCashflowRoutes(prisma));
 app.use('/api/clinical-history', authMiddleware, createClinicalHistoryRoutes(prisma));
 app.use('/api/metrics', authMiddleware, createMetricsRoutes(prisma));
 app.use('/api/professionals', authMiddleware, createProfessionalRoutes(prisma));
+app.use('/api/uploads', authMiddleware, createUploadRoutes());
 
 // Utilidades
 app.get('/api/health', (req, res) => res.status(200).json({ status: 'ok' }));
