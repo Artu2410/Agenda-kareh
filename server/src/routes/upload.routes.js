@@ -4,7 +4,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { uploadBufferToStorage } from '../services/storage.js';
 
-const MAX_UPLOAD_MB = Number(process.env.UPLOAD_MAX_MB || 10);
+const MAX_UPLOAD_MB = Number(process.env.UPLOAD_MAX_MB || 25);
 const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
 
 const upload = multer({

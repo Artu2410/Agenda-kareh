@@ -39,7 +39,7 @@ const ClinicalHistoryPage = () => {
   // --- 1. FUNCIONES DE APOYO ---
   
   const UNKNOWN_BIRTHDATE = '1900-01-01';
-  const MAX_UPLOAD_MB = Number(import.meta.env.VITE_UPLOAD_MAX_MB || 10);
+  const MAX_UPLOAD_MB = Number(import.meta.env.VITE_UPLOAD_MAX_MB || 25);
   const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
 
   const isUnknownBirthDate = (birthDate) => {
@@ -100,6 +100,24 @@ const ClinicalHistoryPage = () => {
   const openAttachment = (file) => {
     const url = getAttachmentUrl(file);
     if (!url) return;
+    if (url.startsWith('data:')) {
+      try {
+        const [meta, data] = url.split(',');
+        const mime = meta.match(/data:(.*?);base64/)?.[1] || 'application/octet-stream';
+        const binary = atob(data);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i += 1) {
+          bytes[i] = binary.charCodeAt(i);
+        }
+        const blobUrl = URL.createObjectURL(new Blob([bytes], { type: mime }));
+        window.open(blobUrl, '_blank', 'noopener,noreferrer');
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+        return;
+      } catch (error) {
+        console.error('Error abriendo archivo:', error);
+      }
+    }
+
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
@@ -242,7 +260,7 @@ const ClinicalHistoryPage = () => {
     const isPdf = file.type === 'application/pdf' || file.name?.toLowerCase().endsWith('.pdf');
     const isImage = file.type?.startsWith('image/');
 
-    toast.loading(isPdf ? 'Subiendo PDF...' : 'Procesando imagen...', { id: 'uploading' });
+    toast.loading(isPdf ? 'Subiendo PDF...' : (isImage ? 'Procesando imagen...' : 'Subiendo archivo...'), { id: 'uploading' });
     try {
       const fileToUpload = isImage ? await compressImage(file) : file;
       const attachment = await uploadAttachment(fileToUpload, entryId);
@@ -548,6 +566,9 @@ const ClinicalHistoryPage = () => {
                         <Upload size={14}/> ADJUNTAR
                         <input type="file" className="hidden" onChange={(e) => handleFileUpload(entry.id, e)} />
                       </label>
+                      <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">
+                        Max {MAX_UPLOAD_MB}MB
+                      </span>
                     </div>
                   </div>
                 </div>
