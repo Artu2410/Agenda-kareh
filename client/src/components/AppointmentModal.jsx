@@ -26,6 +26,14 @@ const getInputDateValue = (value) => {
   return format(new Date(value), 'yyyy-MM-dd');
 };
 
+const UNKNOWN_BIRTHDATE = '1900-01-01';
+
+const isUnknownBirthDate = (birthDate) => {
+  if (!birthDate) return true;
+  const dateString = birthDate.includes('T') ? birthDate.split('T')[0] : birthDate;
+  return dateString <= UNKNOWN_BIRTHDATE;
+};
+
 const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, selectedSlot, appointment = null, professional = null }) => {
   const [patientData, setPatientData] = useState({
     dni: '', lastName: '', firstName: '', phone: '', birthDate: '',
@@ -93,7 +101,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
         lastName: nameParts[0] || '',
         firstName: nameParts.slice(1).join(' ') || '',
         phone: p.phone || '',
-        birthDate: p.birthDate ? p.birthDate.split('T')[0] : '',
+        birthDate: p.birthDate && !isUnknownBirthDate(p.birthDate) ? p.birthDate.split('T')[0] : '',
         healthInsurance: p.healthInsurance || 'particular',
         affiliateNumber: p.affiliateNumber || '',
         hasCancer: p.hasCancer || false,
@@ -135,7 +143,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
           ...prev,
           lastName: nameParts[0] || '', firstName: nameParts.slice(1).join(' ') || '',
           dni: data.dni || prev.dni, phone: data.phone || '',
-          birthDate: data.birthDate ? data.birthDate.split('T')[0] : prev.birthDate,
+          birthDate: data.birthDate && !isUnknownBirthDate(data.birthDate) ? data.birthDate.split('T')[0] : prev.birthDate,
           healthInsurance: data.healthInsurance || 'particular',
           affiliateNumber: data.affiliateNumber || '',
           hasCancer: data.hasCancer || false, hasMarcapasos: data.hasMarcapasos || false, usesEA: data.usesEA || false,

@@ -5,6 +5,7 @@ import { X, Printer } from 'lucide-react';
 
 const PrintSessions = ({ isOpen, onClose, appointments, patientData, diagnosis }) => {
   const printRef = useRef();
+  const UNKNOWN_BIRTHDATE = '1900-01-01';
 
   if (!isOpen || !appointments || appointments.length === 0) return null;
 
@@ -21,6 +22,8 @@ const PrintSessions = ({ isOpen, onClose, appointments, patientData, diagnosis }
 
   const formatBirthDate = (value) => {
     if (!value) return 'N/A';
+    const dateString = value.includes?.('T') ? value.split('T')[0] : value;
+    if (dateString <= UNKNOWN_BIRTHDATE) return 'N/A';
 
     const date = value.includes?.('T')
       ? new Date(value)

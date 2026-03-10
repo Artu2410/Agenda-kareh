@@ -9,6 +9,12 @@ import { buildClinicalHistoryPath, persistClinicalHistoryContext } from '../util
 export default function PatientsPage() {
   const navigate = useNavigate();
   const { ConfirmModalComponent, openModal } = useConfirmModal();
+  const UNKNOWN_BIRTHDATE = '1900-01-01';
+  const isUnknownBirthDate = (birthDate) => {
+    if (!birthDate) return true;
+    const dateString = birthDate.includes('T') ? birthDate.split('T')[0] : birthDate;
+    return dateString <= UNKNOWN_BIRTHDATE;
+  };
   const [patients, setPatients] = useState([]);
   const [filteredPatients, setFilteredPatients] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -54,7 +60,7 @@ export default function PatientsPage() {
     setSelectedPatient(patient);
     setFormData({
       ...patient,
-      birthDate: patient.birthDate ? patient.birthDate.split('T')[0] : ''
+      birthDate: patient.birthDate && !isUnknownBirthDate(patient.birthDate) ? patient.birthDate.split('T')[0] : ''
     });
     setShowModal(true);
   };

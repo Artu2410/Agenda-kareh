@@ -14,6 +14,14 @@ const parseDateAvoidTZ = (d) => {
   }
 };
 
+const UNKNOWN_BIRTHDATE = new Date(1900, 0, 1, 12, 0, 0);
+
+const normalizeBirthDateOrUnknown = (d) => {
+  if (!d) return UNKNOWN_BIRTHDATE;
+  const parsed = parseDateAvoidTZ(d);
+  return parsed || UNKNOWN_BIRTHDATE;
+};
+
 export const searchPatientByDni = async (req, res, prisma) => {
   const { dni } = req.query;
   if (!dni) return res.status(400).json({ error: 'DNI es requerido' });
@@ -62,7 +70,7 @@ export const createPatient = async (req, res, prisma) => {
     const patient = await prisma.patient.create({
       data: {
         fullName, dni, phone, email, address,
-        birthDate: birthDate ? parseDateAvoidTZ(birthDate) : null,
+        birthDate: normalizeBirthDateOrUnknown(birthDate),
         healthInsurance,
         affiliateNumber,
       },
@@ -91,7 +99,7 @@ export const updatePatient = async (req, res, prisma) => {
       where: { id },
       data: {
         fullName, dni, phone, email, address,
-        birthDate: birthDate ? parseDateAvoidTZ(birthDate) : undefined,
+        birthDate: birthDate ? normalizeBirthDateOrUnknown(birthDate) : undefined,
         healthInsurance,
         affiliateNumber,
         // AÑADIR CAMPOS MÉDICOS A LA ACTUALIZACIÓN

@@ -38,8 +38,16 @@ const ClinicalHistoryPage = () => {
 
   // --- 1. FUNCIONES DE APOYO ---
   
+  const UNKNOWN_BIRTHDATE = '1900-01-01';
+
+  const isUnknownBirthDate = (birthDate) => {
+    if (!birthDate) return true;
+    const dateString = birthDate.includes('T') ? birthDate.split('T')[0] : birthDate;
+    return dateString <= UNKNOWN_BIRTHDATE;
+  };
+
   const calculateAge = (birthDate) => {
-    if (!birthDate) return '...';
+    if (!birthDate || isUnknownBirthDate(birthDate)) return '...';
     // Normalizamos la fecha eliminando la parte de la hora si existe
     const dateString = birthDate.includes('T') ? birthDate.split('T')[0] : birthDate;
     const [year, month, day] = dateString.split('-').map(Number);
@@ -195,7 +203,7 @@ const ClinicalHistoryPage = () => {
   const printableEntries = filteredEntries.filter(entry => entry.isVisible !== false);
 
   const formatDisplayDate = (value) => {
-    if (!value) return 'Sin fecha';
+    if (!value || isUnknownBirthDate(value)) return 'Sin dato';
     const normalized = value.includes('T') ? value : `${value}T12:00:00`;
     const date = new Date(normalized);
     if (Number.isNaN(date.getTime())) return value;
@@ -302,7 +310,7 @@ const ClinicalHistoryPage = () => {
                   <p className="text-[9px] text-slate-400 font-black mb-1 uppercase">Fecha Nacimiento:</p>
                   <input 
                     type="date" 
-                    value={patient?.birthDate ? patient.birthDate.split('T')[0] : ''}
+                    value={patient?.birthDate && !isUnknownBirthDate(patient.birthDate) ? patient.birthDate.split('T')[0] : ''}
                     onChange={(e) => handleUpdatePatient('birthDate', e.target.value)}
                     className="w-full bg-transparent font-bold text-slate-700 outline-none focus:text-teal-600"
                   />

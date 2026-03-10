@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
+const UNKNOWN_BIRTHDATE = new Date(1900, 0, 1, 12, 0, 0);
 
 export const findOrCreatePatient = async ({ dni, fullName, phone, email, birthDate, healthInsurance, address, hasCancer, hasPacemaker, usesEA }) => {
   let patient = await prisma.patient.findUnique({
@@ -29,7 +30,7 @@ export const findOrCreatePatient = async ({ dni, fullName, phone, email, birthDa
         fullName: fullName || patient.fullName,
         phone: phone || patient.phone,
         email: email || patient.email,
-        birthDate: birthDate ? normalizeBirth(birthDate) : patient.birthDate,
+        birthDate: birthDate ? (normalizeBirth(birthDate) || UNKNOWN_BIRTHDATE) : patient.birthDate,
         healthInsurance: healthInsurance || patient.healthInsurance,
         address: address || patient.address,
         hasCancer: hasCancer ?? patient.hasCancer,
@@ -58,7 +59,7 @@ export const findOrCreatePatient = async ({ dni, fullName, phone, email, birthDa
         fullName,
         phone,
         email,
-        birthDate: birthDate ? normalizeBirth2(birthDate) : new Date(), // Default to current date if not provided
+        birthDate: birthDate ? (normalizeBirth2(birthDate) || UNKNOWN_BIRTHDATE) : UNKNOWN_BIRTHDATE,
         healthInsurance,
         address,
         hasCancer,

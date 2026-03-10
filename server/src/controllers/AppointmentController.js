@@ -34,6 +34,14 @@ const parseDateAvoidTZ = (d) => {
   }
 };
 
+const UNKNOWN_BIRTHDATE = new Date(1900, 0, 1, 12, 0, 0);
+
+const normalizeBirthDateOrUnknown = (d) => {
+  if (!d) return UNKNOWN_BIRTHDATE;
+  const parsed = parseDateAvoidTZ(d);
+  return parsed || UNKNOWN_BIRTHDATE;
+};
+
 // 1. OBTENER TURNOS DE LA SEMANA
 export const getWeekAppointments = async (req, res, prisma) => {
   try {
@@ -82,7 +90,7 @@ export const createAppointment = async (req, res, prisma) => {
             healthInsurance: patientData.healthInsurance, 
             affiliateNumber: patientData.affiliateNumber || undefined,
             phone: phoneToUse || undefined,
-            birthDate: birthDateToUse ? parseDateAvoidTZ(birthDateToUse) : undefined,
+            birthDate: birthDateToUse ? normalizeBirthDateOrUnknown(birthDateToUse) : undefined,
             hasMarcapasos: patientData.hasMarcapasos ?? false, 
             usesEA: patientData.usesEA ?? false,
             hasCancer: patientData.hasCancer ?? false
@@ -93,7 +101,7 @@ export const createAppointment = async (req, res, prisma) => {
             healthInsurance: patientData.healthInsurance || 'Particular', 
             affiliateNumber: patientData.affiliateNumber || null,
             phone: phoneToUse || null,
-            birthDate: birthDateToUse ? parseDateAvoidTZ(birthDateToUse) : new Date(),
+            birthDate: normalizeBirthDateOrUnknown(birthDateToUse),
             hasMarcapasos: patientData.hasMarcapasos ?? false, 
             usesEA: patientData.usesEA ?? false,
             hasCancer: patientData.hasCancer ?? false
@@ -106,7 +114,7 @@ export const createAppointment = async (req, res, prisma) => {
           where: { id: patientId },
           data: {
             phone: phoneToUse || undefined,
-            birthDate: birthDateToUse ? parseDateAvoidTZ(birthDateToUse) : undefined
+            birthDate: birthDateToUse ? normalizeBirthDateOrUnknown(birthDateToUse) : undefined
           }
         });
         patient = await tx.patient.findUnique({ where: { id: patientId } });
@@ -229,7 +237,7 @@ export const updateEvolution = async (req, res, prisma) => {
             healthInsurance: patientData.healthInsurance || undefined,
             affiliateNumber: patientData.affiliateNumber || undefined,
             phone: patientData.phone || undefined,
-            birthDate: patientData.birthDate ? parseDateAvoidTZ(patientData.birthDate) : undefined,
+            birthDate: patientData.birthDate ? normalizeBirthDateOrUnknown(patientData.birthDate) : undefined,
             hasCancer: patientData.hasCancer ?? undefined,
             hasMarcapasos: patientData.hasMarcapasos ?? undefined,
             usesEA: patientData.usesEA ?? undefined,
@@ -295,7 +303,7 @@ export const updateAppointment = async (req, res, prisma) => {
           where: { id: patientId },
           data: {
             phone: phone || undefined,
-            birthDate: birthDate ? parseDateAvoidTZ(birthDate) : undefined,
+            birthDate: birthDate ? normalizeBirthDateOrUnknown(birthDate) : undefined,
             affiliateNumber: affiliateNumber || undefined
           }
         });

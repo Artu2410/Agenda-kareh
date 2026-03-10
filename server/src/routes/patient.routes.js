@@ -12,6 +12,7 @@ import {
 
 export default function createPatientRoutes(prisma) {
   const router = Router();
+  const UNKNOWN_BIRTHDATE = new Date(1900, 0, 1, 12, 0, 0);
   
   // Rutas GET
   router.get('/all', (req, res) => getAllPatients(req, res, prisma));
@@ -34,11 +35,11 @@ export default function createPatientRoutes(prisma) {
     } = req.body;
 
     const normalizeBirth = (d) => {
-      if (!d) return null;
+      if (!d) return UNKNOWN_BIRTHDATE;
       try {
         const date = new Date(d);
-        return isNaN(date.getTime()) ? null : date;
-      } catch (e) { return null; }
+        return isNaN(date.getTime()) ? UNKNOWN_BIRTHDATE : date;
+      } catch (e) { return UNKNOWN_BIRTHDATE; }
     };
 
     try {
