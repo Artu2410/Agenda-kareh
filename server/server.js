@@ -21,12 +21,41 @@ import createProfessionalRoutes from './src/routes/professionalRoutes.js';
 import { verifyToken } from './src/controllers/auth.controller.js';
 import { authMiddleware } from './src/middlewares/authMiddleware.js';
 
+const allowedOrigins = new Set([
+    'https://kareh-salud.vercel.app',
+    'http://localhost:5173',
+    'http://localhost:5174',
+    process.env.FRONTEND_URL
+].filter(Boolean));
+
+const isAllowedOrigin = (origin) => {
+    if (!origin) {
+        return true;
+    }
+
+    if (allowedOrigins.has(origin)) {
+        return true;
+    }
+
+    try {
+        return new URL(origin).hostname.endsWith('.vercel.app');
+    } catch {
+        return false;
+    }
+};
+
 app.set('trust proxy', 1);
 
 app.use(cors({
-    origin: ['https://kareh-salud.vercel.app', 'http://localhost:5173'],
+    origin: (origin, callback) => {
+        if (isAllowedOrigin(origin)) {
+            return callback(null, true);
+        }
+
+        return callback(new Error(`Origin no permitido por CORS: ${origin}`));
+    },
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'], // <--- AGREGADO PATCH
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
