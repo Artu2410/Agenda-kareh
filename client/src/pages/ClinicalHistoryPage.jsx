@@ -275,7 +275,8 @@ const ClinicalHistoryPage = () => {
       toast.success('Archivo guardado', { id: 'uploading' });
     } catch (error) {
       console.error('Error subiendo archivo:', error);
-      toast.error('No se pudo subir el archivo.', { id: 'uploading' });
+      const message = error?.response?.data?.message || error?.response?.data?.detail || 'No se pudo subir el archivo.';
+      toast.error(message, { id: 'uploading' });
     }
   };
 

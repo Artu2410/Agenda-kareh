@@ -54,7 +54,16 @@ export default function createUploadRoutes() {
       });
     } catch (error) {
       console.error('ERROR AL SUBIR ARCHIVO:', error);
-      return res.status(500).json({ message: 'Error al subir archivo' });
+      if (error?.message === 'Storage no configurado') {
+        return res.status(503).json({
+          message: 'Storage no configurado. Revisar variables de entorno.',
+          detail: error.message,
+        });
+      }
+      return res.status(500).json({
+        message: 'Error al subir archivo',
+        detail: error?.message,
+      });
     }
   });
 
