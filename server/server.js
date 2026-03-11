@@ -123,6 +123,7 @@ app.use('/api/clinical-history', authMiddleware, createClinicalHistoryRoutes(pri
 app.use('/api/metrics', authMiddleware, createMetricsRoutes(prisma));
 app.use('/api/professionals', authMiddleware, createProfessionalRoutes(prisma));
 app.use('/api/uploads', authMiddleware, createUploadRoutes());
+app.use('/api/transcription', authMiddleware, createTranscriptionRoutes());
 app.use('/api/whatsapp', authMiddleware, createWhatsAppRoutes(prisma));
 app.use('/api/transcription', authMiddleware, createTranscriptionRoutes);
 
