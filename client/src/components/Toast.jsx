@@ -89,3 +89,5 @@ export const updateToast = (id, message, type = 'success') => {
     toast.error(message);
   }
 };
+
+export default toast;

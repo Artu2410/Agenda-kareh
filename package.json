@@ -4,7 +4,8 @@
   "type": "module",
   "main": "server.js",
   "scripts": {
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "build": "npm run build --prefix client" 
   },
   "dependencies": {
     "@prisma/client": "^5.x.x",

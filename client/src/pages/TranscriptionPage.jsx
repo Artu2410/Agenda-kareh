@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { API_BASE_URL } from '../services/api'; 
-import { CustomToaster, toast } from '../components/Toast';
+import toast, { CustomToaster } from '../components/Toast';
 
 const TranscriptionPage = () => {
   const [image, setImage] = useState(null);
