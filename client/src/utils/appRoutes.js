@@ -9,6 +9,7 @@ export const APP_ROUTES = {
   settings: '/configuracion',
   whatsapp: '/whatsapp',
   privacy: '/privacidad',
+  transcription: '/transcripcion',
 };
 
 export const CLINICAL_HISTORY_SESSION_KEY = 'agenda_kareh_selected_patient';
@@ -69,6 +70,7 @@ export const getDocumentTitle = (pathname) => {
     [APP_ROUTES.settings]: 'Agenda Kareh | Configuracion',
     [APP_ROUTES.whatsapp]: 'Agenda Kareh | WhatsApp',
     [APP_ROUTES.privacy]: 'Agenda Kareh | Privacidad',
+    [APP_ROUTES.transcription]: 'Agenda Kareh | Transcripción',
     '/login': 'Agenda Kareh | Acceso',
     '/dashboard': 'Agenda Kareh | Panel',
     '/appointments': 'Agenda Kareh | Agenda',

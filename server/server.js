@@ -19,6 +19,7 @@ import createClinicalHistoryRoutes from './src/routes/clinicalHistory.routes.js'
 import createMetricsRoutes from './src/routes/metrics.routes.js';
 import createProfessionalRoutes from './src/routes/professionalRoutes.js';
 import createUploadRoutes from './src/routes/upload.routes.js';
+import createTranscriptionRoutes from './src/routes/transcription.routes.js';
 import { runWhatsappReminders } from './src/services/whatsappReminders.js';
 import createWhatsAppRoutes from './src/routes/whatsapp.routes.js';
 import { verifyWhatsAppWebhook, handleWhatsAppWebhook } from './src/controllers/whatsapp.controller.js';
@@ -123,6 +124,7 @@ app.use('/api/metrics', authMiddleware, createMetricsRoutes(prisma));
 app.use('/api/professionals', authMiddleware, createProfessionalRoutes(prisma));
 app.use('/api/uploads', authMiddleware, createUploadRoutes());
 app.use('/api/whatsapp', authMiddleware, createWhatsAppRoutes(prisma));
+app.use('/api/transcription', authMiddleware, createTranscriptionRoutes);
 
 // Utilidades
 app.get('/api/health', (req, res) => res.status(200).json({ status: 'ok' }));

@@ -1,5 +1,5 @@
 ﻿import React from 'react';
-import { BarChart3, Calendar, Users, DollarSign, Settings, FileText, LogOut, MessageCircle } from 'lucide-react';
+import { BarChart3, Calendar, Users, DollarSign, Settings, FileText, LogOut, MessageCircle, ScanText } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { showSuccessToast } from '../Toast';
 import { useConfirmModal } from '../ConfirmModal';
@@ -14,6 +14,7 @@ const Sidebar = () => {
     { icon: Users, label: 'Pacientes', path: APP_ROUTES.patients },
     { icon: FileText, label: 'Historias Clínicas', path: APP_ROUTES.clinicalHistories },
     { icon: MessageCircle, label: 'WhatsApp', path: APP_ROUTES.whatsapp },
+    { icon: ScanText, label: 'Transcripción', path: APP_ROUTES.transcription },
     { icon: DollarSign, label: 'Caja', path: APP_ROUTES.cashflow },
     { icon: Settings, label: 'Configuración', path: APP_ROUTES.settings },
   ];
