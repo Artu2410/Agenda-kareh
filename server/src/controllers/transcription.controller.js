@@ -1,76 +1,76 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { AppError } from "../errors/AppError.js";
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import { AppError } from '../errors/AppError.js';
 
-const getSystemPrompt = () => `
-Eres un asistente experto en transcripción de documentos médicos y farmacéuticos. 
-Tu tarea es recibir imágenes de recetas o indicaciones médicas manuscritas y convertirlas en datos estructurados.
+const buildPrompt = () => `
+Eres un asistente experto en transcripcion de documentos medicos y farmaceuticos.
+Tu tarea es recibir imagenes de recetas o indicaciones medicas manuscritas y convertirlas en datos estructurados.
 
-INSTRUCCIONES CRÍTICAS:
-1. Analiza el texto manuscrito con extrema precaución. 
-2. Si un término es totalmente ilegible, coloca "NO_IDENTIFICADO".
-3. Utiliza tu conocimiento médico para corregir errores ortográficos menores o completar nombres de fármacos conocidos (ej. si lees "Atorvasta...", completa como "Atorvastatina").
-4. Devuelve la información ÚNICAMENTE en formato JSON válido para que pueda ser procesada por un backend.
+INSTRUCCIONES CRITICAS:
+1. Analiza el texto manuscrito con extrema precaucion.
+2. Si un termino es ilegible, coloca "NO_IDENTIFICADO".
+3. Usa conocimiento medico para corregir errores ortograficos menores o completar nombres de farmacos conocidos.
+4. Devuelve la informacion unicamente en formato JSON valido.
 
 ESTRUCTURA DEL JSON:
 {
   "paciente": { "nombre": "...", "fecha_receta": "..." },
   "medicamentos": [
     {
-      "nombre": "Nombre del fármaco",
-      "presentacion": "ej. Comprimidos, Jarabe",
-      "concentracion": "ej. 500mg",
-      "dosis": "ej. 1 cada 8 horas",
-      "duracion": "ej. 7 días"
+      "nombre": "Nombre del farmaco",
+      "presentacion": "Comprimidos, Jarabe, etc",
+      "concentracion": "500mg",
+      "dosis": "1 cada 8 horas",
+      "duracion": "7 dias"
     }
   ],
-  "indicaciones_adicionales": "Otras notas del médico",
+  "indicaciones_adicionales": "Otras notas del medico",
   "diagnostico_sugerido": "Si figura en la nota",
   "confianza_transcripcion": "valor del 1 al 100"
 }
 
-No incluyas explicaciones, saludos ni texto fuera del bloque JSON.
+No incluyas explicaciones ni texto fuera del bloque JSON.
 `;
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
-const procesarReceta = async (imageBuffer, mimeType) => {
+const callGemini = async (imageBuffer, mimeType) => {
   if (!process.env.GEMINI_API_KEY) {
-    throw new AppError('La API Key de Gemini no está configurada en el servidor.', 500);
+    throw new AppError('Gemini API Key no configurada en el servidor.', 500);
   }
-  
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-  const prompt = getSystemPrompt();
-
+  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+  const prompt = buildPrompt();
   const imagePart = {
     inlineData: {
-      data: imageBuffer.toString("base64"),
+      data: imageBuffer.toString('base64'),
       mimeType
-    },
+    }
   };
 
   const result = await model.generateContent([prompt, imagePart]);
-  const response = await result.response;
-  
-  const text = response.text().replace(/```json|```/g, "").trim();
+  const text = result.response.text().replace(/```json|```/g, '').trim();
+
   try {
     return JSON.parse(text);
-  } catch(e) {
-    console.error("Failed to parse JSON from Gemini:", text);
-    throw new AppError("La respuesta de la IA no es un JSON válido.", 500);
+  } catch (err) {
+    console.error('No se pudo parsear el JSON devuelto por Gemini:', text);
+    throw new AppError('La respuesta de la IA no es un JSON valido.', 502);
   }
-}
+};
 
-export const processMedicalRecipe = async (req, res, next) => {
+export const processMedicalRecipe = async (req, res) => {
   if (!req.file) {
-    return next(new AppError('No se ha subido ninguna imagen.', 400));
+    return res.status(400).json({ message: 'No se ha subido ninguna imagen.' });
   }
 
   try {
-    const { buffer, mimetype } = req.file;
-    const transcription = await procesarReceta(buffer, mimetype);
-    res.status(200).json(transcription);
+    const transcription = await callGemini(req.file.buffer, req.file.mimetype);
+    return res.status(200).json(transcription);
   } catch (error) {
-    next(error);
+    // Log detalle y devuelvo mensaje legible
+    console.error('Error procesando transcripcion:', error);
+    const status = error?.statusCode || 500;
+    const message = error?.message || 'Error interno al procesar la transcripcion.';
+    return res.status(status).json({ message });
   }
 };
