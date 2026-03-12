@@ -146,8 +146,10 @@ app.all('/api/*', (req, res) => {
 });
 
 app.use((err, req, res, next) => {
-    console.error('❌ Error:', err.stack);
-    res.status(500).json({ error: "Error interno del servidor" });
+    console.error('❌ Error:', err.stack || err);
+    const status = err?.statusCode && Number.isInteger(err.statusCode) ? err.statusCode : 500;
+    const message = err?.message || "Error interno del servidor";
+    res.status(status).json({ message, error: message });
 });
 
 const PORT = process.env.PORT || 10000;
