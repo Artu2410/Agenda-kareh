@@ -32,13 +32,14 @@ No incluyas explicaciones ni texto fuera del bloque JSON.
 `;
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-1.5-flash-002';
 
 const callGemini = async (imageBuffer, mimeType) => {
   if (!process.env.GEMINI_API_KEY) {
     throw new AppError('Gemini API Key no configurada en el servidor.', 500);
   }
 
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+  const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
   const prompt = buildPrompt();
   const imagePart = {
     inlineData: {
@@ -68,7 +69,7 @@ export const processMedicalRecipe = async (req, res) => {
     return res.status(200).json(transcription);
   } catch (error) {
     // Log detalle y devuelvo mensaje legible
-    console.error('Error procesando transcripcion:', error);
+    console.error(`Error procesando transcripcion (modelo ${GEMINI_MODEL}):`, error);
     const status = error?.statusCode || 500;
     const message = error?.message || 'Error interno al procesar la transcripcion.';
     return res.status(status).json({ message });
