@@ -86,6 +86,9 @@ export const handleWhatsAppWebhook = async (req, res, prisma) => {
       return res.sendStatus(404);
     }
 
+    let totalMessages = 0;
+    let totalStatuses = 0;
+
     const entries = body.entry || [];
     for (const entry of entries) {
       for (const change of entry.changes || []) {
@@ -95,6 +98,7 @@ export const handleWhatsAppWebhook = async (req, res, prisma) => {
         const waId = contacts[0]?.wa_id || null;
 
         if (Array.isArray(value.messages)) {
+          totalMessages += value.messages.length;
           for (const message of value.messages) {
             const conversation = await ensureConversation({
               prisma,
@@ -148,6 +152,7 @@ export const handleWhatsAppWebhook = async (req, res, prisma) => {
         }
 
         if (Array.isArray(value.statuses)) {
+          totalStatuses += value.statuses.length;
           for (const status of value.statuses) {
             await prisma.whatsAppMessage.updateMany({
               where: { waMessageId: status.id },
@@ -161,6 +166,9 @@ export const handleWhatsAppWebhook = async (req, res, prisma) => {
       }
     }
 
+    if (totalMessages || totalStatuses) {
+      console.log('📨 WhatsApp webhook procesado', { messages: totalMessages, statuses: totalStatuses });
+    }
     return res.sendStatus(200);
   } catch (error) {
     console.error('ERROR WHATSAPP WEBHOOK:', error);

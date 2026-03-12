@@ -67,6 +67,14 @@ app.use(cors({
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.json({ limit: '50mb' }));
 
+// Log mínimo para webhook (sin datos sensibles)
+app.use('/api/webhooks/whatsapp', (req, res, next) => {
+    const body = req.body || {};
+    const entryCount = Array.isArray(body.entry) ? body.entry.length : 0;
+    console.log(`📨 WhatsApp webhook ${req.method}`, { object: body.object, entryCount });
+    next();
+});
+
 prisma.$connect()
   .then(() => console.log('✅ DB conectada'))
   .catch((error) => {
