@@ -14,6 +14,7 @@ import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import Sidebar from './components/layout/Sidebar';
 import { API_BASE_URL } from './services/api';
 import { APP_ROUTES, getDocumentTitle } from './utils/appRoutes';
+import { Menu, X } from 'lucide-react';
 
 function DocumentTitleSync() {
   const location = useLocation();
@@ -28,6 +29,7 @@ function DocumentTitleSync() {
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const verifyAuth = useCallback(async () => {
     const token = localStorage.getItem('auth_token');
@@ -54,6 +56,10 @@ function App() {
 
   useEffect(() => { verifyAuth(); }, [verifyAuth]);
 
+  const toggleSidebar = useCallback(() => {
+    setSidebarOpen((prev) => !prev);
+  }, []);
+
   if (loading) return null;
 
   return (
@@ -61,8 +67,21 @@ function App() {
       <DocumentTitleSync />
       <CustomToaster />
       <div className="flex h-screen w-full bg-slate-50 overflow-hidden">
-        {isAuthenticated && <Sidebar />}
+        {isAuthenticated && sidebarOpen && <Sidebar />}
         <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          {isAuthenticated && (
+            <button
+              type="button"
+              onClick={toggleSidebar}
+              aria-label={sidebarOpen ? 'Ocultar menú lateral' : 'Mostrar menú lateral'}
+              aria-expanded={sidebarOpen}
+              className={`fixed top-4 z-50 flex items-center justify-center rounded-lg bg-slate-900 p-2 text-white shadow-lg transition hover:bg-slate-800 ${
+                sidebarOpen ? 'left-4 sm:left-72' : 'left-4'
+              }`}
+            >
+              {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
+          )}
           <Routes>
             <Route path={APP_ROUTES.privacy} element={<PrivacyPolicyPage />} />
             {!isAuthenticated ? (
