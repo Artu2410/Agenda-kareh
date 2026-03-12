@@ -1,68 +1,76 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { AppError } from "../errors/AppError.js";
 
-const buildPrompt = () => `
-Eres un asistente experto en transcripcion de documentos medicos y farmaceuticos.
-Tu tarea es recibir imagenes de recetas o indicaciones medicas manuscritas y convertirlas en datos estructurados.
+const getSystemPrompt = () => `
+Eres un asistente experto en transcripción de documentos médicos y farmacéuticos. 
+Tu tarea es recibir imágenes de recetas o indicaciones médicas manuscritas y convertirlas en datos estructurados.
 
-INSTRUCCIONES CRITICAS:
-1. Analiza el texto manuscrito con extrema precaucion.
-2. Si un termino es ilegible, coloca "NO_IDENTIFICADO".
-3. Usa conocimiento medico para corregir errores ortograficos menores o completar nombres de farmacos conocidos.
-4. Devuelve la informacion unicamente en formato JSON valido.
+INSTRUCCIONES CRÍTICAS:
+1. Analiza el texto manuscrito con extrema precaución. 
+2. Si un término es totalmente ilegible, coloca "NO_IDENTIFICADO".
+3. Utiliza tu conocimiento médico para corregir errores ortográficos menores o completar nombres de fármacos conocidos (ej. si lees "Atorvasta...", completa como "Atorvastatina").
+4. Devuelve la información ÚNICAMENTE en formato JSON válido para que pueda ser procesada por un backend.
 
 ESTRUCTURA DEL JSON:
 {
   "paciente": { "nombre": "...", "fecha_receta": "..." },
   "medicamentos": [
     {
-      "nombre": "Nombre del farmaco",
-      "presentacion": "Comprimidos, Jarabe, etc",
-      "concentracion": "500mg",
-      "dosis": "1 cada 8 horas",
-      "duracion": "7 dias"
+      "nombre": "Nombre del fármaco",
+      "presentacion": "ej. Comprimidos, Jarabe",
+      "concentracion": "ej. 500mg",
+      "dosis": "ej. 1 cada 8 horas",
+      "duracion": "ej. 7 días"
     }
   ],
-  "indicaciones_adicionales": "Otras notas del medico",
+  "indicaciones_adicionales": "Otras notas del médico",
   "diagnostico_sugerido": "Si figura en la nota",
   "confianza_transcripcion": "valor del 1 al 100"
 }
 
-No incluyas explicaciones ni texto fuera del bloque JSON.
+No incluyas explicaciones, saludos ni texto fuera del bloque JSON.
 `;
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
-export const processMedicalRecipe = async (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ message: 'No se ha subido ninguna imagen.' });
-  }
-
+const procesarReceta = async (imageBuffer, mimeType) => {
   if (!process.env.GEMINI_API_KEY) {
-    return res.status(500).json({ message: 'Gemini API Key no configurada en el servidor.' });
+    throw new AppError('La API Key de Gemini no está configurada en el servidor.', 500);
+  }
+  
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+  const prompt = getSystemPrompt();
+
+  const imagePart = {
+    inlineData: {
+      data: imageBuffer.toString("base64"),
+      mimeType
+    },
+  };
+
+  const result = await model.generateContent([prompt, imagePart]);
+  const response = await result.response;
+  
+  const text = response.text().replace(/```json|```/g, "").trim();
+  try {
+    return JSON.parse(text);
+  } catch(e) {
+    console.error("Failed to parse JSON from Gemini:", text);
+    throw new AppError("La respuesta de la IA no es un JSON válido.", 500);
+  }
+}
+
+export const processMedicalRecipe = async (req, res, next) => {
+  if (!req.file) {
+    return next(new AppError('No se ha subido ninguna imagen.', 400));
   }
 
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-    const prompt = buildPrompt();
-    const imagePart = {
-      inlineData: {
-        data: req.file.buffer.toString('base64'),
-        mimeType: req.file.mimetype
-      }
-    };
-
-    const result = await model.generateContent([prompt, imagePart]);
-    const text = result.response.text().replace(/```json|```/g, '').trim();
-
-    try {
-      const parsed = JSON.parse(text);
-      return res.status(200).json(parsed);
-    } catch (parseError) {
-      console.error('No se pudo parsear el JSON devuelto por Gemini:', text);
-      return res.status(500).json({ message: 'La respuesta de la IA no es un JSON valido.' });
-    }
+    const { buffer, mimetype } = req.file;
+    const transcription = await procesarReceta(buffer, mimetype);
+    res.status(200).json(transcription);
   } catch (error) {
-    console.error('Error procesando transcripcion:', error);
-    return res.status(500).json({ message: 'Error interno al procesar la transcripcion.' });
+    next(error);
   }
 };

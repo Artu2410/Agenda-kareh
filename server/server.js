@@ -125,7 +125,6 @@ app.use('/api/professionals', authMiddleware, createProfessionalRoutes(prisma));
 app.use('/api/uploads', authMiddleware, createUploadRoutes());
 app.use('/api/transcription', authMiddleware, createTranscriptionRoutes());
 app.use('/api/whatsapp', authMiddleware, createWhatsAppRoutes(prisma));
-app.use('/api/transcription', authMiddleware, createTranscriptionRoutes);
 
 // Utilidades
 app.get('/api/health', (req, res) => res.status(200).json({ status: 'ok' }));
