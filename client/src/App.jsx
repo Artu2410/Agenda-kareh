@@ -11,7 +11,6 @@ import DashboardPage from './pages/DashboardPage';
 import LoginPage from './pages/LoginPage';
 import WhatsAppPage from './pages/WhatsAppPage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
-import TranscriptionPage from './pages/TranscriptionPage';
 import Sidebar from './components/layout/Sidebar';
 import { API_BASE_URL } from './services/api';
 import { APP_ROUTES, getDocumentTitle } from './utils/appRoutes';
@@ -86,7 +85,6 @@ function App() {
                 <Route path={APP_ROUTES.cashflow} element={<CashflowPage />} />
                 <Route path={APP_ROUTES.whatsapp} element={<WhatsAppPage />} />
                 <Route path={APP_ROUTES.settings} element={<SettingsPage />} />
-                <Route path={APP_ROUTES.transcription} element={<TranscriptionPage />} />
 
                 <Route path="/dashboard" element={<Navigate to={APP_ROUTES.dashboard} replace />} />
                 <Route path="/appointments" element={<Navigate to={APP_ROUTES.appointments} replace />} />
