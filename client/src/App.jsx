@@ -14,7 +14,7 @@ import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import Sidebar from './components/layout/Sidebar';
 import { API_BASE_URL } from './services/api';
 import { APP_ROUTES, getDocumentTitle } from './utils/appRoutes';
-import { Menu, X } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 
 function DocumentTitleSync() {
   const location = useLocation();
@@ -67,19 +67,19 @@ function App() {
       <DocumentTitleSync />
       <CustomToaster />
       <div className="flex h-screen w-full bg-slate-50 overflow-hidden">
-        {isAuthenticated && sidebarOpen && <Sidebar />}
+        {isAuthenticated && sidebarOpen && <Sidebar onToggle={toggleSidebar} />}
         <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          {isAuthenticated && (
+          {isAuthenticated && !sidebarOpen && (
             <button
               type="button"
               onClick={toggleSidebar}
-              aria-label={sidebarOpen ? 'Ocultar menú lateral' : 'Mostrar menú lateral'}
+              aria-label="Mostrar menú lateral"
               aria-expanded={sidebarOpen}
-              className={`fixed top-4 z-50 flex items-center justify-center rounded-lg bg-slate-900 p-2 text-white shadow-lg transition hover:bg-slate-800 ${
-                sidebarOpen ? 'left-4 sm:left-72' : 'left-4'
+              className={`fixed top-1/2 z-40 flex h-10 w-6 -translate-y-1/2 items-center justify-center rounded-r-md bg-slate-900/70 text-white shadow-md transition hover:bg-slate-900 ${
+                sidebarOpen ? 'left-64 -ml-1' : 'left-0'
               }`}
             >
-              {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
+              <ChevronRight size={18} />
             </button>
           )}
           <Routes>

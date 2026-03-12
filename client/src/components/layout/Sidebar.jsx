@@ -1,11 +1,11 @@
 ﻿import React from 'react';
-import { BarChart3, Calendar, Users, DollarSign, Settings, FileText, LogOut, MessageCircle } from 'lucide-react';
+import { BarChart3, Calendar, Users, DollarSign, Settings, FileText, LogOut, MessageCircle, ChevronLeft } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { showSuccessToast } from '../Toast';
 import { useConfirmModal } from '../ConfirmModal';
 import { APP_ROUTES } from '../../utils/appRoutes';
 
-const Sidebar = () => {
+const Sidebar = ({ onToggle }) => {
   const location = useLocation();
   const { ConfirmModalComponent, openModal } = useConfirmModal();
   const menuItems = [
@@ -43,7 +43,17 @@ const Sidebar = () => {
   return (
     <>
     <aside className="w-64 bg-slate-900 text-white h-screen flex flex-col shadow-xl">
-      <div className="p-6 text-center border-b border-slate-800">
+      <div className="relative p-6 text-center border-b border-slate-800">
+        {onToggle && (
+          <button
+            type="button"
+            onClick={onToggle}
+            aria-label="Ocultar menú lateral"
+            className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-800/80 hover:text-white"
+          >
+            <ChevronLeft size={18} />
+          </button>
+        )}
         <h1 className="text-2xl font-bold text-teal-400 tracking-tight uppercase">Agenda Kareh</h1>
         <p className="text-[10px] text-slate-500 uppercase font-black mt-1">Centro de Kinesiología</p>
       </div>
