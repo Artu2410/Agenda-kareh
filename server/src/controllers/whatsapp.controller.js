@@ -100,6 +100,15 @@ export const handleWhatsAppWebhook = async (req, res, prisma) => {
         if (Array.isArray(value.messages)) {
           totalMessages += value.messages.length;
           for (const message of value.messages) {
+            if (message?.id) {
+              const existing = await prisma.whatsAppMessage.findUnique({
+                where: { waMessageId: message.id },
+              });
+              if (existing) {
+                continue;
+              }
+            }
+
             const conversation = await ensureConversation({
               prisma,
               waId: waId || message.from,
