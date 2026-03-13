@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Search, Send, Loader2, FileText, Image as ImageIcon } from 'lucide-react';
+import { Search, Send, Loader2, FileText, Trash2 } from 'lucide-react';
 import api from '../services/api';
+import { useConfirmModal } from '../components/ConfirmModal';
 
 const formatTime = (value) => {
   if (!value) return '';
@@ -31,6 +32,7 @@ const WhatsAppPage = () => {
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef(null);
+  const { ConfirmModalComponent, openModal } = useConfirmModal();
 
   const filteredConversations = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -104,6 +106,23 @@ const WhatsAppPage = () => {
     }
   };
 
+  const handleDeleteConversation = () => {
+    if (!selectedConversation) return;
+    openModal({
+      title: 'Eliminar conversación',
+      message: 'Esta acción borrará la conversación y todos sus mensajes. ¿Deseas continuar?',
+      confirmText: 'Eliminar',
+      danger: true,
+      icon: Trash2,
+      onConfirm: async () => {
+        await api.delete(`/whatsapp/conversations/${selectedConversation.id}`);
+        setMessages([]);
+        setSelectedId(null);
+        await loadConversations();
+      },
+    });
+  };
+
   return (
     <div className="flex h-screen bg-slate-50">
       <aside className="w-80 border-r border-slate-200 bg-white flex flex-col">
@@ -157,12 +176,24 @@ const WhatsAppPage = () => {
       </aside>
 
       <section className="flex-1 flex flex-col">
-        <header className="p-4 border-b border-slate-200 bg-white">
-          <p className="text-sm font-black text-slate-800">
-            {selectedConversation ? (selectedConversation.profileName || selectedConversation.phone) : 'Selecciona una conversación'}
-          </p>
+        <header className="p-4 border-b border-slate-200 bg-white flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-black text-slate-800">
+              {selectedConversation ? (selectedConversation.profileName || selectedConversation.phone) : 'Selecciona una conversación'}
+            </p>
+            {selectedConversation && (
+              <p className="text-xs text-slate-400 font-semibold">{selectedConversation.phone}</p>
+            )}
+          </div>
           {selectedConversation && (
-            <p className="text-xs text-slate-400 font-semibold">{selectedConversation.phone}</p>
+            <button
+              type="button"
+              onClick={handleDeleteConversation}
+              className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-600 transition hover:bg-red-100"
+            >
+              <Trash2 size={14} />
+              Borrar
+            </button>
           )}
         </header>
 
@@ -222,6 +253,7 @@ const WhatsAppPage = () => {
           </div>
         </div>
       </section>
+      {ConfirmModalComponent}
     </div>
   );
 };

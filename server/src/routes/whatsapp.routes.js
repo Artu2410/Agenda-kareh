@@ -3,6 +3,7 @@ import {
   listConversations,
   listMessages,
   markConversationRead,
+  deleteConversation,
   sendConversationMessage,
 } from '../controllers/whatsapp.controller.js';
 
@@ -13,6 +14,7 @@ export default function createWhatsAppRoutes(prisma) {
   router.get('/conversations/:id/messages', (req, res) => listMessages(req, res, prisma));
   router.post('/conversations/:id/messages', (req, res) => sendConversationMessage(req, res, prisma));
   router.post('/conversations/:id/read', (req, res) => markConversationRead(req, res, prisma));
+  router.delete('/conversations/:id', (req, res) => deleteConversation(req, res, prisma));
 
   return router;
 }

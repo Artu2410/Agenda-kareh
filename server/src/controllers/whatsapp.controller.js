@@ -212,6 +212,22 @@ export const markConversationRead = async (req, res, prisma) => {
   res.json({ success: true });
 };
 
+export const deleteConversation = async (req, res, prisma) => {
+  const { id } = req.params;
+  if (!id) return res.status(400).json({ message: 'Conversación requerida' });
+
+  try {
+    await prisma.whatsAppConversation.delete({ where: { id } });
+    return res.json({ success: true });
+  } catch (error) {
+    if (error?.code === 'P2025') {
+      return res.status(404).json({ message: 'Conversación no encontrada' });
+    }
+    console.error('ERROR ELIMINANDO CONVERSACION WHATSAPP:', error);
+    return res.status(500).json({ message: 'Error al eliminar conversación' });
+  }
+};
+
 export const sendConversationMessage = async (req, res, prisma) => {
   const { id } = req.params;
   const { text } = req.body;
