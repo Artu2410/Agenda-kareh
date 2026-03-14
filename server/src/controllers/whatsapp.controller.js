@@ -1,8 +1,9 @@
 import { uploadBufferToStorage } from '../services/storage.js';
-import { downloadMedia, fetchMediaInfo, sendTextMessage } from '../services/whatsapp.js';
+import { downloadMedia, fetchMediaInfo, sendTemplateMessage, sendTextMessage } from '../services/whatsapp.js';
 import { normalizePhone } from '../utils/phone.js';
 
 const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
+const WELCOME_TEMPLATE = process.env.WHATSAPP_WELCOME_TEMPLATE || 'bienvenida_kareh';
 
 const MIME_EXTENSION = {
   'image/jpeg': 'jpg',
@@ -38,20 +39,37 @@ const getMediaInfoFromMessage = (message) => {
 
 const ensureConversation = async ({ prisma, waId, profileName, phone }) => {
   const normalizedPhone = normalizePhone(phone || waId);
-  return prisma.whatsAppConversation.upsert({
-    where: { waId },
-    create: {
+  const existing = await prisma.whatsAppConversation.findUnique({ where: { waId } });
+  if (existing) {
+    const updated = await prisma.whatsAppConversation.update({
+      where: { id: existing.id },
+      data: {
+        profileName: profileName || undefined,
+        phone: normalizedPhone || undefined,
+      },
+    });
+    return { conversation: updated, isNew: false };
+  }
+
+  const created = await prisma.whatsAppConversation.create({
+    data: {
       waId,
       phone: normalizedPhone || waId,
       profileName: profileName || null,
       unreadCount: 0,
     },
-    update: {
-      profileName: profileName || undefined,
-      phone: normalizedPhone || undefined,
-    },
   });
+  return { conversation: created, isNew: true };
 };
+
+const buildWelcomeTemplateComponents = (patientName) => ([
+  {
+    type: 'body',
+    parameters: [
+      { type: 'text', text: patientName || 'Paciente' },
+    ],
+  },
+]);
 
 const storeInboundMedia = async ({ mediaId, mimeType, conversationId }) => {
   if (!mediaId) return null;
@@ -109,7 +127,7 @@ export const handleWhatsAppWebhook = async (req, res, prisma) => {
               }
             }
 
-            const conversation = await ensureConversation({
+            const { conversation, isNew } = await ensureConversation({
               prisma,
               waId: waId || message.from,
               profileName,
@@ -157,6 +175,30 @@ export const handleWhatsAppWebhook = async (req, res, prisma) => {
                 unreadCount: { increment: 1 },
               },
             });
+
+            if (isNew && WELCOME_TEMPLATE) {
+              try {
+                const components = buildWelcomeTemplateComponents(profileName);
+                const response = await sendTemplateMessage({
+                  to: conversation.waId,
+                  name: WELCOME_TEMPLATE,
+                  components,
+                });
+                const waMessageId = response?.messages?.[0]?.id || null;
+                await prisma.whatsAppMessage.create({
+                  data: {
+                    conversationId: conversation.id,
+                    direction: 'outbound',
+                    type: 'template',
+                    text: `Plantilla: ${WELCOME_TEMPLATE}`,
+                    waMessageId,
+                    status: 'sent',
+                  },
+                });
+              } catch (error) {
+                console.error('ERROR WHATSAPP WELCOME:', error);
+              }
+            }
           }
         }
 
