@@ -4,6 +4,7 @@ import { normalizePhone } from '../utils/phone.js';
 
 const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
 const WELCOME_TEMPLATE = process.env.WHATSAPP_WELCOME_TEMPLATE || 'bienvenida_kareh';
+const HOLA_TEMPLATE = process.env.WHATSAPP_HOLA_TEMPLATE || WELCOME_TEMPLATE;
 const WELCOME_COOLDOWN_HOURS = Number(process.env.WHATSAPP_WELCOME_COOLDOWN_HOURS || 24);
 const WELCOME_COOLDOWN_MS = Number.isFinite(WELCOME_COOLDOWN_HOURS)
   ? WELCOME_COOLDOWN_HOURS * 60 * 60 * 1000
@@ -83,14 +84,16 @@ const normalizeText = (value) => {
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s]/g, '')
     .replace(/\s+/g, ' ');
 };
 
 const AUTO_REPLY_MAP = new Map([
-  ['obra social', 'Indiquenos su obra social.'],
-  ['particular', 'Cuenta con la orden medica? Envie una foto.'],
-  ['rehabilitacion respiratoria', 'Realizamos rehabilitacion respiratoria. Indiquenos su obra social o si es particular y si cuenta con orden medica.'],
-  ['ubicacion y horarios', 'Av. Senador Morón 782, B1661INS Bella Vista, Provincia de Buenos Aires. Horarios lunes y viernes de 14:00 a 19:00 y sabados de 8:00 a 12:00'],
+  ['hola', { type: 'template', name: HOLA_TEMPLATE }],
+  ['obra social', { type: 'text', text: 'Indiquenos su obra social.' }],
+  ['particular', { type: 'text', text: 'Cuenta con la orden medica? Envie una foto.' }],
+  ['rehabilitacion respiratoria', { type: 'text', text: 'Realizamos rehabilitacion respiratoria. Indiquenos su obra social o si es particular y si cuenta con orden medica.' }],
+  ['ubicacion y horarios', { type: 'text', text: 'Av. Senador Morón 782, B1661INS Bella Vista, Provincia de Buenos Aires. Horarios lunes y viernes de 14:00 a 19:00 y sabados de 8:00 a 12:00' }],
 ]);
 
 const getAutoReply = (messageText) => AUTO_REPLY_MAP.get(normalizeText(messageText)) || null;
@@ -177,6 +180,9 @@ export const handleWhatsAppWebhook = async (req, res, prisma) => {
 
             const inboundText = message.type === 'text' ? message.text?.body : '';
             const autoReply = getAutoReply(inboundText);
+            if (autoReply) {
+              shouldSendWelcome = false;
+            }
             const previewText = getPreviewText(message);
             const mediaMeta = getMediaInfoFromMessage(message);
             let mediaUrl = null;
@@ -219,7 +225,47 @@ export const handleWhatsAppWebhook = async (req, res, prisma) => {
               },
             });
 
-            if (shouldSendWelcome) {
+            if (autoReply) {
+              try {
+                let response = null;
+                if (autoReply.type === 'template') {
+                  const components = buildWelcomeTemplateComponents(profileName);
+                  response = await sendTemplateMessage({
+                    to: conversation.waId,
+                    name: autoReply.name,
+                    components,
+                  });
+                } else {
+                  response = await sendTextMessage({
+                    to: conversation.waId,
+                    text: autoReply.text,
+                  });
+                }
+                const waMessageId = response?.messages?.[0]?.id || null;
+                const outboundText = autoReply.type === 'template'
+                  ? `Plantilla: ${autoReply.name}`
+                  : autoReply.text;
+                await prisma.whatsAppMessage.create({
+                  data: {
+                    conversationId: conversation.id,
+                    direction: 'outbound',
+                    type: autoReply.type === 'template' ? 'template' : 'text',
+                    text: outboundText,
+                    waMessageId,
+                    status: 'sent',
+                  },
+                });
+                await prisma.whatsAppConversation.update({
+                  where: { id: conversation.id },
+                  data: {
+                    lastMessageAt: new Date(),
+                    lastMessageText: outboundText,
+                  },
+                });
+              } catch (error) {
+                console.error('ERROR WHATSAPP AUTO-REPLY:', error);
+              }
+            } else if (shouldSendWelcome) {
               try {
                 const components = buildWelcomeTemplateComponents(profileName);
                 const response = await sendTemplateMessage({
@@ -240,35 +286,6 @@ export const handleWhatsAppWebhook = async (req, res, prisma) => {
                 });
               } catch (error) {
                 console.error('ERROR WHATSAPP WELCOME:', error);
-              }
-            }
-
-            if (autoReply) {
-              try {
-                const response = await sendTextMessage({
-                  to: conversation.waId,
-                  text: autoReply,
-                });
-                const waMessageId = response?.messages?.[0]?.id || null;
-                await prisma.whatsAppMessage.create({
-                  data: {
-                    conversationId: conversation.id,
-                    direction: 'outbound',
-                    type: 'text',
-                    text: autoReply,
-                    waMessageId,
-                    status: 'sent',
-                  },
-                });
-                await prisma.whatsAppConversation.update({
-                  where: { id: conversation.id },
-                  data: {
-                    lastMessageAt: new Date(),
-                    lastMessageText: autoReply,
-                  },
-                });
-              } catch (error) {
-                console.error('ERROR WHATSAPP AUTO-REPLY:', error);
               }
             }
           }
