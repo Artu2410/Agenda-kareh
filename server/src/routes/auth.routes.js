@@ -1,5 +1,8 @@
 import { Router } from 'express';
-import { requestOTP, verifyOTP, verifyToken, logout } from '../controllers/auth.controller.js';
+import rateLimit from 'express-rate-limit';
+import { requestOTP, verifyOTP, verifyToken, logout, refreshToken } from '../controllers/auth.controller.js';
+import { validateBody } from '../middlewares/validate.js';
+import { requestOtpSchema, verifyOtpSchema } from '../schemas/auth.schema.js';
 
 export default function createAuthRoutes(prisma) {
   const router = Router();
@@ -11,11 +14,28 @@ export default function createAuthRoutes(prisma) {
     next();
   });
 
+  const requestOtpLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => req.body?.email?.toLowerCase() || req.ip,
+  });
+
+  const verifyOtpLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => req.body?.email?.toLowerCase() || req.ip,
+  });
+
   // Rutas estándar (con /api/auth/...)
-  router.post('/request-otp', requestOTP);
-  router.post('/verify-otp', verifyOTP);
+  router.post('/request-otp', requestOtpLimiter, validateBody(requestOtpSchema), requestOTP);
+  router.post('/verify-otp', verifyOtpLimiter, validateBody(verifyOtpSchema), verifyOTP);
   router.get('/verify', verifyToken); // <--- Esta es la que el frontend busca
   router.post('/logout', logout);
+  router.post('/refresh', refreshToken);
 
   return router;
 }

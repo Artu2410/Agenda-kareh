@@ -2,11 +2,17 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 import { PrismaClient } from '@prisma/client';
 import dns from 'node:dns';
 
 dns.setDefaultResultOrder('ipv4first');
 dotenv.config();
+
+if (!process.env.JWT_SECRET) {
+    console.error('❌ FATAL: JWT_SECRET no configurado');
+    process.exit(1);
+}
 
 const prisma = new PrismaClient();
 const app = express();
@@ -26,6 +32,8 @@ import { verifyWhatsAppWebhook, handleWhatsAppWebhook } from './src/controllers/
 import { verifyToken } from './src/controllers/auth.controller.js';
 import { authMiddleware } from './src/middlewares/authMiddleware.js';
 
+const isProduction = process.env.NODE_ENV === 'production';
+
 const allowedOrigins = new Set([
     'https://kareh-salud.vercel.app',
     'http://localhost:5173',
@@ -43,7 +51,10 @@ const isAllowedOrigin = (origin) => {
     }
 
     try {
-        return new URL(origin).hostname.endsWith('.vercel.app');
+        if (!isProduction) {
+            return new URL(origin).hostname.endsWith('.vercel.app');
+        }
+        return false;
     } catch {
         return false;
     }
@@ -64,7 +75,22 @@ app.use(cors({
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-app.use(helmet({ contentSecurityPolicy: false }));
+app.use(cookieParser());
+app.use(helmet({
+    contentSecurityPolicy: {
+        useDefaults: true,
+        directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            imgSrc: ["'self'", 'data:', 'https:'],
+            connectSrc: ["'self'", 'https:'],
+            fontSrc: ["'self'", 'data:', 'https:'],
+            objectSrc: ["'none'"],
+            frameAncestors: ["'none'"],
+        },
+    },
+}));
 app.use(express.json({ limit: '50mb' }));
 
 // Log mínimo para webhook (sin datos sensibles)

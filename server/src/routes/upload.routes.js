@@ -7,9 +7,23 @@ import { uploadBufferToStorage } from '../services/storage.js';
 const MAX_UPLOAD_MB = Number(process.env.UPLOAD_MAX_MB || 25);
 const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
 
+const ALLOWED_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'application/pdf',
+]);
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: MAX_UPLOAD_BYTES },
+  fileFilter: (req, file, cb) => {
+    if (!ALLOWED_MIME_TYPES.has(file.mimetype)) {
+      return cb(new Error('Tipo de archivo no permitido'));
+    }
+    return cb(null, true);
+  },
 });
 
 const buildKey = ({ originalname, mimetype, patientId, entryId }) => {
@@ -70,6 +84,9 @@ export default function createUploadRoutes() {
   router.use((err, req, res, next) => {
     if (err?.code === 'LIMIT_FILE_SIZE') {
       return res.status(413).json({ message: `Archivo demasiado grande. Máximo ${MAX_UPLOAD_MB}MB.` });
+    }
+    if (err?.message === 'Tipo de archivo no permitido') {
+      return res.status(400).json({ message: 'Tipo de archivo no permitido. Solo imágenes o PDF.' });
     }
     if (err) {
       return res.status(400).json({ message: err.message || 'Archivo inválido' });

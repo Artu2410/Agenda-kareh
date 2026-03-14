@@ -80,10 +80,8 @@ export default function LoginPage({ onLoginSuccess }) {
       // ✅ CAMBIO: Usamos la función del servicio
       const response = await verifyOTP(email.trim(), otp.trim());
 
-      if (response.data.token) {
-        // Guardar sesión
-        localStorage.setItem('auth_token', response.data.token);
-        localStorage.setItem('userEmail', response.data.user.email);
+      if (response.data.success) {
+        localStorage.setItem('userEmail', response.data.user?.email || email.trim());
         
         showSuccessToast('✅ ¡Acceso Concedido!');
         

@@ -11,7 +11,14 @@ const PLACEHOLDER_AUTHORIZED_EMAILS = new Set([
   'your_email@example.com'
 ]);
 
-const getJwtSecret = () => process.env.JWT_SECRET || 'clave_secreta_provisional';
+const getJwtSecret = () => {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error('JWT_SECRET no configurado');
+  }
+  return secret;
+};
+const getRefreshSecret = () => process.env.REFRESH_TOKEN_SECRET || getJwtSecret();
 const getAuthorizedEmail = () => {
   const configuredEmail = (process.env.AUTHORIZED_EMAIL || DEFAULT_AUTHORIZED_EMAIL).trim().toLowerCase();
   return PLACEHOLDER_AUTHORIZED_EMAILS.has(configuredEmail) ? DEFAULT_AUTHORIZED_EMAIL : configuredEmail;
@@ -20,6 +27,26 @@ const isProduction = () => process.env.NODE_ENV === 'production';
 const getResendClient = () => {
   const apiKey = process.env.RESEND_API_KEY;
   return apiKey ? new Resend(apiKey) : null;
+};
+
+const buildCookieOptions = (maxAgeMs) => ({
+  httpOnly: true,
+  secure: isProduction(),
+  sameSite: isProduction() ? 'None' : 'Lax',
+  maxAge: maxAgeMs,
+  path: '/',
+});
+
+const setAuthCookies = (res, accessToken, refreshToken) => {
+  const accessMaxAge = 15 * 60 * 1000;
+  const refreshMaxAge = 7 * 24 * 60 * 60 * 1000;
+  res.cookie('accessToken', accessToken, buildCookieOptions(accessMaxAge));
+  res.cookie('refreshToken', refreshToken, buildCookieOptions(refreshMaxAge));
+};
+
+const clearAuthCookies = (res) => {
+  res.clearCookie('accessToken', buildCookieOptions(0));
+  res.clearCookie('refreshToken', buildCookieOptions(0));
 };
 
 // Almacenamiento temporal de OTPs
@@ -115,15 +142,21 @@ export const verifyOTP = async (req, res) => {
     otpStorage.delete(normalizedEmail);
 
     // Generamos el token con los datos del usuario
-    const token = jwt.sign(
+    const accessToken = jwt.sign(
       { email: normalizedEmail, role: 'admin' },
       getJwtSecret(),
-      { expiresIn: '30d' }
+      { expiresIn: '15m' }
     );
+    const refreshToken = jwt.sign(
+      { email: normalizedEmail, role: 'admin' },
+      getRefreshSecret(),
+      { expiresIn: '7d' }
+    );
+
+    setAuthCookies(res, accessToken, refreshToken);
 
     res.json({
       success: true,
-      token,
       user: { email: normalizedEmail, name: 'Administrador' }
     });
   } catch (error) {
@@ -138,7 +171,8 @@ export const verifyToken = async (req, res) => {
   try {
     // 1. Extraemos el token del header Authorization
     const authHeader = req.headers.authorization;
-    const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
+    const token = req.cookies?.accessToken
+      || (authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null);
 
     if (!token) {
       console.log("⚠️ Intento de verificación sin token");
@@ -169,5 +203,35 @@ export const verifyToken = async (req, res) => {
  * 4. LOGOUT
  */
 export const logout = (req, res) => {
+  clearAuthCookies(res);
   res.json({ success: true, message: 'Sesión cerrada' });
+};
+
+/**
+ * 5. REFRESH TOKEN
+ */
+export const refreshToken = (req, res) => {
+  try {
+    const token = req.cookies?.refreshToken;
+    if (!token) {
+      return res.status(401).json({ message: 'Refresh token no proporcionado' });
+    }
+
+    const decoded = jwt.verify(token, getRefreshSecret());
+    const accessToken = jwt.sign(
+      { email: decoded.email, role: decoded.role || 'admin' },
+      getJwtSecret(),
+      { expiresIn: '15m' }
+    );
+    const newRefreshToken = jwt.sign(
+      { email: decoded.email, role: decoded.role || 'admin' },
+      getRefreshSecret(),
+      { expiresIn: '7d' }
+    );
+
+    setAuthCookies(res, accessToken, newRefreshToken);
+    return res.json({ success: true });
+  } catch (error) {
+    return res.status(401).json({ message: 'Refresh token inválido o expirado' });
+  }
 };

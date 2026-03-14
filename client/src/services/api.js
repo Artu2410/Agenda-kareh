@@ -14,18 +14,15 @@ export const API_BASE_URL = rawUrl.endsWith('/api') ? rawUrl : `${rawUrl.replace
 
 const api = axios.create({
   baseURL: API_BASE_URL,
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json'
   }
 });
 
-// Interceptor para añadir el JWT
+// Interceptor para logging/debug
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('auth_token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
     // Útil para ver en consola si la URL se está armando bien
     console.log(`🌐 Llamando a: ${config.baseURL}${config.url}`);
     return config;
@@ -36,13 +33,29 @@ api.interceptors.request.use(
 // Interceptor de errores (se mantiene tu lógica que es buena)
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     let message = 'Ocurrió un error inesperado';
     if (error.response) {
       const status = error.response.status;
       if (status === 401) message = 'Sesión expirada.';
       if (status === 404) message = 'No se encontró el recurso (Error de ruta).';
       message = error.response.data?.message || message;
+    }
+    const originalRequest = error.config;
+    if (
+      error.response?.status === 401 &&
+      originalRequest &&
+      !originalRequest._retry &&
+      !String(originalRequest.url || '').includes('/auth/refresh')
+    ) {
+      originalRequest._retry = true;
+      try {
+        await api.post('/auth/refresh');
+        return api(originalRequest);
+      } catch (refreshError) {
+        localStorage.removeItem('userEmail');
+        localStorage.removeItem('userName');
+      }
     }
     return Promise.reject({ ...error, friendlyMessage: message });
   }

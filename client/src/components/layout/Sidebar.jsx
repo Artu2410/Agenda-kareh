@@ -37,6 +37,11 @@ const Sidebar = ({ onToggle }) => {
       danger: true,
       icon: LogOut,
       onConfirm: async () => {
+        try {
+          await api.post('/auth/logout');
+        } catch (error) {
+          // Si falla, igual limpiamos la sesión local
+        }
         localStorage.removeItem('auth_token');
         localStorage.removeItem('userName');
         localStorage.removeItem('userEmail');

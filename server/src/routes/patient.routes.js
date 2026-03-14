@@ -9,6 +9,8 @@ import {
   getPatientHistoryByDni,
   getFutureAppointments
 } from '../controllers/patient.controller.js';
+import { validateBody } from '../middlewares/validate.js';
+import { createPatientSchema } from '../schemas/patient.schema.js';
 
 export default function createPatientRoutes(prisma) {
   const router = Router();
@@ -22,7 +24,7 @@ export default function createPatientRoutes(prisma) {
   router.get('/:id', (req, res) => getPatientById(req, res, prisma));
   
   // Rutas POST/DELETE
-  router.post('/', (req, res) => createPatient(req, res, prisma));
+  router.post('/', validateBody(createPatientSchema), (req, res) => createPatient(req, res, prisma));
   router.delete('/:id', (req, res) => deletePatient(req, res, prisma));
 
   // PUT: Actualización completa

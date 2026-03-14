@@ -32,11 +32,9 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const verifyAuth = useCallback(async () => {
-    const token = localStorage.getItem('auth_token');
-    if (!token) { setIsAuthenticated(false); setLoading(false); return; }
     try {
       const response = await fetch(`${API_BASE_URL}/auth/verify`, {
-        headers: { 'Authorization': 'Bearer ' + token }
+        credentials: 'include',
       });
       const data = await response.json();
       if (response.ok && data.valid) {
@@ -44,7 +42,6 @@ function App() {
         return;
       }
 
-      localStorage.removeItem('auth_token');
       localStorage.removeItem('userEmail');
       localStorage.removeItem('userName');
       setIsAuthenticated(false);
