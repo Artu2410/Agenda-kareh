@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { requestOTP, verifyOTP, verifyToken, logout, refreshToken } from '../controllers/auth.controller.js';
 import { validateBody } from '../middlewares/validate.js';
 import { requestOtpSchema, verifyOtpSchema } from '../schemas/auth.schema.js';
@@ -14,12 +14,14 @@ export default function createAuthRoutes(prisma) {
     next();
   });
 
+  const keyFromRequest = (req) => req.body?.email?.toLowerCase() || ipKeyGenerator(req.ip);
+
   const requestOtpLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 5,
     standardHeaders: true,
     legacyHeaders: false,
-    keyGenerator: (req) => req.body?.email?.toLowerCase() || req.ip,
+    keyGenerator: keyFromRequest,
   });
 
   const verifyOtpLimiter = rateLimit({
@@ -27,7 +29,7 @@ export default function createAuthRoutes(prisma) {
     max: 5,
     standardHeaders: true,
     legacyHeaders: false,
-    keyGenerator: (req) => req.body?.email?.toLowerCase() || req.ip,
+    keyGenerator: keyFromRequest,
   });
 
   // Rutas estándar (con /api/auth/...)
