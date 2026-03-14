@@ -49,10 +49,12 @@ const WhatsAppPage = () => {
   const loadConversations = async () => {
     try {
       const { data } = await api.get('/whatsapp/conversations');
-      setConversations(data || []);
-      if (!selectedId && data?.length) {
-        setSelectedId(data[0].id);
-      }
+      const nextConversations = Array.isArray(data) ? data : [];
+      setConversations(nextConversations);
+      setSelectedId((prev) => {
+        if (prev && nextConversations.some((conv) => conv.id === prev)) return prev;
+        return nextConversations[0]?.id ?? null;
+      });
     } catch (error) {
       console.error('Error cargando conversaciones:', error);
     } finally {
