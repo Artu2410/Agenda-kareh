@@ -20,9 +20,20 @@ const api = axios.create({
   }
 });
 
+const getFallbackToken = () => sessionStorage.getItem('auth_fallback_token');
+const isFallbackMode = () => sessionStorage.getItem('auth_fallback') === '1';
+const enableFallbackMode = () => sessionStorage.setItem('auth_fallback', '1');
+const clearFallbackMode = () => sessionStorage.removeItem('auth_fallback');
+
 // Interceptor para logging/debug
 api.interceptors.request.use(
   (config) => {
+    if (isFallbackMode()) {
+      const token = getFallbackToken();
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    }
     // Útil para ver en consola si la URL se está armando bien
     console.log(`🌐 Llamando a: ${config.baseURL}${config.url}`);
     return config;
@@ -42,19 +53,37 @@ api.interceptors.response.use(
       message = error.response.data?.message || message;
     }
     const originalRequest = error.config;
-    if (
-      error.response?.status === 401 &&
-      originalRequest &&
-      !originalRequest._retry &&
-      !String(originalRequest.url || '').includes('/auth/refresh')
-    ) {
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
       originalRequest._retry = true;
-      try {
-        await api.post('/auth/refresh');
-        return api(originalRequest);
-      } catch (refreshError) {
-        localStorage.removeItem('userEmail');
-        localStorage.removeItem('userName');
+      const isRefreshCall = String(originalRequest.url || '').includes('/auth/refresh');
+      if (!isRefreshCall && !isFallbackMode()) {
+        try {
+          const refreshResponse = await api.post('/auth/refresh', null, {
+            headers: { 'X-Auth-Fallback': '1' }
+          });
+          if (refreshResponse.data?.accessToken) {
+            sessionStorage.setItem('auth_fallback_token', refreshResponse.data.accessToken);
+          }
+          return api(originalRequest);
+        } catch (refreshError) {
+          const fallbackToken = getFallbackToken();
+          if (fallbackToken) {
+            enableFallbackMode();
+            originalRequest.headers = originalRequest.headers || {};
+            originalRequest.headers.Authorization = `Bearer ${fallbackToken}`;
+            return api(originalRequest);
+          }
+          clearFallbackMode();
+          localStorage.removeItem('userEmail');
+          localStorage.removeItem('userName');
+        }
+      } else if (isFallbackMode()) {
+        const fallbackToken = getFallbackToken();
+        if (fallbackToken) {
+          originalRequest.headers = originalRequest.headers || {};
+          originalRequest.headers.Authorization = `Bearer ${fallbackToken}`;
+          return api(originalRequest);
+        }
       }
     }
     return Promise.reject({ ...error, friendlyMessage: message });
@@ -70,7 +99,11 @@ export default api;
 
 // Auth
 export const requestOTP = (email) => api.post('/auth/request-otp', { email });
-export const verifyOTP = (email, otp) => api.post('/auth/verify-otp', { email, otp });
+export const verifyOTP = (email, otp) => api.post(
+  '/auth/verify-otp',
+  { email, otp },
+  { headers: { 'X-Auth-Fallback': '1' } }
+);
 
 // Appointments
 export const deleteAppointment = (id) => api.delete(`/appointments/${id}`);

@@ -82,6 +82,10 @@ export default function LoginPage({ onLoginSuccess }) {
 
       if (response.data.success) {
         localStorage.setItem('userEmail', response.data.user?.email || email.trim());
+        if (response.data.accessToken) {
+          sessionStorage.setItem('auth_fallback_token', response.data.accessToken);
+          sessionStorage.removeItem('auth_fallback');
+        }
         
         showSuccessToast('✅ ¡Acceso Concedido!');
         

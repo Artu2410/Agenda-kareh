@@ -29,6 +29,9 @@ const getResendClient = () => {
   return apiKey ? new Resend(apiKey) : null;
 };
 
+const allowHeaderFallback = () => process.env.ALLOW_AUTH_HEADER_FALLBACK !== 'false';
+const wantsFallbackToken = (req) => String(req.headers['x-auth-fallback'] || '').toLowerCase() === '1';
+
 const buildCookieOptions = (maxAgeMs) => ({
   httpOnly: true,
   secure: isProduction(),
@@ -155,10 +158,14 @@ export const verifyOTP = async (req, res) => {
 
     setAuthCookies(res, accessToken, refreshToken);
 
-    res.json({
+    const payload = {
       success: true,
       user: { email: normalizedEmail, name: 'Administrador' }
-    });
+    };
+    if (allowHeaderFallback() && wantsFallbackToken(req)) {
+      payload.accessToken = accessToken;
+    }
+    res.json(payload);
   } catch (error) {
     res.status(500).json({ message: 'Error en la verificación' });
   }
@@ -230,7 +237,11 @@ export const refreshToken = (req, res) => {
     );
 
     setAuthCookies(res, accessToken, newRefreshToken);
-    return res.json({ success: true });
+    const payload = { success: true };
+    if (allowHeaderFallback() && wantsFallbackToken(req)) {
+      payload.accessToken = accessToken;
+    }
+    return res.json(payload);
   } catch (error) {
     return res.status(401).json({ message: 'Refresh token inválido o expirado' });
   }

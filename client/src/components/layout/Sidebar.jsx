@@ -42,9 +42,10 @@ const Sidebar = ({ onToggle }) => {
         } catch (error) {
           // Si falla, igual limpiamos la sesión local
         }
-        localStorage.removeItem('auth_token');
         localStorage.removeItem('userName');
         localStorage.removeItem('userEmail');
+        sessionStorage.removeItem('auth_fallback');
+        sessionStorage.removeItem('auth_fallback_token');
         showSuccessToast('Sesión cerrada correctamente');
         setTimeout(() => {
           window.location.href = APP_ROUTES.login;

@@ -42,8 +42,28 @@ function App() {
         return;
       }
 
+      const fallbackToken = sessionStorage.getItem('auth_fallback_token');
+      if (fallbackToken) {
+        try {
+          const fallbackResponse = await fetch(`${API_BASE_URL}/auth/verify`, {
+            credentials: 'include',
+            headers: { Authorization: `Bearer ${fallbackToken}` }
+          });
+          const fallbackData = await fallbackResponse.json();
+          if (fallbackResponse.ok && fallbackData.valid) {
+            sessionStorage.setItem('auth_fallback', '1');
+            setIsAuthenticated(true);
+            return;
+          }
+        } catch {
+          // Si falla, seguimos limpiando sesión
+        }
+      }
+
       localStorage.removeItem('userEmail');
       localStorage.removeItem('userName');
+      sessionStorage.removeItem('auth_fallback');
+      sessionStorage.removeItem('auth_fallback_token');
       setIsAuthenticated(false);
     } catch {
       setIsAuthenticated(false);
