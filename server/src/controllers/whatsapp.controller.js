@@ -88,15 +88,23 @@ const normalizeText = (value) => {
     .replace(/\s+/g, ' ');
 };
 
+const GREETING_PREFIXES = ['hola', 'buenas', 'buen dia', 'buenos dias', 'buenas tardes', 'buenas noches'];
+
 const AUTO_REPLY_MAP = new Map([
-  ['hola', { type: 'template', name: HOLA_TEMPLATE }],
   ['obra social', { type: 'text', text: 'Indiquenos su obra social.' }],
   ['particular', { type: 'text', text: 'Cuenta con la orden medica? Envie una foto.' }],
   ['rehabilitacion respiratoria', { type: 'text', text: 'Realizamos rehabilitacion respiratoria. Indiquenos su obra social o si es particular y si cuenta con orden medica.' }],
   ['ubicacion y horarios', { type: 'text', text: 'Av. Senador Morón 782, B1661INS Bella Vista, Provincia de Buenos Aires. Horarios lunes y viernes de 14:00 a 19:00 y sabados de 8:00 a 12:00' }],
 ]);
 
-const getAutoReply = (messageText) => AUTO_REPLY_MAP.get(normalizeText(messageText)) || null;
+const getAutoReply = (messageText) => {
+  const normalized = normalizeText(messageText);
+  if (!normalized) return null;
+  if (GREETING_PREFIXES.some((prefix) => normalized === prefix || normalized.startsWith(`${prefix} `))) {
+    return { type: 'template', name: HOLA_TEMPLATE };
+  }
+  return AUTO_REPLY_MAP.get(normalized) || null;
+};
 
 const storeInboundMedia = async ({ mediaId, mimeType, conversationId }) => {
   if (!mediaId) return null;
