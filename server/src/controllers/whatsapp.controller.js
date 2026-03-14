@@ -4,6 +4,10 @@ import { normalizePhone } from '../utils/phone.js';
 
 const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
 const WELCOME_TEMPLATE = process.env.WHATSAPP_WELCOME_TEMPLATE || 'bienvenida_kareh';
+const WELCOME_COOLDOWN_HOURS = Number(process.env.WHATSAPP_WELCOME_COOLDOWN_HOURS || 24);
+const WELCOME_COOLDOWN_MS = Number.isFinite(WELCOME_COOLDOWN_HOURS)
+  ? WELCOME_COOLDOWN_HOURS * 60 * 60 * 1000
+  : 24 * 60 * 60 * 1000;
 
 const MIME_EXTENSION = {
   'image/jpeg': 'jpg',
@@ -134,6 +138,23 @@ export const handleWhatsAppWebhook = async (req, res, prisma) => {
               phone: message.from,
             });
 
+            const now = new Date();
+            let shouldSendWelcome = false;
+            if (WELCOME_TEMPLATE) {
+              if (isNew) {
+                shouldSendWelcome = true;
+              } else {
+                const lastInbound = await prisma.whatsAppMessage.findFirst({
+                  where: { conversationId: conversation.id, direction: 'inbound' },
+                  orderBy: { createdAt: 'desc' },
+                  select: { createdAt: true },
+                });
+                if (!lastInbound || now - new Date(lastInbound.createdAt) > WELCOME_COOLDOWN_MS) {
+                  shouldSendWelcome = true;
+                }
+              }
+            }
+
             const previewText = getPreviewText(message);
             const mediaMeta = getMediaInfoFromMessage(message);
             let mediaUrl = null;
@@ -176,7 +197,7 @@ export const handleWhatsAppWebhook = async (req, res, prisma) => {
               },
             });
 
-            if (isNew && WELCOME_TEMPLATE) {
+            if (shouldSendWelcome) {
               try {
                 const components = buildWelcomeTemplateComponents(profileName);
                 const response = await sendTemplateMessage({
