@@ -75,6 +75,26 @@ const buildWelcomeTemplateComponents = (patientName) => ([
   },
 ]);
 
+const normalizeText = (value) => {
+  if (!value) return '';
+  return value
+    .toString()
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ');
+};
+
+const AUTO_REPLY_MAP = new Map([
+  ['obra social', 'Indiquenos su obra social.'],
+  ['particular', 'Cuenta con la orden medica? Envie una foto.'],
+  ['rehabilitacion respiratoria', 'Realizamos rehabilitacion respiratoria. Indiquenos su obra social o si es particular y si cuenta con orden medica.'],
+  ['ubicacion y horarios', 'Av. Senador Morón 782, B1661INS Bella Vista, Provincia de Buenos Aires. Horarios lunes y viernes de 14:00 a 19:00 y sabados de 8:00 a 12:00'],
+]);
+
+const getAutoReply = (messageText) => AUTO_REPLY_MAP.get(normalizeText(messageText)) || null;
+
 const storeInboundMedia = async ({ mediaId, mimeType, conversationId }) => {
   if (!mediaId) return null;
   const mediaInfo = await fetchMediaInfo(mediaId);
@@ -155,6 +175,8 @@ export const handleWhatsAppWebhook = async (req, res, prisma) => {
               }
             }
 
+            const inboundText = message.type === 'text' ? message.text?.body : '';
+            const autoReply = getAutoReply(inboundText);
             const previewText = getPreviewText(message);
             const mediaMeta = getMediaInfoFromMessage(message);
             let mediaUrl = null;
@@ -218,6 +240,35 @@ export const handleWhatsAppWebhook = async (req, res, prisma) => {
                 });
               } catch (error) {
                 console.error('ERROR WHATSAPP WELCOME:', error);
+              }
+            }
+
+            if (autoReply) {
+              try {
+                const response = await sendTextMessage({
+                  to: conversation.waId,
+                  text: autoReply,
+                });
+                const waMessageId = response?.messages?.[0]?.id || null;
+                await prisma.whatsAppMessage.create({
+                  data: {
+                    conversationId: conversation.id,
+                    direction: 'outbound',
+                    type: 'text',
+                    text: autoReply,
+                    waMessageId,
+                    status: 'sent',
+                  },
+                });
+                await prisma.whatsAppConversation.update({
+                  where: { id: conversation.id },
+                  data: {
+                    lastMessageAt: new Date(),
+                    lastMessageText: autoReply,
+                  },
+                });
+              } catch (error) {
+                console.error('ERROR WHATSAPP AUTO-REPLY:', error);
               }
             }
           }
