@@ -165,7 +165,7 @@ const WhatsAppPage = () => {
                   <div className="flex justify-between items-center gap-2">
                     <p className="text-xs text-slate-500 truncate flex-1">{conv.lastMessageText || 'Sin mensajes'}</p>
                     {conv.unreadCount > 0 && (
-                      <span className="text-[10px] font-black bg-teal-600 text-white rounded-full px-2 py-0.5">
+                      <span className="text-[10px] font-black bg-red-600 text-white rounded-full px-2 py-0.5">
                         {conv.unreadCount}
                       </span>
                     )}

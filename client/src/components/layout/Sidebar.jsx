@@ -1,13 +1,24 @@
-﻿import React from 'react';
+﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { BarChart3, Calendar, Users, DollarSign, Settings, FileText, LogOut, MessageCircle, ChevronLeft } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
-import { showSuccessToast } from '../Toast';
+import toast, { showSuccessToast } from '../Toast';
 import { useConfirmModal } from '../ConfirmModal';
 import { APP_ROUTES } from '../../utils/appRoutes';
+import api from '../../services/api';
 
 const Sidebar = ({ onToggle }) => {
   const location = useLocation();
   const { ConfirmModalComponent, openModal } = useConfirmModal();
+  const [whatsappUnread, setWhatsappUnread] = useState(0);
+  const prevUnreadRef = useRef(new Map());
+  const initializedRef = useRef(false);
+  const canPlaySoundRef = useRef(false);
+
+  const unreadBadgeLabel = useMemo(() => {
+    if (whatsappUnread <= 0) return '';
+    return whatsappUnread > 99 ? '99+' : String(whatsappUnread);
+  }, [whatsappUnread]);
+
   const menuItems = [
     { icon: BarChart3, label: 'Panel', path: APP_ROUTES.dashboard },
     { icon: Calendar, label: 'Agenda', path: APP_ROUTES.appointments },
@@ -39,6 +50,97 @@ const Sidebar = ({ onToggle }) => {
 
   const userName = localStorage.getItem('user_name') || 'Admin';
   const userEmail = localStorage.getItem('user_email') || 'user@example.com';
+
+  const playNotificationSound = () => {
+    if (!canPlaySoundRef.current) return;
+    try {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContext) return;
+      const ctx = new AudioContext();
+      const oscillator = ctx.createOscillator();
+      const gain = ctx.createGain();
+      oscillator.type = 'sine';
+      oscillator.frequency.value = 880;
+      gain.gain.value = 0.04;
+      oscillator.connect(gain);
+      gain.connect(ctx.destination);
+      oscillator.start();
+      setTimeout(() => {
+        oscillator.stop();
+        ctx.close();
+      }, 180);
+    } catch (error) {
+      // Silencioso: algunas plataformas bloquean audio sin interacción previa
+    }
+  };
+
+  useEffect(() => {
+    const enableSound = () => {
+      canPlaySoundRef.current = true;
+      window.removeEventListener('click', enableSound);
+      window.removeEventListener('keydown', enableSound);
+      window.removeEventListener('touchstart', enableSound);
+    };
+    window.addEventListener('click', enableSound);
+    window.addEventListener('keydown', enableSound);
+    window.addEventListener('touchstart', enableSound);
+    return () => {
+      window.removeEventListener('click', enableSound);
+      window.removeEventListener('keydown', enableSound);
+      window.removeEventListener('touchstart', enableSound);
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const pollUnread = async () => {
+      try {
+        const { data } = await api.get('/whatsapp/conversations');
+        const conversations = Array.isArray(data) ? data : [];
+        const totalUnread = conversations.reduce((sum, conv) => sum + (conv.unreadCount || 0), 0);
+        if (!isMounted) return;
+
+        const prevMap = prevUnreadRef.current;
+        const newItems = conversations.filter((conv) => (
+          (conv.unreadCount || 0) > (prevMap.get(conv.id) || 0)
+        ));
+
+        prevUnreadRef.current = new Map(
+          conversations.map((conv) => [conv.id, conv.unreadCount || 0])
+        );
+        setWhatsappUnread(totalUnread);
+
+        if (!initializedRef.current) {
+          initializedRef.current = true;
+          return;
+        }
+
+        if (newItems.length > 0) {
+          const totalNew = newItems.reduce((sum, conv) => {
+            const prev = prevMap.get(conv.id) || 0;
+            return sum + ((conv.unreadCount || 0) - prev);
+          }, 0);
+          const primaryName = newItems[0]?.profileName || newItems[0]?.phone || 'WhatsApp';
+          const message = totalNew === 1
+            ? 'Nuevo mensaje de ' + primaryName
+            : 'Nuevos mensajes (' + totalNew + ')';
+          toast(message);
+          playNotificationSound();
+        }
+      } catch (error) {
+        // Silencioso para no interrumpir la UI
+      }
+    };
+
+    pollUnread();
+    const interval = setInterval(pollUnread, 10000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
 
   return (
     <>
@@ -77,6 +179,11 @@ const Sidebar = ({ onToggle }) => {
             >
               <Icon size={20} />
               <span className="font-bold text-sm">{item.label}</span>
+              {item.path === APP_ROUTES.whatsapp && whatsappUnread > 0 && (
+                <span className="ml-auto min-w-[22px] h-[22px] px-2 inline-flex items-center justify-center rounded-full bg-red-600 text-[11px] font-black text-white">
+                  {unreadBadgeLabel}
+                </span>
+              )}
             </Link>
           );
         })}
