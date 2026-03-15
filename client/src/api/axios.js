@@ -1,13 +1,9 @@
 import axios from 'axios';
-
-const defaultApiUrl = import.meta.env.DEV
-  ? 'http://localhost:5000'
-  : 'https://kareh-backend.onrender.com';
-const rawUrl = import.meta.env.VITE_API_URL || defaultApiUrl;
-const API_URL = rawUrl.endsWith('/api') ? rawUrl : `${rawUrl.replace(/\/$/, '')}/api`;
+import { API_BASE_URL } from '../services/apiBase';
+import { ensureCsrfToken } from '../services/csrf';
 
 const instance = axios.create({
-  baseURL: API_URL,
+  baseURL: API_BASE_URL,
   timeout: 15000,
   withCredentials: true,
   headers: {
@@ -21,11 +17,20 @@ const enableFallbackMode = () => sessionStorage.setItem('auth_fallback', '1');
 const clearFallbackMode = () => sessionStorage.removeItem('auth_fallback');
 
 instance.interceptors.request.use(
-  (config) => {
+  async (config) => {
     if (isFallbackMode()) {
       const token = getFallbackToken();
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
+      }
+    }
+    const method = (config.method || 'get').toLowerCase();
+    const isMutating = ['post', 'put', 'delete', 'patch'].includes(method);
+    const isCsrfEndpoint = String(config.url || '').includes('/csrf-token');
+    if (isMutating && !isCsrfEndpoint) {
+      const csrfToken = await ensureCsrfToken();
+      if (csrfToken) {
+        config.headers['X-CSRF-Token'] = csrfToken;
       }
     }
     return config;
@@ -41,6 +46,19 @@ instance.interceptors.response.use(
       // Opcional: localStorage.removeItem('auth_token'); window.location.href = '/login';
     }
     const originalRequest = error.config;
+    if (error.response?.status === 403 && error.response?.data?.code === 'EBADCSRFTOKEN' && originalRequest && !originalRequest._csrfRetry) {
+      originalRequest._csrfRetry = true;
+      try {
+        const csrfToken = await ensureCsrfToken();
+        if (csrfToken) {
+          originalRequest.headers = originalRequest.headers || {};
+          originalRequest.headers['X-CSRF-Token'] = csrfToken;
+        }
+        return instance(originalRequest);
+      } catch {
+        // sin token, propaga el error
+      }
+    }
     if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
       originalRequest._retry = true;
       const isRefreshCall = String(originalRequest.url || '').includes('/auth/refresh');

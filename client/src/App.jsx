@@ -12,7 +12,8 @@ import LoginPage from './pages/LoginPage';
 import WhatsAppPage from './pages/WhatsAppPage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import Sidebar from './components/layout/Sidebar';
-import { API_BASE_URL } from './services/api';
+import { API_BASE_URL } from './services/apiBase';
+import { initializeCsrf } from './services/csrf';
 import { APP_ROUTES, getDocumentTitle } from './utils/appRoutes';
 import { ChevronRight } from 'lucide-react';
 
@@ -71,7 +72,10 @@ function App() {
     finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { verifyAuth(); }, [verifyAuth]);
+  useEffect(() => {
+    initializeCsrf();
+    verifyAuth();
+  }, [verifyAuth]);
 
   const toggleSidebar = useCallback(() => {
     setSidebarOpen((prev) => !prev);

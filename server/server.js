@@ -31,6 +31,7 @@ import createWhatsAppRoutes from './src/routes/whatsapp.routes.js';
 import { verifyWhatsAppWebhook, handleWhatsAppWebhook } from './src/controllers/whatsapp.controller.js';
 import { verifyToken } from './src/controllers/auth.controller.js';
 import { authMiddleware } from './src/middlewares/authMiddleware.js';
+import { csrfProtection, getCsrfToken } from './src/middlewares/csrfMiddleware.js';
 
 const isProduction = process.env.NODE_ENV === 'production';
 
@@ -72,7 +73,7 @@ app.use(cors({
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Auth-Fallback']
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Auth-Fallback', 'X-CSRF-Token']
 }));
 
 app.use(cookieParser());
@@ -92,6 +93,24 @@ app.use(helmet({
     },
 }));
 app.use(express.json({ limit: '50mb' }));
+
+// CSRF: endpoint para obtener token
+app.get('/api/csrf-token', csrfProtection, getCsrfToken);
+
+// CSRF: proteger rutas mutables (excluye webhooks/cron)
+app.use('/api', (req, res, next) => {
+    const method = req.method.toUpperCase();
+    if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') {
+        return next();
+    }
+
+    const path = req.path || '';
+    if (path.startsWith('/webhooks/whatsapp') || path.startsWith('/cron/whatsapp-reminders')) {
+        return next();
+    }
+
+    return csrfProtection(req, res, next);
+});
 
 // Log mínimo para webhook (sin datos sensibles)
 app.use('/api/webhooks/whatsapp', (req, res, next) => {
@@ -180,6 +199,9 @@ app.all('/api/*', (req, res) => {
 });
 
 app.use((err, req, res, next) => {
+    if (err?.code === 'EBADCSRFTOKEN') {
+        return res.status(403).json({ message: 'CSRF token inválido o faltante', code: 'EBADCSRFTOKEN' });
+    }
     console.error('❌ Error:', err.stack || err);
     const status = err?.statusCode && Number.isInteger(err.statusCode) ? err.statusCode : 500;
     const message = err?.message || "Error interno del servidor";

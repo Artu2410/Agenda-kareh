@@ -1,17 +1,12 @@
 import axios from 'axios';
+import { API_BASE_URL } from './apiBase';
+import { ensureCsrfToken } from './csrf';
 
 /**
  * CONFIGURACIÓN DE URL
  * Forzamos que la base siempre incluya /api para que todas las llamadas 
  * relativas funcionen automáticamente.
  */
-const defaultApiUrl = import.meta.env.DEV
-  ? 'http://localhost:5000'
-  : 'https://kareh-backend.onrender.com';
-const rawUrl = import.meta.env.VITE_API_URL || defaultApiUrl;
-// Si la URL no termina en /api, se lo agregamos. 
-export const API_BASE_URL = rawUrl.endsWith('/api') ? rawUrl : `${rawUrl.replace(/\/$/, '')}/api`;
-
 const api = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true,
@@ -27,11 +22,20 @@ const clearFallbackMode = () => sessionStorage.removeItem('auth_fallback');
 
 // Interceptor para logging/debug
 api.interceptors.request.use(
-  (config) => {
+  async (config) => {
     if (isFallbackMode()) {
       const token = getFallbackToken();
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
+      }
+    }
+    const method = (config.method || 'get').toLowerCase();
+    const isMutating = ['post', 'put', 'delete', 'patch'].includes(method);
+    const isCsrfEndpoint = String(config.url || '').includes('/csrf-token');
+    if (isMutating && !isCsrfEndpoint) {
+      const csrfToken = await ensureCsrfToken();
+      if (csrfToken) {
+        config.headers['X-CSRF-Token'] = csrfToken;
       }
     }
     // Útil para ver en consola si la URL se está armando bien
@@ -53,6 +57,19 @@ api.interceptors.response.use(
       message = error.response.data?.message || message;
     }
     const originalRequest = error.config;
+    if (error.response?.status === 403 && error.response?.data?.code === 'EBADCSRFTOKEN' && originalRequest && !originalRequest._csrfRetry) {
+      originalRequest._csrfRetry = true;
+      try {
+        const csrfToken = await ensureCsrfToken();
+        if (csrfToken) {
+          originalRequest.headers = originalRequest.headers || {};
+          originalRequest.headers['X-CSRF-Token'] = csrfToken;
+        }
+        return api(originalRequest);
+      } catch {
+        // Si no se puede regenerar, dejamos que caiga el error
+      }
+    }
     if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
       originalRequest._retry = true;
       const isRefreshCall = String(originalRequest.url || '').includes('/auth/refresh');
