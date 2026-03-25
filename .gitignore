@@ -1,0 +1,18 @@
+node_modules/
+client/node_modules/
+server/node_modules/
+
+# Local environment files
+.env
+.env.*
+!.env.example
+
+# Build artifacts
+dist/
+build/
+
+# IDE and OS specific
+.DS_Store
+.vscode/
+.qodo/
+.venv/

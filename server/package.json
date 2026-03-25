@@ -1,0 +1,49 @@
+{
+  "name": "kareh-server",
+  "version": "1.0.0",
+  "description": "Backend for KAREH medical agenda",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node scripts/bootstrap-production.js",
+    "dev": "nodemon server.js",
+    "check-whatsapp": "node check-whatsapp-config.js",
+    "whatsapp-reminders": "node scripts/whatsapp-reminders.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1005.0",
+    "@google/generative-ai": "^0.24.1",
+    "@prisma/client": "^5.22.0",
+    "prisma": "^5.22.0",
+    "bcrypt": "^6.0.0",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "csurf": "^1.11.0",
+    "date-fns": "^3.6.0",
+    "dotenv": "^17.2.3",
+    "esm": "^3.2.25",
+    "express": "^4.22.1",
+    "express-rate-limit": "^8.3.1",
+    "helmet": "^8.1.0",
+    "joi": "^18.0.2",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.1.1",
+    "nodemailer": "^8.0.1",
+    "p-queue": "^8.1.1",
+    "passport": "^0.7.0",
+    "passport-google-oauth20": "^2.0.0",
+    "pdfkit": "^0.15.2",
+    "resend": "^6.9.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  },
+  "overrides": {
+    "minimatch": "^3.1.4",
+    "qs": "^6.15.0",
+    "cookie": "^0.7.0"
+  }
+}

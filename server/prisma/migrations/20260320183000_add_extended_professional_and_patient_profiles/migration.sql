@@ -1,0 +1,20 @@
+ALTER TABLE "Patient" ADD COLUMN IF NOT EXISTS "emergencyPhone" TEXT;
+ALTER TABLE "Patient" ADD COLUMN IF NOT EXISTS "medicalHistory" TEXT;
+
+ALTER TABLE "Professional" ADD COLUMN IF NOT EXISTS "licenseNumberMP" TEXT;
+ALTER TABLE "Professional" ADD COLUMN IF NOT EXISTS "dni" TEXT;
+ALTER TABLE "Professional" ADD COLUMN IF NOT EXISTS "phone" TEXT;
+ALTER TABLE "Professional" ADD COLUMN IF NOT EXISTS "birthDate" TIMESTAMP(3);
+ALTER TABLE "Professional" ADD COLUMN IF NOT EXISTS "address" TEXT;
+ALTER TABLE "Professional" ADD COLUMN IF NOT EXISTS "emergencyPhone" TEXT;
+ALTER TABLE "Professional" ADD COLUMN IF NOT EXISTS "medicalHistory" TEXT;
+ALTER TABLE "Professional" ADD COLUMN IF NOT EXISTS "dniImageUrl" TEXT;
+ALTER TABLE "Professional" ADD COLUMN IF NOT EXISTS "dniBackImageUrl" TEXT;
+ALTER TABLE "Professional" ADD COLUMN IF NOT EXISTS "licenseMNImageUrl" TEXT;
+ALTER TABLE "Professional" ADD COLUMN IF NOT EXISTS "licenseMNBackImageUrl" TEXT;
+ALTER TABLE "Professional" ADD COLUMN IF NOT EXISTS "licenseMPImageUrl" TEXT;
+ALTER TABLE "Professional" ADD COLUMN IF NOT EXISTS "licenseMPBackImageUrl" TEXT;
+ALTER TABLE "Professional" ADD COLUMN IF NOT EXISTS "degreeImageUrl" TEXT;
+ALTER TABLE "Professional" ADD COLUMN IF NOT EXISTS "degreeBackImageUrl" TEXT;
+ALTER TABLE "Professional" ADD COLUMN IF NOT EXISTS "providerRegistryImageUrl" TEXT;
+ALTER TABLE "Professional" ADD COLUMN IF NOT EXISTS "malpracticeInsuranceImageUrl" TEXT;
