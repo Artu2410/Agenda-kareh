@@ -36,11 +36,18 @@ import { csrfProtection, getCsrfToken } from './src/middlewares/csrfMiddleware.j
 
 const isProduction = process.env.NODE_ENV === 'production';
 
+const additionalAllowedOrigins = String(process.env.CORS_ALLOWED_ORIGINS || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
 const allowedOrigins = new Set([
+    'https://agenda-kareh.vercel.app',
     'https://kareh-salud.vercel.app',
     'http://localhost:5173',
     'http://localhost:5174',
-    process.env.FRONTEND_URL
+    process.env.FRONTEND_URL,
+    ...additionalAllowedOrigins,
 ].filter(Boolean));
 
 const isAllowedOrigin = (origin) => {
@@ -53,9 +60,16 @@ const isAllowedOrigin = (origin) => {
     }
 
     try {
-        if (!isProduction) {
-            return new URL(origin).hostname.endsWith('.vercel.app');
+        const { hostname } = new URL(origin);
+
+        if (hostname === 'agenda-kareh.vercel.app' || hostname === 'kareh-salud.vercel.app') {
+            return true;
         }
+
+        if (hostname.endsWith('.vercel.app')) {
+            return hostname.startsWith('agenda-kareh-') || hostname.startsWith('kareh-salud-') || !isProduction;
+        }
+
         return false;
     } catch {
         return false;
@@ -70,6 +84,7 @@ app.use(cors({
             return callback(null, true);
         }
 
+        console.error('❌ Error de CORS para el origen:', origin);
         return callback(new Error(`Origin no permitido por CORS: ${origin}`));
     },
     credentials: true,
@@ -93,7 +108,7 @@ app.use(helmet({
         },
     },
 }));
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json({ limit: '50mb', strict: false }));
 
 // CSRF: endpoint para obtener token
 app.get('/api/csrf-token', csrfProtection, getCsrfToken);
