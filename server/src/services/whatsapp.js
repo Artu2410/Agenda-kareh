@@ -133,6 +133,19 @@ export const sendDocumentMessage = async ({ to, mediaId, filename, caption }) =>
   });
 };
 
+export const sendImageMessage = async ({ to, mediaId, caption }) => {
+  console.log('📨 Enviando imagen WhatsApp:', { to, mediaId, hasCaption: Boolean(caption) });
+  return sendMessage({
+    messaging_product: 'whatsapp',
+    to,
+    type: 'image',
+    image: {
+      id: mediaId,
+      ...(caption ? { caption } : {}),
+    },
+  });
+};
+
 export const fetchMediaInfo = async (mediaId) => {
   assertWhatsappConfig();
   const response = await fetch(buildGraphUrl(mediaId), {

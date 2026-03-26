@@ -1,12 +1,13 @@
 import React, { useState, useRef } from 'react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { X, Printer, Download } from 'lucide-react';
+import { X, Printer, Download, Loader2, Send } from 'lucide-react';
+import html2canvas from 'html2canvas';
 import api from '@/services/api';
 
 const UNKNOWN_BIRTHDATE = '1900-01-01';
 const THERMAL_WIDTH_MM = 48; // 48mm = 32 caracteres por línea (fuente monoespaciada)
-const THERMAL_PREVIEW_WIDTH_PX = 184; // 48mm preview en pixels
+const THERMAL_PREVIEW_WIDTH_PX = 350; // Aumentado de 184px a 350px para mejor legibilidad
 const CONTACT_PHONE = '+54 9 11 3201-6039';
 const CONTACT_ADDRESS = 'Av. Senador Morón 782';
 const WHATSAPP_POLICY_TEXT = 'Solo se pueden recuperar 2 sesiones avisando con 24 hs de anticipación por WhatsApp.';
@@ -496,26 +497,75 @@ const PrintSessions = ({ isOpen, onClose, appointments, patientData, diagnosis, 
     };
   };
 
+  const ticketRef = useRef(null);
+
+  const handleCaptureImage = async () => {
+    if (!ticketRef.current) {
+      alert('Error al acceder al ticket');
+      return;
+    }
+
+    try {
+      setSendingWhatsApp(true);
+      
+      // Capturar el ticket como imagen con html2canvas
+      const canvas = await html2canvas(ticketRef.current, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+      });
+
+      // Convertir canvas a blob
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.95));
+      
+      // Crear FormData con la imagen
+      const formData = new FormData();
+      formData.append('image', blob, `ticket-${appointmentId}.jpg`);
+      formData.append('appointmentId', appointmentId);
+
+      // Enviar al servidor
+      await api.post('/appointments/whatsapp-ticket-image', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      alert('✓ Ticket enviado por WhatsApp exitosamente');
+      onClose();
+    } catch (error) {
+      console.error('Error al capturar/enviar imagen:', error);
+      alert('Error: ' + (error?.response?.data?.message || error.message));
+    } finally {
+      setSendingWhatsApp(false);
+    }
+  };
+
+  const handleDownloadImage = async () => {
+    if (!ticketRef.current) return;
+
+    try {
+      const canvas = await html2canvas(ticketRef.current, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+      });
+
+      const link = document.createElement('a');
+      link.href = canvas.toDataURL('image/jpeg', 0.95);
+      link.download = `ticket-${appointmentId || 'preview'}.jpg`;
+      link.click();
+    } catch (error) {
+      alert('Error al descargar imagen: ' + error.message);
+    }
+  };
+
   const handleSendWhatsApp = async () => {
     if (!appointmentId) {
       alert('El turno todavía no está guardado.');
       return;
     }
-    try {
-      setSendingWhatsApp(true);
-      await api.post(`/appointments/${appointmentId}/whatsapp-ticket`);
-      alert('Ticket enviado por WhatsApp (link).');
-    } catch (error) {
-      const serverMessage = error?.response?.data?.message;
-      const serverDetail = error?.response?.data?.detail;
-      alert(
-        serverMessage
-          ? `${serverMessage}${serverDetail ? `\nDetalle: ${serverDetail}` : ''}`
-          : (error?.friendlyMessage || 'No se pudo enviar por WhatsApp.')
-      );
-    } finally {
-      setSendingWhatsApp(false);
-    }
+    
+    await handleCaptureImage();
   };
 
   return (
@@ -533,23 +583,24 @@ const PrintSessions = ({ isOpen, onClose, appointments, patientData, diagnosis, 
 
         <div className="flex-1 overflow-y-auto p-6 bg-slate-100/50">
           <div
-            className="mx-auto bg-white shadow-sm rounded-lg border border-slate-300 p-2 text-slate-900 text-[8px]"
-            style={{ width: `${THERMAL_PREVIEW_WIDTH_PX}px`, fontFamily: '"Courier New", monospace', lineHeight: 1.25 }}
+            ref={ticketRef}
+            className="mx-auto bg-white shadow-sm rounded-lg border border-slate-300 p-4 text-slate-900 text-[12px]"
+            style={{ width: `${THERMAL_PREVIEW_WIDTH_PX}px`, fontFamily: '"Courier New", monospace', lineHeight: 1.4 }}
           >
             {/* HEADER */}
-            <div className="text-center mb-1 pb-1 border-b-2 border-black">
-              <h1 className="text-[20px] font-black leading-none">KAREH</h1>
-              <p className="text-[6px] font-bold tracking-wider">REHABILITACIÓN</p>
+            <div className="text-center mb-2 pb-2 border-b-2 border-black">
+              <h1 className="text-[32px] font-black leading-none">KAREH</h1>
+              <p className="text-[10px] font-bold tracking-wider">REHABILITACIÓN</p>
             </div>
 
             {/* PACIENTE */}
-            <div className="mb-1">
-              <p className="text-center text-[7px] font-black uppercase mb-0.5">Paciente</p>
-              <p className="text-center text-[9px] font-black uppercase break-words">{printablePatient.fullName}</p>
+            <div className="mb-2">
+              <p className="text-center text-[11px] font-black uppercase mb-1">Paciente</p>
+              <p className="text-center text-[16px] font-black uppercase break-words">{printablePatient.fullName}</p>
             </div>
 
             {/* META DATOS */}
-            <div className="grid grid-cols-2 gap-1 mb-1 text-[7px]">
+            <div className="grid grid-cols-2 gap-2 mb-2 text-[12px]">
               <div>
                 <span className="font-black">DNI:</span>
                 <span> {printablePatient.dni}</span>
@@ -569,39 +620,39 @@ const PrintSessions = ({ isOpen, onClose, appointments, patientData, diagnosis, 
             </div>
 
             {/* BANDERAS */}
-            <div className="flex justify-between gap-1 mb-1 text-[6px] font-black border border-black px-1 py-0.5">
+            <div className="flex justify-between gap-2 mb-2 text-[11px] font-black border border-black px-2 py-1">
               <span>{printablePatient.hasCancer ? '✓ONCO' : 'ONCO'}</span>
               <span>{printablePatient.hasMarcapasos ? '✓MCP' : 'MCP'}</span>
               <span>{printablePatient.usesEA ? '✓EA' : 'EA'}</span>
             </div>
 
             {/* DIVIDER */}
-            <div className="border-t border-black my-1" />
+            <div className="border-t border-black my-2" />
 
             {/* COBERTURA */}
-            <div className="text-center text-[7px] font-black mb-1 uppercase">
+            <div className="text-center text-[11px] font-black mb-2 uppercase">
               {printablePatient.healthInsurance}
             </div>
 
             {/* DIAGNÓSTICO */}
-            <div className="mb-1">
-              <p className="text-center text-[7px] font-black mb-0.5 uppercase">Diagnóstico</p>
-              <p className="text-center text-[7px] font-bold break-words uppercase">{printableDiagnosis}</p>
+            <div className="mb-2">
+              <p className="text-center text-[11px] font-black mb-1 uppercase">Diagnóstico</p>
+              <p className="text-center text-[13px] font-bold break-words uppercase">{printableDiagnosis}</p>
             </div>
 
             {/* DIVIDER */}
-            <div className="border-t border-black my-1" />
+            <div className="border-t border-black my-2" />
 
             {/* SESIONES */}
-            <div className="text-center text-[7px] font-black mb-1 uppercase">
+            <div className="text-center text-[12px] font-black mb-2 uppercase">
               {sortedAppointments.length} Sesiones
             </div>
 
-            <p className="text-center text-[7px] font-black mb-0.5 uppercase">Cronograma</p>
-            <div className="space-y-0.5 mb-1">
+            <p className="text-center text-[11px] font-black mb-1 uppercase">Cronograma</p>
+            <div className="space-y-1 mb-2">
               {sortedAppointments.map((appt, idx) => (
-                <div key={`${appt.id || idx}-${appt.time}`} className="flex gap-1 border-b border-dotted border-black py-0.5 text-[7px] font-bold">
-                  <span className="w-3 shrink-0 text-right">{appt.sessionNumber || idx + 1}.</span>
+                <div key={`${appt.id || idx}-${appt.time}`} className="flex gap-2 border-b border-dotted border-black py-1 text-[11px] font-bold">
+                  <span className="w-4 shrink-0 text-right">{appt.sessionNumber || idx + 1}.</span>
                   <span className="flex-1">{toThermalDate(appt.date)}</span>
                   <span className="shrink-0">{appt.time || ''}</span>
                 </div>
@@ -609,26 +660,26 @@ const PrintSessions = ({ isOpen, onClose, appointments, patientData, diagnosis, 
             </div>
 
             {/* DIVIDER */}
-            <div className="border-t border-black my-1" />
+            <div className="border-t border-black my-2" />
 
             {/* POLÍTICA */}
-            <div className="text-center text-[6px] font-bold leading-tight mb-1">
+            <div className="text-center text-[10px] font-bold leading-relaxed mb-2">
               {WHATSAPP_POLICY_TEXT}
             </div>
 
             {/* DIVIDER */}
-            <div className="border-t border-dashed border-black my-1" />
+            <div className="border-t border-dashed border-black my-2" />
 
             {/* FOOTER */}
-            <div className="space-y-0.5 text-center text-[6px] font-bold">
-              <div className="flex items-center justify-center gap-0.5">
+            <div className="space-y-1 text-center text-[10px] font-bold">
+              <div className="flex items-center justify-center gap-1">
                 <WhatsAppBadge />
                 <span>{CONTACT_PHONE}</span>
               </div>
               <div>{CONTACT_ADDRESS}</div>
               <div>IG: {INSTAGRAM_HANDLE.replace('@', '')}</div>
               <div>FB: {FACEBOOK_HANDLE}</div>
-              <div className="text-[5px]">Emitido: {toIssueDate()}</div>
+              <div className="text-[9px]">Emitido: {toIssueDate()}</div>
             </div>
           </div>
         </div>
@@ -638,10 +689,18 @@ const PrintSessions = ({ isOpen, onClose, appointments, patientData, diagnosis, 
             Cerrar
           </button>
           <button
+            onClick={handleDownloadImage}
+            disabled={sendingWhatsApp}
+            className="px-6 py-3 bg-blue-600 text-white font-black rounded-2xl hover:bg-blue-700 transition-all flex items-center gap-2 shadow-xl shadow-blue-100"
+          >
+            <Download size={18} /> Descargar
+          </button>
+          <button
             onClick={handleSendWhatsApp}
             disabled={sendingWhatsApp}
             className="px-8 py-3 bg-slate-900 text-white font-black rounded-2xl hover:bg-slate-800 transition-all flex items-center gap-2 shadow-xl shadow-slate-200"
           >
+            {sendingWhatsApp ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
             {sendingWhatsApp ? 'Enviando...' : 'Enviar WhatsApp'}
           </button>
           <button

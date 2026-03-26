@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import multer from 'multer';
 import { 
   getWeekAppointments, 
   createAppointment, 
@@ -8,8 +9,21 @@ import {
   cancelFutureAppointments,
   getAppointmentBatch,
   sendWhatsAppTicket,
-  sendWhatsAppTicketDocument
+  sendWhatsAppTicketDocument,
+  sendWhatsAppTicketImage
 } from '../controllers/AppointmentController.js';
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  fileFilter: (req, file, cb) => {
+    const validMimes = ['image/jpeg', 'image/png'];
+    if (!validMimes.includes(file.mimetype)) {
+      return cb(new Error('Solo se permiten imágenes JPEG o PNG'));
+    }
+    return cb(null, true);
+  },
+});
 
 const createRouter = (prisma) => {
   const router = Router();
@@ -20,8 +34,14 @@ const createRouter = (prisma) => {
   // 2. Ticket: Obtener lote de 10 sesiones
   router.get('/:id/batch', (req, res) => getAppointmentBatch(req, res, prisma));
 
-  // 2b. Enviar ticket por WhatsApp
+  // 2b. Enviar ticket por WhatsApp (PDF)
   router.post('/:id/whatsapp-ticket', (req, res) => sendWhatsAppTicket(req, res, prisma));
+
+  // 2c. Enviar ticket como imagen por WhatsApp (html2canvas)
+  router.post('/:id/whatsapp-ticket-image', upload.single('image'), (req, res) => sendWhatsAppTicketImage(req, res, prisma));
+
+  // 2d. Enviar ticket como documento por WhatsApp
+  router.post('/:id/whatsapp-ticket-document', (req, res) => sendWhatsAppTicketDocument(req, res, prisma));
 
   // 3. Crear citas (Ciclo completo)
   router.post('/', (req, res) => createAppointment(req, res, prisma));

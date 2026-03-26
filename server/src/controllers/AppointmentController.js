@@ -1,7 +1,7 @@
 import { startOfWeek, endOfWeek, parseISO } from 'date-fns';
 import { uploadBufferToStorage } from '../services/storage.js';
 import { buildTicketPdf } from '../services/ticketPdf.js';
-import { uploadMedia, sendDocumentMessage } from '../services/whatsapp.js';
+import { uploadMedia, sendDocumentMessage, sendImageMessage } from '../services/whatsapp.js';
 import { sendWhatsAppTicketForAppointment } from '../services/whatsappTicket.js';
 import { enqueueSendWhatsAppTicket } from '../jobs/sendWhatsAppTicketJob.js';
 import {
@@ -714,5 +714,113 @@ export const getAppointmentBatch = async (req, res, prisma) => {
     res.json(batch);
   } catch (error) {
     res.status(500).json({ message: "Error al obtener sesiones para ticket" });
+  }
+};
+// 7. ENVIAR TICKET COMO IMAGEN POR WHATSAPP (CAPTURADO CON HTML2CANVAS)
+export const sendWhatsAppTicketImage = async (req, res, prisma) => {
+  const { id } = req.params;
+
+  try {
+    console.log('🖼️ Iniciando envío de ticket como imagen para appointment:', id);
+
+    // Validar que se subió archivo
+    if (!req.file) {
+      console.log('❌ Archivo de imagen no proporcionado');
+      return res.status(400).json({ message: 'Imagen requerida' });
+    }
+
+    const appointment = await prisma.appointment.findUnique({
+      where: { id },
+      select: appointmentSelect,
+    });
+
+    if (!appointment) {
+      console.log('❌ Appointment no encontrado:', id);
+      return res.status(404).json({ message: 'Turno no encontrado' });
+    }
+
+    const phone = normalizePhone(appointment.patient?.phone, true);
+    if (!phone) {
+      console.log('❌ Paciente sin teléfono válido:', appointment.patient?.phone);
+      return res.status(400).json({ message: 'El paciente no tiene teléfono válido' });
+    }
+
+    console.log('📤 Subiendo imagen a WhatsApp Cloud API...');
+
+    // Validar MIME type
+    const validMimes = ['image/jpeg', 'image/png'];
+    if (!validMimes.includes(req.file.mimetype)) {
+      console.log('❌ Tipo de archivo inválido:', req.file.mimetype);
+      return res.status(400).json({ message: 'Solo se permiten imágenes JPEG o PNG' });
+    }
+
+    // Subir imagen a S3 para almacenamiento (opcional, pero recomendado)
+    const s3Key = `thermal-tickets/appointment-${appointment.id}-${Date.now()}.jpg`;
+    try {
+      await uploadBufferToStorage(req.file.buffer, s3Key);
+      console.log('✅ Imagen almacenada en S3:', s3Key);
+    } catch (s3Error) {
+      console.warn('⚠️ Advertencia: No se pudo almacenar en S3:', s3Error.message);
+      // Continuamos sin fallar, ya que lo importante es enviar por WhatsApp
+    }
+
+    // Subir imagen a WhatsApp
+    const filename = `ticket-${appointment.id}.jpg`;
+    const uploadResult = await uploadMedia({
+      buffer: req.file.buffer,
+      filename,
+      mimeType: req.file.mimetype,
+    });
+
+    const mediaId = uploadResult?.id;
+    if (!mediaId) {
+      console.log('❌ No se obtuvo mediaId de WhatsApp:', uploadResult);
+      throw new Error('No se obtuvo mediaId de WhatsApp');
+    }
+
+    console.log('📨 Enviando imagen a WhatsApp:', phone);
+
+    // Enviar imagen
+    const caption = `🏥 Ticket - ${appointment.patient?.fullName || 'Paciente'}`;
+    await sendImageMessage({
+      to: phone,
+      mediaId,
+      caption,
+    });
+
+    // Actualizar timestamp
+    await prisma.appointment.update({
+      where: { id: appointment.id },
+      data: { whatsappTicketSentAt: new Date() },
+      select: { id: true },
+    });
+
+    console.log('✅ Ticket enviado exitosamente como imagen');
+    return res.status(200).json({ success: true, message: 'Imagen enviada por WhatsApp' });
+  } catch (error) {
+    console.error('❌ ERROR WHATSAPP TICKET IMAGE:', error);
+    console.error('Stack:', error.stack);
+    console.error('Detail:', error.detail);
+
+    let statusCode = 500;
+    let userMessage = 'Error al enviar WhatsApp';
+    let userDetail = error.detail || error.stack || error.message || String(error);
+
+    if (error.statusCode) {
+      statusCode = error.statusCode;
+    }
+
+    if (error.message?.includes('phone number')) {
+      userMessage = 'Error con el número de teléfono de WhatsApp';
+      userDetail = 'El número de teléfono no es válido.';
+    } else if (error.message?.includes('token')) {
+      userMessage = 'Error de autenticación de WhatsApp';
+      userDetail = 'El token de acceso no es válido o ha expirado.';
+    }
+
+    return res.status(statusCode).json({
+      message: userMessage,
+      detail: userDetail,
+    });
   }
 };
