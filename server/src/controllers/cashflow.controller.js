@@ -1,5 +1,19 @@
 import { appointmentBaseSelect } from '../prisma/selects.js';
 
+const BONOS_QR_CATEGORY = 'BONOS_QR';
+const looksLikeBonosQr = ({ type, paymentMethod, concept }) => {
+  if (type !== 'INCOME') return false;
+  const normalizedMethod = String(paymentMethod || '').trim().toUpperCase();
+  const normalizedConcept = String(concept || '').trim().toUpperCase();
+  return normalizedMethod === 'QR' && /(IOMA|BONO|BONOS)/.test(normalizedConcept);
+};
+
+const resolveCategory = ({ type, category, paymentMethod, concept }) => {
+  if (type !== 'INCOME') return 'GENERAL';
+  if (category === BONOS_QR_CATEGORY) return BONOS_QR_CATEGORY;
+  return looksLikeBonosQr({ type, paymentMethod, concept }) ? BONOS_QR_CATEGORY : 'GENERAL';
+};
+
 // 1. OBTENER TRANSACCIONES (Con filtros de fecha)
 export const getTransactions = async (req, res, prisma) => {
   const { startDate, endDate } = req.query;
@@ -50,7 +64,7 @@ export const createTransaction = async (req, res, prisma) => {
       data: {
         type: type, // 'INCOME' o 'EXPENSE'
         amount: parseFloat(amount),
-        category: type === 'INCOME' ? (category || 'GENERAL') : 'GENERAL',
+        category: resolveCategory({ type, category, paymentMethod, concept }),
         concept,
         paymentMethod,
         date: date ? new Date(date) : new Date(),
@@ -84,7 +98,7 @@ export const updateTransaction = async (req, res, prisma) => {
       where: { id },
       data: {
         amount: amount ? parseFloat(amount) : undefined,
-        category: type === 'INCOME' ? (category || 'GENERAL') : 'GENERAL',
+        category: resolveCategory({ type, category, paymentMethod, concept }),
         concept,
         paymentMethod,
         type,

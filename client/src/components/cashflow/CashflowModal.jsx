@@ -3,6 +3,16 @@ import { X, ArrowUp, ArrowDown } from 'lucide-react';
 
 const DEFAULT_CATEGORY = 'GENERAL';
 const BONOS_QR_CATEGORY = 'BONOS_QR';
+const resolveCategory = ({ type, category, paymentMethod, concept }) => {
+  if (type !== 'INCOME') return DEFAULT_CATEGORY;
+  if (category === BONOS_QR_CATEGORY) return BONOS_QR_CATEGORY;
+
+  const normalizedMethod = String(paymentMethod || '').trim().toUpperCase();
+  const normalizedConcept = String(concept || '').trim().toUpperCase();
+  return normalizedMethod === 'QR' && /(IOMA|BONO|BONOS)/.test(normalizedConcept)
+    ? BONOS_QR_CATEGORY
+    : DEFAULT_CATEGORY;
+};
 
 const CashflowModal = ({ isOpen, onClose, onSave, transaction }) => {
   const [type, setType] = useState('INCOME');
@@ -15,7 +25,7 @@ const CashflowModal = ({ isOpen, onClose, onSave, transaction }) => {
   if (transaction && isOpen) { // Asegurar que ambos existan
     setType(transaction.type || 'INCOME');
     setAmount(transaction.amount?.toString() || '');
-    setCategory(transaction.category || DEFAULT_CATEGORY);
+    setCategory(resolveCategory(transaction));
     setConcept(transaction.concept || '');
     setPaymentMethod(transaction.paymentMethod || 'Efectivo');
   } else {
@@ -33,6 +43,13 @@ const CashflowModal = ({ isOpen, onClose, onSave, transaction }) => {
       setCategory(DEFAULT_CATEGORY);
     }
   }, [type]);
+
+  useEffect(() => {
+    if (type !== 'INCOME' || category === BONOS_QR_CATEGORY) return;
+    if (resolveCategory({ type, category, paymentMethod, concept }) === BONOS_QR_CATEGORY) {
+      setCategory(BONOS_QR_CATEGORY);
+    }
+  }, [type, category, paymentMethod, concept]);
 
   const handleCategoryChange = (nextCategory) => {
     setCategory(nextCategory);

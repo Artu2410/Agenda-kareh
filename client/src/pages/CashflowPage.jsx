@@ -5,6 +5,18 @@ import { Plus, ArrowUp, ArrowDown, DollarSign, Trash2 } from 'lucide-react'; // 
 import CashflowModal from '../components/cashflow/CashflowModal';
 import { useConfirmModal } from '../components/ConfirmModal';
 
+const BONOS_QR_CATEGORY = 'BONOS_QR';
+const resolveCategory = (transaction) => {
+  if (transaction?.type !== 'INCOME') return 'GENERAL';
+  if (transaction?.category === BONOS_QR_CATEGORY) return BONOS_QR_CATEGORY;
+
+  const paymentMethod = String(transaction?.paymentMethod || '').trim().toUpperCase();
+  const concept = String(transaction?.concept || '').trim().toUpperCase();
+  return paymentMethod === 'QR' && /(IOMA|BONO|BONOS)/.test(concept)
+    ? BONOS_QR_CATEGORY
+    : 'GENERAL';
+};
+
 const CashflowPage = () => {
   const { ConfirmModalComponent, openModal: openConfirmModal } = useConfirmModal();
   const [transactions, setTransactions] = useState([]);
@@ -78,7 +90,7 @@ const CashflowPage = () => {
       .filter(t => t.type === 'INCOME')
       .reduce((sum, t) => sum + parseFloat(t.amount), 0);
     const bonosQr = transactions
-      .filter(t => t.type === 'INCOME' && t.category === 'BONOS_QR')
+      .filter(t => resolveCategory(t) === BONOS_QR_CATEGORY)
       .reduce((sum, t) => sum + parseFloat(t.amount), 0);
     const expense = transactions
       .filter(t => t.type === 'EXPENSE')
@@ -91,7 +103,7 @@ const CashflowPage = () => {
   }
 
   const formatCategory = (category) => {
-    if (category === 'BONOS_QR') return 'Bonos QR';
+    if (category === BONOS_QR_CATEGORY) return 'Bonos QR';
     return 'General';
   };
 
@@ -150,17 +162,19 @@ const CashflowPage = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {transactions.map(t => (
+                  {transactions.map(t => {
+                    const resolvedCategory = resolveCategory(t);
+                    return (
                     <tr key={t.id} className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer" onClick={() => openModal(t)}>
                       <td className="p-3 text-slate-600">{format(new Date(t.date), 'dd/MM/yyyy')}</td>
                       <td className="p-3 font-medium text-slate-800">{t.concept}</td>
                       <td className="p-3">
                         <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${
-                          t.category === 'BONOS_QR'
+                          resolvedCategory === BONOS_QR_CATEGORY
                             ? 'bg-cyan-100 text-cyan-800'
                             : 'bg-slate-100 text-slate-600'
                         }`}>
-                          {formatCategory(t.category)}
+                          {formatCategory(resolvedCategory)}
                         </span>
                       </td>
                       <td className="p-3 text-slate-500">{t.paymentMethod}</td>
@@ -176,11 +190,14 @@ const CashflowPage = () => {
                         </button>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
               <div className="space-y-3 md:hidden">
-                {transactions.map((transaction) => (
+                {transactions.map((transaction) => {
+                  const resolvedCategory = resolveCategory(transaction);
+                  return (
                   <article
                     key={transaction.id}
                     className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left"
@@ -195,11 +212,11 @@ const CashflowPage = () => {
                         <p className="text-xs font-semibold text-slate-500">{format(new Date(transaction.date), 'dd/MM/yyyy')}</p>
                         <div className="mt-2 flex flex-wrap items-center gap-2">
                           <span className={`inline-flex rounded-full px-2 py-1 text-[11px] font-bold ${
-                            transaction.category === 'BONOS_QR'
+                            resolvedCategory === BONOS_QR_CATEGORY
                               ? 'bg-cyan-100 text-cyan-800'
                               : 'bg-slate-200 text-slate-600'
                           }`}>
-                            {formatCategory(transaction.category)}
+                            {formatCategory(resolvedCategory)}
                           </span>
                           <p className="text-xs text-slate-500">{transaction.paymentMethod}</p>
                         </div>
@@ -216,7 +233,8 @@ const CashflowPage = () => {
                       {transaction.type === 'INCOME' ? '+' : '-'} {formatCurrency(transaction.amount)}
                     </p>
                   </article>
-                ))}
+                  );
+                })}
               </div>
               </>
             )}
