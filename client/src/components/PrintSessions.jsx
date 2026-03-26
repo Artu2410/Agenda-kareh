@@ -10,7 +10,7 @@ const THERMAL_WIDTH_MM = 48; // 48mm = 32 caracteres por línea (fuente monoespa
 const THERMAL_PREVIEW_WIDTH_PX = 350; // Aumentado de 184px a 350px para mejor legibilidad
 const CONTACT_PHONE = '+54 9 11 3201-6039';
 const CONTACT_ADDRESS = 'Av. Senador Morón 782';
-const WHATSAPP_POLICY_TEXT = 'Solo se pueden recuperar 2 sesiones avisando con 24 hs de anticipación por WhatsApp.';
+const WHATSAPP_POLICY_TEXT = 'SE RECUPERAN HASTA 2 SESIONES AVISANDO 24 hs DE ANTICIPACION POR WHATSAPP.';
 const INSTAGRAM_HANDLE = '@centro.kareh';
 const FACEBOOK_HANDLE = 'Centro Kareh';
 
@@ -499,46 +499,6 @@ const PrintSessions = ({ isOpen, onClose, appointments, patientData, diagnosis, 
 
   const ticketRef = useRef(null);
 
-  const handleCaptureImage = async () => {
-    if (!ticketRef.current) {
-      alert('Error al acceder al ticket');
-      return;
-    }
-
-    try {
-      setSendingWhatsApp(true);
-      
-      // Capturar el ticket como imagen con html2canvas
-      const canvas = await html2canvas(ticketRef.current, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        logging: false,
-      });
-
-      // Convertir canvas a blob
-      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.95));
-      
-      // Crear FormData con la imagen
-      const formData = new FormData();
-      formData.append('image', blob, `ticket-${appointmentId}.jpg`);
-      formData.append('appointmentId', appointmentId);
-
-      // Enviar al servidor
-      await api.post('/appointments/whatsapp-ticket-image', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-
-      alert('✓ Ticket enviado por WhatsApp exitosamente');
-      onClose();
-    } catch (error) {
-      console.error('Error al capturar/enviar imagen:', error);
-      alert('Error: ' + (error?.response?.data?.message || error.message));
-    } finally {
-      setSendingWhatsApp(false);
-    }
-  };
-
   const handleDownloadImage = async () => {
     if (!ticketRef.current) return;
 
@@ -564,8 +524,24 @@ const PrintSessions = ({ isOpen, onClose, appointments, patientData, diagnosis, 
       alert('El turno todavía no está guardado.');
       return;
     }
-    
-    await handleCaptureImage();
+
+    try {
+      setSendingWhatsApp(true);
+      await api.post(`/appointments/${appointmentId}/whatsapp-ticket-document`);
+      alert('✓ PDF enviado por WhatsApp exitosamente');
+      onClose();
+    } catch (error) {
+      console.error('Error al enviar PDF por WhatsApp:', error);
+      const serverMessage = error?.response?.data?.message;
+      const serverDetail = error?.response?.data?.detail;
+      alert(
+        serverMessage
+          ? `${serverMessage}${serverDetail ? `\nDetalle: ${serverDetail}` : ''}`
+          : `Error: ${error?.message || 'No se pudo enviar el PDF por WhatsApp'}`
+      );
+    } finally {
+      setSendingWhatsApp(false);
+    }
   };
 
   return (
@@ -704,7 +680,7 @@ const PrintSessions = ({ isOpen, onClose, appointments, patientData, diagnosis, 
             onMouseLeave={(e) => !sendingWhatsApp && (e.target.style.backgroundColor = '#0f172a')}
           >
             {sendingWhatsApp ? <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} /> : <Send size={18} />}
-            {sendingWhatsApp ? 'Enviando...' : 'Enviar WhatsApp'}
+            {sendingWhatsApp ? 'Enviando PDF...' : 'Enviar PDF por WhatsApp'}
           </button>
           <button
             onClick={handlePrint}

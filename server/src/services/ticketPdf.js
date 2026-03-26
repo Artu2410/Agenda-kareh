@@ -5,7 +5,7 @@ const THERMAL_PAPER_WIDTH_MM = 48; // 48mm = 32 caracteres por línea
 const THERMAL_MARGIN_MM = 2;
 const CONTACT_PHONE = '+54 9 11 3201-6039';
 const CONTACT_ADDRESS = 'Av. Senador Morón 782';
-const WHATSAPP_POLICY_TEXT = 'Solo se pueden recuperar 2 sesiones avisando con 24 hs de anticipación por WhatsApp.';
+const WHATSAPP_POLICY_TEXT = 'SE RECUPERAN HASTA 2 SESIONES AVISANDO 24 hs DE ANTICIPACION POR WHATSAPP.';
 const INSTAGRAM_HANDLE = '@centro.kareh';
 const FACEBOOK_HANDLE = 'Centro Kareh';
 
