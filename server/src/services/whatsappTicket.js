@@ -44,7 +44,8 @@ export const sendWhatsAppTicketForAppointment = async ({ prisma, appointmentId }
     throw err;
   }
 
-  const phone = normalizePhone(appointment.patient?.phone);
+  // Normalizar teléfono con prefijo 549 para WhatsApp Argentina
+  const phone = normalizePhone(appointment.patient?.phone, true);
   if (!phone) {
     const err = new Error('El paciente no tiene teléfono válido');
     err.statusCode = 400;

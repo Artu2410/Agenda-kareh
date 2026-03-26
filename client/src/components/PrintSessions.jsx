@@ -1,12 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { X, Printer } from 'lucide-react';
+import { X, Printer, Download } from 'lucide-react';
 import api from '@/services/api';
 
 const UNKNOWN_BIRTHDATE = '1900-01-01';
-const THERMAL_WIDTH_MM = 57.5;
-const THERMAL_PREVIEW_WIDTH_PX = 220;
+const THERMAL_WIDTH_MM = 48; // 48mm = 32 caracteres por línea (fuente monoespaciada)
+const THERMAL_PREVIEW_WIDTH_PX = 184; // 48mm preview en pixels
 const CONTACT_PHONE = '+54 9 11 3201-6039';
 const CONTACT_ADDRESS = 'Av. Senador Morón 782';
 const WHATSAPP_POLICY_TEXT = 'Solo se pueden recuperar 2 sesiones avisando con 24 hs de anticipación por WhatsApp.';
@@ -43,7 +43,7 @@ const toIssueDate = () => format(new Date(), "d 'de' MMMM, yyyy", { locale: es }
 const buildPrintHtml = ({ printablePatient, printableDiagnosis, sortedAppointments }) => {
   const appointmentRows = sortedAppointments.map((appt, idx) => `
     <div class="row session-row">
-      <span class="session-index">${appt.sessionNumber || idx + 1}.</span>
+      <span class="session-index">${appt.sessionNumber || idx + 1}</span>
       <span class="session-date">${toThermalDate(appt.date)}</span>
       <span class="session-time">${appt.time || ''}</span>
     </div>
@@ -52,156 +52,238 @@ const buildPrintHtml = ({ printablePatient, printableDiagnosis, sortedAppointmen
   return `
     <html>
       <head>
-        <title>KAREH - Ticket</title>
+        <meta charset="UTF-8">
+        <title>KAREH - Ticket 48mm</title>
         <style>
+          /* CONFIGURACIÓN PARA IMPRESORA TÉRMICA 48MM */
           @page {
             size: ${THERMAL_WIDTH_SAFE()}mm auto;
             margin: 0;
+            padding: 0;
           }
 
           * {
             box-sizing: border-box;
+            margin: 0;
+            padding: 0;
           }
 
           html, body {
+            width: ${THERMAL_WIDTH_SAFE()}mm;
             margin: 0;
             padding: 0;
-            width: ${THERMAL_WIDTH_SAFE()}mm;
             background: #ffffff;
-            color: #111827;
-            font-family: "Courier New", monospace;
+            color: #000000;
+            font-family: "Courier New", "Courier", monospace;
           }
 
           body {
-            padding: 3mm;
+            padding: 2.5mm;
           }
 
           .ticket {
             width: 100%;
+            font-size: 9px;
+            line-height: 1.3;
+          }
+
+          /* HEADER - TITULO PRINCIPAL */
+          .header {
+            text-align: center;
+            margin-bottom: 3mm;
+            border-bottom: 2px solid #000;
+            padding-bottom: 2mm;
+          }
+
+          .title {
+            font-size: 22px;
+            font-weight: 900;
+            letter-spacing: 1px;
+            margin-bottom: 0;
+            line-height: 1;
+          }
+
+          .subtitle {
+            font-size: 7px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            margin-top: 1mm;
+            text-transform: uppercase;
           }
 
           .center {
             text-align: center;
           }
 
-          .title {
-            font-size: 15px;
-            font-weight: 700;
-            letter-spacing: 0.4px;
-          }
-
-          .subtitle {
-            font-size: 8px;
-            margin-top: 2px;
-          }
-
           .divider {
-            border-top: 1px dashed #111827;
-            margin: 8px 0;
+            border-top: 1px solid #000;
+            margin: 2mm 0;
+            height: 0;
+          }
+
+          .divider-dashed {
+            border-top: 1px dashed #000;
+            margin: 1.5mm 0;
+            height: 0;
+          }
+
+          /* SECCIÓN PACIENTE */
+          .section {
+            margin-bottom: 2mm;
           }
 
           .section-title {
             font-size: 8px;
-            font-weight: 700;
+            font-weight: 900;
             text-align: center;
-            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 1mm;
+            border-bottom: 1px solid #000;
+            padding-bottom: 0.5mm;
           }
 
-          .patient-name,
-          .diagnosis,
-          .summary {
-            font-size: 10px;
-            font-weight: 700;
+          .patient-name {
+            font-size: 11px;
+            font-weight: 900;
             text-align: center;
             word-break: break-word;
+            margin-bottom: 1mm;
+            text-transform: uppercase;
           }
 
+          /* DATOS DE COBERTURA */
           .meta {
-            margin-top: 4px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1mm;
+            margin-bottom: 1mm;
+            font-size: 8px;
           }
 
           .meta-item {
-            margin-bottom: 4px;
+            padding: 0.5mm 0;
           }
 
           .meta-label {
             font-size: 7px;
-            font-weight: 700;
+            font-weight: 900;
             text-transform: uppercase;
+            letter-spacing: 0.3px;
+            display: block;
           }
 
           .meta-value {
             font-size: 8px;
+            font-weight: 700;
             word-break: break-word;
+            display: block;
           }
 
-          .row {
-            display: flex;
-            align-items: flex-start;
-            gap: 4px;
-            width: 100%;
-          }
-
-          .session-row {
-            border-bottom: 1px dotted #cbd5e1;
-            padding: 4px 0;
-          }
-
-          .session-index {
-            width: 12px;
-            font-size: 8px;
-            font-weight: 700;
-          }
-
-          .session-date {
-            flex: 1;
-            font-size: 8px;
-            font-weight: 700;
-          }
-
-          .session-time {
-            font-size: 8px;
-            font-weight: 700;
-            white-space: nowrap;
-          }
-
+          /* BANDERAS DE SALUD */
           .flags {
             display: flex;
-            justify-content: space-between;
-            gap: 6px;
-            margin-top: 4px;
+            justify-content: space-around;
+            gap: 1mm;
+            margin: 1mm 0;
+            padding: 0.5mm 0;
+            border: 1px solid #000;
+            border-radius: 1px;
           }
 
           .flag {
             font-size: 7px;
             font-weight: 700;
+            text-transform: uppercase;
+            flex: 1;
+            text-align: center;
+          }
+
+          /* DIAGNÓSTICO */
+          .diagnosis {
+            font-size: 9px;
+            font-weight: 700;
+            text-align: center;
+            word-break: break-word;
+            text-transform: uppercase;
+            margin-bottom: 1mm;
+          }
+
+          /* SESIONES */
+          .summary {
+            font-size: 9px;
+            font-weight: 900;
+            text-align: center;
+            text-transform: uppercase;
+            margin: 1mm 0;
+          }
+
+          .chronogram {
+            margin-bottom: 1.5mm;
+          }
+
+          .row {
+            display: grid;
+            grid-template-columns: 12px 1fr 40px;
+            gap: 2px;
+            align-items: center;
+            font-size: 8px;
+            width: 100%;
+            margin-bottom: 0.5mm;
+          }
+
+          .session-row {
+            border-bottom: 1px dotted #000;
+            padding: 0.5mm 0;
+          }
+
+          .session-index {
+            font-weight: 900;
+            text-align: left;
+          }
+
+          .session-date {
+            font-weight: 700;
+            text-align: center;
+          }
+
+          .session-time {
+            font-weight: 700;
+            text-align: right;
+            white-space: nowrap;
+          }
+
+          /* POLÍTICA Y FOOTER */
+          .policy {
+            font-size: 7px;
+            font-weight: 700;
+            text-align: center;
+            line-height: 1.3;
+            margin-bottom: 1mm;
+            padding: 0.5mm 0;
           }
 
           .footer {
             text-align: center;
             font-size: 7px;
-            margin-top: 8px;
-          }
-
-          .policy {
-            font-size: 7px;
-            font-weight: 700;
-            text-align: center;
-            line-height: 1.4;
+            margin-top: 1mm;
+            padding-top: 1mm;
+            border-top: 1px solid #000;
           }
 
           .contact-row {
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 4px;
-            margin-bottom: 3px;
+            gap: 2px;
+            margin-bottom: 0.5mm;
+            font-weight: 700;
           }
 
           .wa-badge {
             display: inline-flex;
-            width: 11px;
-            height: 11px;
+            width: 9px;
+            height: 9px;
             flex-shrink: 0;
           }
 
@@ -211,79 +293,110 @@ const buildPrintHtml = ({ printablePatient, printableDiagnosis, sortedAppointmen
             display: block;
           }
 
+          .contact-info {
+            font-weight: 700;
+            margin-bottom: 0.5mm;
+          }
+
           .social {
-            font-size: 7px;
-            margin-top: 2px;
+            font-size: 6px;
+            margin-bottom: 0.3mm;
+          }
+
+          .issue-date {
+            font-size: 6px;
+            font-weight: 700;
+            margin-top: 0.5mm;
+          }
+
+          /* PRINT MEDIA QUERY */
+          @media print {
+            body {
+              margin: 0;
+              padding: 2.5mm;
+            }
+            .ticket {
+              break-inside: avoid;
+            }
           }
         </style>
       </head>
       <body>
         <div class="ticket">
-          <div class="center">
+          <!-- HEADER -->
+          <div class="header">
             <div class="title">KAREH</div>
-            <div class="subtitle">REHABILITACION Y BIENESTAR</div>
+            <div class="subtitle">Rehabilitación y Bienestar</div>
           </div>
 
-          <div class="divider"></div>
+          <!-- PACIENTE -->
+          <div class="section">
+            <div class="section-title">Paciente</div>
+            <div class="patient-name">${printablePatient.fullName}</div>
+            
+            <div class="meta">
+              <div class="meta-item">
+                <span class="meta-label">DNI</span>
+                <span class="meta-value">${printablePatient.dni}</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Edad</span>
+                <span class="meta-value">${printablePatient.age || 'N/A'}</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">F. Nac</span>
+                <span class="meta-value">${printablePatient.birthDate}</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Afil</span>
+                <span class="meta-value">${printablePatient.affiliateNumber}</span>
+              </div>
+            </div>
 
-          <div class="section-title">PACIENTE</div>
-          <div class="patient-name">${printablePatient.fullName}</div>
-
-          <div class="meta">
-            <div class="meta-item">
-              <div class="meta-label">DNI</div>
-              <div class="meta-value">${printablePatient.dni}</div>
-            </div>
-            <div class="meta-item">
-              <div class="meta-label">TELEFONO</div>
-              <div class="meta-value">${printablePatient.phone}</div>
-            </div>
-            <div class="meta-item">
-              <div class="meta-label">NACIMIENTO</div>
-              <div class="meta-value">${printablePatient.birthDate}</div>
-            </div>
-            <div class="meta-item">
-              <div class="meta-label">COBERTURA</div>
-              <div class="meta-value">${printablePatient.healthInsurance}</div>
-            </div>
-            <div class="meta-item">
-              <div class="meta-label">AFILIADO</div>
-              <div class="meta-value">${printablePatient.affiliateNumber}</div>
+            <div class="flags">
+              <span class="flag">${printablePatient.hasCancer ? '✓ONCO' : 'ONCO'}</span>
+              <span class="flag">${printablePatient.hasMarcapasos ? '✓MCP' : 'MCP'}</span>
+              <span class="flag">${printablePatient.usesEA ? '✓EA' : 'EA'}</span>
             </div>
           </div>
 
-          <div class="flags">
-            <div class="flag">${printablePatient.hasCancer ? '[X]' : '[ ]'} ONCO</div>
-            <div class="flag">${printablePatient.hasMarcapasos ? '[X]' : '[ ]'} MCP</div>
-            <div class="flag">${printablePatient.usesEA ? '[X]' : '[ ]'} EA</div>
+          <!-- COBERTURA -->
+          <div class="divider"></div>
+          <div style="font-size: 8px; font-weight: 700; text-align: center; margin: 1mm 0; text-transform: uppercase;">
+            ${printablePatient.healthInsurance}
           </div>
 
+          <!-- DIAGNÓSTICO -->
           <div class="divider"></div>
+          <div class="section">
+            <div class="section-title">Diagnóstico</div>
+            <div class="diagnosis">${printableDiagnosis}</div>
+          </div>
 
-          <div class="section-title">DIAGNOSTICO</div>
-          <div class="diagnosis">${printableDiagnosis}</div>
-
+          <!-- CRONOGRAMA -->
           <div class="divider"></div>
+          <div class="section">
+            <div class="summary">${sortedAppointments.length} Sesiones</div>
+            <div class="section-title">Cronograma</div>
+            <div class="chronogram">
+              ${appointmentRows}
+            </div>
+          </div>
 
-          <div class="summary">${sortedAppointments.length} SESIONES PROGRAMADAS</div>
-
+          <!-- POLÍTICA Y CONTACTO -->
           <div class="divider"></div>
-
-          <div class="section-title">CRONOGRAMA</div>
-          ${appointmentRows}
-
-          <div class="divider"></div>
-
           <div class="policy">${WHATSAPP_POLICY_TEXT}</div>
 
-          <div class="divider"></div>
+          <div class="divider-dashed"></div>
 
           <div class="footer">
-            <div class="contact-row">${buildWhatsappBadgeMarkup()}<span>${CONTACT_PHONE}</span></div>
-            <div>${CONTACT_ADDRESS}</div>
-            <div class="social">Instagram: ${INSTAGRAM_HANDLE}</div>
-            <div class="social">Facebook: ${FACEBOOK_HANDLE}</div>
-            <div>Emitido el ${toIssueDate()}</div>
+            <div class="contact-row">
+              ${buildWhatsappBadgeMarkup()}<span class="contact-info">${CONTACT_PHONE}</span>
+            </div>
+            <div class="contact-info">${CONTACT_ADDRESS}</div>
+            <div class="social">IG: ${INSTAGRAM_HANDLE}</div>
+            <div class="social">FB: ${FACEBOOK_HANDLE}</div>
+            <div class="issue-date">Emitido: ${toIssueDate()}</div>
           </div>
         </div>
       </body>
@@ -329,10 +442,31 @@ const PrintSessions = ({ isOpen, onClose, appointments, patientData, diagnosis, 
       : format(date, 'dd/MM/yyyy', { locale: es });
   };
 
+  const calculateAge = (birthDate) => {
+    if (!birthDate) return null;
+    const dateString = birthDate.includes?.('T') ? birthDate.split('T')[0] : birthDate;
+    if (dateString <= UNKNOWN_BIRTHDATE) return null;
+
+    const date = birthDate.includes?.('T')
+      ? new Date(birthDate)
+      : new Date(`${dateString}T12:00:00`);
+
+    if (Number.isNaN(date.getTime())) return null;
+
+    const today = new Date();
+    let age = today.getFullYear() - date.getFullYear();
+    const month = today.getMonth() - date.getMonth();
+    if (month < 0 || (month === 0 && today.getDate() < date.getDate())) {
+      age--;
+    }
+    return age >= 0 ? age : null;
+  };
+
   const printablePatient = {
     fullName: getPatientFullName(),
     dni: patientData?.dni || 'N/A',
     phone: patientData?.phone || 'N/A',
+    age: calculateAge(patientData?.birthDate),
     birthDate: formatBirthDate(patientData?.birthDate),
     healthInsurance: patientData?.healthInsurance?.toUpperCase() || 'PARTICULAR',
     affiliateNumber: patientData?.affiliateNumber || 'N/A',
@@ -389,8 +523,8 @@ const PrintSessions = ({ isOpen, onClose, appointments, patientData, diagnosis, 
       <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-lg flex flex-col overflow-hidden border border-white/20">
         <div className="p-6 border-b flex justify-between items-center bg-slate-50/50">
           <div>
-            <h2 className="text-xl font-black text-slate-800">Vista Previa</h2>
-            <p className="text-[10px] font-bold text-teal-600 uppercase tracking-widest">Formato térmico 58 mm</p>
+            <h2 className="text-xl font-black text-slate-800">Vista Previa Térmica</h2>
+            <p className="text-[10px] font-bold text-teal-600 uppercase tracking-widest">48 mm • 32 caracteres</p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
             <X size={20} />
@@ -399,95 +533,102 @@ const PrintSessions = ({ isOpen, onClose, appointments, patientData, diagnosis, 
 
         <div className="flex-1 overflow-y-auto p-6 bg-slate-100/50">
           <div
-            className="mx-auto bg-white shadow-sm rounded-2xl border border-slate-200 p-3 text-slate-900"
-            style={{ width: `${THERMAL_PREVIEW_WIDTH_PX}px`, fontFamily: '"Courier New", monospace' }}
+            className="mx-auto bg-white shadow-sm rounded-lg border border-slate-300 p-2 text-slate-900 text-[8px]"
+            style={{ width: `${THERMAL_PREVIEW_WIDTH_PX}px`, fontFamily: '"Courier New", monospace', lineHeight: 1.25 }}
           >
-            <div className="text-center">
-              <h1 className="text-[18px] font-black tracking-tight">KAREH</h1>
-              <p className="text-[9px] font-bold tracking-[0.22em] text-slate-500">REHABILITACION Y BIENESTAR</p>
+            {/* HEADER */}
+            <div className="text-center mb-1 pb-1 border-b-2 border-black">
+              <h1 className="text-[20px] font-black leading-none">KAREH</h1>
+              <p className="text-[6px] font-bold tracking-wider">REHABILITACIÓN</p>
             </div>
 
-            <div className="my-2 border-t border-dashed border-slate-400" />
-
-            <div className="text-center">
-              <p className="text-[9px] font-black tracking-[0.22em] text-slate-500">PACIENTE</p>
-              <p className="mt-1 text-[11px] font-black break-words">{printablePatient.fullName}</p>
+            {/* PACIENTE */}
+            <div className="mb-1">
+              <p className="text-center text-[7px] font-black uppercase mb-0.5">Paciente</p>
+              <p className="text-center text-[9px] font-black uppercase break-words">{printablePatient.fullName}</p>
             </div>
 
-            <div className="mt-2 space-y-1">
+            {/* META DATOS */}
+            <div className="grid grid-cols-2 gap-1 mb-1 text-[7px]">
               <div>
-                <p className="text-[8px] font-black text-slate-500">DNI</p>
-                <p className="text-[10px] font-bold break-words">{printablePatient.dni}</p>
-              </div>
-              <div>
-                <p className="text-[8px] font-black text-slate-500">TELEFONO</p>
-                <p className="text-[10px] font-bold break-words">{printablePatient.phone}</p>
+                <span className="font-black">DNI:</span>
+                <span> {printablePatient.dni}</span>
               </div>
               <div>
-                <p className="text-[8px] font-black text-slate-500">NACIMIENTO</p>
-                <p className="text-[10px] font-bold break-words">{printablePatient.birthDate}</p>
+                <span className="font-black">EDAD:</span>
+                <span> {printablePatient.age || 'N/A'}</span>
               </div>
               <div>
-                <p className="text-[8px] font-black text-slate-500">COBERTURA</p>
-                <p className="text-[10px] font-bold break-words">{printablePatient.healthInsurance}</p>
+                <span className="font-black">F.NAC:</span>
+                <span> {printablePatient.birthDate}</span>
               </div>
               <div>
-                <p className="text-[8px] font-black text-slate-500">AFILIADO</p>
-                <p className="text-[10px] font-bold break-words">{printablePatient.affiliateNumber}</p>
+                <span className="font-black">AFIL:</span>
+                <span> {printablePatient.affiliateNumber}</span>
               </div>
             </div>
 
-            <div className="mt-2 flex justify-between gap-2 text-[8px] font-black">
-              <span>{printablePatient.hasCancer ? '[X]' : '[ ]'} ONCO</span>
-              <span>{printablePatient.hasMarcapasos ? '[X]' : '[ ]'} MCP</span>
-              <span>{printablePatient.usesEA ? '[X]' : '[ ]'} EA</span>
+            {/* BANDERAS */}
+            <div className="flex justify-between gap-1 mb-1 text-[6px] font-black border border-black px-1 py-0.5">
+              <span>{printablePatient.hasCancer ? '✓ONCO' : 'ONCO'}</span>
+              <span>{printablePatient.hasMarcapasos ? '✓MCP' : 'MCP'}</span>
+              <span>{printablePatient.usesEA ? '✓EA' : 'EA'}</span>
             </div>
 
-            <div className="my-2 border-t border-dashed border-slate-400" />
+            {/* DIVIDER */}
+            <div className="border-t border-black my-1" />
 
-            <div className="text-center">
-              <p className="text-[9px] font-black tracking-[0.22em] text-slate-500">DIAGNOSTICO</p>
-              <p className="mt-1 text-[10px] font-black break-words">{printableDiagnosis}</p>
+            {/* COBERTURA */}
+            <div className="text-center text-[7px] font-black mb-1 uppercase">
+              {printablePatient.healthInsurance}
             </div>
 
-            <div className="my-2 border-t border-dashed border-slate-400" />
-
-            <div className="text-center text-[10px] font-black">
-              {sortedAppointments.length} SESIONES PROGRAMADAS
+            {/* DIAGNÓSTICO */}
+            <div className="mb-1">
+              <p className="text-center text-[7px] font-black mb-0.5 uppercase">Diagnóstico</p>
+              <p className="text-center text-[7px] font-bold break-words uppercase">{printableDiagnosis}</p>
             </div>
 
-            <div className="my-2 border-t border-dashed border-slate-400" />
+            {/* DIVIDER */}
+            <div className="border-t border-black my-1" />
 
-            <div>
-              <p className="text-center text-[9px] font-black tracking-[0.22em] text-slate-500">CRONOGRAMA</p>
-              <div className="mt-1 space-y-1">
-                {sortedAppointments.map((appt, idx) => (
-                  <div key={`${appt.id || idx}-${appt.time}`} className="flex items-start gap-1 border-b border-dotted border-slate-200 py-1 text-[9px] font-bold">
-                    <span className="w-4 shrink-0">{appt.sessionNumber || idx + 1}.</span>
-                    <span className="flex-1">{toThermalDate(appt.date)}</span>
-                    <span className="shrink-0">{appt.time || ''}</span>
-                  </div>
-                ))}
-              </div>
+            {/* SESIONES */}
+            <div className="text-center text-[7px] font-black mb-1 uppercase">
+              {sortedAppointments.length} Sesiones
             </div>
 
-            <div className="my-2 border-t border-dashed border-slate-400" />
+            <p className="text-center text-[7px] font-black mb-0.5 uppercase">Cronograma</p>
+            <div className="space-y-0.5 mb-1">
+              {sortedAppointments.map((appt, idx) => (
+                <div key={`${appt.id || idx}-${appt.time}`} className="flex gap-1 border-b border-dotted border-black py-0.5 text-[7px] font-bold">
+                  <span className="w-3 shrink-0 text-right">{appt.sessionNumber || idx + 1}.</span>
+                  <span className="flex-1">{toThermalDate(appt.date)}</span>
+                  <span className="shrink-0">{appt.time || ''}</span>
+                </div>
+              ))}
+            </div>
 
-            <div className="text-center text-[7px] font-black leading-relaxed text-slate-700">
+            {/* DIVIDER */}
+            <div className="border-t border-black my-1" />
+
+            {/* POLÍTICA */}
+            <div className="text-center text-[6px] font-bold leading-tight mb-1">
               {WHATSAPP_POLICY_TEXT}
             </div>
 
-            <div className="my-2 border-t border-dashed border-slate-400" />
+            {/* DIVIDER */}
+            <div className="border-t border-dashed border-black my-1" />
 
-            <div className="space-y-1 text-center text-[8px] font-bold">
-              <p className="inline-flex items-center justify-center gap-1">
+            {/* FOOTER */}
+            <div className="space-y-0.5 text-center text-[6px] font-bold">
+              <div className="flex items-center justify-center gap-0.5">
                 <WhatsAppBadge />
                 <span>{CONTACT_PHONE}</span>
-              </p>
-              <p>{CONTACT_ADDRESS}</p>
-              <p>Instagram: {INSTAGRAM_HANDLE}</p>
-              <p>Facebook: {FACEBOOK_HANDLE}</p>
-              <p>Emitido el {toIssueDate()}</p>
+              </div>
+              <div>{CONTACT_ADDRESS}</div>
+              <div>IG: {INSTAGRAM_HANDLE.replace('@', '')}</div>
+              <div>FB: {FACEBOOK_HANDLE}</div>
+              <div className="text-[5px]">Emitido: {toIssueDate()}</div>
             </div>
           </div>
         </div>
