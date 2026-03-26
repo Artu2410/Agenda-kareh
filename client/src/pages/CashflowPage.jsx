@@ -73,19 +73,27 @@ const CashflowPage = () => {
   };
 
   // --- CÁLCULOS ---
-  const { totalIncome, totalExpense, balance } = useMemo(() => {
+  const { totalIncome, totalExpense, totalBonosQr, balance } = useMemo(() => {
     const income = transactions
       .filter(t => t.type === 'INCOME')
+      .reduce((sum, t) => sum + parseFloat(t.amount), 0);
+    const bonosQr = transactions
+      .filter(t => t.type === 'INCOME' && t.category === 'BONOS_QR')
       .reduce((sum, t) => sum + parseFloat(t.amount), 0);
     const expense = transactions
       .filter(t => t.type === 'EXPENSE')
       .reduce((sum, t) => sum + parseFloat(t.amount), 0);
-    return { totalIncome: income, totalExpense: expense, balance: income - expense };
+    return { totalIncome: income, totalExpense: expense, totalBonosQr: bonosQr, balance: income - expense };
   }, [transactions]);
 
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(value);
   }
+
+  const formatCategory = (category) => {
+    if (category === 'BONOS_QR') return 'Bonos QR';
+    return 'General';
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 sm:p-6">
@@ -95,11 +103,16 @@ const CashflowPage = () => {
            <h1 className="text-3xl font-bold text-slate-800">Caja Chica</h1>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
            {/* Card Ingresos */}
            <div className="bg-white p-6 rounded-2xl shadow-md flex items-center gap-4">
              <div className="p-3 bg-green-100 rounded-full"><ArrowUp className="text-green-600" size={24} /></div>
              <div><p className="text-sm text-slate-500">Ingresos Totales</p><p className="text-2xl font-bold text-slate-800">{formatCurrency(totalIncome)}</p></div>
+           </div>
+           {/* Card Bonos QR */}
+           <div className="bg-white p-6 rounded-2xl shadow-md flex items-center gap-4">
+             <div className="p-3 bg-cyan-100 rounded-full"><DollarSign className="text-cyan-700" size={24} /></div>
+             <div><p className="text-sm text-slate-500">Bonos QR</p><p className="text-2xl font-bold text-cyan-800">{formatCurrency(totalBonosQr)}</p></div>
            </div>
            {/* Card Egresos */}
            <div className="bg-white p-6 rounded-2xl shadow-md flex items-center gap-4">
@@ -130,6 +143,7 @@ const CashflowPage = () => {
                   <tr className="border-b border-slate-200 text-slate-500 text-sm uppercase">
                     <th className="p-3">Fecha</th>
                     <th className="p-3">Concepto</th>
+                    <th className="p-3">Categoría</th>
                     <th className="p-3">Método</th>
                     <th className="p-3 text-right">Monto</th>
                     <th className="p-3 text-center">Acciones</th>
@@ -140,6 +154,15 @@ const CashflowPage = () => {
                     <tr key={t.id} className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer" onClick={() => openModal(t)}>
                       <td className="p-3 text-slate-600">{format(new Date(t.date), 'dd/MM/yyyy')}</td>
                       <td className="p-3 font-medium text-slate-800">{t.concept}</td>
+                      <td className="p-3">
+                        <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${
+                          t.category === 'BONOS_QR'
+                            ? 'bg-cyan-100 text-cyan-800'
+                            : 'bg-slate-100 text-slate-600'
+                        }`}>
+                          {formatCategory(t.category)}
+                        </span>
+                      </td>
                       <td className="p-3 text-slate-500">{t.paymentMethod}</td>
                       <td className={`p-3 font-bold text-right ${t.type === 'INCOME' ? 'text-green-600' : 'text-red-600'}`}>
                         {t.type === 'INCOME' ? '+' : '-'} {formatCurrency(t.amount)}
@@ -170,7 +193,16 @@ const CashflowPage = () => {
                       >
                         <p className="text-sm font-black text-slate-800">{transaction.concept}</p>
                         <p className="text-xs font-semibold text-slate-500">{format(new Date(transaction.date), 'dd/MM/yyyy')}</p>
-                        <p className="mt-1 text-xs text-slate-500">{transaction.paymentMethod}</p>
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <span className={`inline-flex rounded-full px-2 py-1 text-[11px] font-bold ${
+                            transaction.category === 'BONOS_QR'
+                              ? 'bg-cyan-100 text-cyan-800'
+                              : 'bg-slate-200 text-slate-600'
+                          }`}>
+                            {formatCategory(transaction.category)}
+                          </span>
+                          <p className="text-xs text-slate-500">{transaction.paymentMethod}</p>
+                        </div>
                       </button>
                       <button
                         type="button"

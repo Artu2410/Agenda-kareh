@@ -39,7 +39,7 @@ export const getTransactions = async (req, res, prisma) => {
 
 // 2. FUNCIÓN GENÉRICA PARA CREAR (Base para Income/Expense)
 export const createTransaction = async (req, res, prisma) => {
-  const { amount, concept, paymentMethod, date, type } = req.body;
+  const { amount, category, concept, paymentMethod, date, type } = req.body;
 
   if (!amount || !concept || !paymentMethod || !type) {
     return res.status(400).json({ error: 'Faltan campos obligatorios (monto, concepto, método o tipo)' });
@@ -50,6 +50,7 @@ export const createTransaction = async (req, res, prisma) => {
       data: {
         type: type, // 'INCOME' o 'EXPENSE'
         amount: parseFloat(amount),
+        category: type === 'INCOME' ? (category || 'GENERAL') : 'GENERAL',
         concept,
         paymentMethod,
         date: date ? new Date(date) : new Date(),
@@ -76,13 +77,14 @@ export const addExpense = async (req, res, prisma) => {
 // 4. ACTUALIZAR TRANSACCIÓN
 export const updateTransaction = async (req, res, prisma) => {
   const { id } = req.params;
-  const { amount, concept, paymentMethod, date, type } = req.body;
+  const { amount, category, concept, paymentMethod, date, type } = req.body;
 
   try {
     const updated = await prisma.cashFlow.update({
       where: { id },
       data: {
         amount: amount ? parseFloat(amount) : undefined,
+        category: type === 'INCOME' ? (category || 'GENERAL') : 'GENERAL',
         concept,
         paymentMethod,
         type,

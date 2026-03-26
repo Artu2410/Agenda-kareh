@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { X, ArrowUp, ArrowDown } from 'lucide-react';
 
+const DEFAULT_CATEGORY = 'GENERAL';
+const BONOS_QR_CATEGORY = 'BONOS_QR';
 
 const CashflowModal = ({ isOpen, onClose, onSave, transaction }) => {
   const [type, setType] = useState('INCOME');
   const [amount, setAmount] = useState('');
+  const [category, setCategory] = useState(DEFAULT_CATEGORY);
   const [concept, setConcept] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('Efectivo');
 
@@ -12,22 +15,39 @@ const CashflowModal = ({ isOpen, onClose, onSave, transaction }) => {
   if (transaction && isOpen) { // Asegurar que ambos existan
     setType(transaction.type || 'INCOME');
     setAmount(transaction.amount?.toString() || '');
+    setCategory(transaction.category || DEFAULT_CATEGORY);
     setConcept(transaction.concept || '');
     setPaymentMethod(transaction.paymentMethod || 'Efectivo');
   } else {
     // Reset manual si no hay transacción (modo "Nuevo")
     setType('INCOME');
     setAmount('');
+    setCategory(DEFAULT_CATEGORY);
     setConcept('');
     setPaymentMethod('Efectivo');
   }
 }, [transaction, isOpen]);
+
+  useEffect(() => {
+    if (type === 'EXPENSE') {
+      setCategory(DEFAULT_CATEGORY);
+    }
+  }, [type]);
+
+  const handleCategoryChange = (nextCategory) => {
+    setCategory(nextCategory);
+    if (nextCategory === BONOS_QR_CATEGORY) {
+      setPaymentMethod('QR');
+      setConcept((current) => current.trim() ? current : 'Ingreso bonos QR');
+    }
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
     onSave({
       type,
       amount: parseFloat(amount),
+      category: type === 'INCOME' ? category : DEFAULT_CATEGORY,
       concept,
       paymentMethod,
       id: transaction ? transaction.id : undefined,
@@ -81,6 +101,25 @@ const CashflowModal = ({ isOpen, onClose, onSave, transaction }) => {
             </div>
           </div>
 
+          {type === 'INCOME' && (
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Categoría</label>
+              <select
+                value={category}
+                onChange={(e) => handleCategoryChange(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 mt-1 text-slate-700 focus:border-teal-500 focus:bg-white outline-none transition-all appearance-none cursor-pointer"
+              >
+                <option value={DEFAULT_CATEGORY}>Ingreso General</option>
+                <option value={BONOS_QR_CATEGORY}>Bonos QR</option>
+              </select>
+              {category === BONOS_QR_CATEGORY && (
+                <p className="mt-2 text-xs font-semibold text-teal-700">
+                  Se registrará dentro de Caja Chica, pero separado como ingreso de Bonos QR.
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Monto */}
           <div>
             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Monto ($)</label>
@@ -105,7 +144,7 @@ const CashflowModal = ({ isOpen, onClose, onSave, transaction }) => {
               value={concept}
               onChange={(e) => setConcept(e.target.value)}
               className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 mt-1 text-slate-700 focus:border-teal-500 focus:bg-white outline-none transition-all"
-              placeholder="Ej: Pago de sesión"
+              placeholder={category === BONOS_QR_CATEGORY ? 'Ej: Ingreso bonos QR' : 'Ej: Pago de sesión'}
               required
             />
           </div>
@@ -119,6 +158,7 @@ const CashflowModal = ({ isOpen, onClose, onSave, transaction }) => {
               className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 mt-1 text-slate-700 focus:border-teal-500 focus:bg-white outline-none transition-all appearance-none cursor-pointer"
             >
               <option value="Efectivo">Efectivo</option>
+              <option value="QR">QR</option>
               <option value="Transferencia">Transferencia</option>
               <option value="Tarjeta de Débito">Tarjeta de Débito</option>
               <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
