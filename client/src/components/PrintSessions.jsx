@@ -569,145 +569,150 @@ const PrintSessions = ({ isOpen, onClose, appointments, patientData, diagnosis, 
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex justify-center items-center z-[100] p-4">
-      <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-lg flex flex-col overflow-hidden border border-white/20">
-        <div className="p-6 border-b flex justify-between items-center bg-slate-50/50">
+    <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 100, padding: '1rem', backdropFilter: 'blur(4px)' }}>
+      <div style={{ backgroundColor: '#ffffff', borderRadius: '2.5rem', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)', width: '100%', maxWidth: '32rem', display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1px solid rgba(255, 255, 255, 0.2)' }}>
+        <div style={{ padding: '1.5rem', borderBottom: '1px solid #000000', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(15, 23, 42, 0.05)' }}>
           <div>
-            <h2 className="text-xl font-black text-slate-800">Vista Previa Térmica</h2>
-            <p className="text-[10px] font-bold text-teal-600 uppercase tracking-widest">48 mm • 32 caracteres</p>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 900, color: '#000000', marginBottom: '0.25rem' }}>Vista Previa Térmica</h2>
+            <p style={{ fontSize: '10px', fontWeight: 700, color: '#0d9488', textTransform: 'uppercase', letterSpacing: '0.1em' }}>48 mm • 32 caracteres</p>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
-            <X size={20} />
+          <button onClick={onClose} style={{ padding: '0.5rem', backgroundColor: 'transparent', border: 'none', cursor: 'pointer', borderRadius: '9999px', transition: 'all 200ms' }} onMouseEnter={(e) => e.target.style.backgroundColor = '#e2e8f0'} onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}>
+            <X size={20} color="#000000" />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 bg-slate-100/50">
+        <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem', backgroundColor: 'rgba(15, 23, 42, 0.05)' }}>
           <div
             ref={ticketRef}
-            className="mx-auto bg-white shadow-sm rounded-lg border border-slate-300 p-4 text-slate-900 text-[12px]"
-            style={{ width: `${THERMAL_PREVIEW_WIDTH_PX}px`, fontFamily: '"Courier New", monospace', lineHeight: 1.4 }}
+            style={{ margin: '0 auto', backgroundColor: '#ffffff', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)', borderRadius: '0.5rem', border: '1px solid #cbd5e1', padding: '1rem', color: '#000000', fontSize: '12px', width: `${THERMAL_PREVIEW_WIDTH_PX}px`, fontFamily: '"Courier New", monospace', lineHeight: 1.4 }}
           >
             {/* HEADER */}
-            <div className="text-center mb-2 pb-2 border-b-2 border-black">
-              <h1 className="text-[32px] font-black leading-none">KAREH</h1>
-              <p className="text-[10px] font-bold tracking-wider">REHABILITACIÓN</p>
+            <div style={{ textAlign: 'center', marginBottom: '0.5rem', paddingBottom: '0.5rem', borderBottom: '2px solid #000000' }}>
+              <h1 style={{ fontSize: '32px', fontWeight: 900, lineHeight: 1, color: '#000000' }}>KAREH</h1>
+              <p style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.05em', color: '#000000' }}>REHABILITACIÓN</p>
             </div>
 
             {/* PACIENTE */}
-            <div className="mb-2">
-              <p className="text-center text-[11px] font-black uppercase mb-1">Paciente</p>
-              <p className="text-center text-[16px] font-black uppercase break-words">{printablePatient.fullName}</p>
+            <div style={{ marginBottom: '0.5rem' }}>
+              <p style={{ textAlign: 'center', fontSize: '18px', fontWeight: 800, textTransform: 'uppercase', marginBottom: '0.25rem', color: '#000000' }}>PACIENTE:</p>
+              <p style={{ textAlign: 'center', fontSize: '24px', fontWeight: 800, textTransform: 'uppercase', wordBreak: 'break-word', color: '#000000' }}>{printablePatient.fullName}</p>
             </div>
 
             {/* META DATOS */}
-            <div className="grid grid-cols-2 gap-2 mb-2 text-[12px]">
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem', fontSize: '16px', fontWeight: 700, color: '#000000' }}>
               <div>
-                <span className="font-black">DNI:</span>
+                <span style={{ fontWeight: 800 }}>DNI:</span>
                 <span> {printablePatient.dni}</span>
               </div>
               <div>
-                <span className="font-black">EDAD:</span>
+                <span style={{ fontWeight: 800 }}>EDAD:</span>
                 <span> {printablePatient.age || 'N/A'}</span>
               </div>
               <div>
-                <span className="font-black">F.NAC:</span>
+                <span style={{ fontWeight: 800 }}>F.NAC:</span>
                 <span> {printablePatient.birthDate}</span>
               </div>
               <div>
-                <span className="font-black">AFIL:</span>
+                <span style={{ fontWeight: 800 }}>AFIL:</span>
                 <span> {printablePatient.affiliateNumber}</span>
               </div>
             </div>
 
             {/* BANDERAS */}
-            <div className="flex justify-between gap-2 mb-2 text-[11px] font-black border border-black px-2 py-1">
+            <div style={{ display: 'flex', justifyContent: 'space-around', gap: '0.5rem', margin: '0.5rem 0', padding: '0.25rem 0.5rem', border: '2px solid #000000', borderRadius: '2px', fontSize: '16px', fontWeight: 800, color: '#000000' }}>
               <span>{printablePatient.hasCancer ? '✓ONCO' : 'ONCO'}</span>
               <span>{printablePatient.hasMarcapasos ? '✓MCP' : 'MCP'}</span>
               <span>{printablePatient.usesEA ? '✓EA' : 'EA'}</span>
             </div>
 
             {/* DIVIDER */}
-            <div className="border-t border-black my-2" />
+            <div style={{ borderTop: '1px solid #000000', margin: '0.5rem 0', height: 0 }} />
 
             {/* COBERTURA */}
-            <div className="text-center text-[11px] font-black mb-2 uppercase">
+            <div style={{ textAlign: 'center', fontSize: '16px', fontWeight: 800, marginBottom: '0.5rem', textTransform: 'uppercase', color: '#000000' }}>
               {printablePatient.healthInsurance}
             </div>
 
             {/* DIAGNÓSTICO */}
-            <div className="mb-2">
-              <p className="text-center text-[11px] font-black mb-1 uppercase">Diagnóstico</p>
-              <p className="text-center text-[13px] font-bold break-words uppercase">{printableDiagnosis}</p>
+            <div style={{ marginBottom: '0.5rem' }}>
+              <p style={{ textAlign: 'center', fontSize: '18px', fontWeight: 800, marginBottom: '0.25rem', textTransform: 'uppercase', color: '#000000' }}>DIAG:</p>
+              <p style={{ textAlign: 'center', fontSize: '18px', fontWeight: 800, wordBreak: 'break-word', textTransform: 'uppercase', color: '#000000' }}>{printableDiagnosis}</p>
             </div>
 
             {/* DIVIDER */}
-            <div className="border-t border-black my-2" />
+            <div style={{ borderTop: '1px solid #000000', margin: '0.5rem 0', height: 0 }} />
 
             {/* SESIONES */}
-            <div className="text-center text-[12px] font-black mb-2 uppercase">
-              {sortedAppointments.length} Sesiones
+            <div style={{ textAlign: 'center', fontSize: '18px', fontWeight: 800, marginBottom: '0.5rem', textTransform: 'uppercase', color: '#000000' }}>
+              {sortedAppointments.length} SESIONES
             </div>
 
-            <p className="text-center text-[11px] font-black mb-1 uppercase">Cronograma</p>
-            <div className="space-y-1 mb-2">
+            <p style={{ textAlign: 'center', fontSize: '18px', fontWeight: 800, marginBottom: '0.25rem', textTransform: 'uppercase', color: '#000000' }}>CRONOGRAMA:</p>
+            <div style={{ marginBottom: '0.5rem' }}>
               {sortedAppointments.map((appt, idx) => (
-                <div key={`${appt.id || idx}-${appt.time}`} className="flex gap-2 border-b border-dotted border-black py-1 text-[11px] font-bold">
-                  <span className="w-4 shrink-0 text-right">{appt.sessionNumber || idx + 1}.</span>
-                  <span className="flex-1">{toThermalDate(appt.date)}</span>
-                  <span className="shrink-0">{appt.time || ''}</span>
+                <div key={`${appt.id || idx}-${appt.time}`} style={{ display: 'flex', gap: '0.5rem', borderBottom: '1px dotted #000000', padding: '0.25rem 0', fontSize: '16px', fontWeight: 700, color: '#000000' }}>
+                  <span style={{ width: '1rem', flexShrink: 0, textAlign: 'right', fontWeight: 800 }}>{appt.sessionNumber || idx + 1}.</span>
+                  <span style={{ flex: 1, fontWeight: 800 }}>{toThermalDate(appt.date)}</span>
+                  <span style={{ flexShrink: 0, fontWeight: 800 }}>{appt.time || ''}</span>
                 </div>
               ))}
             </div>
 
             {/* DIVIDER */}
-            <div className="border-t border-black my-2" />
+            <div style={{ borderTop: '1px solid #000000', margin: '0.5rem 0', height: 0 }} />
 
             {/* POLÍTICA */}
-            <div className="text-center text-[10px] font-bold leading-relaxed mb-2">
+            <div style={{ textAlign: 'center', fontSize: '14px', fontWeight: 700, lineHeight: 1.4, marginBottom: '0.5rem', padding: '0.25rem 0', color: '#000000' }}>
               {WHATSAPP_POLICY_TEXT}
             </div>
 
             {/* DIVIDER */}
-            <div className="border-t border-dashed border-black my-2" />
+            <div style={{ borderTop: '1px dashed #000000', margin: '0.5rem 0', height: 0 }} />
 
             {/* FOOTER */}
-            <div className="space-y-1 text-center text-[10px] font-bold">
-              <div className="flex items-center justify-center gap-1">
+            <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', textAlign: 'center', fontSize: '14px', fontWeight: 700, color: '#000000' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem', marginBottom: '0.25rem' }}>
                 <WhatsAppBadge />
-                <span>{CONTACT_PHONE}</span>
+                <span style={{ fontWeight: 800 }}>{CONTACT_PHONE}</span>
               </div>
-              <div>{CONTACT_ADDRESS}</div>
-              <div>IG: {INSTAGRAM_HANDLE.replace('@', '')}</div>
-              <div>FB: {FACEBOOK_HANDLE}</div>
-              <div className="text-[9px]">Emitido: {toIssueDate()}</div>
+              <div style={{ fontWeight: 700 }}>{CONTACT_ADDRESS}</div>
+              <div style={{ fontSize: '13px', fontWeight: 700 }}>IG: {INSTAGRAM_HANDLE.replace('@', '')}</div>
+              <div style={{ fontSize: '13px', fontWeight: 700 }}>FB: {FACEBOOK_HANDLE}</div>
+              <div style={{ fontSize: '12px', fontWeight: 700, marginTop: '0.25rem' }}>Emitido: {toIssueDate()}</div>
             </div>
           </div>
         </div>
 
-        <div className="p-6 border-t bg-white flex justify-end gap-3">
-          <button onClick={onClose} className="px-6 py-2.5 font-bold text-slate-400 hover:text-slate-600 transition-colors">
+        <div style={{ padding: '1.5rem', borderTop: '1px solid #000000', backgroundColor: '#ffffff', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+          <button onClick={onClose} style={{ padding: '0.625rem 1.5rem', fontWeight: 700, color: '#9ca3af', backgroundColor: 'transparent', border: 'none', cursor: 'pointer', transition: 'all 200ms' }} onMouseEnter={(e) => e.target.style.color = '#4b5563'} onMouseLeave={(e) => e.target.style.color = '#9ca3af'}>
             Cerrar
           </button>
           <button
             onClick={handleDownloadImage}
             disabled={sendingWhatsApp}
-            className="px-6 py-3 bg-blue-600 text-white font-black rounded-2xl hover:bg-blue-700 transition-all flex items-center gap-2 shadow-xl shadow-blue-100"
+            style={{ padding: '0.75rem 1.5rem', backgroundColor: '#2563eb', color: '#ffffff', fontWeight: 900, borderRadius: '1rem', border: 'none', cursor: sendingWhatsApp ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', boxShadow: '0 20px 25px -5px rgba(37, 99, 235, 0.1)', opacity: sendingWhatsApp ? 0.6 : 1, transition: 'all 200ms' }}
+            onMouseEnter={(e) => !sendingWhatsApp && (e.target.style.backgroundColor = '#1d4ed8')}
+            onMouseLeave={(e) => !sendingWhatsApp && (e.target.style.backgroundColor = '#2563eb')}
           >
             <Download size={18} /> Descargar
           </button>
           <button
             onClick={handleSendWhatsApp}
             disabled={sendingWhatsApp}
-            className="px-8 py-3 bg-slate-900 text-white font-black rounded-2xl hover:bg-slate-800 transition-all flex items-center gap-2 shadow-xl shadow-slate-200"
+            style={{ padding: '0.75rem 2rem', backgroundColor: '#0f172a', color: '#ffffff', fontWeight: 900, borderRadius: '1rem', border: 'none', cursor: sendingWhatsApp ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', boxShadow: '0 20px 25px -5px rgba(15, 23, 42, 0.2)', opacity: sendingWhatsApp ? 0.6 : 1, transition: 'all 200ms' }}
+            onMouseEnter={(e) => !sendingWhatsApp && (e.target.style.backgroundColor = '#0d3b66')}
+            onMouseLeave={(e) => !sendingWhatsApp && (e.target.style.backgroundColor = '#0f172a')}
           >
-            {sendingWhatsApp ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+            {sendingWhatsApp ? <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} /> : <Send size={18} />}
             {sendingWhatsApp ? 'Enviando...' : 'Enviar WhatsApp'}
           </button>
           <button
             onClick={handlePrint}
-            className="px-8 py-3 bg-teal-600 text-white font-black rounded-2xl hover:bg-teal-700 transition-all flex items-center gap-2 shadow-xl shadow-teal-100"
+            style={{ padding: '0.75rem 2rem', backgroundColor: '#0d9488', color: '#ffffff', fontWeight: 900, borderRadius: '1rem', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', boxShadow: '0 20px 25px -5px rgba(13, 148, 136, 0.1)', transition: 'all 200ms' }}
+            onMouseEnter={(e) => e.target.style.backgroundColor = '#0f766e'}
+            onMouseLeave={(e) => e.target.style.backgroundColor = '#0d9488'}
           >
-            <Printer size={18} /> Imprimir Ticket
+            <Printer size={18} /> Imprimir
           </button>
         </div>
       </div>

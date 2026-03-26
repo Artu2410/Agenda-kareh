@@ -123,6 +123,16 @@
 }
 
 /* Ocultar la octava columna (Domingo) y cualquier rastro */
+
+/* --- ANIMACIÓN SPIN PARA LOADER --- */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
 [class*="grid-cols-8"] > :nth-child(8n),
 .calendar-sunday {
   display: none !important;
