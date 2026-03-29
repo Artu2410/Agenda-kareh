@@ -55,7 +55,7 @@ const buildDefaultDays = (currentDate) =>
     hasConfiguredSchedule: false,
   }));
 
-const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedule = [], selectedProfessional = null, currentTime }) => {
+const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedule = [], selectedProfessional = null, currentTime, capacityPerSlot = 5 }) => {
   const scrollContainerRef = useRef(null);
   const getStatusMeta = (status, usesEA) => {
     if (status === 'COMPLETED') {
@@ -281,7 +281,7 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
                       </div>
                     ))}
 
-                    {isWithinConfiguredSchedule && appsInSlot.length < 5 && (
+                    {isWithinConfiguredSchedule && appsInSlot.length < capacityPerSlot && (
                       <button
                         onClick={() => onSlotClick({ date: formattedDate, time: slotTime })}
                         className="mt-auto w-full py-3 rounded-xl opacity-0 group-hover:opacity-100 bg-slate-50 text-slate-300 hover:text-teal-600 border-2 border-dashed border-slate-200 hover:border-teal-500 transition-all flex items-center justify-center"

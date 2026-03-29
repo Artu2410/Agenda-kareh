@@ -13,6 +13,7 @@ export const getAgendaConfig = async (req, res, prisma) => {
           saturdayEndTime: null,
           slotDuration: 30,
           capacityPerSlot: 5,
+          timerDurationMinutes: 25,
         },
       });
       return res.status(200).json(defaultConfig);
@@ -32,6 +33,7 @@ export const updateAgendaConfig = async (req, res, prisma) => {
     saturdayEndTime,
     slotDuration,
     capacityPerSlot,
+    timerDurationMinutes,
   } = req.body;
 
   try {
@@ -47,6 +49,7 @@ export const updateAgendaConfig = async (req, res, prisma) => {
           saturdayEndTime,
           slotDuration: slotDuration || 30,
           capacityPerSlot: capacityPerSlot || 5,
+          timerDurationMinutes: timerDurationMinutes || 25,
         },
       });
       return res.status(201).json(newConfig);
@@ -62,6 +65,7 @@ export const updateAgendaConfig = async (req, res, prisma) => {
         saturdayEndTime,
         slotDuration,
         capacityPerSlot,
+        timerDurationMinutes,
       },
     });
     res.status(200).json(updatedConfig);

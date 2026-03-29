@@ -247,6 +247,24 @@ const SettingsPage = () => {
                     Número máximo de pacientes que pueden agendarse en el mismo horario (actualmente: {agendaConfig.capacityPerSlot})
                   </p>
                 </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-slate-700">
+                    Duración base de los cronómetros (minutos)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="180"
+                    value={agendaConfig.timerDurationMinutes ?? 25}
+                    onChange={(event) => setAgendaConfig((prev) => ({ ...prev, timerDurationMinutes: parseInt(event.target.value, 10) || 1 }))}
+                    onBlur={() => updateAgendaConfig({ timerDurationMinutes: agendaConfig.timerDurationMinutes })}
+                    className="rounded-lg border border-slate-300 px-3 py-2 focus:border-teal-500 focus:ring-2 focus:ring-teal-500"
+                  />
+                  <p className="mt-1 text-xs text-slate-500">
+                    Este valor define en cuánto arrancan los cronómetros de la agenda antes de cualquier ajuste manual.
+                  </p>
+                </div>
               </div>
             ) : (
               <p className="text-slate-500">No se pudo cargar la configuración.</p>

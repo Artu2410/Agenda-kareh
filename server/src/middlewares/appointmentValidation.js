@@ -11,11 +11,11 @@ const appointmentSchema = Joi.object({
     'string.pattern.base': 'La hora debe estar en formato HH:mm.',
     'any.required': 'La hora es obligatoria.',
   }),
-  slotNumber: Joi.number().integer().min(1).max(5).required().messages({
+  slotNumber: Joi.number().integer().min(1).max(20).required().messages({
     'number.base': 'El número de slot debe ser un número.',
     'number.integer': 'El número de slot debe ser un entero.',
     'number.min': 'El número de slot debe ser al menos 1.',
-    'number.max': 'El número de slot no puede ser mayor que 5.',
+    'number.max': 'El número de slot no puede ser mayor que 20.',
     'any.required': 'El número de slot es obligatorio.',
   }),
   dni: Joi.string().pattern(/^\d{7,10}$/).required().messages({

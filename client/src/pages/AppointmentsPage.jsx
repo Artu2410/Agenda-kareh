@@ -3,9 +3,16 @@ import { format, startOfWeek, addDays, subDays, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, Loader2, UserRound, CalendarClock, Clock } from 'lucide-react';
 import WeeklyCalendarGrid from '../components/agenda/WeeklyCalendarGrid';
+import SlotTimersPanel from '../components/agenda/SlotTimersPanel';
 import AppointmentModal from '../components/AppointmentModal';
 import api from '../services/api'; 
 import toast from 'react-hot-toast';
+
+const DEFAULT_AGENDA_CONFIG = {
+  slotDuration: 30,
+  capacityPerSlot: 5,
+  timerDurationMinutes: 25,
+};
 
 const AppointmentsPage = () => {
   const [currentWeek, setCurrentWeek] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }));
@@ -17,6 +24,7 @@ const AppointmentsPage = () => {
   const [professionals, setProfessionals] = useState([]);
   const [selectedProfessionalId, setSelectedProfessionalId] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [agendaConfig, setAgendaConfig] = useState(DEFAULT_AGENDA_CONFIG);
 
   const selectedProfessional = professionals.find((professional) => professional.id === selectedProfessionalId) || null;
   const selectedWorkSchedule = selectedProfessional?.workSchedule || [];
@@ -45,6 +53,19 @@ const AppointmentsPage = () => {
     }
   }, []);
 
+  const fetchAgendaConfig = useCallback(async () => {
+    try {
+      const response = await api.get('/agenda/config');
+      setAgendaConfig((previous) => ({
+        ...previous,
+        ...(response.data || {}),
+      }));
+    } catch (error) {
+      console.error('Error fetching agenda config:', error);
+      toast.error('No se pudo cargar la configuración de agenda');
+    }
+  }, []);
+
   const fetchAppointments = useCallback(async (week) => {
     if (!week || !isValid(week)) return;
     setLoading(true);
@@ -70,6 +91,10 @@ const AppointmentsPage = () => {
   useEffect(() => {
     fetchProfessionals();
   }, [fetchProfessionals]);
+
+  useEffect(() => {
+    fetchAgendaConfig();
+  }, [fetchAgendaConfig]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -133,6 +158,13 @@ const AppointmentsPage = () => {
       </header>
 
       <main className="flex-1 overflow-auto p-3 sm:p-4">
+        <SlotTimersPanel
+          currentTime={currentTime}
+          appointments={appointments}
+          selectedProfessional={selectedProfessional}
+          agendaConfig={agendaConfig}
+        />
+
         {selectedProfessional && selectedWorkSchedule.length === 0 && (
           <div className="mb-4 flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
             <CalendarClock size={18} />
@@ -149,6 +181,7 @@ const AppointmentsPage = () => {
               workSchedule={selectedWorkSchedule}
               selectedProfessional={selectedProfessional}
               currentTime={currentTime}
+              capacityPerSlot={agendaConfig.capacityPerSlot}
             />
           </div>
         )}

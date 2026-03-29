@@ -18,7 +18,7 @@ const createAppointmentSchema = Joi.object({
         date: Joi.date().iso().required(),
         time: Joi.string().pattern(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/).required(),
         professionalId: Joi.string().required(),
-        slotNumber: Joi.number().integer().min(1).max(5).required(),
+        slotNumber: Joi.number().integer().min(1).max(20).required(),
     }).required(),
     appointmentType: Joi.string().valid('individual', 'package').required(),
     sessions: Joi.when('appointmentType', {
@@ -26,7 +26,7 @@ const createAppointmentSchema = Joi.object({
         then: Joi.array().items(Joi.object({
             date: Joi.date().iso().required(),
             time: Joi.string().pattern(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/).required(),
-            slotNumber: Joi.number().integer().min(1).max(5).required(),
+            slotNumber: Joi.number().integer().min(1).max(20).required(),
         })).length(10).required(),
         otherwise: Joi.forbidden()
     }),
