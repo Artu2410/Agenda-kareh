@@ -37,7 +37,7 @@ const isUnknownBirthDate = (birthDate) => {
 const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, selectedSlot, appointment = null, professional = null }) => {
   const [patientData, setPatientData] = useState({
     dni: '', lastName: '', firstName: '', phone: '', birthDate: '',
-    healthInsurance: 'particular', affiliateNumber: '',
+    healthInsurance: '', affiliateNumber: '',
     hasCancer: false, hasMarcapasos: false, usesEA: false,
   });
 
@@ -102,7 +102,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
         firstName: nameParts.slice(1).join(' ') || '',
         phone: p.phone || '',
         birthDate: p.birthDate && !isUnknownBirthDate(p.birthDate) ? p.birthDate.split('T')[0] : '',
-        healthInsurance: p.healthInsurance || 'particular',
+        healthInsurance: p.healthInsurance || '',
         affiliateNumber: p.affiliateNumber || '',
         hasCancer: p.hasCancer || false,
         hasMarcapasos: p.hasMarcapasos || false,
@@ -116,7 +116,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
     } else {
       setPatientData({
         dni: '', lastName: '', firstName: '', phone: '',
-        healthInsurance: 'particular', affiliateNumber: '',
+        healthInsurance: '', affiliateNumber: '',
         hasCancer: false, hasMarcapasos: false, usesEA: false,
       });
       setDiagnosis('');
@@ -144,7 +144,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
           lastName: nameParts[0] || '', firstName: nameParts.slice(1).join(' ') || '',
           dni: data.dni || prev.dni, phone: data.phone || '',
           birthDate: data.birthDate && !isUnknownBirthDate(data.birthDate) ? data.birthDate.split('T')[0] : prev.birthDate,
-          healthInsurance: data.healthInsurance || 'particular',
+          healthInsurance: data.healthInsurance || '',
           affiliateNumber: data.affiliateNumber || '',
           hasCancer: data.hasCancer || false, hasMarcapasos: data.hasMarcapasos || false, usesEA: data.usesEA || false,
         }));

@@ -116,7 +116,7 @@ export const createAppointment = async (req, res, prisma) => {
           create: { 
             dni: String(patientData.dni), 
             fullName: patientData.fullName, 
-            healthInsurance: patientData.healthInsurance || 'Particular', 
+            healthInsurance: patientData.healthInsurance || null, 
             affiliateNumber: patientData.affiliateNumber || null,
             phone: phoneToUse || null,
             birthDate: normalizeBirthDateOrUnknown(birthDateToUse),
