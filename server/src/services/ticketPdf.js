@@ -11,6 +11,7 @@ const INSTAGRAM_HANDLE = '@centro.kareh';
 const FACEBOOK_HANDLE = 'Centro Kareh';
 
 const mmToPt = (value) => value * MM_TO_PT;
+const getPrintableWidth = (doc) => doc.page.width - doc.page.margins.left - doc.page.margins.right;
 
 const formatDate = (value) => {
   if (!value) return '';
@@ -67,6 +68,19 @@ const drawSeparator = (doc) => {
   doc.moveDown(0.35);
 };
 
+const writeCenteredText = (doc, text, { font = 'Helvetica', fontSize = 7, moveDown = 0 } = {}) => {
+  doc
+    .font(font)
+    .fontSize(fontSize)
+    .text(text, doc.page.margins.left, doc.y, {
+      width: getPrintableWidth(doc),
+      align: 'center',
+    });
+
+  doc.x = doc.page.margins.left;
+  if (moveDown) doc.moveDown(moveDown);
+};
+
 const writeLabelValue = (doc, label, value) => {
   doc.font('Helvetica-Bold').fontSize(8).text(label.toUpperCase(), { continued: false });
   doc.font('Helvetica-Bold').fontSize(9.5).text(value || 'N/A');
@@ -91,6 +105,7 @@ const drawWhatsappBadge = (doc) => {
     });
   doc.restore();
   doc.moveDown(1.1);
+  doc.x = doc.page.margins.left;
 };
 
 export const buildTicketPdf = async ({ patient, professional, appointments, diagnosis }) => (
@@ -181,19 +196,14 @@ export const buildTicketPdf = async ({ patient, professional, appointments, diag
     drawSeparator(doc);
 
     // PIE - Dirección, Teléfono
-    doc.font('Helvetica-Bold').fontSize(8).text('CONTACTO', { align: 'center' });
+    writeCenteredText(doc, 'CONTACTO', { font: 'Helvetica-Bold', fontSize: 8 });
     drawWhatsappBadge(doc);
-    doc.font('Helvetica-Bold').fontSize(8).text(CONTACT_PHONE, { align: 'center' });
-    doc.moveDown(0.2);
+    writeCenteredText(doc, CONTACT_PHONE, { font: 'Helvetica-Bold', fontSize: 8, moveDown: 0.2 });
 
-    doc.font('Helvetica-Bold').fontSize(7.25).text(CONTACT_ADDRESS, { align: 'center' });
-    doc.moveDown(0.25);
+    writeCenteredText(doc, CONTACT_ADDRESS, { font: 'Helvetica-Bold', fontSize: 7.25, moveDown: 0.25 });
 
-    doc.font('Helvetica').fontSize(6.75).text(`${INSTAGRAM_HANDLE} | ${FACEBOOK_HANDLE}`, { align: 'center' });
-    doc.moveDown(0.12);
-    doc.font('Helvetica').fontSize(6.75).text(`Emitido: ${new Date().toLocaleDateString('es-AR')}`, {
-      align: 'center',
-    });
+    writeCenteredText(doc, `${INSTAGRAM_HANDLE} | ${FACEBOOK_HANDLE}`, { font: 'Helvetica', fontSize: 6.75, moveDown: 0.12 });
+    writeCenteredText(doc, `Emitido: ${new Date().toLocaleDateString('es-AR')}`, { font: 'Helvetica', fontSize: 6.75 });
 
     doc.end();
   })

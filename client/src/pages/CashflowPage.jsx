@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import instance from '../api/axios';
 import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 import { Plus, ArrowUp, ArrowDown, DollarSign, Trash2 } from 'lucide-react'; // Añadí Trash2
 import CashflowModal from '../components/cashflow/CashflowModal';
 import { useConfirmModal } from '../components/ConfirmModal';
@@ -98,6 +99,46 @@ const CashflowPage = () => {
     return { totalIncome: income, totalExpense: expense, totalBonosQr: bonosQr, balance: income - expense };
   }, [transactions]);
 
+  const monthlyGroups = useMemo(() => {
+    const groups = new Map();
+
+    [...transactions]
+      .sort((left, right) => new Date(right.date) - new Date(left.date))
+      .forEach((transaction) => {
+        const transactionDate = new Date(transaction.date);
+        const monthKey = format(transactionDate, 'yyyy-MM');
+
+        if (!groups.has(monthKey)) {
+          groups.set(monthKey, {
+            key: monthKey,
+            label: format(transactionDate, 'MMMM yyyy', { locale: es }),
+            items: [],
+            totalIncome: 0,
+            totalExpense: 0,
+            totalBonosQr: 0,
+          });
+        }
+
+        const monthGroup = groups.get(monthKey);
+        monthGroup.items.push(transaction);
+
+        const amount = parseFloat(transaction.amount) || 0;
+        if (transaction.type === 'INCOME') {
+          monthGroup.totalIncome += amount;
+          if (resolveCategory(transaction) === BONOS_QR_CATEGORY) {
+            monthGroup.totalBonosQr += amount;
+          }
+        } else {
+          monthGroup.totalExpense += amount;
+        }
+      });
+
+    return Array.from(groups.values()).map((group) => ({
+      ...group,
+      balance: group.totalIncome - group.totalExpense,
+    }));
+  }, [transactions]);
+
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(value);
   }
@@ -138,108 +179,158 @@ const CashflowPage = () => {
            </div>
         </div>
 
-        {/* Transactions Table */}
+        {/* Transactions by Month */}
         <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-md">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="text-xl font-bold text-slate-700">Historial de Movimientos</h2>
+            <div>
+              <h2 className="text-xl font-bold text-slate-700">Caja organizada por mes</h2>
+              <p className="text-sm font-medium text-slate-400">
+                Cada bloque resume los números del negocio en su propio mes.
+              </p>
+            </div>
             <button onClick={() => openModal()} className="flex w-full items-center justify-center gap-2 rounded-lg bg-teal-600 px-4 py-2 font-bold text-white transition-all hover:bg-teal-700 sm:w-auto">
               <Plus size={18} /> Nuevo Movimiento
             </button>
           </div>
-          
-          <div className="overflow-x-auto">
+ 
+          <div>
             {loading ? <p className="text-center p-4">Cargando...</p> : (
-              <>
-              <table className="hidden w-full text-left md:table">
-                <thead>
-                  <tr className="border-b border-slate-200 text-slate-500 text-sm uppercase">
-                    <th className="p-3">Fecha</th>
-                    <th className="p-3">Concepto</th>
-                    <th className="p-3">Categoría</th>
-                    <th className="p-3">Método</th>
-                    <th className="p-3 text-right">Monto</th>
-                    <th className="p-3 text-center">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {transactions.map(t => {
-                    const resolvedCategory = resolveCategory(t);
-                    return (
-                    <tr key={t.id} className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer" onClick={() => openModal(t)}>
-                      <td className="p-3 text-slate-600">{format(new Date(t.date), 'dd/MM/yyyy')}</td>
-                      <td className="p-3 font-medium text-slate-800">{t.concept}</td>
-                      <td className="p-3">
-                        <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${
-                          resolvedCategory === BONOS_QR_CATEGORY
-                            ? 'bg-cyan-100 text-cyan-800'
-                            : 'bg-slate-100 text-slate-600'
-                        }`}>
-                          {formatCategory(resolvedCategory)}
-                        </span>
-                      </td>
-                      <td className="p-3 text-slate-500">{t.paymentMethod}</td>
-                      <td className={`p-3 font-bold text-right ${t.type === 'INCOME' ? 'text-green-600' : 'text-red-600'}`}>
-                        {t.type === 'INCOME' ? '+' : '-'} {formatCurrency(t.amount)}
-                      </td>
-                      <td className="p-3 text-center">
-                        <button 
-                          onClick={(e) => handleDeleteTransaction(e, t.id)}
-                          className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                      </td>
-                    </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-              <div className="space-y-3 md:hidden">
-                {transactions.map((transaction) => {
-                  const resolvedCategory = resolveCategory(transaction);
-                  return (
-                  <article
-                    key={transaction.id}
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <button
-                        type="button"
-                        onClick={() => openModal(transaction)}
-                        className="min-w-0 flex-1 text-left"
-                      >
-                        <p className="text-sm font-black text-slate-800">{transaction.concept}</p>
-                        <p className="text-xs font-semibold text-slate-500">{format(new Date(transaction.date), 'dd/MM/yyyy')}</p>
-                        <div className="mt-2 flex flex-wrap items-center gap-2">
-                          <span className={`inline-flex rounded-full px-2 py-1 text-[11px] font-bold ${
-                            resolvedCategory === BONOS_QR_CATEGORY
-                              ? 'bg-cyan-100 text-cyan-800'
-                              : 'bg-slate-200 text-slate-600'
-                          }`}>
-                            {formatCategory(resolvedCategory)}
-                          </span>
-                          <p className="text-xs text-slate-500">{transaction.paymentMethod}</p>
+              <div className="space-y-6">
+                {monthlyGroups.map((group) => (
+                  <section key={group.key} className="overflow-hidden rounded-[1.75rem] border border-slate-200 bg-slate-50/80">
+                    <div className="border-b border-slate-200 bg-white px-4 py-4 sm:px-5">
+                      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                        <div>
+                          <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400">Mes contable</p>
+                          <h3 className="mt-1 text-2xl font-black capitalize text-slate-900">{group.label}</h3>
+                          <p className="mt-1 text-sm font-semibold text-slate-500">
+                            {group.items.length} movimiento{group.items.length === 1 ? '' : 's'} registrados
+                          </p>
                         </div>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(event) => handleDeleteTransaction(event, transaction.id)}
-                        className="rounded-full p-2 text-red-400 hover:bg-red-50 hover:text-red-600"
-                      >
-                        <Trash2 size={18} />
-                      </button>
+
+                        <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+                          <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3">
+                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-500">Ingresos</p>
+                            <p className="mt-1 text-lg font-black text-emerald-700">{formatCurrency(group.totalIncome)}</p>
+                          </div>
+                          <div className="rounded-2xl border border-cyan-100 bg-cyan-50 px-4 py-3">
+                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-500">Bonos QR</p>
+                            <p className="mt-1 text-lg font-black text-cyan-700">{formatCurrency(group.totalBonosQr)}</p>
+                          </div>
+                          <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3">
+                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-rose-500">Egresos</p>
+                            <p className="mt-1 text-lg font-black text-rose-700">{formatCurrency(group.totalExpense)}</p>
+                          </div>
+                          <div className="rounded-2xl border border-slate-200 bg-slate-900 px-4 py-3">
+                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Balance</p>
+                            <p className={`mt-1 text-lg font-black ${group.balance >= 0 ? 'text-teal-300' : 'text-rose-300'}`}>
+                              {formatCurrency(group.balance)}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    <p className={`mt-3 text-lg font-black ${transaction.type === 'INCOME' ? 'text-green-600' : 'text-red-600'}`}>
-                      {transaction.type === 'INCOME' ? '+' : '-'} {formatCurrency(transaction.amount)}
-                    </p>
-                  </article>
-                  );
-                })}
+
+                    <div className="hidden overflow-x-auto md:block">
+                      <table className="w-full text-left">
+                        <thead>
+                          <tr className="border-b border-slate-200 text-[11px] uppercase tracking-wider text-slate-500">
+                            <th className="p-3">Fecha</th>
+                            <th className="p-3">Concepto</th>
+                            <th className="p-3">Categoría</th>
+                            <th className="p-3">Método</th>
+                            <th className="p-3 text-right">Monto</th>
+                            <th className="p-3 text-center">Acciones</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {group.items.map((transaction) => {
+                            const resolvedCategory = resolveCategory(transaction);
+                            return (
+                              <tr
+                                key={transaction.id}
+                                className="border-b border-slate-100 bg-white/70 hover:bg-white cursor-pointer"
+                                onClick={() => openModal(transaction)}
+                              >
+                                <td className="p-3 text-slate-600">{format(new Date(transaction.date), 'dd/MM/yyyy')}</td>
+                                <td className="p-3 font-medium text-slate-800">{transaction.concept}</td>
+                                <td className="p-3">
+                                  <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${
+                                    resolvedCategory === BONOS_QR_CATEGORY
+                                      ? 'bg-cyan-100 text-cyan-800'
+                                      : 'bg-slate-100 text-slate-600'
+                                  }`}>
+                                    {formatCategory(resolvedCategory)}
+                                  </span>
+                                </td>
+                                <td className="p-3 text-slate-500">{transaction.paymentMethod}</td>
+                                <td className={`p-3 text-right font-bold ${transaction.type === 'INCOME' ? 'text-green-600' : 'text-red-600'}`}>
+                                  {transaction.type === 'INCOME' ? '+' : '-'} {formatCurrency(transaction.amount)}
+                                </td>
+                                <td className="p-3 text-center">
+                                  <button
+                                    onClick={(event) => handleDeleteTransaction(event, transaction.id)}
+                                    className="rounded-full p-2 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                                  >
+                                    <Trash2 size={18} />
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="space-y-3 p-4 md:hidden">
+                      {group.items.map((transaction) => {
+                        const resolvedCategory = resolveCategory(transaction);
+                        return (
+                          <article
+                            key={transaction.id}
+                            className="w-full rounded-2xl border border-slate-200 bg-white p-4 text-left"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <button
+                                type="button"
+                                onClick={() => openModal(transaction)}
+                                className="min-w-0 flex-1 text-left"
+                              >
+                                <p className="text-sm font-black text-slate-800">{transaction.concept}</p>
+                                <p className="text-xs font-semibold text-slate-500">{format(new Date(transaction.date), 'dd/MM/yyyy')}</p>
+                                <div className="mt-2 flex flex-wrap items-center gap-2">
+                                  <span className={`inline-flex rounded-full px-2 py-1 text-[11px] font-bold ${
+                                    resolvedCategory === BONOS_QR_CATEGORY
+                                      ? 'bg-cyan-100 text-cyan-800'
+                                      : 'bg-slate-200 text-slate-600'
+                                  }`}>
+                                    {formatCategory(resolvedCategory)}
+                                  </span>
+                                  <p className="text-xs text-slate-500">{transaction.paymentMethod}</p>
+                                </div>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(event) => handleDeleteTransaction(event, transaction.id)}
+                                className="rounded-full p-2 text-red-400 hover:bg-red-50 hover:text-red-600"
+                              >
+                                <Trash2 size={18} />
+                              </button>
+                            </div>
+                            <p className={`mt-3 text-lg font-black ${transaction.type === 'INCOME' ? 'text-green-600' : 'text-red-600'}`}>
+                              {transaction.type === 'INCOME' ? '+' : '-'} {formatCurrency(transaction.amount)}
+                            </p>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  </section>
+                ))}
               </div>
-              </>
             )}
+
             {!loading && transactions.length === 0 && (
-              <p className="text-center text-slate-500 p-8">No hay movimientos registrados.</p>
+              <p className="p-8 text-center text-slate-500">No hay movimientos registrados.</p>
             )}
           </div>
         </div>
