@@ -1,7 +1,4 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
-import { RotateCcw } from 'lucide-react';
 
 const DEFAULT_CAPACITY_PER_SLOT = 5;
 const DEFAULT_TIMER_DURATION_MINUTES = 25;
@@ -51,13 +48,6 @@ const normalizeStoredTimers = (storedTimers, timerCount, defaultSeconds) =>
     };
   });
 
-const getStatusCopy = (status) => {
-  if (status === 'active') return 'Activo';
-  if (status === 'paused') return 'Pausado';
-  if (status === 'finished') return 'Terminado';
-  return 'Listo';
-};
-
 const getTimerBoxClasses = (status) => {
   if (status === 'active') {
     return 'border-emerald-500 bg-emerald-400 text-slate-950 shadow-[0_0_24px_rgba(16,185,129,0.4)] hover:border-emerald-400';
@@ -74,13 +64,14 @@ const getTimerBoxClasses = (status) => {
   return 'border-slate-900 bg-white text-slate-900 shadow-[0_10px_24px_-18px_rgba(15,23,42,0.6)] hover:border-slate-700';
 };
 
-const SlotTimersPanel = ({ currentTime, appointments = [], selectedProfessional = null, agendaConfig = null }) => {
+const SlotTimersPanel = ({ currentTime, appointments = [], agendaConfig = null }) => {
   const slotDurationMinutes = Math.max(1, Number(agendaConfig?.slotDuration) || DEFAULT_SLOT_DURATION_MINUTES);
   const configuredCapacity = Math.max(1, Number(agendaConfig?.capacityPerSlot) || DEFAULT_CAPACITY_PER_SLOT);
   const defaultDurationMinutes = Math.max(1, Number(agendaConfig?.timerDurationMinutes) || DEFAULT_TIMER_DURATION_MINUTES);
   const defaultSeconds = defaultDurationMinutes * 60;
 
-  const todayKey = format(currentTime || new Date(), 'yyyy-MM-dd');
+  const baseDate = currentTime || new Date();
+  const todayKey = `${baseDate.getFullYear()}-${String(baseDate.getMonth() + 1).padStart(2, '0')}-${String(baseDate.getDate()).padStart(2, '0')}`;
   const currentMinutes = (currentTime?.getHours?.() || 0) * 60 + (currentTime?.getMinutes?.() || 0);
   const currentSlotTime = formatMinutesToTime(Math.floor(currentMinutes / slotDurationMinutes) * slotDurationMinutes);
 
@@ -98,11 +89,12 @@ const SlotTimersPanel = ({ currentTime, appointments = [], selectedProfessional 
     return Math.max(configuredCapacity, highestOccupiedSlot, 1);
   }, [configuredCapacity, currentSlotAppointments]);
 
-  const appointmentBySlot = useMemo(() => (
-    new Map(currentSlotAppointments.map((appointment) => [appointment.slotNumber, appointment]))
-  ), [currentSlotAppointments]);
+  const appointmentBySlot = useMemo(
+    () => new Map(currentSlotAppointments.map((appointment) => [appointment.slotNumber, appointment])),
+    [currentSlotAppointments]
+  );
 
-  const storageKey = `${STORAGE_NAMESPACE}:${selectedProfessional?.id || 'global'}:${todayKey}:${currentSlotTime}:${timerCount}`;
+  const storageKey = `${STORAGE_NAMESPACE}:${todayKey}:${currentSlotTime}:${timerCount}`;
   const [timers, setTimers] = useState(() => createTimers(timerCount, defaultSeconds));
   const [hydratedStorageKey, setHydratedStorageKey] = useState('');
 
@@ -170,47 +162,18 @@ const SlotTimersPanel = ({ currentTime, appointments = [], selectedProfessional 
     });
   };
 
-  const handleResetAll = () => {
-    setTimers(createTimers(timerCount, defaultSeconds));
-  };
-
   return (
-    <section className="mb-4 overflow-hidden rounded-[2rem] border border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(20,184,166,0.08),_transparent_42%),linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] shadow-sm">
-      <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <p className="text-[11px] font-black uppercase tracking-[0.26em] text-teal-600">Cronómetros de Sesión</p>
-          <h2 className="mt-1 text-lg font-black uppercase italic text-slate-900">
-            {selectedProfessional?.fullName || 'Agenda general'}
-          </h2>
-          <p className="mt-1 text-sm font-semibold text-slate-500">
-            Franja actual {currentSlotTime} • {format(currentTime || new Date(), "EEEE d 'de' MMMM", { locale: es })} • {currentSlotAppointments.length}/{timerCount} ocupados
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={handleResetAll}
-            className="inline-flex items-center gap-2 rounded-2xl border border-slate-300 bg-slate-900 px-4 py-2 text-sm font-black uppercase tracking-wide text-white transition-colors hover:bg-slate-700"
-          >
-            <RotateCcw size={16} />
-            Reiniciar todos
-          </button>
-        </div>
-      </div>
-
-      <div className="overflow-x-auto px-4 py-4 sm:px-6">
+    <section className="mb-4 overflow-x-auto px-3 py-2 sm:px-4">
+      <div className="inline-flex min-w-max rounded-[1.4rem] border border-slate-200 bg-white/90 px-3 py-3 shadow-sm">
         <div className="flex min-w-max gap-3 pb-1">
           {timers.map((timer) => {
             const hasAppointment = appointmentBySlot.has(timer.slotNumber);
-            const appointment = appointmentBySlot.get(timer.slotNumber);
 
             return (
               <button
                 type="button"
                 key={`${storageKey}-${timer.slotNumber}`}
                 onClick={() => handleToggleTimer(timer.slotNumber)}
-                title={`Slot ${timer.slotNumber} • ${getStatusCopy(timer.status)} • ${appointment?.patient?.fullName || 'Libre'} • ${formatCountdown(timer.remainingSeconds)}`}
                 className={`relative flex h-[72px] w-[72px] shrink-0 flex-col items-center justify-center rounded-[1.1rem] border-[4px] font-black transition-all ${getTimerBoxClasses(timer.status)}`}
               >
                 {hasAppointment && (
