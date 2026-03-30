@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import instance from '../api/axios';
-import { Clock, Edit, Loader2, Plus } from 'lucide-react';
+import { Check, Clock, Edit, Loader2, Plus } from 'lucide-react';
 import ProfessionalModal from '../components/settings/ProfessionalModal';
 import ScheduleModal from '../components/settings/ScheduleModal';
 
@@ -20,6 +20,7 @@ const SettingsPage = () => {
   const [error, setError] = useState(null);
   const [agendaConfig, setAgendaConfig] = useState(null);
   const [configLoading, setConfigLoading] = useState(false);
+  const [agendaSaving, setAgendaSaving] = useState(false);
   const [isProfessionalModalOpen, setIsProfessionalModalOpen] = useState(false);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [selectedProfessional, setSelectedProfessional] = useState(null);
@@ -50,16 +51,22 @@ const SettingsPage = () => {
     }
   };
 
-  const updateAgendaConfig = async (updates) => {
+  const updateAgendaConfig = async () => {
+    if (!agendaConfig) return;
+
     try {
-      setConfigLoading(true);
-      const response = await instance.put('/agenda/config', updates);
+      setAgendaSaving(true);
+      const payload = {
+        capacityPerSlot: Math.max(1, Number(agendaConfig.capacityPerSlot) || 1),
+        timerDurationMinutes: Math.max(1, Number(agendaConfig.timerDurationMinutes) || 1),
+      };
+      const response = await instance.put('/agenda/config', payload);
       setAgendaConfig(response.data);
     } catch (err) {
       console.error('Error al actualizar configuración:', err);
-      alert('Error al guardar la configuración');
+      alert(err.response?.data?.message || 'Error al guardar la configuración');
     } finally {
-      setConfigLoading(false);
+      setAgendaSaving(false);
     }
   };
 
@@ -118,6 +125,11 @@ const SettingsPage = () => {
     setIsScheduleModalOpen(false);
     setSelectedProfessional(null);
     await fetchProfessionals();
+  };
+
+  const handleAgendaInputChange = (field, fallbackValue = 1) => (event) => {
+    const nextValue = Math.max(1, parseInt(event.target.value, 10) || fallbackValue);
+    setAgendaConfig((prev) => ({ ...prev, [field]: nextValue }));
   };
 
   return (
@@ -239,8 +251,7 @@ const SettingsPage = () => {
                     min="1"
                     max="20"
                     value={agendaConfig.capacityPerSlot}
-                    onChange={(event) => setAgendaConfig((prev) => ({ ...prev, capacityPerSlot: parseInt(event.target.value, 10) || 1 }))}
-                    onBlur={() => updateAgendaConfig({ capacityPerSlot: agendaConfig.capacityPerSlot })}
+                    onChange={handleAgendaInputChange('capacityPerSlot')}
                     className="rounded-lg border border-slate-300 px-3 py-2 focus:border-teal-500 focus:ring-2 focus:ring-teal-500"
                   />
                   <p className="mt-1 text-xs text-slate-500">
@@ -257,13 +268,24 @@ const SettingsPage = () => {
                     min="1"
                     max="180"
                     value={agendaConfig.timerDurationMinutes ?? 25}
-                    onChange={(event) => setAgendaConfig((prev) => ({ ...prev, timerDurationMinutes: parseInt(event.target.value, 10) || 1 }))}
-                    onBlur={() => updateAgendaConfig({ timerDurationMinutes: agendaConfig.timerDurationMinutes })}
+                    onChange={handleAgendaInputChange('timerDurationMinutes', 25)}
                     className="rounded-lg border border-slate-300 px-3 py-2 focus:border-teal-500 focus:ring-2 focus:ring-teal-500"
                   />
                   <p className="mt-1 text-xs text-slate-500">
                     Este valor define en cuánto arrancan los cronómetros de la agenda antes de cualquier ajuste manual.
                   </p>
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={updateAgendaConfig}
+                    disabled={agendaSaving}
+                    className="inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2.5 font-bold text-white shadow-lg shadow-teal-600/20 transition-all hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {agendaSaving ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
+                    {agendaSaving ? 'Actualizando...' : 'Actualizar cambios'}
+                  </button>
                 </div>
               </div>
             ) : (

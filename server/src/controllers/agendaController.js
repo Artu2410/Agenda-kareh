@@ -1,3 +1,42 @@
+const DEFAULT_AGENDA_CONFIG = {
+  weekdayStartTime: '08:00',
+  weekdayEndTime: '18:00',
+  saturdayEnabled: false,
+  saturdayStartTime: null,
+  saturdayEndTime: null,
+  slotDuration: 30,
+  capacityPerSlot: 5,
+  timerDurationMinutes: 25,
+};
+
+const toOptionalInteger = (value) => {
+  if (value === undefined || value === null || value === '') return undefined;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return undefined;
+  return Math.trunc(parsed);
+};
+
+const buildAgendaConfigData = (input = {}) => {
+  const data = {};
+
+  if (input.weekdayStartTime !== undefined) data.weekdayStartTime = input.weekdayStartTime;
+  if (input.weekdayEndTime !== undefined) data.weekdayEndTime = input.weekdayEndTime;
+  if (input.saturdayEnabled !== undefined) data.saturdayEnabled = input.saturdayEnabled;
+  if (input.saturdayStartTime !== undefined) data.saturdayStartTime = input.saturdayStartTime;
+  if (input.saturdayEndTime !== undefined) data.saturdayEndTime = input.saturdayEndTime;
+
+  const slotDuration = toOptionalInteger(input.slotDuration);
+  if (slotDuration !== undefined) data.slotDuration = Math.max(1, slotDuration);
+
+  const capacityPerSlot = toOptionalInteger(input.capacityPerSlot);
+  if (capacityPerSlot !== undefined) data.capacityPerSlot = Math.max(1, capacityPerSlot);
+
+  const timerDurationMinutes = toOptionalInteger(input.timerDurationMinutes);
+  if (timerDurationMinutes !== undefined) data.timerDurationMinutes = Math.max(1, timerDurationMinutes);
+
+  return data;
+};
+
 export const getAgendaConfig = async (req, res, prisma) => {
   try {
     // Asumimos que hay una sola config global
@@ -5,16 +44,7 @@ export const getAgendaConfig = async (req, res, prisma) => {
     if (!config) {
       // Crear config por defecto si no existe
       const defaultConfig = await prisma.agendaConfig.create({
-        data: {
-          weekdayStartTime: '08:00',
-          weekdayEndTime: '18:00',
-          saturdayEnabled: false,
-          saturdayStartTime: null,
-          saturdayEndTime: null,
-          slotDuration: 30,
-          capacityPerSlot: 5,
-          timerDurationMinutes: 25,
-        },
+        data: DEFAULT_AGENDA_CONFIG,
       });
       return res.status(200).json(defaultConfig);
     }
@@ -25,48 +55,28 @@ export const getAgendaConfig = async (req, res, prisma) => {
 };
 
 export const updateAgendaConfig = async (req, res, prisma) => {
-  const {
-    weekdayStartTime,
-    weekdayEndTime,
-    saturdayEnabled,
-    saturdayStartTime,
-    saturdayEndTime,
-    slotDuration,
-    capacityPerSlot,
-    timerDurationMinutes,
-  } = req.body;
-
   try {
+    const updates = buildAgendaConfigData(req.body);
+
     // Asumimos que hay una sola config global
     const existingConfig = await prisma.agendaConfig.findFirst();
     if (!existingConfig) {
       const newConfig = await prisma.agendaConfig.create({
         data: {
-          weekdayStartTime: weekdayStartTime || '08:00',
-          weekdayEndTime: weekdayEndTime || '18:00',
-          saturdayEnabled: saturdayEnabled ?? false,
-          saturdayStartTime,
-          saturdayEndTime,
-          slotDuration: slotDuration || 30,
-          capacityPerSlot: capacityPerSlot || 5,
-          timerDurationMinutes: timerDurationMinutes || 25,
+          ...DEFAULT_AGENDA_CONFIG,
+          ...updates,
         },
       });
       return res.status(201).json(newConfig);
     }
 
+    if (Object.keys(updates).length === 0) {
+      return res.status(200).json(existingConfig);
+    }
+
     const updatedConfig = await prisma.agendaConfig.update({
       where: { id: existingConfig.id },
-      data: {
-        weekdayStartTime,
-        weekdayEndTime,
-        saturdayEnabled,
-        saturdayStartTime,
-        saturdayEndTime,
-        slotDuration,
-        capacityPerSlot,
-        timerDurationMinutes,
-      },
+      data: updates,
     });
     res.status(200).json(updatedConfig);
   } catch (error) {
