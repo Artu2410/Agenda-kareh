@@ -24,14 +24,49 @@ const formatCountdown = (seconds) => {
   return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
 };
 
-const createTimers = (count, defaultSeconds) =>
-  Array.from({ length: count }, (_, index) => ({
+const createTimers = (defaultSecondsBySlot) =>
+  defaultSecondsBySlot.map((defaultSeconds, index) => ({
     slotNumber: index + 1,
     remainingSeconds: defaultSeconds,
     status: 'idle',
   }));
 
-const normalizeStoredTimers = (storedTimers, timerCount, defaultSeconds) =>
+const normalizeTimerDurations = (durations, count, fallbackMinutes) =>
+  Array.from({ length: count }, (_, index) => ({
+    slotNumber: index + 1,
+    minutes: Math.max(1, Number(durations?.[index]) || fallbackMinutes),
+  })).map((item) => item.minutes);
+
+const normalizeStoredTimers = (storedTimers, timerDefaultSecondsBySlot) =>
+  timerDefaultSecondsBySlot.map((defaultSeconds, index) => {
+    const slotNumber = index + 1;
+    const storedTimer = storedTimers?.[index];
+    const remainingSeconds = Number.isFinite(storedTimer?.remainingSeconds)
+      ? Math.max(0, Math.floor(storedTimer.remainingSeconds))
+      : defaultSeconds;
+    const status = ['idle', 'active', 'paused', 'finished'].includes(storedTimer?.status)
+      ? storedTimer.status
+      : 'idle';
+
+    return {
+      slotNumber,
+      remainingSeconds,
+      status: remainingSeconds === 0 && status === 'active' ? 'finished' : status,
+    };
+  });
+
+const getDefaultSecondsForSlot = (timerDefaultSecondsBySlot, slotNumber) =>
+  timerDefaultSecondsBySlot[slotNumber - 1] || timerDefaultSecondsBySlot[0] || (DEFAULT_TIMER_DURATION_MINUTES * 60);
+
+const getStorageSignature = (timerDurations) => timerDurations.join('-');
+
+const formatStoredTimers = (timers) => timers.map((timer) => ({
+  slotNumber: timer.slotNumber,
+  remainingSeconds: timer.remainingSeconds,
+  status: timer.status,
+}));
+
+const normalizeStoredTimersLegacy = (storedTimers, timerCount, defaultSeconds) =>
   Array.from({ length: timerCount }, (_, index) => {
     const storedTimer = storedTimers?.[index];
     const remainingSeconds = Number.isFinite(storedTimer?.remainingSeconds)
@@ -68,7 +103,6 @@ const SlotTimersPanel = ({ currentTime, appointments = [], agendaConfig = null }
   const slotDurationMinutes = Math.max(1, Number(agendaConfig?.slotDuration) || DEFAULT_SLOT_DURATION_MINUTES);
   const configuredCapacity = Math.max(1, Number(agendaConfig?.capacityPerSlot) || DEFAULT_CAPACITY_PER_SLOT);
   const defaultDurationMinutes = Math.max(1, Number(agendaConfig?.timerDurationMinutes) || DEFAULT_TIMER_DURATION_MINUTES);
-  const defaultSeconds = defaultDurationMinutes * 60;
 
   const baseDate = currentTime || new Date();
   const todayKey = `${baseDate.getFullYear()}-${String(baseDate.getMonth() + 1).padStart(2, '0')}-${String(baseDate.getDate()).padStart(2, '0')}`;
@@ -94,31 +128,44 @@ const SlotTimersPanel = ({ currentTime, appointments = [], agendaConfig = null }
     [currentSlotAppointments]
   );
 
-  const storageKey = `${STORAGE_NAMESPACE}:${todayKey}:${currentSlotTime}:${timerCount}`;
-  const [timers, setTimers] = useState(() => createTimers(timerCount, defaultSeconds));
+  const timerDurations = useMemo(
+    () => normalizeTimerDurations(agendaConfig?.timerDurations, timerCount, defaultDurationMinutes),
+    [agendaConfig?.timerDurations, timerCount, defaultDurationMinutes]
+  );
+  const timerDefaultSecondsBySlot = useMemo(
+    () => timerDurations.map((minutes) => minutes * 60),
+    [timerDurations]
+  );
+
+  const storageKey = `${STORAGE_NAMESPACE}:${todayKey}:${currentSlotTime}:${timerCount}:${getStorageSignature(timerDurations)}`;
+  const [timers, setTimers] = useState(() => createTimers(timerDefaultSecondsBySlot));
   const [hydratedStorageKey, setHydratedStorageKey] = useState('');
 
   useEffect(() => {
     try {
       const rawState = window.localStorage.getItem(storageKey);
       if (!rawState) {
-        setTimers(createTimers(timerCount, defaultSeconds));
+        setTimers(createTimers(timerDefaultSecondsBySlot));
         setHydratedStorageKey(storageKey);
         return;
       }
 
       const parsedState = JSON.parse(rawState);
-      setTimers(normalizeStoredTimers(parsedState, timerCount, defaultSeconds));
+      if (Array.isArray(parsedState)) {
+        setTimers(normalizeStoredTimers(parsedState, timerDefaultSecondsBySlot));
+      } else {
+        setTimers(normalizeStoredTimersLegacy([], timerCount, timerDefaultSecondsBySlot[0] || (DEFAULT_TIMER_DURATION_MINUTES * 60)));
+      }
       setHydratedStorageKey(storageKey);
     } catch {
-      setTimers(createTimers(timerCount, defaultSeconds));
+      setTimers(createTimers(timerDefaultSecondsBySlot));
       setHydratedStorageKey(storageKey);
     }
-  }, [storageKey, timerCount, defaultSeconds]);
+  }, [storageKey, timerCount, timerDefaultSecondsBySlot]);
 
   useEffect(() => {
     if (hydratedStorageKey !== storageKey) return;
-    window.localStorage.setItem(storageKey, JSON.stringify(timers));
+    window.localStorage.setItem(storageKey, JSON.stringify(formatStoredTimers(timers)));
   }, [hydratedStorageKey, storageKey, timers]);
 
   const hasActiveTimer = useMemo(
@@ -151,7 +198,11 @@ const SlotTimersPanel = ({ currentTime, appointments = [], agendaConfig = null }
   const handleToggleTimer = (slotNumber) => {
     updateTimer(slotNumber, (timer) => {
       if (timer.remainingSeconds <= 0) {
-        return { ...timer, remainingSeconds: defaultSeconds, status: 'active' };
+        return {
+          ...timer,
+          remainingSeconds: getDefaultSecondsForSlot(timerDefaultSecondsBySlot, slotNumber),
+          status: 'active',
+        };
       }
 
       if (timer.status === 'active') {

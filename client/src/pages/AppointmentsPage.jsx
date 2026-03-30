@@ -12,6 +12,7 @@ const DEFAULT_AGENDA_CONFIG = {
   slotDuration: 30,
   capacityPerSlot: 5,
   timerDurationMinutes: 25,
+  timerDurations: [],
 };
 
 const AppointmentsPage = () => {

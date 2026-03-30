@@ -4,6 +4,25 @@ import { Check, Clock, Edit, Loader2, Plus } from 'lucide-react';
 import ProfessionalModal from '../components/settings/ProfessionalModal';
 import ScheduleModal from '../components/settings/ScheduleModal';
 
+const DEFAULT_TIMER_DURATION_MINUTES = 25;
+const normalizePositiveInteger = (value, fallbackValue = 1) => Math.max(1, parseInt(value, 10) || fallbackValue);
+const buildTimerDurations = (capacityPerSlot, fallbackMinutes, currentDurations = []) =>
+  Array.from({ length: capacityPerSlot }, (_, index) => normalizePositiveInteger(currentDurations[index], fallbackMinutes));
+
+const normalizeAgendaConfig = (config) => {
+  if (!config) return null;
+
+  const capacityPerSlot = normalizePositiveInteger(config.capacityPerSlot, 5);
+  const timerDurationMinutes = normalizePositiveInteger(config.timerDurationMinutes, DEFAULT_TIMER_DURATION_MINUTES);
+
+  return {
+    ...config,
+    capacityPerSlot,
+    timerDurationMinutes,
+    timerDurations: buildTimerDurations(capacityPerSlot, timerDurationMinutes, config.timerDurations),
+  };
+};
+
 const dayLabels = {
   0: 'Dom',
   1: 'Lun',
@@ -43,7 +62,7 @@ const SettingsPage = () => {
     try {
       setConfigLoading(true);
       const response = await instance.get('/agenda/config');
-      setAgendaConfig(response.data);
+      setAgendaConfig(normalizeAgendaConfig(response.data));
     } catch (err) {
       console.error('Error al cargar configuración de agenda:', err);
     } finally {
@@ -59,9 +78,14 @@ const SettingsPage = () => {
       const payload = {
         capacityPerSlot: Math.max(1, Number(agendaConfig.capacityPerSlot) || 1),
         timerDurationMinutes: Math.max(1, Number(agendaConfig.timerDurationMinutes) || 1),
+        timerDurations: buildTimerDurations(
+          Math.max(1, Number(agendaConfig.capacityPerSlot) || 1),
+          Math.max(1, Number(agendaConfig.timerDurationMinutes) || 1),
+          agendaConfig.timerDurations
+        ),
       };
       const response = await instance.put('/agenda/config', payload);
-      setAgendaConfig(response.data);
+      setAgendaConfig(normalizeAgendaConfig(response.data));
     } catch (err) {
       console.error('Error al actualizar configuración:', err);
       alert(err.response?.data?.message || 'Error al guardar la configuración');
@@ -128,8 +152,32 @@ const SettingsPage = () => {
   };
 
   const handleAgendaInputChange = (field, fallbackValue = 1) => (event) => {
-    const nextValue = Math.max(1, parseInt(event.target.value, 10) || fallbackValue);
-    setAgendaConfig((prev) => ({ ...prev, [field]: nextValue }));
+    const nextValue = normalizePositiveInteger(event.target.value, fallbackValue);
+    setAgendaConfig((prev) => {
+      if (!prev) return prev;
+
+      const nextConfig = { ...prev, [field]: nextValue };
+      const nextCapacity = field === 'capacityPerSlot' ? nextValue : normalizePositiveInteger(nextConfig.capacityPerSlot, 5);
+      const nextBaseDuration = field === 'timerDurationMinutes' ? nextValue : normalizePositiveInteger(nextConfig.timerDurationMinutes, DEFAULT_TIMER_DURATION_MINUTES);
+
+      nextConfig.capacityPerSlot = nextCapacity;
+      nextConfig.timerDurationMinutes = nextBaseDuration;
+      nextConfig.timerDurations = buildTimerDurations(nextCapacity, nextBaseDuration, prev.timerDurations);
+      return nextConfig;
+    });
+  };
+
+  const handleTimerDurationChange = (slotIndex) => (event) => {
+    const nextValue = normalizePositiveInteger(event.target.value, agendaConfig?.timerDurationMinutes || DEFAULT_TIMER_DURATION_MINUTES);
+    setAgendaConfig((prev) => {
+      if (!prev) return prev;
+      const nextDurations = buildTimerDurations(prev.capacityPerSlot, prev.timerDurationMinutes, prev.timerDurations);
+      nextDurations[slotIndex] = nextValue;
+      return {
+        ...prev,
+        timerDurations: nextDurations,
+      };
+    });
   };
 
   return (
@@ -274,6 +322,32 @@ const SettingsPage = () => {
                   <p className="mt-1 text-xs text-slate-500">
                     Este valor define en cuánto arrancan los cronómetros de la agenda antes de cualquier ajuste manual.
                   </p>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-slate-700">
+                    Duración por cronómetro
+                  </label>
+                  <p className="mb-3 text-xs text-slate-500">
+                    Ajusta cada slot de forma independiente. Si quieres, puedes dejar uno en 20 min y otro en 30 min.
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {(agendaConfig.timerDurations || []).map((duration, index) => (
+                      <div key={`timer-duration-${index}`} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <label className="mb-2 block text-xs font-black uppercase tracking-[0.2em] text-slate-500">
+                          Cronómetro {index + 1}
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="180"
+                          value={duration}
+                          onChange={handleTimerDurationChange(index)}
+                          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-bold focus:border-teal-500 focus:ring-2 focus:ring-teal-500"
+                        />
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="pt-2">

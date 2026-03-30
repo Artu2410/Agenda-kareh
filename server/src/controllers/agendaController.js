@@ -7,6 +7,7 @@ const DEFAULT_AGENDA_CONFIG = {
   slotDuration: 30,
   capacityPerSlot: 5,
   timerDurationMinutes: 25,
+  timerDurations: [],
 };
 
 const toOptionalInteger = (value) => {
@@ -33,6 +34,14 @@ const buildAgendaConfigData = (input = {}) => {
 
   const timerDurationMinutes = toOptionalInteger(input.timerDurationMinutes);
   if (timerDurationMinutes !== undefined) data.timerDurationMinutes = Math.max(1, timerDurationMinutes);
+
+  if (input.timerDurations !== undefined) {
+    const rawDurations = Array.isArray(input.timerDurations) ? input.timerDurations : [];
+    data.timerDurations = rawDurations
+      .map((value) => toOptionalInteger(value))
+      .filter((value) => value !== undefined)
+      .map((value) => Math.max(1, value));
+  }
 
   return data;
 };

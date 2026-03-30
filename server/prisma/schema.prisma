@@ -23,6 +23,7 @@ model AgendaConfig {
   slotDuration      Int      @default(30)
   capacityPerSlot   Int      @default(5)
   timerDurationMinutes Int   @default(25)
+  timerDurations    Int[]    @default([])
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 }
