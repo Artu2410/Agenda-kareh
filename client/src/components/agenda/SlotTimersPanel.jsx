@@ -42,7 +42,7 @@ const normalizeStoredTimers = (storedTimers, timerDefaultSecondsBySlot) =>
     const slotNumber = index + 1;
     const storedTimer = storedTimers?.[index];
     const remainingSeconds = Number.isFinite(storedTimer?.remainingSeconds)
-      ? Math.max(0, Math.floor(storedTimer.remainingSeconds))
+      ? Math.floor(storedTimer.remainingSeconds)
       : defaultSeconds;
     const status = ['idle', 'active', 'paused', 'finished'].includes(storedTimer?.status)
       ? storedTimer.status
@@ -51,7 +51,7 @@ const normalizeStoredTimers = (storedTimers, timerDefaultSecondsBySlot) =>
     return {
       slotNumber,
       remainingSeconds,
-      status: remainingSeconds === 0 && status === 'active' ? 'finished' : status,
+      status: remainingSeconds <= 0 && status === 'active' ? 'finished' : status,
     };
   });
 
@@ -70,7 +70,7 @@ const normalizeStoredTimersLegacy = (storedTimers, timerCount, defaultSeconds) =
   Array.from({ length: timerCount }, (_, index) => {
     const storedTimer = storedTimers?.[index];
     const remainingSeconds = Number.isFinite(storedTimer?.remainingSeconds)
-      ? Math.max(0, Math.floor(storedTimer.remainingSeconds))
+      ? Math.floor(storedTimer.remainingSeconds)
       : defaultSeconds;
     const status = ['idle', 'active', 'paused', 'finished'].includes(storedTimer?.status)
       ? storedTimer.status
@@ -79,7 +79,7 @@ const normalizeStoredTimersLegacy = (storedTimers, timerCount, defaultSeconds) =
     return {
       slotNumber: index + 1,
       remainingSeconds,
-      status: remainingSeconds === 0 && status === 'active' ? 'finished' : status,
+      status: remainingSeconds <= 0 && status === 'active' ? 'finished' : status,
     };
   });
 
@@ -97,6 +97,25 @@ const getTimerBoxClasses = (status) => {
   }
 
   return 'border-slate-900 bg-white text-slate-900 shadow-[0_10px_24px_-18px_rgba(15,23,42,0.6)] hover:border-slate-700';
+};
+
+const getConsumedSeconds = (timer, timerDefaultSecondsBySlot) => {
+  const defaultSeconds = getDefaultSecondsForSlot(timerDefaultSecondsBySlot, timer.slotNumber);
+  return Math.max(0, defaultSeconds - Math.max(timer.remainingSeconds, 0));
+};
+
+const getTimerMeta = (timer, timerDefaultSecondsBySlot) => {
+  if (timer.status === 'finished' && timer.remainingSeconds < 0) {
+    return {
+      label: 'Atraso',
+      value: `+${formatCountdown(Math.abs(timer.remainingSeconds))}`,
+    };
+  }
+
+  return {
+    label: 'Consumido',
+    value: formatCountdown(getConsumedSeconds(timer, timerDefaultSecondsBySlot)),
+  };
 };
 
 const SlotTimersPanel = ({ currentTime, appointments = [], agendaConfig = null }) => {
@@ -168,26 +187,33 @@ const SlotTimersPanel = ({ currentTime, appointments = [], agendaConfig = null }
     window.localStorage.setItem(storageKey, JSON.stringify(formatStoredTimers(timers)));
   }, [hydratedStorageKey, storageKey, timers]);
 
-  const hasActiveTimer = useMemo(
-    () => timers.some((timer) => timer.status === 'active'),
+  const hasRunningTimer = useMemo(
+    () => timers.some((timer) => timer.status === 'active' || timer.status === 'finished'),
     [timers]
   );
 
   useEffect(() => {
-    if (!hasActiveTimer) return undefined;
+    if (!hasRunningTimer) return undefined;
 
     const intervalId = window.setInterval(() => {
       setTimers((previousTimers) => previousTimers.map((timer) => {
-        if (timer.status !== 'active') return timer;
-        if (timer.remainingSeconds <= 1) {
-          return { ...timer, remainingSeconds: 0, status: 'finished' };
+        if (timer.status === 'active') {
+          const nextRemainingSeconds = timer.remainingSeconds - 1;
+          return {
+            ...timer,
+            remainingSeconds: nextRemainingSeconds,
+            status: nextRemainingSeconds <= 0 ? 'finished' : 'active',
+          };
         }
-        return { ...timer, remainingSeconds: timer.remainingSeconds - 1 };
+        if (timer.status === 'finished') {
+          return { ...timer, remainingSeconds: timer.remainingSeconds - 1 };
+        }
+        return timer;
       }));
     }, 1000);
 
     return () => window.clearInterval(intervalId);
-  }, [hasActiveTimer]);
+  }, [hasRunningTimer]);
 
   const updateTimer = (slotNumber, updater) => {
     setTimers((previousTimers) => previousTimers.map((timer) => (
@@ -219,18 +245,21 @@ const SlotTimersPanel = ({ currentTime, appointments = [], agendaConfig = null }
         <div className="flex min-w-max gap-3 pb-1">
           {timers.map((timer) => {
             const hasAppointment = appointmentBySlot.has(timer.slotNumber);
+            const timerMeta = getTimerMeta(timer, timerDefaultSecondsBySlot);
 
             return (
               <button
                 type="button"
                 key={`${storageKey}-${timer.slotNumber}`}
                 onClick={() => handleToggleTimer(timer.slotNumber)}
-                className={`relative flex h-[72px] w-[72px] shrink-0 flex-col items-center justify-center rounded-[1.1rem] border-[4px] font-black transition-all ${getTimerBoxClasses(timer.status)}`}
+                className={`relative flex h-[92px] w-[84px] shrink-0 flex-col items-center justify-center rounded-[1.1rem] border-[4px] px-1 font-black transition-all ${getTimerBoxClasses(timer.status)}`}
               >
                 {hasAppointment && (
                   <span className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-slate-950/80" />
                 )}
                 <span className="text-[28px] leading-none">{timer.slotNumber}</span>
+                <span className="mt-2 text-[9px] font-black uppercase tracking-[0.16em] opacity-80">{timerMeta.label}</span>
+                <span className="text-[11px] font-black leading-tight">{timerMeta.value}</span>
               </button>
             );
           })}

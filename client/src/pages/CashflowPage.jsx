@@ -18,6 +18,22 @@ const resolveCategory = (transaction) => {
     : 'GENERAL';
 };
 
+const MonthlyMetricChip = ({ label, value, tone = 'slate', highlight = false }) => {
+  const toneClasses = {
+    emerald: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    cyan: 'border-cyan-200 bg-cyan-50 text-cyan-700',
+    rose: 'border-rose-200 bg-rose-50 text-rose-700',
+    slate: 'border-slate-200 bg-slate-100 text-slate-700',
+  };
+
+  return (
+    <div className={`rounded-full border px-3 py-2 ${highlight ? 'bg-slate-900 text-white border-slate-900' : toneClasses[tone] || toneClasses.slate}`}>
+      <p className={`text-[10px] font-black uppercase tracking-[0.18em] ${highlight ? 'text-slate-300' : ''}`}>{label}</p>
+      <p className="mt-1 text-sm font-black">{value}</p>
+    </div>
+  );
+};
+
 const CashflowPage = () => {
   const { ConfirmModalComponent, openModal: openConfirmModal } = useConfirmModal();
   const [transactions, setTransactions] = useState([]);
@@ -208,25 +224,15 @@ const CashflowPage = () => {
                           </p>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-                          <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3">
-                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-500">Ingresos</p>
-                            <p className="mt-1 text-lg font-black text-emerald-700">{formatCurrency(group.totalIncome)}</p>
-                          </div>
-                          <div className="rounded-2xl border border-cyan-100 bg-cyan-50 px-4 py-3">
-                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-500">Bonos QR</p>
-                            <p className="mt-1 text-lg font-black text-cyan-700">{formatCurrency(group.totalBonosQr)}</p>
-                          </div>
-                          <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3">
-                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-rose-500">Egresos</p>
-                            <p className="mt-1 text-lg font-black text-rose-700">{formatCurrency(group.totalExpense)}</p>
-                          </div>
-                          <div className="rounded-2xl border border-slate-200 bg-slate-900 px-4 py-3">
-                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Balance</p>
-                            <p className={`mt-1 text-lg font-black ${group.balance >= 0 ? 'text-teal-300' : 'text-rose-300'}`}>
-                              {formatCurrency(group.balance)}
-                            </p>
-                          </div>
+                        <div className="flex flex-wrap items-center justify-start gap-2 lg:max-w-[32rem] lg:justify-end">
+                          <MonthlyMetricChip label="Ingresos" value={formatCurrency(group.totalIncome)} tone="emerald" />
+                          <MonthlyMetricChip label="Bonos QR" value={formatCurrency(group.totalBonosQr)} tone="cyan" />
+                          <MonthlyMetricChip label="Egresos" value={formatCurrency(group.totalExpense)} tone="rose" />
+                          <MonthlyMetricChip
+                            label="Balance"
+                            value={formatCurrency(group.balance)}
+                            highlight
+                          />
                         </div>
                       </div>
                     </div>
