@@ -14,23 +14,18 @@ const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
 const WELCOME_TEMPLATE = process.env.WHATSAPP_WELCOME_TEMPLATE || 'bienvenida_kareh';
 const HOLA_TEMPLATE = process.env.WHATSAPP_HOLA_TEMPLATE || 'bienvenida_kareh';
 const DEFAULT_WELCOME_TEXT = [
-  '¡Hola! {{1}} 👋 Bienvenido/a a Kinesiología *Kareh* 🌿.',
+  '¡Hola! {{1}} Bienvenida a Kinesiología Kareh 🌿. Para asesorarte mejor, envié su opción:',
   '',
-  'Muchas gracias por escribirnos.',
-  'Para poder asesorarte mejor y coordinar tu turno, por favor indicanos tu modalidad:',
+  '1️⃣ Obra Social',
+  '2️⃣ Particular',
+  '3️⃣ PAMI',
+  '4️⃣ Respiratorio',
   '',
-  '✅ *Obras Sociales*',
-  '✅ *Paciente Particular*',
-  '✅ *Paciente de PAMI*',
+  '📍 Av. Senador Morón 782, Bella Vista.',
   '',
-  '📍 *Dirección:* Av. Senador Morón 782, Bella Vista.',
+  '⏰ Atención: Lun y Vie (14-19hs) / Mar, Mié y Jue (17:30-19hs) / Sáb (8-12hs).',
   '',
-  '🗓 *Nuestros horarios de atención:*',
-  'Lun y Vie: 14:00 a 19:00 hs.',
-  'Mar, Mié y Jue: 17:30 a 19:00 hs.',
-  'Sábados: 08:00 a 12:00 hs.',
-  '',
-  '¡Estamos procesando tu mensaje y te responderemos a la brevedad para confirmarte disponibilidad! ✨🏥',
+  '¡Estamos procesando tu mensaje y te responderemos a la brevedad! ✨🏥',
 ].join('\n');
 const normalizeReplyMode = (value, fallback = 'text') => (
   String(value || fallback).trim().toLowerCase() === 'template' ? 'template' : 'text'
@@ -308,20 +303,95 @@ const normalizeText = (value) => {
 
 const GREETING_PREFIXES = ['hola', 'buenas', 'buen dia', 'buenos dias', 'buenas tardes', 'buenas noches'];
 
-const AUTO_REPLY_MAP = new Map([
-  ['obra social', { type: 'text', text: 'Indíquenos su obra social para verificar cobertura.' }],
-  ['particular', { type: 'text', text: '¿Cuenta con la orden médica? Puede enviar una foto por aquí mismo.' }],
-  ['rehabilitacion respiratoria', { type: 'text', text: 'Realizamos rehabilitación respiratoria. Indíquenos su obra social y si cuenta con orden médica.' }],
-  ['ubicacion y horarios', { type: 'text', text: 'Av. Senador Morón 782, Bella Vista. Lunes y viernes de 14:00 a 19:00 y sábados de 8:00 a 12:00.' }],
-]);
+const AUTO_REPLY_OBRA_SOCIAL_TEXT = [
+  '¡Perfecto! Para verificar tu cobertura y reservarte un lugar, envíanos:',
+  '',
+  '✅ Nombre, Apellido y DNI',
+  '✅ Fecha de nacimiento',
+  '✅ Foto de la Orden Médica + Autorización (si corresponde).',
+  '✅ Foto de DNI y Credencial (ambos lados).',
+  '✅ Antecedentes: (marcapasos, cáncer o alguna otra condición).',
+].join('\n');
+
+const AUTO_REPLY_PARTICULAR_TEXT = [
+  '¡Excelente! Información para sesiones particulares:',
+  '',
+  '💰 Valor: $15.000 por zona a tratar (solo efectivo).',
+  '',
+  'Para reservar tu turno, envíanos:',
+  '✅ Nombre, Apellido y DNI',
+  '✅ Fecha de nacimiento',
+  '✅ Foto de la Orden Médica',
+  '✅ Foto del DNI (ambos lados).',
+  '✅ Antecedentes: (marcapasos, cáncer o alguna otra condición).',
+].join('\n');
+
+const AUTO_REPLY_PAMI_TEXT = [
+  '¡Entendido! Para pacientes de PAMI el valor es diferencial:',
+  '',
+  '💰 Valor (bonificado): $10.000 por zona a tratar (solo efectivo).',
+  '',
+  'Para reservar tu turno, envíanos:',
+  '✅ Nombre, Apellido y DNI',
+  '✅ Número de afiliado',
+  '✅ Fecha de nacimiento',
+  '✅ Foto de la Orden Médica',
+  '✅ Foto de DNI y Credencial (ambos lados).',
+  '✅ Antecedentes: (marcapasos, cáncer o alguna otra condición).',
+].join('\n');
+
+const AUTO_REPLY_RESPIRATORIO_TEXT = [
+  '¡Recibido! Información para Kinesiología Respiratoria:',
+  '',
+  '💰 Valor de la sesión: $20.000 (solo efectivo).',
+  '',
+  'Para reservar tu turno, envíanos:',
+  '✅ Nombre, Apellido y DNI',
+  '✅ Fecha de nacimiento',
+  '✅ Foto de la Orden Médica',
+  '✅ Foto del DNI (ambos lados).',
+  '✅ Antecedentes: (marcapasos, cáncer o alguna otra condición).',
+].join('\n');
+
+const AUTO_REPLY_LOCATION_TEXT = [
+  '📍 Av. Senador Morón 782, Bella Vista.',
+  '⏰ Atención: Lun y Vie (14-19hs) / Mar, Mié y Jue (17:30-19hs) / Sáb (8-12hs).',
+].join('\n');
+
+const AUTO_REPLY_RULES = [
+  {
+    patterns: [/^(1|1 obra social|obra social|obras sociales)(\b.*)?$/],
+    reply: { type: 'text', text: AUTO_REPLY_OBRA_SOCIAL_TEXT },
+  },
+  {
+    patterns: [/^(2|2 particular|particular)(\b.*)?$/],
+    reply: { type: 'text', text: AUTO_REPLY_PARTICULAR_TEXT },
+  },
+  {
+    patterns: [/^(3|3 pami|pami)(\b.*)?$/],
+    reply: { type: 'text', text: AUTO_REPLY_PAMI_TEXT },
+  },
+  {
+    patterns: [/^(4|4 respiratorio|respiratorio|respiratoria|rehabilitacion respiratoria|kinesiologia respiratoria)(\b.*)?$/],
+    reply: { type: 'text', text: AUTO_REPLY_RESPIRATORIO_TEXT },
+  },
+  {
+    patterns: [/^(ubicacion|direccion|horario|horarios|ubicacion y horarios)(\b.*)?$/],
+    reply: { type: 'text', text: AUTO_REPLY_LOCATION_TEXT },
+  },
+];
 
 const getAutoReply = (messageText) => {
   const normalized = normalizeText(messageText);
   if (!normalized) return null;
+  const matchedRule = AUTO_REPLY_RULES.find(({ patterns }) => patterns.some((pattern) => pattern.test(normalized)));
+  if (matchedRule) {
+    return matchedRule.reply;
+  }
   if (GREETING_PREFIXES.some((prefix) => normalized === prefix || normalized.startsWith(`${prefix} `))) {
     return { type: 'template', name: HOLA_TEMPLATE };
   }
-  return AUTO_REPLY_MAP.get(normalized) || null;
+  return null;
 };
 
 const storeInboundMedia = async ({ mediaId, mimeType, conversationId }) => {
@@ -421,11 +491,12 @@ export const handleWhatsAppWebhook = async (req, res, prisma) => {
             },
           });
 
-          const shouldSendAutoReply = !shouldSendWelcome && Boolean(autoReply);
+          const shouldSendTextAutoReply = autoReply?.type === 'text';
+          const shouldSendTemplateReply = !shouldSendTextAutoReply && (shouldSendWelcome || autoReply?.type === 'template');
 
-          if (shouldSendWelcome || shouldSendAutoReply) {
+          if (shouldSendTemplateReply || shouldSendTextAutoReply) {
             const templateName = autoReply?.type === 'template' ? autoReply.name : WELCOME_TEMPLATE;
-            const isTextReply = shouldSendAutoReply && autoReply?.type === 'text';
+            const isTextReply = shouldSendTextAutoReply;
 
             try {
               let outboundType;

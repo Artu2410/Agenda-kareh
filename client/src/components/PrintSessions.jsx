@@ -7,13 +7,12 @@ import api from '@/services/api';
 
 const UNKNOWN_BIRTHDATE = '1900-01-01';
 const THERMAL_WIDTH_MM = 48; // 48mm = 32 caracteres por línea (fuente monoespaciada)
-const THERMAL_PREVIEW_WIDTH_PX = 390;
+const THERMAL_PREVIEW_WIDTH_PX = 420;
 const CONTACT_PHONE = '+54 9 11 3201-6039';
-const CONTACT_ADDRESS = 'Av. Senador Morón 782';
-const PARTICULAR_POLICY_TEXT = 'SI FALTA A LA SESION SE COBRARA EN LA SIGUIENTE EL 50% POR LA FALTA.';
-const HEALTH_INSURANCE_POLICY_TEXT = 'SE RECUPERAN HASTA 2 SESIONES AVISANDO CON 24 hs. MAS DE DOS FALTAS SEGUIDAS SIN AVISO SE DA DE BAJA AL TURNO.';
-const INSTAGRAM_HANDLE = '@centro.kareh';
-const FACEBOOK_HANDLE = 'Centro Kareh';
+const CONTACT_ADDRESS = 'Av. Senador Morón 782, Bella Vista';
+const PARTICULAR_POLICY_TEXT = 'FALTA SIN AVISO RECARGO DEL 50% EN LA PROXIMA SESION.';
+const HEALTH_INSURANCE_POLICY_TEXT = 'SE RECUPERAN HASTA 2 SESIONES AVISANDO CON 24 HS. MAS DE DOS FALTAS SEGUIDAS SIN AVISO SE DA DE BAJA AL TURNO.';
+const WAIT_TOLERANCE_TEXT = 'TOLERANCIA DE ESPERA 15 MIN MAXIMO.';
 
 const buildWhatsappBadgeMarkup = () => `
   <span class="wa-badge" aria-hidden="true">
@@ -53,9 +52,10 @@ const getCoverageLabel = (value) => (
   isParticularCoverage(value) ? 'PARTICULAR' : normalizeCoverage(value).toUpperCase()
 );
 
-const getPolicyText = (value) => (
-  isParticularCoverage(value) ? PARTICULAR_POLICY_TEXT : HEALTH_INSURANCE_POLICY_TEXT
-);
+const getPolicyText = (value) => [
+  isParticularCoverage(value) ? PARTICULAR_POLICY_TEXT : HEALTH_INSURANCE_POLICY_TEXT,
+  WAIT_TOLERANCE_TEXT,
+].join('\n');
 
 const buildPrintHtml = ({ printablePatient, printableDiagnosis, sortedAppointments, policyText }) => {
   const appointmentRows = sortedAppointments.map((appt, idx) => `
@@ -95,37 +95,29 @@ const buildPrintHtml = ({ printablePatient, printableDiagnosis, sortedAppointmen
           }
 
           body {
-            padding: 2.5mm;
+            padding: 2.75mm;
           }
 
           .ticket {
             width: 100%;
-            font-size: 10.5px;
-            line-height: 1.4;
+            font-size: 11.5px;
+            line-height: 1.5;
           }
 
           /* HEADER - TITULO PRINCIPAL */
           .header {
             text-align: center;
-            margin-bottom: 3mm;
+            margin-bottom: 3.5mm;
             border-bottom: 2px solid #000;
-            padding-bottom: 2mm;
+            padding-bottom: 2.2mm;
           }
 
           .title {
-            font-size: 24px;
+            font-size: 28px;
             font-weight: 900;
-            letter-spacing: 1px;
+            letter-spacing: 1.2px;
             margin-bottom: 0;
             line-height: 1;
-          }
-
-          .subtitle {
-            font-size: 8px;
-            font-weight: 700;
-            letter-spacing: 0.5px;
-            margin-top: 1mm;
-            text-transform: uppercase;
           }
 
           .center {
@@ -146,11 +138,11 @@ const buildPrintHtml = ({ printablePatient, printableDiagnosis, sortedAppointmen
 
           /* SECCIÓN PACIENTE */
           .section {
-            margin-bottom: 2mm;
+            margin-bottom: 2.3mm;
           }
 
           .section-title {
-            font-size: 9px;
+            font-size: 10px;
             font-weight: 900;
             text-align: center;
             text-transform: uppercase;
@@ -161,7 +153,7 @@ const buildPrintHtml = ({ printablePatient, printableDiagnosis, sortedAppointmen
           }
 
           .patient-name {
-            font-size: 13px;
+            font-size: 15px;
             font-weight: 900;
             text-align: center;
             word-break: break-word;
@@ -173,9 +165,9 @@ const buildPrintHtml = ({ printablePatient, printableDiagnosis, sortedAppointmen
           .meta {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 1mm;
-            margin-bottom: 1mm;
-            font-size: 9px;
+            gap: 1.2mm;
+            margin-bottom: 1.2mm;
+            font-size: 10px;
           }
 
           .meta-item {
@@ -183,7 +175,7 @@ const buildPrintHtml = ({ printablePatient, printableDiagnosis, sortedAppointmen
           }
 
           .meta-label {
-            font-size: 7.5px;
+            font-size: 8px;
             font-weight: 900;
             text-transform: uppercase;
             letter-spacing: 0.3px;
@@ -191,7 +183,7 @@ const buildPrintHtml = ({ printablePatient, printableDiagnosis, sortedAppointmen
           }
 
           .meta-value {
-            font-size: 9.5px;
+            font-size: 10.5px;
             font-weight: 700;
             word-break: break-word;
             display: block;
@@ -201,15 +193,15 @@ const buildPrintHtml = ({ printablePatient, printableDiagnosis, sortedAppointmen
           .flags {
             display: flex;
             justify-content: space-around;
-            gap: 1mm;
-            margin: 1mm 0;
-            padding: 0.5mm 0;
+            gap: 1.2mm;
+            margin: 1.2mm 0;
+            padding: 0.8mm 0.5mm;
             border: 1px solid #000;
             border-radius: 1px;
           }
 
           .flag {
-            font-size: 8px;
+            font-size: 9px;
             font-weight: 700;
             text-transform: uppercase;
             flex: 1;
@@ -218,7 +210,7 @@ const buildPrintHtml = ({ printablePatient, printableDiagnosis, sortedAppointmen
 
           /* DIAGNÓSTICO */
           .diagnosis {
-            font-size: 10px;
+            font-size: 11px;
             font-weight: 700;
             text-align: center;
             word-break: break-word;
@@ -228,7 +220,7 @@ const buildPrintHtml = ({ printablePatient, printableDiagnosis, sortedAppointmen
 
           /* SESIONES */
           .summary {
-            font-size: 10px;
+            font-size: 11px;
             font-weight: 900;
             text-align: center;
             text-transform: uppercase;
@@ -241,12 +233,12 @@ const buildPrintHtml = ({ printablePatient, printableDiagnosis, sortedAppointmen
 
           .row {
             display: grid;
-            grid-template-columns: 14px 1fr 46px;
-            gap: 2px;
+            grid-template-columns: 16px 1fr 52px;
+            gap: 3px;
             align-items: center;
-            font-size: 9px;
+            font-size: 10px;
             width: 100%;
-            margin-bottom: 0.5mm;
+            margin-bottom: 0.6mm;
           }
 
           .session-row {
@@ -272,19 +264,20 @@ const buildPrintHtml = ({ printablePatient, printableDiagnosis, sortedAppointmen
 
           /* POLÍTICA Y FOOTER */
           .policy {
-            font-size: 8.5px;
-            font-weight: 700;
+            font-size: 9.5px;
+            font-weight: 800;
             text-align: center;
-            line-height: 1.45;
-            margin-bottom: 1.2mm;
-            padding: 0.8mm 0;
+            line-height: 1.55;
+            margin-bottom: 1.5mm;
+            padding: 1mm 0;
+            white-space: pre-line;
           }
 
           .footer {
             text-align: center;
-            font-size: 8px;
-            margin-top: 1mm;
-            padding-top: 1mm;
+            font-size: 9px;
+            margin-top: 1.2mm;
+            padding-top: 1.2mm;
             border-top: 1px solid #000;
           }
 
@@ -292,15 +285,15 @@ const buildPrintHtml = ({ printablePatient, printableDiagnosis, sortedAppointmen
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 2px;
-            margin-bottom: 0.5mm;
-            font-weight: 700;
+            gap: 3px;
+            margin-bottom: 0.8mm;
+            font-weight: 800;
           }
 
           .wa-badge {
             display: inline-flex;
-            width: 9px;
-            height: 9px;
+            width: 11px;
+            height: 11px;
             flex-shrink: 0;
           }
 
@@ -311,19 +304,15 @@ const buildPrintHtml = ({ printablePatient, printableDiagnosis, sortedAppointmen
           }
 
           .contact-info {
-            font-weight: 700;
-            margin-bottom: 0.5mm;
-          }
-
-          .social {
-            font-size: 7px;
-            margin-bottom: 0.3mm;
+            font-size: 9px;
+            font-weight: 800;
+            margin-bottom: 0.6mm;
           }
 
           .issue-date {
-            font-size: 7px;
+            font-size: 8px;
             font-weight: 700;
-            margin-top: 0.5mm;
+            margin-top: 0.7mm;
           }
 
           /* PRINT MEDIA QUERY */
@@ -343,7 +332,6 @@ const buildPrintHtml = ({ printablePatient, printableDiagnosis, sortedAppointmen
           <!-- HEADER -->
           <div class="header">
             <div class="title">KAREH</div>
-            <div class="subtitle">Rehabilitación y Bienestar</div>
           </div>
 
           <!-- PACIENTE -->
@@ -411,8 +399,6 @@ const buildPrintHtml = ({ printablePatient, printableDiagnosis, sortedAppointmen
               ${buildWhatsappBadgeMarkup()}<span class="contact-info">${CONTACT_PHONE}</span>
             </div>
             <div class="contact-info">${CONTACT_ADDRESS}</div>
-            <div class="social">IG: ${INSTAGRAM_HANDLE}</div>
-            <div class="social">FB: ${FACEBOOK_HANDLE}</div>
             <div class="issue-date">Emitido: ${toIssueDate()}</div>
           </div>
         </div>
@@ -521,7 +507,7 @@ const PrintSessions = ({ isOpen, onClose, appointments, patientData, diagnosis, 
 
     try {
       const canvas = await html2canvas(ticketRef.current, {
-        scale: 2,
+        scale: 3,
         useCORS: true,
         backgroundColor: '#ffffff',
         logging: false,
@@ -577,22 +563,21 @@ const PrintSessions = ({ isOpen, onClose, appointments, patientData, diagnosis, 
         <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem', backgroundColor: 'rgba(15, 23, 42, 0.05)' }}>
           <div
             ref={ticketRef}
-            style={{ margin: '0 auto', backgroundColor: '#ffffff', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)', borderRadius: '0.5rem', border: '1px solid #cbd5e1', padding: '1.25rem', color: '#000000', fontSize: '13px', width: `${THERMAL_PREVIEW_WIDTH_PX}px`, fontFamily: '"Courier New", monospace', lineHeight: 1.45 }}
+            style={{ margin: '0 auto', backgroundColor: '#ffffff', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)', borderRadius: '0.5rem', border: '1px solid #cbd5e1', padding: '1.5rem', color: '#000000', fontSize: '15px', width: `${THERMAL_PREVIEW_WIDTH_PX}px`, fontFamily: '"Courier New", monospace', lineHeight: 1.55 }}
           >
             {/* HEADER */}
-            <div style={{ textAlign: 'center', marginBottom: '0.75rem', paddingBottom: '0.75rem', borderBottom: '2px solid #000000' }}>
-              <h1 style={{ fontSize: '36px', fontWeight: 900, lineHeight: 1, color: '#000000' }}>KAREH</h1>
-              <p style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '0.05em', color: '#000000' }}>REHABILITACIÓN</p>
+            <div style={{ textAlign: 'center', marginBottom: '0.9rem', paddingBottom: '0.9rem', borderBottom: '2px solid #000000' }}>
+              <h1 style={{ fontSize: '44px', fontWeight: 900, lineHeight: 1, color: '#000000' }}>KAREH</h1>
             </div>
 
             {/* PACIENTE */}
-            <div style={{ marginBottom: '0.5rem' }}>
-              <p style={{ textAlign: 'center', fontSize: '20px', fontWeight: 800, textTransform: 'uppercase', marginBottom: '0.35rem', color: '#000000' }}>PACIENTE:</p>
-              <p style={{ textAlign: 'center', fontSize: '28px', fontWeight: 800, textTransform: 'uppercase', wordBreak: 'break-word', color: '#000000' }}>{printablePatient.fullName}</p>
+            <div style={{ marginBottom: '0.7rem' }}>
+              <p style={{ textAlign: 'center', fontSize: '22px', fontWeight: 800, textTransform: 'uppercase', marginBottom: '0.4rem', color: '#000000' }}>PACIENTE:</p>
+              <p style={{ textAlign: 'center', fontSize: '32px', fontWeight: 800, textTransform: 'uppercase', wordBreak: 'break-word', color: '#000000' }}>{printablePatient.fullName}</p>
             </div>
 
             {/* META DATOS */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem', marginBottom: '0.75rem', fontSize: '18px', fontWeight: 700, color: '#000000' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.9rem', fontSize: '20px', fontWeight: 700, color: '#000000' }}>
               <div>
                 <span style={{ fontWeight: 800 }}>DNI:</span>
                 <span> {printablePatient.dni}</span>
@@ -612,7 +597,7 @@ const PrintSessions = ({ isOpen, onClose, appointments, patientData, diagnosis, 
             </div>
 
             {/* BANDERAS */}
-            <div style={{ display: 'flex', justifyContent: 'space-around', gap: '0.5rem', margin: '0.75rem 0', padding: '0.4rem 0.65rem', border: '2px solid #000000', borderRadius: '2px', fontSize: '18px', fontWeight: 800, color: '#000000' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-around', gap: '0.6rem', margin: '0.9rem 0', padding: '0.55rem 0.8rem', border: '2px solid #000000', borderRadius: '2px', fontSize: '20px', fontWeight: 800, color: '#000000' }}>
               <span>{printablePatient.hasCancer ? '✓ONCO' : 'ONCO'}</span>
               <span>{printablePatient.hasMarcapasos ? '✓MCP' : 'MCP'}</span>
               <span>{printablePatient.usesEA ? '✓EA' : 'EA'}</span>
@@ -622,29 +607,29 @@ const PrintSessions = ({ isOpen, onClose, appointments, patientData, diagnosis, 
             <div style={{ borderTop: '1px solid #000000', margin: '0.75rem 0', height: 0 }} />
 
             {/* COBERTURA */}
-            <div style={{ textAlign: 'center', fontSize: '20px', fontWeight: 800, marginBottom: '0.75rem', textTransform: 'uppercase', color: '#000000' }}>
+            <div style={{ textAlign: 'center', fontSize: '22px', fontWeight: 800, marginBottom: '0.85rem', textTransform: 'uppercase', color: '#000000' }}>
               {printablePatient.healthInsurance}
             </div>
 
             {/* DIAGNÓSTICO */}
-            <div style={{ marginBottom: '0.5rem' }}>
-              <p style={{ textAlign: 'center', fontSize: '20px', fontWeight: 800, marginBottom: '0.35rem', textTransform: 'uppercase', color: '#000000' }}>DIAG:</p>
-              <p style={{ textAlign: 'center', fontSize: '20px', fontWeight: 800, wordBreak: 'break-word', textTransform: 'uppercase', color: '#000000' }}>{printableDiagnosis}</p>
+            <div style={{ marginBottom: '0.7rem' }}>
+              <p style={{ textAlign: 'center', fontSize: '22px', fontWeight: 800, marginBottom: '0.4rem', textTransform: 'uppercase', color: '#000000' }}>DIAG:</p>
+              <p style={{ textAlign: 'center', fontSize: '22px', fontWeight: 800, wordBreak: 'break-word', textTransform: 'uppercase', color: '#000000' }}>{printableDiagnosis}</p>
             </div>
 
             {/* DIVIDER */}
             <div style={{ borderTop: '1px solid #000000', margin: '0.75rem 0', height: 0 }} />
 
             {/* SESIONES */}
-            <div style={{ textAlign: 'center', fontSize: '20px', fontWeight: 800, marginBottom: '0.6rem', textTransform: 'uppercase', color: '#000000' }}>
+            <div style={{ textAlign: 'center', fontSize: '22px', fontWeight: 800, marginBottom: '0.75rem', textTransform: 'uppercase', color: '#000000' }}>
               {sortedAppointments.length} SESIONES
             </div>
 
-            <p style={{ textAlign: 'center', fontSize: '20px', fontWeight: 800, marginBottom: '0.35rem', textTransform: 'uppercase', color: '#000000' }}>CRONOGRAMA:</p>
-            <div style={{ marginBottom: '0.75rem' }}>
+            <p style={{ textAlign: 'center', fontSize: '22px', fontWeight: 800, marginBottom: '0.45rem', textTransform: 'uppercase', color: '#000000' }}>CRONOGRAMA:</p>
+            <div style={{ marginBottom: '0.9rem' }}>
               {sortedAppointments.map((appt, idx) => (
-                <div key={`${appt.id || idx}-${appt.time}`} style={{ display: 'flex', gap: '0.6rem', borderBottom: '1px dotted #000000', padding: '0.35rem 0', fontSize: '18px', fontWeight: 700, color: '#000000' }}>
-                  <span style={{ width: '1.35rem', flexShrink: 0, textAlign: 'right', fontWeight: 800 }}>{appt.sessionNumber || idx + 1}.</span>
+                <div key={`${appt.id || idx}-${appt.time}`} style={{ display: 'flex', gap: '0.7rem', borderBottom: '1px dotted #000000', padding: '0.45rem 0', fontSize: '20px', fontWeight: 700, color: '#000000' }}>
+                  <span style={{ width: '1.5rem', flexShrink: 0, textAlign: 'right', fontWeight: 800 }}>{appt.sessionNumber || idx + 1}.</span>
                   <span style={{ flex: 1, fontWeight: 800 }}>{toThermalDate(appt.date)}</span>
                   <span style={{ flexShrink: 0, fontWeight: 800 }}>{appt.time || ''}</span>
                 </div>
@@ -655,7 +640,7 @@ const PrintSessions = ({ isOpen, onClose, appointments, patientData, diagnosis, 
             <div style={{ borderTop: '1px solid #000000', margin: '0.75rem 0', height: 0 }} />
 
             {/* POLÍTICA */}
-            <div style={{ textAlign: 'center', fontSize: '17px', fontWeight: 700, lineHeight: 1.5, marginBottom: '0.75rem', padding: '0.35rem 0', color: '#000000' }}>
+            <div style={{ textAlign: 'center', fontSize: '19px', fontWeight: 800, lineHeight: 1.6, marginBottom: '0.9rem', padding: '0.45rem 0', color: '#000000', whiteSpace: 'pre-line' }}>
               {policyText}
             </div>
 
@@ -663,15 +648,13 @@ const PrintSessions = ({ isOpen, onClose, appointments, patientData, diagnosis, 
             <div style={{ borderTop: '1px dashed #000000', margin: '0.75rem 0', height: 0 }} />
 
             {/* FOOTER */}
-            <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', textAlign: 'center', fontSize: '16px', fontWeight: 700, color: '#000000' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem', marginBottom: '0.35rem' }}>
+            <div style={{ marginTop: '0.9rem', paddingTop: '0.9rem', textAlign: 'center', fontSize: '18px', fontWeight: 700, color: '#000000' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
                 <WhatsAppBadge />
                 <span style={{ fontWeight: 800 }}>{CONTACT_PHONE}</span>
               </div>
-              <div style={{ fontWeight: 700 }}>{CONTACT_ADDRESS}</div>
-              <div style={{ fontSize: '15px', fontWeight: 700 }}>IG: {INSTAGRAM_HANDLE.replace('@', '')}</div>
-              <div style={{ fontSize: '15px', fontWeight: 700 }}>FB: {FACEBOOK_HANDLE}</div>
-              <div style={{ fontSize: '14px', fontWeight: 700, marginTop: '0.35rem' }}>Emitido: {toIssueDate()}</div>
+              <div style={{ fontSize: '18px', fontWeight: 700 }}>{CONTACT_ADDRESS}</div>
+              <div style={{ fontSize: '15px', fontWeight: 700, marginTop: '0.5rem' }}>Emitido: {toIssueDate()}</div>
             </div>
           </div>
         </div>
