@@ -21,7 +21,10 @@ const GREETING_TEXT_FROM_ENV = String(process.env.WHATSAPP_GREETING_TEXT_FROM_EN
   .toLowerCase() === 'true';
 
 const DEFAULT_WELCOME_TEXT = [
-  '¡Hola! {{1}} Bienvenido/a a Kinesiología Kareh 🌿. Para asesorarte mejor, enviá el número de tu opción:',
+  '¡Hola! {{1}}',
+  '*Bienvenido/a a Kinesiología Kareh* 🌿.',
+  'Para asesorarte mejor,',
+  '*enviá el número de tu opción:*',
   '',
   '1️⃣ Obra Social',
   '2️⃣ Particular',
