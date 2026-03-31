@@ -50,7 +50,7 @@ const AUTO_REPLY_OBRA_SOCIAL_TEXT = [
   '',
   'Revisamos la información y a la brevedad nos comunicamos contigo.',
   '',
-  'Escribí 0 para volver al menú anterior.',
+  'Escribí 0️⃣ para volver al menú anterior.',
 ].join('\n');
 
 const AUTO_REPLY_PARTICULAR_TEXT = [
@@ -65,7 +65,7 @@ const AUTO_REPLY_PARTICULAR_TEXT = [
   '✅ Foto del DNI (ambos lados).',
   '✅ Antecedentes: (marcapasos, cáncer o alguna otra condición).',
   '',
-  'Escribí 0 para volver al menú anterior.',
+  'Escribí 0️⃣ para volver al menú anterior.',
 ].join('\n');
 
 const AUTO_REPLY_PAMI_TEXT = [
@@ -81,7 +81,7 @@ const AUTO_REPLY_PAMI_TEXT = [
   '✅ Foto de DNI y Credencial (ambos lados).',
   '✅ Antecedentes: (marcapasos, cáncer o alguna otra condición).',
   '',
-  'Escribí 0 para volver al menú anterior.',
+  'Escribí 0️⃣ para volver al menú anterior.',
 ].join('\n');
 
 const AUTO_REPLY_RESPIRATORIO_TEXT = [
@@ -96,7 +96,7 @@ const AUTO_REPLY_RESPIRATORIO_TEXT = [
   '✅ Foto del DNI (ambos lados).',
   '✅ Antecedentes: (marcapasos, cáncer o alguna otra condición).',
   '',
-  'Escribí 0 para volver al menú anterior.',
+  'Escribí 0️⃣ para volver al menú anterior.',
 ].join('\n');
 
 const AUTO_REPLY_LOCATION_TEXT = [
