@@ -56,8 +56,7 @@ const AUTO_REPLY_OBRA_SOCIAL_TEXT = [
 const AUTO_REPLY_PARTICULAR_TEXT = [
   '¡Perfecto! Información para Kinesiología Particular:',
   '',
-  '💰 Valor Particular: $15.000 por zona (Solo efectivo).',
-  '📍 Por 2 zonas o más, consultar precio especial.',
+  '💰 Valor Particular: $15.000 por área a tratar (Solo efectivo).Por 2 áreas o más, consultar valor especial.',
   '',
   'Para reservar tu turno, envianos:',
   '✅ Nombre, Apellido y DNI',
@@ -72,8 +71,7 @@ const AUTO_REPLY_PARTICULAR_TEXT = [
 const AUTO_REPLY_PAMI_TEXT = [
   '¡Perfecto! Información para Kinesiología PAMI:',
   '',
-  '💰 Beneficio PAMI: $10.000 por zona (Solo efectivo).',
-  '📍 Por 2 zonas o más, consultar precio especial.',
+  'Beneficio PAMI: $10.000 por área a tratar (Solo efectivo). Por 2 áreas o más, consultar valor especial.',
   '',
   'Para reservar tu turno, envianos:',
   '✅ Nombre, Apellido y DNI',
