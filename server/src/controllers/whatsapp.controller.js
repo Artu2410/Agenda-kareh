@@ -13,8 +13,9 @@ import { normalizePhone } from '../utils/phone.js';
 const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
 const WELCOME_TEMPLATE = process.env.WHATSAPP_WELCOME_TEMPLATE || 'bienvenida_kareh';
 const HOLA_TEMPLATE = process.env.WHATSAPP_HOLA_TEMPLATE || 'bienvenida_kareh';
+
 const DEFAULT_WELCOME_TEXT = [
-  '¡Hola! {{1}} Bienvenida a Kinesiología Kareh 🌿. Para asesorarte mejor, envié su opción:',
+  '¡Hola! {{1}} Bienvenido/a a Kinesiología Kareh 🌿. Para asesorarte mejor, enviá el número de tu opción:',
   '',
   '1️⃣ Obra Social',
   '2️⃣ Particular',
@@ -27,12 +28,109 @@ const DEFAULT_WELCOME_TEXT = [
   '',
   '¡Estamos procesando tu mensaje y te responderemos a la brevedad! ✨🏥',
 ].join('\n');
+
+const AUTO_REPLY_OBRA_SOCIAL_TEXT = [
+  '¡Perfecto! Para verificar tu cobertura y reservarte un lugar, envianos:',
+  '',
+  '✅ Nombre de tu Obra Social',
+  '✅ Nombre, Apellido y DNI',
+  '✅ Fecha de nacimiento',
+  '✅ Foto de la Orden Médica + Autorización (si corresponde).',
+  '✅ Foto de DNI y Credencial (ambos lados).',
+  '',
+  'Revisamos la información y a la brevedad nos comunicamos contigo.',
+  '',
+  'Escribí 0 para volver al menú anterior.',
+].join('\n');
+
+const AUTO_REPLY_PARTICULAR_TEXT = [
+  '¡Excelente! Información para sesiones particulares:',
+  '',
+  '💰 Valor: $15.000 por zona a tratar (solo efectivo).',
+  '⚠️ Nota: Tolerancia de 15 min. Faltar sin avisar tiene un recargo del 50% en la próxima sesión.',
+  '',
+  'Para reservar tu turno, envianos:',
+  '✅ Nombre, Apellido y DNI',
+  '✅ Fecha de nacimiento',
+  '✅ Foto de la Orden Médica',
+  '✅ Foto del DNI (ambos lados).',
+  '✅ Antecedentes: (marcapasos, cáncer o alguna otra condición).',
+  '',
+  'Escribí 0 para volver al menú anterior.',
+].join('\n');
+
+const AUTO_REPLY_PAMI_TEXT = [
+  '¡Entendido! Para pacientes de PAMI el valor es diferencial:',
+  '',
+  '💰 Valor (bonificado): $10.000 por zona a tratar (solo efectivo).',
+  '⚠️ Nota: Tolerancia de 15 min. Faltar sin avisar tiene un recargo del 50% en la próxima sesión.',
+  '',
+  'Para reservar tu turno, envianos:',
+  '✅ Nombre, Apellido y DNI',
+  '✅ Número de afiliado',
+  '✅ Fecha de nacimiento',
+  '✅ Foto de la Orden Médica',
+  '✅ Foto de DNI y Credencial (ambos lados).',
+  '✅ Antecedentes: (marcapasos, cáncer o alguna otra condición).',
+  '',
+  'Escribí 0 para volver al menú anterior.',
+].join('\n');
+
+const AUTO_REPLY_RESPIRATORIO_TEXT = [
+  '¡Recibido! Información para Kinesiología Respiratoria:',
+  '',
+  '💰 Valor de la sesión: $20.000 (solo efectivo).',
+  '⚠️ Nota: Tolerancia de 15 min. Faltar sin avisar tiene un recargo del 50% en la próxima sesión.',
+  '',
+  'Para reservar tu turno, envianos:',
+  '✅ Nombre, Apellido y DNI',
+  '✅ Fecha de nacimiento',
+  '✅ Foto de la Orden Médica',
+  '✅ Foto del DNI (ambos lados).',
+  '✅ Antecedentes: (marcapasos, cáncer o alguna otra condición).',
+  '',
+  'Escribí 0 para volver al menú anterior.',
+].join('\n');
+
+const AUTO_REPLY_LOCATION_TEXT = [
+  '📍 Av. Senador Morón 782, Bella Vista.',
+  '⏰ Atención: Lun y Vie (14-19hs) / Mar, Mié y Jue (17:30-19hs) / Sáb (8-12hs).',
+].join('\n');
+
+const AUTO_REPLY_RULES = [
+  {
+    patterns: [/^(1|1 obra social|obra social|obras sociales)(\b.*)?$/],
+    reply: { type: 'text', text: AUTO_REPLY_OBRA_SOCIAL_TEXT },
+  },
+  {
+    patterns: [/^(2|2 particular|particular)(\b.*)?$/],
+    reply: { type: 'text', text: AUTO_REPLY_PARTICULAR_TEXT },
+  },
+  {
+    patterns: [/^(3|3 pami|pami)(\b.*)?$/],
+    reply: { type: 'text', text: AUTO_REPLY_PAMI_TEXT },
+  },
+  {
+    patterns: [/^(4|4 respiratorio|respiratorio|respiratoria|rehabilitacion respiratoria|kinesiologia respiratoria)(\b.*)?$/],
+    reply: { type: 'text', text: AUTO_REPLY_RESPIRATORIO_TEXT },
+  },
+  {
+    patterns: [/^(ubicacion|direccion|horario|horarios|ubicacion y horarios)(\b.*)?$/],
+    reply: { type: 'text', text: AUTO_REPLY_LOCATION_TEXT },
+  },
+  {
+    patterns: [/^(0|menu|volver)(\b.*)?$/],
+    reply: { type: 'template', name: WELCOME_TEMPLATE },
+  },
+];
+
 const normalizeReplyMode = (value, fallback = 'text') => (
   String(value || fallback).trim().toLowerCase() === 'template' ? 'template' : 'text'
 );
 const normalizeTextTemplate = (value, fallback) => String(value || fallback || '')
   .replace(/\\n/g, '\n')
   .trim();
+
 const WELCOME_MODE = normalizeReplyMode(process.env.WHATSAPP_WELCOME_MODE, 'text');
 const HOLA_MODE = normalizeReplyMode(process.env.WHATSAPP_HOLA_MODE, WELCOME_MODE);
 const WELCOME_TEXT_TEMPLATE = normalizeTextTemplate(process.env.WHATSAPP_WELCOME_TEXT, DEFAULT_WELCOME_TEXT);
@@ -303,84 +401,6 @@ const normalizeText = (value) => {
 
 const GREETING_PREFIXES = ['hola', 'buenas', 'buen dia', 'buenos dias', 'buenas tardes', 'buenas noches'];
 
-const AUTO_REPLY_OBRA_SOCIAL_TEXT = [
-  '¡Perfecto! Para verificar tu cobertura y reservarte un lugar, envíanos:',
-  '',
-  '✅ Nombre, Apellido y DNI',
-  '✅ Fecha de nacimiento',
-  '✅ Foto de la Orden Médica + Autorización (si corresponde).',
-  '✅ Foto de DNI y Credencial (ambos lados).',
-  '✅ Antecedentes: (marcapasos, cáncer o alguna otra condición).',
-].join('\n');
-
-const AUTO_REPLY_PARTICULAR_TEXT = [
-  '¡Excelente! Información para sesiones particulares:',
-  '',
-  '💰 Valor: $15.000 por zona a tratar (solo efectivo).',
-  '',
-  'Para reservar tu turno, envíanos:',
-  '✅ Nombre, Apellido y DNI',
-  '✅ Fecha de nacimiento',
-  '✅ Foto de la Orden Médica',
-  '✅ Foto del DNI (ambos lados).',
-  '✅ Antecedentes: (marcapasos, cáncer o alguna otra condición).',
-].join('\n');
-
-const AUTO_REPLY_PAMI_TEXT = [
-  '¡Entendido! Para pacientes de PAMI el valor es diferencial:',
-  '',
-  '💰 Valor (bonificado): $10.000 por zona a tratar (solo efectivo).',
-  '',
-  'Para reservar tu turno, envíanos:',
-  '✅ Nombre, Apellido y DNI',
-  '✅ Número de afiliado',
-  '✅ Fecha de nacimiento',
-  '✅ Foto de la Orden Médica',
-  '✅ Foto de DNI y Credencial (ambos lados).',
-  '✅ Antecedentes: (marcapasos, cáncer o alguna otra condición).',
-].join('\n');
-
-const AUTO_REPLY_RESPIRATORIO_TEXT = [
-  '¡Recibido! Información para Kinesiología Respiratoria:',
-  '',
-  '💰 Valor de la sesión: $20.000 (solo efectivo).',
-  '',
-  'Para reservar tu turno, envíanos:',
-  '✅ Nombre, Apellido y DNI',
-  '✅ Fecha de nacimiento',
-  '✅ Foto de la Orden Médica',
-  '✅ Foto del DNI (ambos lados).',
-  '✅ Antecedentes: (marcapasos, cáncer o alguna otra condición).',
-].join('\n');
-
-const AUTO_REPLY_LOCATION_TEXT = [
-  '📍 Av. Senador Morón 782, Bella Vista.',
-  '⏰ Atención: Lun y Vie (14-19hs) / Mar, Mié y Jue (17:30-19hs) / Sáb (8-12hs).',
-].join('\n');
-
-const AUTO_REPLY_RULES = [
-  {
-    patterns: [/^(1|1 obra social|obra social|obras sociales)(\b.*)?$/],
-    reply: { type: 'text', text: AUTO_REPLY_OBRA_SOCIAL_TEXT },
-  },
-  {
-    patterns: [/^(2|2 particular|particular)(\b.*)?$/],
-    reply: { type: 'text', text: AUTO_REPLY_PARTICULAR_TEXT },
-  },
-  {
-    patterns: [/^(3|3 pami|pami)(\b.*)?$/],
-    reply: { type: 'text', text: AUTO_REPLY_PAMI_TEXT },
-  },
-  {
-    patterns: [/^(4|4 respiratorio|respiratorio|respiratoria|rehabilitacion respiratoria|kinesiologia respiratoria)(\b.*)?$/],
-    reply: { type: 'text', text: AUTO_REPLY_RESPIRATORIO_TEXT },
-  },
-  {
-    patterns: [/^(ubicacion|direccion|horario|horarios|ubicacion y horarios)(\b.*)?$/],
-    reply: { type: 'text', text: AUTO_REPLY_LOCATION_TEXT },
-  },
-];
-
 const getAutoReply = (messageText) => {
   const normalized = normalizeText(messageText);
   if (!normalized) return null;
@@ -573,13 +593,10 @@ export const markConversationRead = async (req, res, prisma) => {
   res.json({ success: true });
 };
 
-// --- CORRECCIÓN FINAL DE ELIMINACIÓN ---
 export const deleteConversation = async (req, res, prisma) => {
   const { id } = req.params;
   try {
-    // 1. Borramos mensajes asociados primero
     await prisma.whatsAppMessage.deleteMany({ where: { conversationId: id } });
-    // 2. Borramos la conversación
     await prisma.whatsAppConversation.delete({ where: { id } });
     res.json({ success: true });
   } catch (error) {
