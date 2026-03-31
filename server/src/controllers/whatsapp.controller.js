@@ -13,6 +13,12 @@ import { normalizePhone } from '../utils/phone.js';
 const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
 const WELCOME_TEMPLATE = process.env.WHATSAPP_WELCOME_TEMPLATE || 'bienvenida_kareh';
 const HOLA_TEMPLATE = process.env.WHATSAPP_HOLA_TEMPLATE || 'bienvenida_kareh';
+const GREETING_TEMPLATE_ENABLED = String(process.env.WHATSAPP_GREETING_TEMPLATE_ENABLED || 'false')
+  .trim()
+  .toLowerCase() === 'true';
+const GREETING_TEXT_FROM_ENV = String(process.env.WHATSAPP_GREETING_TEXT_FROM_ENV || 'false')
+  .trim()
+  .toLowerCase() === 'true';
 
 const DEFAULT_WELCOME_TEXT = [
   '¡Hola! {{1}} Bienvenido/a a Kinesiología Kareh 🌿. Para asesorarte mejor, enviá el número de tu opción:',
@@ -125,17 +131,25 @@ const AUTO_REPLY_RULES = [
   },
 ];
 
-const normalizeReplyMode = (value, fallback = 'text') => (
-  String(value || fallback).trim().toLowerCase() === 'template' ? 'template' : 'text'
-);
+const normalizeReplyMode = (value, fallback = 'text') => {
+  const mode = String(value || fallback).trim().toLowerCase();
+  if (mode === 'template' && GREETING_TEMPLATE_ENABLED) return 'template';
+  return 'text';
+};
 const normalizeTextTemplate = (value, fallback) => String(value || fallback || '')
   .replace(/\\n/g, '\n')
   .trim();
 
 const WELCOME_MODE = normalizeReplyMode(process.env.WHATSAPP_WELCOME_MODE, 'text');
 const HOLA_MODE = normalizeReplyMode(process.env.WHATSAPP_HOLA_MODE, WELCOME_MODE);
-const WELCOME_TEXT_TEMPLATE = normalizeTextTemplate(process.env.WHATSAPP_WELCOME_TEXT, DEFAULT_WELCOME_TEXT);
-const HOLA_TEXT_TEMPLATE = normalizeTextTemplate(process.env.WHATSAPP_HOLA_TEXT, WELCOME_TEXT_TEMPLATE);
+const WELCOME_TEXT_TEMPLATE = normalizeTextTemplate(
+  GREETING_TEXT_FROM_ENV ? process.env.WHATSAPP_WELCOME_TEXT : '',
+  DEFAULT_WELCOME_TEXT,
+);
+const HOLA_TEXT_TEMPLATE = normalizeTextTemplate(
+  GREETING_TEXT_FROM_ENV ? process.env.WHATSAPP_HOLA_TEXT : '',
+  WELCOME_TEXT_TEMPLATE,
+);
 const WELCOME_TEMPLATE_BODY_PARAMS = process.env.WHATSAPP_WELCOME_TEMPLATE_BODY_PARAMS;
 const HOLA_TEMPLATE_BODY_PARAMS = String(process.env.WHATSAPP_HOLA_TEMPLATE_BODY_PARAMS || '').trim()
   ? process.env.WHATSAPP_HOLA_TEMPLATE_BODY_PARAMS
