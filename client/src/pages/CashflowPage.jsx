@@ -18,22 +18,6 @@ const resolveCategory = (transaction) => {
     : 'GENERAL';
 };
 
-const MonthlyMetricChip = ({ label, value, tone = 'slate', highlight = false }) => {
-  const toneClasses = {
-    emerald: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-    cyan: 'border-cyan-200 bg-cyan-50 text-cyan-700',
-    rose: 'border-rose-200 bg-rose-50 text-rose-700',
-    slate: 'border-slate-200 bg-slate-100 text-slate-700',
-  };
-
-  return (
-    <div className={`rounded-full border px-3 py-2 ${highlight ? 'bg-slate-900 text-white border-slate-900' : toneClasses[tone] || toneClasses.slate}`}>
-      <p className={`text-[10px] font-black uppercase tracking-[0.18em] ${highlight ? 'text-slate-300' : ''}`}>{label}</p>
-      <p className="mt-1 text-sm font-black">{value}</p>
-    </div>
-  );
-};
-
 const CashflowPage = () => {
   const { ConfirmModalComponent, openModal: openConfirmModal } = useConfirmModal();
   const [transactions, setTransactions] = useState([]);
@@ -129,30 +113,14 @@ const CashflowPage = () => {
             key: monthKey,
             label: format(transactionDate, 'MMMM yyyy', { locale: es }),
             items: [],
-            totalIncome: 0,
-            totalExpense: 0,
-            totalBonosQr: 0,
           });
         }
 
         const monthGroup = groups.get(monthKey);
         monthGroup.items.push(transaction);
-
-        const amount = parseFloat(transaction.amount) || 0;
-        if (transaction.type === 'INCOME') {
-          monthGroup.totalIncome += amount;
-          if (resolveCategory(transaction) === BONOS_QR_CATEGORY) {
-            monthGroup.totalBonosQr += amount;
-          }
-        } else {
-          monthGroup.totalExpense += amount;
-        }
       });
 
-    return Array.from(groups.values()).map((group) => ({
-      ...group,
-      balance: group.totalIncome - group.totalExpense,
-    }));
+    return Array.from(groups.values());
   }, [transactions]);
 
   const formatCurrency = (value) => {
@@ -215,26 +183,11 @@ const CashflowPage = () => {
                 {monthlyGroups.map((group) => (
                   <section key={group.key} className="overflow-hidden rounded-[1.75rem] border border-slate-200 bg-slate-50/80">
                     <div className="border-b border-slate-200 bg-white px-4 py-4 sm:px-5">
-                      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                        <div>
-                          <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400">Mes contable</p>
-                          <h3 className="mt-1 text-2xl font-black capitalize text-slate-900">{group.label}</h3>
-                          <p className="mt-1 text-sm font-semibold text-slate-500">
-                            {group.items.length} movimiento{group.items.length === 1 ? '' : 's'} registrados
-                          </p>
-                        </div>
-
-                        <div className="flex flex-wrap items-center justify-start gap-2 lg:max-w-[32rem] lg:justify-end">
-                          <MonthlyMetricChip label="Ingresos" value={formatCurrency(group.totalIncome)} tone="emerald" />
-                          <MonthlyMetricChip label="Bonos QR" value={formatCurrency(group.totalBonosQr)} tone="cyan" />
-                          <MonthlyMetricChip label="Egresos" value={formatCurrency(group.totalExpense)} tone="rose" />
-                          <MonthlyMetricChip
-                            label="Balance"
-                            value={formatCurrency(group.balance)}
-                            highlight
-                          />
-                        </div>
-                      </div>
+                      <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400">Mes contable</p>
+                      <h3 className="mt-1 text-2xl font-black capitalize text-slate-900">{group.label}</h3>
+                      <p className="mt-1 text-sm font-semibold text-slate-500">
+                        {group.items.length} movimiento{group.items.length === 1 ? '' : 's'} registrados
+                      </p>
                     </div>
 
                     <div className="hidden overflow-x-auto md:block">
