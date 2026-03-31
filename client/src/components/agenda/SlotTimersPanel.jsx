@@ -113,7 +113,7 @@ const getTimerMeta = (timer, timerDefaultSecondsBySlot) => {
   }
 
   return {
-    label: 'Consumido',
+    label: null, // "Consumido" ha sido removido
     value: formatCountdown(getConsumedSeconds(timer, timerDefaultSecondsBySlot)),
   };
 };
@@ -258,8 +258,17 @@ const SlotTimersPanel = ({ currentTime, appointments = [], agendaConfig = null }
                   <span className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-slate-950/80" />
                 )}
                 <span className="text-[28px] leading-none">{timer.slotNumber}</span>
-                <span className="mt-2 text-[9px] font-black uppercase tracking-[0.16em] opacity-80">{timerMeta.label}</span>
-                <span className="text-[11px] font-black leading-tight">{timerMeta.value}</span>
+                
+                {/* Solo renderizamos el label si existe (para Atraso) */}
+                {timerMeta.label && (
+                  <span className="mt-2 text-[9px] font-black uppercase tracking-[0.16em] opacity-80">
+                    {timerMeta.label}
+                  </span>
+                )}
+                
+                <span className={`${!timerMeta.label ? 'mt-2' : ''} text-[11px] font-black leading-tight`}>
+                  {timerMeta.value}
+                </span>
               </button>
             );
           })}
