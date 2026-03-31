@@ -54,9 +54,10 @@ const AUTO_REPLY_OBRA_SOCIAL_TEXT = [
 ].join('\n');
 
 const AUTO_REPLY_PARTICULAR_TEXT = [
-  '¡Excelente! Información para sesiones particulares:',
+  '¡Perfecto! Información para Kinesiología Particular:',
   '',
-  '💰 Valor: $15.000 por zona a tratar (solo efectivo).',
+  '💰 Valor Particular: $15.000 por zona (Solo efectivo).',
+  '📍 Por 2 zonas o más, consultar precio especial.',
   '',
   'Para reservar tu turno, envianos:',
   '✅ Nombre, Apellido y DNI',
@@ -69,9 +70,10 @@ const AUTO_REPLY_PARTICULAR_TEXT = [
 ].join('\n');
 
 const AUTO_REPLY_PAMI_TEXT = [
-  '¡Entendido! Para pacientes de PAMI el valor es diferencial:',
+  '¡Perfecto! Información para Kinesiología PAMI:',
   '',
-  '💰 Valor (bonificado): $10.000 por zona a tratar (solo efectivo).',
+  '💰 Beneficio PAMI: $10.000 por zona (Solo efectivo).',
+  '📍 Por 2 zonas o más, consultar precio especial.',
   '',
   'Para reservar tu turno, envianos:',
   '✅ Nombre, Apellido y DNI',
@@ -85,9 +87,9 @@ const AUTO_REPLY_PAMI_TEXT = [
 ].join('\n');
 
 const AUTO_REPLY_RESPIRATORIO_TEXT = [
-  '¡Recibido! Información para Kinesiología Respiratoria:',
+  '¡Perfecto! Información para Kinesiología Respiratoria:',
   '',
-  '💰 Valor de la sesión: $20.000 (solo efectivo).',
+  '💰 Valor de la sesión: $30.000 (solo efectivo).',
   '',
   'Para reservar tu turno, envianos:',
   '✅ Nombre, Apellido y DNI',
