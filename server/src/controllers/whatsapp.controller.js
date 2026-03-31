@@ -35,8 +35,9 @@ const AUTO_REPLY_OBRA_SOCIAL_TEXT = [
   '✅ Nombre de tu Obra Social',
   '✅ Nombre, Apellido y DNI',
   '✅ Fecha de nacimiento',
-  '✅ Foto de la Orden Médica + Autorización (si corresponde).',
+  '✅ Foto de la Orden Médica.',
   '✅ Foto de DNI y Credencial (ambos lados).',
+  '✅ Antecedentes: (marcapasos, cáncer o alguna otra condición).',
   '',
   'Revisamos la información y a la brevedad nos comunicamos contigo.',
   '',
@@ -115,12 +116,12 @@ const AUTO_REPLY_RULES = [
     reply: { type: 'text', text: AUTO_REPLY_RESPIRATORIO_TEXT },
   },
   {
-    patterns: [/^(ubicacion|direccion|horario|horarios|ubicacion y horarios)(\b.*)?$/],
+    patterns: [/\b(ubicacion|direccion|donde queda|donde estan|horario|horarios)\b/],
     reply: { type: 'text', text: AUTO_REPLY_LOCATION_TEXT },
   },
   {
     patterns: [/^(0|menu|volver)(\b.*)?$/],
-    reply: { type: 'template', name: WELCOME_TEMPLATE },
+    reply: { type: 'template', name: WELCOME_TEMPLATE, replyKind: 'welcome', bypassCooldown: true },
   },
 ];
 
@@ -409,7 +410,7 @@ const getAutoReply = (messageText) => {
     return matchedRule.reply;
   }
   if (GREETING_PREFIXES.some((prefix) => normalized === prefix || normalized.startsWith(`${prefix} `))) {
-    return { type: 'template', name: HOLA_TEMPLATE };
+    return { type: 'template', name: HOLA_TEMPLATE, replyKind: 'hola' };
   }
   return null;
 };
@@ -512,10 +513,18 @@ export const handleWhatsAppWebhook = async (req, res, prisma) => {
           });
 
           const shouldSendTextAutoReply = autoReply?.type === 'text';
-          const shouldSendTemplateReply = !shouldSendTextAutoReply && (shouldSendWelcome || autoReply?.type === 'template');
+          let templateReply = null;
 
-          if (shouldSendTemplateReply || shouldSendTextAutoReply) {
-            const templateName = autoReply?.type === 'template' ? autoReply.name : WELCOME_TEMPLATE;
+          if (autoReply?.type === 'template') {
+            if (autoReply.bypassCooldown || shouldSendWelcome) {
+              templateReply = autoReply;
+            }
+          } else if (!shouldSendTextAutoReply && shouldSendWelcome) {
+            templateReply = { type: 'template', name: WELCOME_TEMPLATE, replyKind: 'welcome' };
+          }
+
+          if (templateReply || shouldSendTextAutoReply) {
+            const templateName = templateReply?.name || WELCOME_TEMPLATE;
             const isTextReply = shouldSendTextAutoReply;
 
             try {
@@ -531,7 +540,7 @@ export const handleWhatsAppWebhook = async (req, res, prisma) => {
                   to: conversation.waId,
                   patientName: conversation.profileName,
                   templateName,
-                  replyKind: autoReply?.type === 'template' ? 'hola' : 'welcome',
+                  replyKind: templateReply?.replyKind || 'welcome',
                 });
                 response = result.response;
                 outboundType = result.outboundType;
