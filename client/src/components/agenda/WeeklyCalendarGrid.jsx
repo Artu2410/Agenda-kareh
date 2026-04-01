@@ -2,6 +2,7 @@ import React, { useMemo, useEffect, useRef } from 'react';
 import { format, addDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Activity, Zap, Plus, CheckCircle2, Flag, AlertTriangle, CalendarClock } from 'lucide-react';
+import { getCoverageLabel, isParticularCoverage } from '@/utils/coverage';
 
 const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
 const DAY_OFFSET_MAP = { 1: 0, 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 0: 6 };
@@ -55,19 +56,8 @@ const buildDefaultDays = (currentDate) =>
     hasConfiguredSchedule: false,
   }));
 
-const normalizeCoverage = (value) => String(value || '').trim();
-
-const isParticularCoverage = (value) => {
-  const normalized = normalizeCoverage(value).toLowerCase();
-  return !normalized || normalized === 'particular';
-};
-
-const getCoverageLabel = (value) => (
-  isParticularCoverage(value) ? 'PARTICULAR' : normalizeCoverage(value).toUpperCase()
-);
-
-const getCoverageBadgeClass = (value) => (
-  isParticularCoverage(value)
+const getCoverageBadgeClass = (value, treatAsParticular = false) => (
+  isParticularCoverage(value, treatAsParticular)
     ? 'text-blue-800 bg-blue-100/80'
     : 'text-teal-800 bg-teal-100/50'
 );
@@ -270,8 +260,8 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
                         </div>
 
                         <div className="flex items-center justify-between gap-1">
-                          <span className={`text-[9px] sm:text-[10px] font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider ${getCoverageBadgeClass(app.patient?.healthInsurance)}`}>
-                            {getCoverageLabel(app.patient?.healthInsurance)}
+                          <span className={`text-[9px] sm:text-[10px] font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider ${getCoverageBadgeClass(app.patient?.healthInsurance, app.patient?.treatAsParticular)}`}>
+                            {getCoverageLabel(app.patient?.healthInsurance, app.patient?.treatAsParticular)}
                           </span>
                           <span className="text-[8px] sm:text-[9px] font-bold text-slate-400 whitespace-nowrap">
                             SESIÓN {app.sessionNumber}

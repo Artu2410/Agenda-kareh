@@ -15,6 +15,7 @@ import { MedicalAlertTooltip } from '../components/Tooltip';
 import { useConfirmModal } from '../components/ConfirmModal';
 import DocumentUploadField from '../components/DocumentUploadField';
 import { buildClinicalHistoryPath, persistClinicalHistoryContext } from '../utils/appRoutes';
+import { getCoverageLabel, isParticularCoverage } from '../utils/coverage';
 
 const UNKNOWN_BIRTHDATE = '1900-01-01';
 const MAX_UPLOAD_MB = Number(import.meta.env.VITE_UPLOAD_MAX_MB || 25);
@@ -28,6 +29,7 @@ const EMPTY_FORM = {
   address: '',
   birthDate: '',
   healthInsurance: '',
+  treatAsParticular: false,
   affiliateNumber: '',
   emergencyPhone: '',
   medicalHistory: '',
@@ -110,6 +112,7 @@ export default function PatientsPage() {
         patient.fullName?.toLowerCase().includes(normalizedTerm)
         || patient.dni?.includes(searchTerm)
         || patient.healthInsurance?.toLowerCase().includes(normalizedTerm)
+        || getCoverageLabel(patient.healthInsurance, patient.treatAsParticular).toLowerCase().includes(normalizedTerm)
       ))
     );
   }, [patients, searchTerm]);
@@ -320,7 +323,9 @@ export default function PatientsPage() {
                     <td className="px-6 py-4 font-bold text-slate-800">{patient.fullName}</td>
                     <td className="px-6 py-4">{renderPatientBadges(patient)}</td>
                     <td className="px-6 py-4 text-slate-600">{patient.dni}</td>
-                    <td className="px-6 py-4 text-slate-600">{patient.healthInsurance || '-'}</td>
+                    <td className={`px-6 py-4 font-bold uppercase ${isParticularCoverage(patient.healthInsurance, patient.treatAsParticular) ? 'text-blue-700' : 'text-slate-600'}`}>
+                      {getCoverageLabel(patient.healthInsurance, patient.treatAsParticular)}
+                    </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-wrap gap-2">
                         {renderPatientDocuments(patient)}
@@ -352,7 +357,9 @@ export default function PatientsPage() {
                   <div className="min-w-0">
                     <h2 className="text-lg font-black text-slate-800">{patient.fullName}</h2>
                     <p className="mt-1 text-sm font-semibold text-slate-500">DNI: {patient.dni}</p>
-                    <p className="text-sm text-slate-500">{patient.healthInsurance || 'Particular'}</p>
+                    <p className={`text-sm font-bold uppercase ${isParticularCoverage(patient.healthInsurance, patient.treatAsParticular) ? 'text-blue-700' : 'text-slate-500'}`}>
+                      {getCoverageLabel(patient.healthInsurance, patient.treatAsParticular)}
+                    </p>
                   </div>
                   {renderPatientBadges(patient)}
                 </div>
@@ -498,6 +505,30 @@ export default function PatientsPage() {
                         onChange={handleInputChange}
                         className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 font-semibold outline-none transition focus:ring-2 ring-teal-500"
                       />
+                    </div>
+
+                    <div className="md:col-span-2 rounded-[1.6rem] border border-slate-200 bg-slate-50 px-4 py-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="mb-1 text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Tratamiento particular</div>
+                          <div className="text-sm font-semibold text-slate-500">
+                            {formData.treatAsParticular
+                              ? `Se mostrará como ${getCoverageLabel(formData.healthInsurance, true)}`
+                              : 'Usa la cobertura cargada'}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setFormData((prev) => ({ ...prev, treatAsParticular: !prev.treatAsParticular }))}
+                          className={`rounded-2xl px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all ${
+                            formData.treatAsParticular
+                              ? 'bg-blue-600 text-white shadow-md hover:bg-blue-700'
+                              : 'bg-white text-slate-500 border border-slate-200 hover:border-blue-300 hover:text-blue-700'
+                          }`}
+                        >
+                          {formData.treatAsParticular ? 'Activo' : 'Desactivado'}
+                        </button>
+                      </div>
                     </div>
 
                     <div>

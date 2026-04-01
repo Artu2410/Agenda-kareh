@@ -6,6 +6,7 @@ export const patientSelect = {
   email: true,
   birthDate: true,
   healthInsurance: true,
+  treatAsParticular: true,
   affiliateNumber: true,
   dniImageUrl: true,
   dniBackImageUrl: true,

@@ -3,6 +3,7 @@ import { Calendar as CalendarIcon, Printer, Loader2, Trash2, History, Pencil, Ch
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import api from '@/services/api';
+import { getCoverageLabel, isParticularCoverage } from '@/utils/coverage';
 import PrintSessions from './PrintSessions';
 import { useConfirmModal } from './ConfirmModal';
 
@@ -37,7 +38,7 @@ const isUnknownBirthDate = (birthDate) => {
 const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, selectedSlot, appointment = null, professional = null }) => {
   const [patientData, setPatientData] = useState({
     dni: '', lastName: '', firstName: '', phone: '', birthDate: '',
-    healthInsurance: '', affiliateNumber: '',
+    healthInsurance: '', treatAsParticular: false, affiliateNumber: '',
     hasCancer: false, hasMarcapasos: false, usesEA: false,
   });
 
@@ -103,6 +104,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
         phone: p.phone || '',
         birthDate: p.birthDate && !isUnknownBirthDate(p.birthDate) ? p.birthDate.split('T')[0] : '',
         healthInsurance: p.healthInsurance || '',
+        treatAsParticular: p.treatAsParticular || false,
         affiliateNumber: p.affiliateNumber || '',
         hasCancer: p.hasCancer || false,
         hasMarcapasos: p.hasMarcapasos || false,
@@ -116,7 +118,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
     } else {
       setPatientData({
         dni: '', lastName: '', firstName: '', phone: '',
-        healthInsurance: '', affiliateNumber: '',
+        healthInsurance: '', treatAsParticular: false, affiliateNumber: '',
         hasCancer: false, hasMarcapasos: false, usesEA: false,
       });
       setDiagnosis('');
@@ -145,6 +147,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
           dni: data.dni || prev.dni, phone: data.phone || '',
           birthDate: data.birthDate && !isUnknownBirthDate(data.birthDate) ? data.birthDate.split('T')[0] : prev.birthDate,
           healthInsurance: data.healthInsurance || '',
+          treatAsParticular: data.treatAsParticular || false,
           affiliateNumber: data.affiliateNumber || '',
           hasCancer: data.hasCancer || false, hasMarcapasos: data.hasMarcapasos || false, usesEA: data.usesEA || false,
         }));
@@ -348,6 +351,34 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                 <div className="space-y-1 col-span-2">
                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">N° Afiliado</label>
                   <input className="w-full p-3 border rounded-2xl bg-slate-50 font-bold focus:ring-2 ring-teal-500 outline-none" value={patientData.affiliateNumber || ''} onChange={e => setPatientData({...patientData, affiliateNumber: e.target.value})} />
+                </div>
+                <div className="col-span-2 rounded-[1.6rem] border border-slate-200 bg-slate-50 px-4 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Tratamiento Particular</p>
+                      <p className="mt-1 text-[11px] font-semibold text-slate-500">
+                        {patientData.treatAsParticular
+                          ? `Se tomará como ${getCoverageLabel(patientData.healthInsurance, true)}`
+                          : 'Usa la cobertura cargada'}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setPatientData((prev) => ({ ...prev, treatAsParticular: !prev.treatAsParticular }))}
+                      className={`rounded-2xl px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all ${
+                        patientData.treatAsParticular
+                          ? 'bg-blue-600 text-white shadow-md hover:bg-blue-700'
+                          : 'bg-white text-slate-500 border border-slate-200 hover:border-blue-300 hover:text-blue-700'
+                      }`}
+                    >
+                      {patientData.treatAsParticular ? 'Activo' : 'Desactivado'}
+                    </button>
+                  </div>
+                  {!!patientData.healthInsurance?.trim() && !isParticularCoverage(patientData.healthInsurance) && (
+                    <p className="mt-2 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                      Cobertura original: {getCoverageLabel(patientData.healthInsurance)}
+                    </p>
+                  )}
                 </div>
               </div>
 

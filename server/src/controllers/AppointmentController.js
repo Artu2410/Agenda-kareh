@@ -106,6 +106,7 @@ export const createAppointment = async (req, res, prisma) => {
             update: { 
             fullName: patientData.fullName, 
             healthInsurance: patientData.healthInsurance, 
+            treatAsParticular: patientData.treatAsParticular ?? false,
             affiliateNumber: patientData.affiliateNumber || undefined,
             phone: phoneToUse || undefined,
             birthDate: birthDateToUse ? normalizeBirthDateOrUnknown(birthDateToUse) : undefined,
@@ -117,6 +118,7 @@ export const createAppointment = async (req, res, prisma) => {
             dni: String(patientData.dni), 
             fullName: patientData.fullName, 
             healthInsurance: patientData.healthInsurance || null, 
+            treatAsParticular: patientData.treatAsParticular ?? false,
             affiliateNumber: patientData.affiliateNumber || null,
             phone: phoneToUse || null,
             birthDate: normalizeBirthDateOrUnknown(birthDateToUse),
@@ -263,6 +265,7 @@ export const updateEvolution = async (req, res, prisma) => {
           data: {
             fullName: patientData.fullName || undefined,
             healthInsurance: patientData.healthInsurance || undefined,
+            treatAsParticular: patientData.treatAsParticular ?? undefined,
             affiliateNumber: patientData.affiliateNumber || undefined,
             phone: patientData.phone || undefined,
             birthDate: patientData.birthDate ? normalizeBirthDateOrUnknown(patientData.birthDate) : undefined,

@@ -39,6 +39,7 @@ model Patient {
   email                      String?
   birthDate                  DateTime
   healthInsurance            String?
+  treatAsParticular          Boolean           @default(false)
   affiliateNumber            String?
   dniImageUrl                String?
   dniBackImageUrl            String?

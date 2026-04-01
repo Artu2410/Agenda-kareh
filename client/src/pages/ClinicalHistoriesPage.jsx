@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Search, FileText, ChevronRight, Loader2 } from 'lucide-react';
 import api from '../services/api';
 import { buildClinicalHistoryPath, persistClinicalHistoryContext } from '../utils/appRoutes';
+import { getCoverageLabel, isParticularCoverage } from '../utils/coverage';
 
 const formatClinicalRecordNumber = (value) => {
   const numericValue = Number(value);
@@ -127,7 +128,9 @@ export default function ClinicalHistoriesPage() {
                 </div>
                 <div className="space-y-1 text-xs text-slate-500 font-bold uppercase">
                    <p>Tel: {patient.phone || '---'}</p>
-                   <p>OS: {patient.healthInsurance || 'Particular'}</p>
+                   <p className={isParticularCoverage(patient.healthInsurance, patient.treatAsParticular) ? 'text-blue-700' : ''}>
+                     OS: {getCoverageLabel(patient.healthInsurance, patient.treatAsParticular)}
+                   </p>
                 </div>
               </div>
             ))}

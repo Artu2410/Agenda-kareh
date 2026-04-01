@@ -81,6 +81,7 @@ export const createPatient = async (req, res, prisma) => {
     address,
     birthDate,
     healthInsurance,
+    treatAsParticular,
     affiliateNumber,
     emergencyPhone,
     medicalHistory,
@@ -107,6 +108,7 @@ export const createPatient = async (req, res, prisma) => {
         fullName, dni, phone, email, address,
         birthDate: normalizeBirthDateOrUnknown(birthDate),
         healthInsurance,
+        treatAsParticular: !!treatAsParticular,
         affiliateNumber,
         emergencyPhone,
         medicalHistory,
@@ -132,7 +134,7 @@ export const updatePatient = async (req, res, prisma) => {
   // EXPANDIR PARA INCLUIR TODOS LOS CAMPOS SINCRONIZABLES
   const { 
     fullName, dni, phone, email, address, birthDate, healthInsurance,
-    affiliateNumber, emergencyPhone, medicalHistory, hasMarcapasos, usesEA, hasCancer, medicalNotes,
+    treatAsParticular, affiliateNumber, emergencyPhone, medicalHistory, hasMarcapasos, usesEA, hasCancer, medicalNotes,
     dniImageUrl, dniBackImageUrl, insuranceCardImageUrl, insuranceCardBackImageUrl,
   } = req.body;
 
@@ -150,6 +152,7 @@ export const updatePatient = async (req, res, prisma) => {
         fullName, dni, phone, email, address,
         birthDate: birthDate ? normalizeBirthDateOrUnknown(birthDate) : undefined,
         healthInsurance,
+        treatAsParticular,
         affiliateNumber,
         emergencyPhone,
         medicalHistory,

@@ -1,4 +1,5 @@
 import PDFDocument from 'pdfkit';
+import { getCoverageLabel, isParticularCoverage } from '../utils/coverage.js';
 
 const MM_TO_PT = 72 / 25.4;
 const THERMAL_PAPER_WIDTH_MM = 48; // 48mm = 32 caracteres por línea
@@ -48,24 +49,13 @@ const formatBirthDate = (value) => {
   }).format(date);
 };
 
-const normalizeCoverage = (value) => String(value || '').trim();
-
-const isParticularCoverage = (value) => {
-  const normalized = normalizeCoverage(value).toLowerCase();
-  return !normalized || normalized === 'particular';
-};
-
-const getCoverageLabel = (value) => (
-  isParticularCoverage(value) ? 'PARTICULAR' : normalizeCoverage(value).toUpperCase()
-);
-
-const getPolicyText = (value) => [
-  isParticularCoverage(value) ? PARTICULAR_POLICY_TEXT : HEALTH_INSURANCE_POLICY_TEXT,
+const getPolicyText = (value, treatAsParticular = false) => [
+  isParticularCoverage(value, treatAsParticular) ? PARTICULAR_POLICY_TEXT : HEALTH_INSURANCE_POLICY_TEXT,
   WAIT_TOLERANCE_TEXT,
 ].join('\n');
 
 const estimateTicketHeightMm = ({ patient, professional, appointments, diagnosis }) => {
-  const policyText = getPolicyText(patient?.healthInsurance);
+  const policyText = getPolicyText(patient?.healthInsurance, patient?.treatAsParticular);
   let lines = 36;
   lines += Math.ceil(String(patient?.fullName || 'N/A').length / 21);
   lines += patient?.phone ? 1 : 0;
@@ -128,8 +118,8 @@ const drawWhatsappBadge = (doc) => {
 
 export const buildTicketPdf = async ({ patient, professional, appointments, diagnosis }) => (
   new Promise((resolve) => {
-    const policyText = getPolicyText(patient?.healthInsurance);
-    const coverageLabel = getCoverageLabel(patient?.healthInsurance);
+    const policyText = getPolicyText(patient?.healthInsurance, patient?.treatAsParticular);
+    const coverageLabel = getCoverageLabel(patient?.healthInsurance, patient?.treatAsParticular);
     const doc = new PDFDocument({
       size: [mmToPt(THERMAL_PAPER_WIDTH_MM), mmToPt(estimateTicketHeightMm({
         patient,

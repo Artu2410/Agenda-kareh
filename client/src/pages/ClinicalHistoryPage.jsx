@@ -12,6 +12,7 @@ import {
   persistClinicalHistoryContext,
   readClinicalHistoryContext,
 } from '../utils/appRoutes';
+import { getCoverageLabel, isParticularCoverage } from '../utils/coverage';
 
 const formatClinicalRecordNumber = (value) => {
   const numericValue = Number(value);
@@ -289,6 +290,10 @@ const ClinicalHistoryPage = () => {
   // --- 4. RENDER ---
   const filteredEntries = historyEntries.filter(e => e.date.includes(dateSearch));
   const printableEntries = filteredEntries.filter(entry => entry.isVisible !== false);
+  const coverageLabel = getCoverageLabel(patient?.healthInsurance, patient?.treatAsParticular);
+  const coverageTextClass = isParticularCoverage(patient?.healthInsurance, patient?.treatAsParticular)
+    ? 'text-blue-700'
+    : 'text-teal-600';
 
   const formatDisplayDate = (value) => {
     if (!value || isUnknownBirthDate(value)) return 'Sin dato';
@@ -414,7 +419,19 @@ const ClinicalHistoryPage = () => {
                     {calculateAge(patient?.birthDate)} años
                   </span>
                 </p>
-                <p className="flex justify-between"><b>OS:</b> <span className="text-teal-600 font-black uppercase">{patient?.healthInsurance || 'Particular'}</span></p>
+                <p className="flex justify-between border-b border-slate-200 pb-2"><b>OS:</b> <span className={`${coverageTextClass} font-black uppercase`}>{coverageLabel}</span></p>
+                <button
+                  type="button"
+                  onClick={() => handleUpdatePatient('treatAsParticular', !patient?.treatAsParticular)}
+                  className={`flex w-full items-center justify-between rounded-2xl px-3 py-3 text-[10px] font-black uppercase tracking-widest transition-all ${
+                    patient?.treatAsParticular
+                      ? 'bg-blue-600 text-white shadow-md hover:bg-blue-700'
+                      : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                  }`}
+                >
+                  <span>Tratamiento particular</span>
+                  <span>{patient?.treatAsParticular ? 'Activo' : 'Desactivado'}</span>
+                </button>
                 <div className="border-t border-slate-200 pt-2">
                   <p className="text-[9px] text-slate-400 font-black mb-1 uppercase">N° Afiliado:</p>
                   <input
@@ -620,7 +637,7 @@ const ClinicalHistoryPage = () => {
                   </div>
                   <div className="border-b border-slate-300 pb-3">
                     <div className="mb-1 text-[9px] font-black uppercase tracking-widest text-slate-400">OS</div>
-                    <div className="font-black uppercase text-teal-600">{patient?.healthInsurance || 'Particular'}</div>
+                    <div className={`font-black uppercase ${coverageTextClass}`}>{coverageLabel}</div>
                   </div>
                   <div>
                     <div className="mb-1 text-[9px] font-black uppercase tracking-widest text-slate-400">N° Afiliado</div>

@@ -8,6 +8,7 @@ export const createPatientSchema = Joi.object({
   address: Joi.string().trim().max(200).allow('', null),
   birthDate: Joi.alternatives().try(Joi.date().iso(), Joi.string().allow('')).allow(null),
   healthInsurance: Joi.string().trim().max(120).allow('', null),
+  treatAsParticular: Joi.boolean(),
   affiliateNumber: Joi.string().trim().max(50).allow('', null),
   emergencyPhone: Joi.string().trim().max(30).allow('', null),
   medicalHistory: Joi.string().trim().max(400).allow('', null),

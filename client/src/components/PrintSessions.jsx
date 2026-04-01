@@ -4,6 +4,7 @@ import { es } from 'date-fns/locale';
 import { X, Printer, Download, Loader2, Send } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import api from '@/services/api';
+import { getCoverageLabel, isParticularCoverage } from '@/utils/coverage';
 
 const UNKNOWN_BIRTHDATE = '1900-01-01';
 const THERMAL_WIDTH_MM = 48; // 48mm = 32 caracteres por línea (fuente monoespaciada)
@@ -60,19 +61,8 @@ const toThermalDate = (value) => {
 
 const toIssueDate = () => format(new Date(), "d 'de' MMMM, yyyy", { locale: es });
 
-const normalizeCoverage = (value) => String(value || '').trim();
-
-const isParticularCoverage = (value) => {
-  const normalized = normalizeCoverage(value).toLowerCase();
-  return !normalized || normalized === 'particular';
-};
-
-const getCoverageLabel = (value) => (
-  isParticularCoverage(value) ? 'PARTICULAR' : normalizeCoverage(value).toUpperCase()
-);
-
-const getPolicyText = (value) => [
-  isParticularCoverage(value) ? PARTICULAR_POLICY_TEXT : HEALTH_INSURANCE_POLICY_TEXT,
+const getPolicyText = (value, treatAsParticular = false) => [
+  isParticularCoverage(value, treatAsParticular) ? PARTICULAR_POLICY_TEXT : HEALTH_INSURANCE_POLICY_TEXT,
   WAIT_TOLERANCE_TEXT,
 ].join('\n');
 
@@ -484,7 +474,7 @@ const PrintSessions = ({ isOpen, onClose, appointments, patientData, diagnosis, 
     phone: patientData?.phone || 'N/A',
     age: calculateAge(patientData?.birthDate),
     birthDate: formatBirthDate(patientData?.birthDate),
-    healthInsurance: getCoverageLabel(patientData?.healthInsurance),
+    healthInsurance: getCoverageLabel(patientData?.healthInsurance, patientData?.treatAsParticular),
     affiliateNumber: patientData?.affiliateNumber || 'N/A',
     hasCancer: !!patientData?.hasCancer,
     hasMarcapasos: !!patientData?.hasMarcapasos,
@@ -493,7 +483,7 @@ const PrintSessions = ({ isOpen, onClose, appointments, patientData, diagnosis, 
 
   const printableDiagnosis = diagnosis ? diagnosis.toUpperCase() : 'CONSULTAR HISTORIA CLINICA';
   const sortedAppointments = [...appointments].sort((a, b) => String(a.date).localeCompare(String(b.date)));
-  const policyText = getPolicyText(patientData?.healthInsurance);
+  const policyText = getPolicyText(patientData?.healthInsurance, patientData?.treatAsParticular);
 
   const handlePrint = () => {
     const printWindow = window.open('', '', 'height=700,width=420');
