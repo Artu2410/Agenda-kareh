@@ -247,7 +247,7 @@ export const updateEvolution = async (req, res, prisma) => {
 
       if (!currentApt) throw new Error("Cita no encontrada");
 
-      const updatedApt = await tx.appointment.update({
+      await tx.appointment.update({
         where: { id },
         data: {
           ...(diagnosis !== undefined && { diagnosis: diagnosis.toUpperCase() }),
@@ -292,7 +292,10 @@ export const updateEvolution = async (req, res, prisma) => {
         });
       }
 
-      return updatedApt;
+      return tx.appointment.findUnique({
+        where: { id },
+        select: appointmentSelect,
+      });
     });
 
     res.json({ success: true, appointment: result });

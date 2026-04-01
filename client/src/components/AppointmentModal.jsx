@@ -170,8 +170,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
       };
       if (isEditMode) {
         await api.patch(`/appointments/${appointment.id}/evolution`, payload);
-        onSave();
-        onClose();
+        await onSave?.();
       } else {
         if (!professional?.id) {
           alert('Selecciona un profesional para agendar.');

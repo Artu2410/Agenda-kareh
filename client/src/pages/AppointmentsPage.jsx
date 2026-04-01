@@ -119,8 +119,8 @@ const AppointmentsPage = () => {
     setIsAppointmentModalOpen(true);
   };
 
-  const handleModalSave = () => {
-    refreshAppointments();
+  const handleModalSave = async () => {
+    await refreshAppointments();
     setIsAppointmentModalOpen(false);
   };
 
