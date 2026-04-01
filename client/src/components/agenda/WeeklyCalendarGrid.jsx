@@ -64,7 +64,7 @@ const getCoverageBadgeClass = (value, treatAsParticular = false) => (
 
 const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedule = [], selectedProfessional = null, currentTime, capacityPerSlot = 5 }) => {
   const scrollContainerRef = useRef(null);
-  const getStatusMeta = (status, usesEA) => {
+  const getStatusMeta = (status, usesEA, treatAsParticular, healthInsurance) => {
     if (status === 'COMPLETED') {
       return {
         cardClass: 'bg-emerald-50 border-emerald-600',
@@ -80,6 +80,15 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
         badgeClass: 'bg-rose-100 text-rose-700',
         label: 'Inasistencia',
         icon: <AlertTriangle size={16} className="text-rose-600 shrink-0" />
+      };
+    }
+
+    if (isParticularCoverage(healthInsurance, treatAsParticular)) {
+      return {
+        cardClass: 'bg-blue-50 border-blue-600',
+        badgeClass: 'bg-blue-100 text-blue-700',
+        label: 'Programado',
+        icon: null
       };
     }
 
@@ -238,12 +247,20 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
                           : 'bg-white group'
                     }`}
                   >
-                    {appsInSlot.map((app) => (
+                    {appsInSlot.map((app) => {
+                      const statusMeta = getStatusMeta(
+                        app.status,
+                        app.patient?.usesEA,
+                        app.patient?.treatAsParticular,
+                        app.patient?.healthInsurance
+                      );
+
+                      return (
                       <div
                         key={app.id}
                         onClick={() => onSlotClick(app)}
                         className={`group relative flex flex-col p-4 rounded-xl border-l-[8px] shadow-sm transition-all hover:shadow-md hover:scale-[1.02] cursor-pointer ${
-                          getStatusMeta(app.status, app.patient?.usesEA).cardClass
+                          statusMeta.cardClass
                         }`}
                       >
                         {app.isFirstSession && (
@@ -256,7 +273,7 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
                           <span className="text-[11px] sm:text-[13px] font-black text-slate-900 uppercase leading-tight truncate pr-4">
                             {app.patient?.fullName}
                           </span>
-                          {getStatusMeta(app.status, app.patient?.usesEA).icon}
+                          {statusMeta.icon}
                         </div>
 
                         <div className="flex items-center justify-between gap-1">
@@ -269,8 +286,8 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
                         </div>
 
                         <div className="mt-2 flex justify-end">
-                          <span className={`rounded-full px-2 py-1 text-[8px] font-black uppercase tracking-wider ${getStatusMeta(app.status, app.patient?.usesEA).badgeClass}`}>
-                            {getStatusMeta(app.status, app.patient?.usesEA).label}
+                          <span className={`rounded-full px-2 py-1 text-[8px] font-black uppercase tracking-wider ${statusMeta.badgeClass}`}>
+                            {statusMeta.label}
                           </span>
                         </div>
 
@@ -286,7 +303,8 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
                           {app.patient?.usesEA && <Zap size={12} className="text-amber-500 fill-amber-500" />}
                         </div>
                       </div>
-                    ))}
+                    );
+                    })}
 
                     {isWithinConfiguredSchedule && appsInSlot.length < capacityPerSlot && (
                       <button
