@@ -55,6 +55,23 @@ const buildDefaultDays = (currentDate) =>
     hasConfiguredSchedule: false,
   }));
 
+const normalizeCoverage = (value) => String(value || '').trim();
+
+const isParticularCoverage = (value) => {
+  const normalized = normalizeCoverage(value).toLowerCase();
+  return !normalized || normalized === 'particular';
+};
+
+const getCoverageLabel = (value) => (
+  isParticularCoverage(value) ? 'PARTICULAR' : normalizeCoverage(value).toUpperCase()
+);
+
+const getCoverageBadgeClass = (value) => (
+  isParticularCoverage(value)
+    ? 'text-blue-800 bg-blue-100/80'
+    : 'text-teal-800 bg-teal-100/50'
+);
+
 const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedule = [], selectedProfessional = null, currentTime, capacityPerSlot = 5 }) => {
   const scrollContainerRef = useRef(null);
   const getStatusMeta = (status, usesEA) => {
@@ -253,8 +270,8 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
                         </div>
 
                         <div className="flex items-center justify-between gap-1">
-                          <span className="text-[9px] sm:text-[10px] font-extrabold text-teal-800 bg-teal-100/50 px-1.5 py-0.5 rounded uppercase tracking-wider">
-                            {app.patient?.healthInsurance}
+                          <span className={`text-[9px] sm:text-[10px] font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider ${getCoverageBadgeClass(app.patient?.healthInsurance)}`}>
+                            {getCoverageLabel(app.patient?.healthInsurance)}
                           </span>
                           <span className="text-[8px] sm:text-[9px] font-bold text-slate-400 whitespace-nowrap">
                             SESIÓN {app.sessionNumber}
