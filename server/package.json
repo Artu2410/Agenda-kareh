@@ -14,7 +14,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1005.0",
+    "@aws-sdk/client-s3": "^3.1021.0",
     "@google/generative-ai": "^0.24.1",
     "@prisma/client": "^5.22.0",
     "prisma": "^5.22.0",
@@ -31,7 +31,7 @@
     "joi": "^18.0.2",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.1.1",
-    "nodemailer": "^8.0.1",
+    "nodemailer": "^8.0.4",
     "p-queue": "^8.1.1",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
@@ -42,7 +42,10 @@
     "nodemon": "^3.1.0"
   },
   "overrides": {
+    "brace-expansion": "^1.1.13",
     "minimatch": "^3.1.4",
+    "path-to-regexp": "0.1.13",
+    "picomatch": "^2.3.2",
     "qs": "^6.15.0",
     "cookie": "^0.7.0"
   }
