@@ -28,18 +28,32 @@ const buildWhatsappBadgeMarkup = () => `
   </span>
 `;
 
-const toThermalDate = (value) => {
-  if (!value) return 'N/A';
+const parseTicketDate = (value) => {
+  if (!value) return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
 
-  let date;
-  if (String(value).includes('T')) {
-    date = new Date(value);
-  } else {
-    const [year, month, day] = String(value).split('-').map(Number);
-    date = new Date(year, month - 1, day, 12, 0, 0);
+  if (typeof value === 'string') {
+    const dateOnly = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (dateOnly) {
+      const [, year, month, day] = dateOnly;
+      return new Date(Number(year), Number(month) - 1, Number(day), 12, 0, 0);
+    }
+
+    const utcMidnight = value.match(/^(\d{4})-(\d{2})-(\d{2})T00:00:00(?:\.000)?(?:Z|\+00:00)$/);
+    if (utcMidnight) {
+      const [, year, month, day] = utcMidnight;
+      return new Date(Number(year), Number(month) - 1, Number(day), 12, 0, 0);
+    }
   }
 
-  if (Number.isNaN(date.getTime())) return 'N/A';
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const toThermalDate = (value) => {
+  if (!value) return 'N/A';
+  const date = parseTicketDate(value);
+  if (!date) return 'N/A';
 
   return format(date, 'EEE dd/MM', { locale: es }).replace('.', '').toUpperCase();
 };
@@ -177,6 +191,10 @@ const buildPrintHtml = ({ printablePatient, printableDiagnosis, sortedAppointmen
 
           .meta-item {
             padding: 0.5mm 0;
+          }
+
+          .meta-item-full {
+            grid-column: 1 / -1;
           }
 
           .meta-label {
@@ -357,7 +375,7 @@ const buildPrintHtml = ({ printablePatient, printableDiagnosis, sortedAppointmen
                 <span class="meta-label">F. Nac</span>
                 <span class="meta-value">${printablePatient.birthDate}</span>
               </div>
-              <div class="meta-item">
+              <div class="meta-item meta-item-full">
                 <span class="meta-label">Afil</span>
                 <span class="meta-value">${printablePatient.affiliateNumber}</span>
               </div>
@@ -422,6 +440,7 @@ const WhatsAppBadge = () => (
 
 const PrintSessions = ({ isOpen, onClose, appointments, patientData, diagnosis, appointmentId }) => {
   const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
+  const ticketRef = useRef(null);
 
   if (!isOpen || !appointments || appointments.length === 0) return null;
 
@@ -437,29 +456,18 @@ const PrintSessions = ({ isOpen, onClose, appointments, patientData, diagnosis, 
   };
 
   const formatBirthDate = (value) => {
-    if (!value) return 'N/A';
-    const dateString = value.includes?.('T') ? value.split('T')[0] : value;
+    const date = parseTicketDate(value);
+    if (!date) return 'N/A';
+    const dateString = format(date, 'yyyy-MM-dd');
     if (dateString <= UNKNOWN_BIRTHDATE) return 'N/A';
-
-    const date = value.includes?.('T')
-      ? new Date(value)
-      : new Date(`${value}T12:00:00`);
-
-    return Number.isNaN(date.getTime())
-      ? 'N/A'
-      : format(date, 'dd/MM/yyyy', { locale: es });
+    return format(date, 'dd/MM/yyyy', { locale: es });
   };
 
   const calculateAge = (birthDate) => {
-    if (!birthDate) return null;
-    const dateString = birthDate.includes?.('T') ? birthDate.split('T')[0] : birthDate;
+    const date = parseTicketDate(birthDate);
+    if (!date) return null;
+    const dateString = format(date, 'yyyy-MM-dd');
     if (dateString <= UNKNOWN_BIRTHDATE) return null;
-
-    const date = birthDate.includes?.('T')
-      ? new Date(birthDate)
-      : new Date(`${dateString}T12:00:00`);
-
-    if (Number.isNaN(date.getTime())) return null;
 
     const today = new Date();
     let age = today.getFullYear() - date.getFullYear();
@@ -504,8 +512,6 @@ const PrintSessions = ({ isOpen, onClose, appointments, patientData, diagnosis, 
       printWindow.close();
     };
   };
-
-  const ticketRef = useRef(null);
 
   const handleDownloadImage = async () => {
     if (!ticketRef.current) return;
@@ -595,7 +601,7 @@ const PrintSessions = ({ isOpen, onClose, appointments, patientData, diagnosis, 
                 <span style={{ fontWeight: 900 }}>F.NAC:</span>
                 <span> {printablePatient.birthDate}</span>
               </div>
-              <div>
+              <div style={{ gridColumn: '1 / -1' }}>
                 <span style={{ fontWeight: 900 }}>AFIL:</span>
                 <span> {printablePatient.affiliateNumber}</span>
               </div>

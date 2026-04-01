@@ -12,10 +12,25 @@ const WAIT_TOLERANCE_TEXT = 'TOLERANCIA DE ESPERA 15 MIN MAXIMO.';
 const mmToPt = (value) => value * MM_TO_PT;
 const getPrintableWidth = (doc) => doc.page.width - doc.page.margins.left - doc.page.margins.right;
 
+const parseTicketDate = (value) => {
+  if (!value) return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+
+  if (typeof value === 'string') {
+    const dateOnlyMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})(?:$|T00:00:00(?:\.000)?(?:Z|\+00:00)$)/);
+    if (dateOnlyMatch) {
+      const [, year, month, day] = dateOnlyMatch;
+      return new Date(Number(year), Number(month) - 1, Number(day), 12, 0, 0);
+    }
+  }
+
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
 const formatDate = (value) => {
-  if (!value) return '';
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
+  const date = parseTicketDate(value);
+  if (!date) return '';
   return new Intl.DateTimeFormat('es-AR', {
     weekday: 'short',
     day: '2-digit',
@@ -24,10 +39,13 @@ const formatDate = (value) => {
 };
 
 const formatBirthDate = (value) => {
-  if (!value) return 'N/A';
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return 'N/A';
-  return date.toLocaleDateString('es-AR');
+  const date = parseTicketDate(value);
+  if (!date) return 'N/A';
+  return new Intl.DateTimeFormat('es-AR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(date);
 };
 
 const normalizeCoverage = (value) => String(value || '').trim();
@@ -141,8 +159,8 @@ export const buildTicketPdf = async ({ patient, professional, appointments, diag
     // DATOS DE COBERTURA
     writeLabelValue(doc, 'DNI', patient?.dni || 'N/A');
     writeLabelValue(doc, 'F.NAC', formatBirthDate(patient?.birthDate));
-    writeLabelValue(doc, 'COBERTURA', coverageLabel);
     writeLabelValue(doc, 'AFIL', patient?.affiliateNumber || 'N/A');
+    writeLabelValue(doc, 'COBERTURA', coverageLabel);
 
     // Banderas de salud
     doc.moveDown(0.25);
