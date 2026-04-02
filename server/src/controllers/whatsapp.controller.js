@@ -13,12 +13,6 @@ import { normalizePhone } from '../utils/phone.js';
 const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
 const WELCOME_TEMPLATE = process.env.WHATSAPP_WELCOME_TEMPLATE || 'bienvenida_kareh';
 const HOLA_TEMPLATE = process.env.WHATSAPP_HOLA_TEMPLATE || 'bienvenida_kareh';
-const GREETING_TEMPLATE_ENABLED = String(process.env.WHATSAPP_GREETING_TEMPLATE_ENABLED || 'false')
-  .trim()
-  .toLowerCase() === 'true';
-const GREETING_TEXT_FROM_ENV = String(process.env.WHATSAPP_GREETING_TEXT_FROM_ENV || 'false')
-  .trim()
-  .toLowerCase() === 'true';
 
 const FLOW_STATES = Object.freeze({
   WELCOME: 'welcome',
@@ -193,33 +187,15 @@ const DIRECT_INTENT_RULES = [
   },
 ];
 
-const normalizeReplyMode = (value, fallback = 'text') => {
-  const mode = String(value || fallback).trim().toLowerCase();
-  if (mode === 'template' && GREETING_TEMPLATE_ENABLED) return 'template';
-  return 'text';
-};
-const normalizeTextTemplate = (value, fallback) => String(value || fallback || '')
-  .replace(/\\n/g, '\n')
-  .trim();
-
-const WELCOME_MODE = normalizeReplyMode(process.env.WHATSAPP_WELCOME_MODE, 'text');
-const HOLA_MODE = normalizeReplyMode(process.env.WHATSAPP_HOLA_MODE, WELCOME_MODE);
-const WELCOME_TEXT_TEMPLATE = normalizeTextTemplate(
-  GREETING_TEXT_FROM_ENV ? process.env.WHATSAPP_WELCOME_TEXT : '',
-  DEFAULT_WELCOME_TEXT,
-);
-const HOLA_TEXT_TEMPLATE = normalizeTextTemplate(
-  GREETING_TEXT_FROM_ENV ? process.env.WHATSAPP_HOLA_TEXT : '',
-  WELCOME_TEXT_TEMPLATE,
-);
+const WELCOME_MODE = 'text';
+const HOLA_MODE = 'text';
+const WELCOME_TEXT_TEMPLATE = DEFAULT_WELCOME_TEXT;
+const HOLA_TEXT_TEMPLATE = DEFAULT_WELCOME_TEXT;
 const WELCOME_TEMPLATE_BODY_PARAMS = process.env.WHATSAPP_WELCOME_TEMPLATE_BODY_PARAMS;
 const HOLA_TEMPLATE_BODY_PARAMS = String(process.env.WHATSAPP_HOLA_TEMPLATE_BODY_PARAMS || '').trim()
   ? process.env.WHATSAPP_HOLA_TEMPLATE_BODY_PARAMS
   : WELCOME_TEMPLATE_BODY_PARAMS;
-const WELCOME_FALLBACK_TEXT = normalizeTextTemplate(
-  process.env.WHATSAPP_WELCOME_FALLBACK_TEXT,
-  WELCOME_TEXT_TEMPLATE,
-);
+const WELCOME_FALLBACK_TEXT = WELCOME_TEXT_TEMPLATE;
 const WELCOME_COOLDOWN_HOURS = Number(process.env.WHATSAPP_WELCOME_COOLDOWN_HOURS || 24);
 const WELCOME_COOLDOWN_MS = WELCOME_COOLDOWN_HOURS * 60 * 60 * 1000;
 
