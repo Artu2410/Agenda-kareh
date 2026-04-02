@@ -20,114 +20,174 @@ const GREETING_TEXT_FROM_ENV = String(process.env.WHATSAPP_GREETING_TEXT_FROM_EN
   .trim()
   .toLowerCase() === 'true';
 
+const FLOW_STATES = Object.freeze({
+  WELCOME: 'welcome',
+  OBRA_SOCIAL: 'obra_social',
+  PARTICULAR: 'particular',
+  PAMI: 'pami',
+  RESPIRATORIO: 'respiratorio',
+  FINAL_DOCS: 'final_docs',
+  LOCATION: 'location',
+  WAITING_HUMAN_REVIEW: 'waiting_human_review',
+});
+
 const DEFAULT_WELCOME_TEXT = [
-  '¡Hola! {{1}}',
-  '*Bienvenido/a a Kinesiología Kareh* 🌿.',
-  'Para asesorarte mejor,',
-  '*enviá el número de tu opción:*',
+  '¡Hola! {{1}} Qué bueno que te contactes con nosotros. Bienvenida/o a Kinesiología Kareh 🌿.',
   '',
-  '1️⃣ Obra Social',
+  'Para poder asesorarte de la mejor manera, indicanos con qué modalidad te gustaría atenderte:',
+  '',
+  '1️⃣ Obra Social / Prepaga / ART',
   '2️⃣ Particular',
   '3️⃣ PAMI',
   '4️⃣ Respiratorio',
+  '5️⃣ Ubicación y Horarios 📍',
   '',
   '📍 Av. Senador Morón 782, Bella Vista.',
   '',
-  '⏰ Atención: Lun y Vie (14-19hs) / Mar, Mié y Jue (17:30-19hs) / Sáb (8-12hs).',
-  '',
-  '¡Estamos procesando tu mensaje y te responderemos a la brevedad! ✨🏥',
+  '¡Estamos procesando tu mensaje y en un ratito te respondemos personalmente! ✨🏥',
 ].join('\n');
 
 const AUTO_REPLY_OBRA_SOCIAL_TEXT = [
-  '¡Perfecto! Para verificar tu cobertura y reservarte un lugar, envianos:',
+  '¡Perfecto! Para verificar tu cobertura y ver si tenemos convenio vigente, por favor envianos:',
+  '✅ Nombre de tu Obra Social, Prepaga o ART.',
+  '✅ Nombre, Apellido y tu DNI.',
+  '✅ Fecha de nacimiento.',
+  '✅ Foto de la Orden Médica (legible) + Autorización si ya la tenés.',
+  '✅ Foto de tu Credencial (frente y dorso).',
   '',
-  '✅ Nombre de tu Obra Social',
-  '✅ Nombre, Apellido y DNI',
-  '✅ Fecha de nacimiento',
-  '✅ Foto de la Orden Médica.',
-  '✅ Foto de DNI y Credencial (ambos lados).',
-  '✅ Antecedentes: (marcapasos, cáncer o alguna otra condición).',
-  '',
-  'Revisamos la información y a la brevedad nos comunicamos contigo.',
-  '',
-  'Escribí 0️⃣ para volver al menú anterior.',
+  'En cuanto revisemos los datos, te escribiremos con la palabra RESERVAR para coordinar tus días. 📝',
+  '0️⃣ Volver al Menú Principal.',
 ].join('\n');
 
 const AUTO_REPLY_PARTICULAR_TEXT = [
-  '¡Perfecto! Información para Kinesiología Particular:',
+  '¡Excelente! Información para sesiones particulares:',
+  '💰 Valor: $15.000 por zona a tratar.',
+  '💰 Doble tratamiento: $28.000.',
+  '(Solo efectivo, por favor).',
   '',
-  '💰 Valor Particular: $15.000 por área a tratar (Solo efectivo).Por 2 áreas o más, consultar valor especial.',
+  'Elegí el esquema de días que más te convenga:',
+  '🅰️ Lunes y Viernes (14 a 19 hs).',
+  '(Opcional: podés sumar los Miércoles de 17:30 a 19 hs).',
+  '🅱️ Martes y Jueves (17:30 a 19 hs).',
+  '(Opcional: podés sumar los Sábados de 8 a 12 hs).',
   '',
-  'Para reservar tu turno, envianos:',
-  '✅ Nombre, Apellido y DNI',
-  '✅ Fecha de nacimiento',
-  '✅ Foto de la Orden Médica',
-  '✅ Foto del DNI (ambos lados).',
-  '✅ Antecedentes: (marcapasos, cáncer o alguna otra condición).',
-  '',
-  'Escribí 0️⃣ para volver al menú anterior.',
+  '0️⃣ Volver al Menú Principal.',
 ].join('\n');
 
 const AUTO_REPLY_PAMI_TEXT = [
-  '¡Perfecto! Información para Kinesiología PAMI:',
+  '¡Entendido! Para pacientes de PAMI el valor es diferencial:',
+  '💰 Valor (Bonificado): $10.000 por zona a tratar.',
+  '💰 Doble tratamiento: $20.000.',
+  '(Solo efectivo, por favor).',
   '',
-  'Beneficio PAMI: $10.000 por área a tratar (Solo efectivo). Por 2 áreas o más, consultar valor especial.',
+  'Elegí el esquema de días que te quede mejor:',
+  '🅰️ Lunes y Viernes (14 a 19 hs).',
+  '🅱️ Martes y Jueves (17:30 a 19 hs).',
   '',
-  'Para reservar tu turno, envianos:',
-  '✅ Nombre, Apellido y DNI',
-  '✅ Número de afiliado',
-  '✅ Fecha de nacimiento',
-  '✅ Foto de la Orden Médica',
-  '✅ Foto de DNI y Credencial (ambos lados).',
-  '✅ Antecedentes: (marcapasos, cáncer o alguna otra condición).',
-  '',
-  'Escribí 0️⃣ para volver al menú anterior.',
+  '0️⃣ Volver al Menú Principal.',
 ].join('\n');
 
 const AUTO_REPLY_RESPIRATORIO_TEXT = [
-  '¡Perfecto! Información para Kinesiología Respiratoria:',
-  '',
+  '¡Recibido! Información para Kinesiología Respiratoria:',
   '💰 Valor de la sesión: $30.000 (solo efectivo).',
   '',
-  'Para reservar tu turno, envianos:',
-  '✅ Nombre, Apellido y DNI',
-  '✅ Fecha de nacimiento',
-  '✅ Foto de la Orden Médica',
-  '✅ Foto del DNI (ambos lados).',
-  '✅ Antecedentes: (marcapasos, cáncer o alguna otra condición).',
+  'Esquemas disponibles:',
+  '🅰️ Lunes y Viernes (14 a 19 hs).',
+  '🅱️ Martes y Jueves (17:30 a 19 hs).',
   '',
-  'Escribí 0️⃣ para volver al menú anterior.',
+  '0️⃣ Volver al Menú Principal.',
+].join('\n');
+
+const FINAL_DOCUMENTATION_TEXT = [
+  '¡Genial! Ya casi tenemos todo listo para agendarte. Solo necesitamos estos datos finales:',
+  '',
+  '✅ Foto de tu DNI (ambos lados).',
+  '✅ Foto de la Orden Médica (legible).',
+  '✅ Antecedentes: Contanos si tenés marcapasos, algún embarazo o alguna otra condición de salud.',
+  '',
+  '⏳ Tolerancia máxima de llegada: 20 minutos.',
+  '⚠️ Inasistencia sin aviso previo: 50% de recargo en la próxima sesión.',
+  '',
+  'Escribí LISTO cuando hayas enviado todo y en breve te mandamos el comprobante con tu cronograma confirmado. ✨',
+  '',
+  '0️⃣ Volver al Menú Principal.',
+].join('\n');
+
+const FINAL_CONFIRMATION_TEXT = [
+  '¡Gracias! Recibimos todo correctamente.',
+  'En breve te mandamos el comprobante con tu cronograma confirmado. ✨',
 ].join('\n');
 
 const AUTO_REPLY_LOCATION_TEXT = [
-  '📍 Av. Senador Morón 782, Bella Vista.',
-  '⏰ Atención: Lun y Vie (14-19hs) / Mar, Mié y Jue (17:30-19hs) / Sáb (8-12hs).',
+  '¡Con gusto! Acá te compartimos los datos para que puedas encontrarnos fácilmente:',
+  '',
+  '📍 Dirección: Av. Senador Morón 782, Bella Vista.',
+  '🗺️ Google Maps: https://maps.app.goo.gl/ChIJccvYOMO9vJURBOmqm_VIytA',
+  '',
+  '⏰ Horarios de atención:',
+  '• Lun y Vie: 14:00 a 19:00 hs.',
+  '• Mar, Mié y Jue: 17:30 a 19:00 hs.',
+  '• Sábados: 08:00 a 12:00 hs.',
+  '',
+  '0️⃣ Volver al Menú Principal.',
 ].join('\n');
 
-const AUTO_REPLY_RULES = [
+const SCHEME_SELECTION_STATES = new Set([
+  FLOW_STATES.PARTICULAR,
+  FLOW_STATES.PAMI,
+  FLOW_STATES.RESPIRATORIO,
+]);
+
+const DIRECT_INTENT_RULES = [
   {
-    patterns: [/^(1|1 obra social|obra social|obras sociales)(\b.*)?$/],
-    reply: { type: 'text', text: AUTO_REPLY_OBRA_SOCIAL_TEXT },
+    patterns: [/^(1|1 obra social|1 prepaga|1 art)$/],
+    text: AUTO_REPLY_OBRA_SOCIAL_TEXT,
+    nextState: FLOW_STATES.OBRA_SOCIAL,
   },
   {
-    patterns: [/^(2|2 particular|particular)(\b.*)?$/],
-    reply: { type: 'text', text: AUTO_REPLY_PARTICULAR_TEXT },
+    patterns: [/\b(obra social|obras sociales|prepaga|art|osde|ioma|galeno|swiss|swiss medical)\b/],
+    text: AUTO_REPLY_OBRA_SOCIAL_TEXT,
+    nextState: FLOW_STATES.OBRA_SOCIAL,
   },
   {
-    patterns: [/^(3|3 pami|pami)(\b.*)?$/],
-    reply: { type: 'text', text: AUTO_REPLY_PAMI_TEXT },
+    patterns: [/^(2|2 particular)$/],
+    text: AUTO_REPLY_PARTICULAR_TEXT,
+    nextState: FLOW_STATES.PARTICULAR,
   },
   {
-    patterns: [/^(4|4 respiratorio|respiratorio|respiratoria|rehabilitacion respiratoria|kinesiologia respiratoria)(\b.*)?$/],
-    reply: { type: 'text', text: AUTO_REPLY_RESPIRATORIO_TEXT },
+    patterns: [/\b(particular|precio|precios|cuanto sale|cuanto cuesta|costo|costos)\b/],
+    text: AUTO_REPLY_PARTICULAR_TEXT,
+    nextState: FLOW_STATES.PARTICULAR,
   },
   {
-    patterns: [/\b(ubicacion|direccion|donde queda|donde estan|horario|horarios)\b/],
-    reply: { type: 'text', text: AUTO_REPLY_LOCATION_TEXT },
+    patterns: [/^(3|3 pami)$/],
+    text: AUTO_REPLY_PAMI_TEXT,
+    nextState: FLOW_STATES.PAMI,
   },
   {
-    patterns: [/^(0|menu|volver)(\b.*)?$/],
-    reply: { type: 'template', name: WELCOME_TEMPLATE, replyKind: 'welcome', bypassCooldown: true },
+    patterns: [/\b(pami|jubilado|jubilada|jubilados)\b/],
+    text: AUTO_REPLY_PAMI_TEXT,
+    nextState: FLOW_STATES.PAMI,
+  },
+  {
+    patterns: [/^(4|4 respiratorio)$/],
+    text: AUTO_REPLY_RESPIRATORIO_TEXT,
+    nextState: FLOW_STATES.RESPIRATORIO,
+  },
+  {
+    patterns: [/\b(respiratorio|respiratoria|nebulizacion|pecho|kinesiologia respiratoria|rehabilitacion respiratoria)\b/],
+    text: AUTO_REPLY_RESPIRATORIO_TEXT,
+    nextState: FLOW_STATES.RESPIRATORIO,
+  },
+  {
+    patterns: [/^(5|5 ubicacion|5 ubicacion y horarios)$/],
+    text: AUTO_REPLY_LOCATION_TEXT,
+    nextState: FLOW_STATES.LOCATION,
+  },
+  {
+    patterns: [/\b(ubicacion|direccion|donde estan|donde quedan|mapa|horario|horarios)\b/],
+    text: AUTO_REPLY_LOCATION_TEXT,
+    nextState: FLOW_STATES.LOCATION,
   },
 ];
 
@@ -219,6 +279,7 @@ const ensureConversation = async ({ prisma, waId, profileName, phone }) => {
       waId,
       phone: normalizedPhone || waId,
       profileName: profileName || null,
+      currentState: FLOW_STATES.WELCOME,
       unreadCount: 0,
     },
   });
@@ -416,17 +477,100 @@ const normalizeText = (value) => {
 
 const GREETING_PREFIXES = ['hola', 'buenas', 'buen dia', 'buenos dias', 'buenas tardes', 'buenas noches'];
 
-const getAutoReply = (messageText) => {
+const MENU_COMMAND_PATTERNS = [/^(0|menu|menu principal|volver|inicio)(\b.*)?$/];
+const LISTO_COMMAND_PATTERNS = [/^(listo|ya esta|ya envie todo|termine)(\b.*)?$/];
+const SCHEME_A_PATTERNS = [/^(a|opcion a|lunes y viernes|lunes viernes|lun y vie)(\b.*)?$/];
+const SCHEME_B_PATTERNS = [/^(b|opcion b|martes y jueves|martes jueves|mar y jue)(\b.*)?$/];
+
+const matchesAnyPattern = (text, patterns) => patterns.some((pattern) => pattern.test(text));
+
+const isGreeting = (normalizedText) => GREETING_PREFIXES.some(
+  (prefix) => normalizedText === prefix || normalizedText.startsWith(`${prefix} `),
+);
+
+const isMenuCommand = (normalizedText) => matchesAnyPattern(normalizedText, MENU_COMMAND_PATTERNS);
+const isListoCommand = (normalizedText) => matchesAnyPattern(normalizedText, LISTO_COMMAND_PATTERNS);
+const isSchemeASelection = (normalizedText) => matchesAnyPattern(normalizedText, SCHEME_A_PATTERNS);
+const isSchemeBSelection = (normalizedText) => matchesAnyPattern(normalizedText, SCHEME_B_PATTERNS);
+
+const canApplyDirectIntent = (currentState) => !currentState
+  || currentState === FLOW_STATES.WELCOME
+  || currentState === FLOW_STATES.LOCATION
+  || currentState === FLOW_STATES.WAITING_HUMAN_REVIEW
+  || SCHEME_SELECTION_STATES.has(currentState);
+
+const getDirectIntentReply = (normalizedText) => {
+  const matchedRule = DIRECT_INTENT_RULES.find(({ patterns }) => patterns.some((pattern) => pattern.test(normalizedText)));
+  if (!matchedRule) return null;
+
+  return {
+    type: 'text',
+    text: matchedRule.text,
+    nextState: matchedRule.nextState,
+  };
+};
+
+const getConversationAutoReply = ({
+  messageText,
+  currentState,
+  shouldSendWelcome,
+  hasNonTextMessage = false,
+}) => {
   const normalized = normalizeText(messageText);
-  if (!normalized) return null;
-  const matchedRule = AUTO_REPLY_RULES.find(({ patterns }) => patterns.some((pattern) => pattern.test(normalized)));
-  if (matchedRule) {
-    return matchedRule.reply;
+
+  if (normalized && isMenuCommand(normalized)) {
+    return { type: 'welcome', nextState: FLOW_STATES.WELCOME };
   }
-  if (GREETING_PREFIXES.some((prefix) => normalized === prefix || normalized.startsWith(`${prefix} `))) {
-    return { type: 'template', name: HOLA_TEMPLATE, replyKind: 'hola' };
+
+  if (normalized && (shouldSendWelcome || canApplyDirectIntent(currentState))) {
+    const directIntentReply = getDirectIntentReply(normalized);
+    if (directIntentReply) return directIntentReply;
   }
+
+  if (normalized && SCHEME_SELECTION_STATES.has(currentState)) {
+    if (isSchemeASelection(normalized) || isSchemeBSelection(normalized)) {
+      return {
+        type: 'text',
+        text: FINAL_DOCUMENTATION_TEXT,
+        nextState: FLOW_STATES.FINAL_DOCS,
+      };
+    }
+  }
+
+  if (normalized && currentState === FLOW_STATES.FINAL_DOCS && isListoCommand(normalized)) {
+    return {
+      type: 'text',
+      text: FINAL_CONFIRMATION_TEXT,
+      nextState: FLOW_STATES.WAITING_HUMAN_REVIEW,
+    };
+  }
+
+  if (shouldSendWelcome && (normalized || hasNonTextMessage)) {
+    return { type: 'welcome', nextState: FLOW_STATES.WELCOME };
+  }
+
+  if (normalized && currentState === FLOW_STATES.WELCOME && isGreeting(normalized)) {
+    return { type: 'welcome', nextState: FLOW_STATES.WELCOME };
+  }
+
   return null;
+};
+
+const extractPatientName = (messageText) => {
+  const text = String(messageText || '').trim();
+  if (!text) return null;
+
+  const match = text.match(/\b(?:soy|me llamo|mi nombre es)\s+([A-Za-zÁÉÍÓÚÜÑáéíóúüñ' -]{2,50})/i);
+  if (!match?.[1]) return null;
+
+  const normalized = match[1]
+    .trim()
+    .replace(/\s+/g, ' ')
+    .split(' ')
+    .slice(0, 3)
+    .join(' ');
+
+  return normalized || null;
 };
 
 const storeInboundMedia = async ({ mediaId, mimeType, conversationId }) => {
@@ -479,18 +623,28 @@ export const handleWhatsAppWebhook = async (req, res, prisma) => {
           });
 
           const now = new Date();
-          let shouldSendWelcome = false;
           const lastInbound = await prisma.whatsAppMessage.findFirst({
             where: { conversationId: conversation.id, direction: 'inbound' },
             orderBy: { createdAt: 'desc' },
           });
 
-          if (isNew || !lastInbound || (now - new Date(lastInbound.createdAt) > WELCOME_COOLDOWN_MS)) {
-            shouldSendWelcome = true;
-          }
+          const shouldResetSession = isNew
+            || !lastInbound
+            || (now - new Date(lastInbound.createdAt) > WELCOME_COOLDOWN_MS);
 
-          const inboundText = message.type === 'text' ? message.text?.body : '';
-          const autoReply = getAutoReply(inboundText);
+          const inboundText = message.type === 'text' ? message.text?.body || '' : '';
+          const extractedPatientName = extractPatientName(inboundText);
+          const effectiveState = shouldResetSession
+            ? FLOW_STATES.WELCOME
+            : (conversation.currentState || FLOW_STATES.WELCOME);
+          const autoReply = getConversationAutoReply({
+            messageText: inboundText,
+            currentState: effectiveState,
+            shouldSendWelcome: shouldResetSession,
+            hasNonTextMessage: message.type !== 'text',
+          });
+          const nextConversationState = autoReply?.nextState || effectiveState;
+          const nextProfileName = extractedPatientName || conversation.profileName;
           
           const mediaMeta = getMediaInfoFromMessage(message);
           let mediaUrl = null;
@@ -522,50 +676,27 @@ export const handleWhatsAppWebhook = async (req, res, prisma) => {
             data: {
               lastMessageAt: new Date(),
               lastMessageText: getPreviewText(message),
+              profileName: nextProfileName || undefined,
+              currentState: nextConversationState,
               unreadCount: { increment: 1 },
             },
           });
 
-          const shouldSendTextAutoReply = autoReply?.type === 'text';
-          let templateReply = null;
-
-          if (autoReply?.type === 'template') {
-            if (autoReply.bypassCooldown || shouldSendWelcome) {
-              templateReply = autoReply;
-            }
-          } else if (!shouldSendTextAutoReply && shouldSendWelcome) {
-            templateReply = { type: 'template', name: WELCOME_TEMPLATE, replyKind: 'welcome' };
-          }
-
-          if (templateReply || shouldSendTextAutoReply) {
-            const templateName = templateReply?.name || WELCOME_TEMPLATE;
-            const isTextReply = shouldSendTextAutoReply;
-
+          if (autoReply) {
             try {
-              let outboundType;
-              let outboundText;
-              let response;
-              if (isTextReply) {
-                response = await sendTextMessage({ to: conversation.waId, text: autoReply.text });
-                outboundType = 'text';
-                outboundText = autoReply.text;
-              } else {
-                const result = await sendWelcomeReply({
-                  to: conversation.waId,
-                  patientName: conversation.profileName,
-                  templateName,
-                  replyKind: templateReply?.replyKind || 'welcome',
-                });
-                response = result.response;
-                outboundType = result.outboundType;
-                outboundText = result.outboundText;
-              }
+              const outboundText = autoReply.type === 'welcome'
+                ? buildReplyText(WELCOME_TEXT_TEMPLATE, nextProfileName)
+                : autoReply.text;
+              const response = await sendTextMessage({
+                to: conversation.waId,
+                text: outboundText,
+              });
 
               await prisma.whatsAppMessage.create({
                 data: {
                   conversationId: conversation.id,
                   direction: 'outbound',
-                  type: outboundType,
+                  type: 'text',
                   text: outboundText,
                   waMessageId: response?.messages?.[0]?.id,
                   status: 'sent',
@@ -738,6 +869,11 @@ export const sendWelcomeTemplate = async (req, res, prisma) => {
         waMessageId,
         status: 'sent',
       },
+    });
+
+    await prisma.whatsAppConversation.update({
+      where: { id: conversation.id },
+      data: { currentState: FLOW_STATES.WELCOME },
     });
 
     res.json({ success: true, type: result.outboundType });

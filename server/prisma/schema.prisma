@@ -198,6 +198,7 @@ model WhatsAppConversation {
   waId            String           @unique
   phone           String
   profileName     String?
+  currentState    String?          @default("welcome")
   lastMessageAt   DateTime?
   lastMessageText String?
   unreadCount     Int              @default(0)
