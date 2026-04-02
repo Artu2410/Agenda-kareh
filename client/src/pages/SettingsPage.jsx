@@ -3,6 +3,7 @@ import instance from '../api/axios';
 import { Check, Clock, Edit, Loader2, Plus } from 'lucide-react';
 import ProfessionalModal from '../components/settings/ProfessionalModal';
 import ScheduleModal from '../components/settings/ScheduleModal';
+import WhatsAppCoverageSection from '../components/settings/WhatsAppCoverageSection';
 
 const DEFAULT_TIMER_DURATION_MINUTES = 25;
 const normalizePositiveInteger = (value, fallbackValue = 1) => Math.max(1, parseInt(value, 10) || fallbackValue);
@@ -367,6 +368,7 @@ const SettingsPage = () => {
             )}
           </div>
         </section>
+        <WhatsAppCoverageSection />
       </main>
 
       {isProfessionalModalOpen && (
