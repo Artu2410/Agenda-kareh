@@ -296,3 +296,50 @@ export const toggleAgendaTimer = async (req, res, prisma) => {
     return res.status(500).json({ message: 'No se pudo actualizar el cronómetro.' });
   }
 };
+
+export const resetAgendaTimer = async (req, res, prisma) => {
+  const timerDate = normalizeTimerDate(req.body?.timerDate);
+  const slotTime = normalizeSlotTime(req.body?.slotTime);
+  const slotNumber = Math.max(1, toPositiveInteger(req.body?.slotNumber, 0));
+  const defaultDurationSeconds = Math.max(1, toPositiveInteger(req.body?.defaultDurationSeconds, 0));
+
+  if (!timerDate || !slotTime || !slotNumber || !defaultDurationSeconds) {
+    return res.status(400).json({ message: 'timerDate, slotTime, slotNumber y defaultDurationSeconds son requeridos.' });
+  }
+
+  try {
+    const now = new Date();
+    const saved = await prisma.agendaTimerState.upsert({
+      where: {
+        timerDate_slotTime_slotNumber: {
+          timerDate,
+          slotTime,
+          slotNumber,
+        },
+      },
+      update: {
+        status: TIMER_STATUSES.IDLE,
+        durationSeconds: defaultDurationSeconds,
+        remainingSeconds: defaultDurationSeconds,
+        endsAt: null,
+        finishedAt: null,
+      },
+      create: {
+        timerDate,
+        slotTime,
+        slotNumber,
+        status: TIMER_STATUSES.IDLE,
+        durationSeconds: defaultDurationSeconds,
+        remainingSeconds: defaultDurationSeconds,
+        endsAt: null,
+        finishedAt: null,
+      },
+    });
+
+    const timer = serializeTimerRecord(normalizeTimerRecord(saved, defaultDurationSeconds, now));
+    return res.json({ timer });
+  } catch (error) {
+    console.error('ERROR RESETEANDO CRONOMETRO:', error);
+    return res.status(500).json({ message: 'No se pudo resetear el cronómetro.' });
+  }
+};
