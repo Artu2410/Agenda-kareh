@@ -90,8 +90,10 @@ const writeCenteredText = (doc, text, { font = 'Helvetica', fontSize = 8, moveDo
 };
 
 const writeLabelValue = (doc, label, value) => {
-  doc.font('Helvetica-Bold').fontSize(8.5).text(label.toUpperCase(), { continued: false });
-  doc.font('Helvetica-Bold').fontSize(10.5).text(value || 'N/A');
+  doc
+    .font('Helvetica-Bold')
+    .fontSize(9.25)
+    .text(`${label.toUpperCase()}: ${value || 'N/A'}`);
   doc.moveDown(0.34);
 };
 

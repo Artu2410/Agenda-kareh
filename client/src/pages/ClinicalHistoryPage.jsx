@@ -13,6 +13,11 @@ import {
   readClinicalHistoryContext,
 } from '../utils/appRoutes';
 import { getCoverageLabel, isParticularCoverage } from '../utils/coverage';
+import RichTextEditor from '../components/clinical/RichTextEditor';
+import {
+  isClinicalRichTextEmpty,
+  normalizeClinicalRichTextHtml,
+} from '../utils/clinicalRichText';
 
 const formatClinicalRecordNumber = (value) => {
   const numericValue = Number(value);
@@ -153,6 +158,7 @@ const ClinicalHistoryPage = () => {
           ...e, 
           attachments: ensureArray(e.attachments),
           date: e.createdAt ? e.createdAt.split('T')[0] : new Date().toISOString().split('T')[0],
+          evolution: normalizeClinicalRichTextHtml(e.evolution || ''),
           status: 'saved',
           isVisible: true 
         }));
@@ -187,14 +193,14 @@ const ClinicalHistoryPage = () => {
   };
 
   const saveEntry = async (entry) => {
-    if (!entry.evolution?.trim() && !entry.diagnosis?.trim() && entry.id.toString().startsWith('temp-')) return;
+    if (isClinicalRichTextEmpty(entry.evolution) && !entry.diagnosis?.trim() && entry.id.toString().startsWith('temp-')) return;
     
     setHistoryEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'saving' } : e));
     try {
       const payload = {
         patientId: activePatientId,
         diagnosis: entry.diagnosis || "",
-        evolution: entry.evolution || "",
+        evolution: normalizeClinicalRichTextHtml(entry.evolution || ""),
         createdAt: entry.date,
         attachments: JSON.stringify(entry.attachments)
       };
@@ -207,6 +213,7 @@ const ClinicalHistoryPage = () => {
         ...res.data, 
         attachments: ensureArray(res.data.attachments), 
         date: res.data.createdAt.split('T')[0],
+        evolution: normalizeClinicalRichTextHtml(res.data.evolution || ''),
         status: 'saved',
         isVisible: true
       };
@@ -539,15 +546,14 @@ const ClinicalHistoryPage = () => {
                         timers.current[entry.id] = setTimeout(() => saveEntry({...entry, diagnosis: e.target.value}), 2000);
                       }} 
                     />
-                    <textarea 
-                      className="w-full text-sm text-slate-600 outline-none min-h-[140px] bg-slate-50/50 p-6 rounded-3xl resize-none focus:bg-white transition-all leading-relaxed" 
-                      placeholder="Evolución..." 
-                      value={entry.evolution} 
-                      onChange={(e) => {
-                        setHistoryEntries(prev => prev.map(h => h.id === entry.id ? {...h, evolution: e.target.value, status: 'typing'} : h));
+                    <RichTextEditor
+                      value={entry.evolution}
+                      placeholder="Evolución..."
+                      onChange={(nextHtml) => {
+                        setHistoryEntries(prev => prev.map(h => h.id === entry.id ? {...h, evolution: nextHtml, status: 'typing'} : h));
                         if(timers.current[entry.id]) clearTimeout(timers.current[entry.id]);
-                        timers.current[entry.id] = setTimeout(() => saveEntry({...entry, evolution: e.target.value}), 2000);
-                      }} 
+                        timers.current[entry.id] = setTimeout(() => saveEntry({...entry, evolution: nextHtml}), 2000);
+                      }}
                     />
 
                     {entry.attachments?.length > 0 && (
@@ -682,7 +688,14 @@ const ClinicalHistoryPage = () => {
                       {entry.diagnosis || 'Sin diagnóstico'}
                     </h2>
                     <div className="min-h-[180px] rounded-[2rem] bg-white text-[15px] leading-relaxed text-slate-700">
-                      {entry.evolution || 'Sin evolución registrada.'}
+                      {isClinicalRichTextEmpty(entry.evolution) ? (
+                        'Sin evolución registrada.'
+                      ) : (
+                        <div
+                          className="space-y-3 break-words [&_mark]:rounded-sm [&_mark]:px-1 [&_span]:break-words [&_strong]:font-black [&_u]:underline"
+                          dangerouslySetInnerHTML={{ __html: normalizeClinicalRichTextHtml(entry.evolution) }}
+                        />
+                      )}
                     </div>
 
                     {entry.attachments?.length > 0 && (

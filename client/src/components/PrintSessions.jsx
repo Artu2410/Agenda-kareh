@@ -187,6 +187,13 @@ const buildPrintHtml = ({ printablePatient, printableDiagnosis, sortedAppointmen
             grid-column: 1 / -1;
           }
 
+          .meta-inline {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 2mm;
+          }
+
           .meta-label {
             font-size: 11px;
             font-weight: 900;
@@ -361,7 +368,7 @@ const buildPrintHtml = ({ printablePatient, printableDiagnosis, sortedAppointmen
                 <span class="meta-label">Edad</span>
                 <span class="meta-value">${printablePatient.age || 'N/A'}</span>
               </div>
-              <div class="meta-item">
+              <div class="meta-item meta-item-full meta-inline">
                 <span class="meta-label">F. Nac</span>
                 <span class="meta-value">${printablePatient.birthDate}</span>
               </div>
@@ -587,7 +594,7 @@ const PrintSessions = ({ isOpen, onClose, appointments, patientData, diagnosis, 
                 <span style={{ fontWeight: 900 }}>EDAD:</span>
                 <span> {printablePatient.age || 'N/A'}</span>
               </div>
-              <div>
+              <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'baseline' }}>
                 <span style={{ fontWeight: 900 }}>F.NAC:</span>
                 <span> {printablePatient.birthDate}</span>
               </div>

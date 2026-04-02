@@ -28,6 +28,35 @@ model AgendaConfig {
   updatedAt         DateTime @updatedAt
 }
 
+model InternalNote {
+  id        String   @id
+  title     String
+  body      String   @db.Text
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([sortOrder])
+  @@index([updatedAt])
+}
+
+model AgendaTimerState {
+  id              String   @id @default(cuid())
+  timerDate       String
+  slotTime        String
+  slotNumber      Int
+  status          String   @default("idle")
+  durationSeconds Int
+  remainingSeconds Int
+  endsAt          DateTime?
+  finishedAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([timerDate, slotTime, slotNumber])
+  @@index([timerDate, slotTime])
+}
+
 // ---------------------------------------------------------
 // 2. PACIENTES
 // ---------------------------------------------------------

@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
-import { NotebookPen, Plus, RotateCcw, Save, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { NotebookPen, Plus, RefreshCcw, RotateCcw, Save, Trash2 } from 'lucide-react';
+import api from '../services/api';
 import { useConfirmModal } from '../components/ConfirmModal';
 
 const NOTES_STORAGE_KEY = 'kareh_notes_collection_v2';
@@ -51,6 +52,27 @@ const normalizeNote = (note) => ({
   updatedAt: isValidDate(note?.updatedAt) ? note.updatedAt : new Date().toISOString(),
 });
 
+const serializeNotesSnapshot = (notes) => JSON.stringify(
+  notes.map((note) => ({
+    id: note.id,
+    title: note.title,
+    body: note.body,
+    updatedAt: note.updatedAt,
+  })),
+);
+
+const persistNotesLocally = (notes, selectedNoteId) => {
+  try {
+    localStorage.setItem(NOTES_STORAGE_KEY, JSON.stringify(notes));
+    localStorage.setItem(NOTES_SELECTED_KEY, selectedNoteId || '');
+    localStorage.removeItem(LEGACY_NOTES_TITLE_KEY);
+    localStorage.removeItem(LEGACY_NOTES_BODY_KEY);
+    localStorage.removeItem(LEGACY_NOTES_SAVED_AT_KEY);
+  } catch {
+    // Mantener la UI operativa aunque falle el cache local.
+  }
+};
+
 const getInitialNotesState = () => {
   try {
     const rawNotes = localStorage.getItem(NOTES_STORAGE_KEY);
@@ -67,7 +89,7 @@ const getInitialNotesState = () => {
       }
     }
   } catch {
-    // Si falla la lectura, se crea un block limpio.
+    // Si falla la lectura, se arma un estado limpio.
   }
 
   const legacyTitle = readStoredValue(LEGACY_NOTES_TITLE_KEY, '').trim();
@@ -87,11 +109,23 @@ const getInitialNotesState = () => {
   return { notes: [firstNote], selectedNoteId: firstNote.id };
 };
 
+const mapServerNotes = (payload) => (
+  Array.isArray(payload) && payload.length > 0
+    ? payload.map(normalizeNote)
+    : []
+);
+
 export default function NotesPage() {
   const initialState = useMemo(() => getInitialNotesState(), []);
   const { ConfirmModalComponent, openModal: openConfirmModal } = useConfirmModal();
   const [notes, setNotes] = useState(initialState.notes);
   const [selectedNoteId, setSelectedNoteId] = useState(initialState.selectedNoteId);
+  const [isRemoteReady, setIsRemoteReady] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState('Sincronizando con la clínica...');
+  const lastSyncedSnapshotRef = useRef('');
+  const lastLocalEditAtRef = useRef(0);
 
   const selectedNote = notes.find((note) => note.id === selectedNoteId) || notes[0] || null;
   const selectedNoteSafeId = selectedNote?.id || '';
@@ -103,22 +137,121 @@ export default function NotesPage() {
   }, [notes, selectedNote]);
 
   useEffect(() => {
-    if (!notes.length) return undefined;
+    persistNotesLocally(notes, selectedNoteSafeId);
+  }, [notes, selectedNoteSafeId]);
+
+  const applyRemoteNotes = useCallback((remoteNotes) => {
+    const normalizedNotes = remoteNotes.length > 0 ? remoteNotes : [createNote({ title: 'Notas internas' })];
+
+    lastSyncedSnapshotRef.current = serializeNotesSnapshot(normalizedNotes);
+    setNotes(normalizedNotes);
+    setSelectedNoteId((currentSelectedId) => {
+      const nextSelectedId = normalizedNotes.some((note) => note.id === currentSelectedId)
+        ? currentSelectedId
+        : normalizedNotes[0].id;
+      persistNotesLocally(normalizedNotes, nextSelectedId);
+      return nextSelectedId;
+    });
+  }, []);
+
+  const syncNotesToServer = useCallback(async (nextNotes, { showRefreshing = false } = {}) => {
+    if (showRefreshing) {
+      setIsRefreshing(true);
+    } else {
+      setIsSyncing(true);
+    }
+
+    try {
+      const payload = {
+        notes: nextNotes.map((note, index) => ({
+          ...normalizeNote(note),
+          sortOrder: index,
+        })),
+      };
+
+      const response = await api.put('/notes/sync', payload);
+      const syncedNotes = mapServerNotes(response.data);
+      applyRemoteNotes(syncedNotes);
+      setSyncStatus('Sincronizado entre dispositivos');
+      return syncedNotes;
+    } finally {
+      setIsSyncing(false);
+      setIsRefreshing(false);
+    }
+  }, [applyRemoteNotes]);
+
+  const refreshNotesFromServer = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setIsRefreshing(true);
+
+    try {
+      const response = await api.get('/notes');
+      const remoteNotes = mapServerNotes(response.data);
+
+      if (remoteNotes.length > 0) {
+        applyRemoteNotes(remoteNotes);
+        setSyncStatus('Sincronizado entre dispositivos');
+        return remoteNotes;
+      }
+
+      const seededNotes = initialState.notes.length > 0 ? initialState.notes.map(normalizeNote) : [createNote({ title: 'Notas internas' })];
+      await syncNotesToServer(seededNotes, { showRefreshing: false });
+      return seededNotes;
+    } catch (error) {
+      console.error('Error syncing notes:', error);
+      setSyncStatus('Trabajando con cache local');
+      return initialState.notes;
+    } finally {
+      setIsRefreshing(false);
+      setIsRemoteReady(true);
+    }
+  }, [applyRemoteNotes, initialState.notes, syncNotesToServer]);
+
+  useEffect(() => {
+    refreshNotesFromServer();
+  }, [refreshNotesFromServer]);
+
+  useEffect(() => {
+    if (!isRemoteReady) return undefined;
+
+    const snapshot = serializeNotesSnapshot(notes);
+    if (snapshot === lastSyncedSnapshotRef.current) return undefined;
+
+    lastLocalEditAtRef.current = Date.now();
+    setSyncStatus('Guardando cambios...');
 
     const timeoutId = window.setTimeout(() => {
-      try {
-        localStorage.setItem(NOTES_STORAGE_KEY, JSON.stringify(notes));
-        localStorage.setItem(NOTES_SELECTED_KEY, selectedNoteSafeId);
-        localStorage.removeItem(LEGACY_NOTES_TITLE_KEY);
-        localStorage.removeItem(LEGACY_NOTES_BODY_KEY);
-        localStorage.removeItem(LEGACY_NOTES_SAVED_AT_KEY);
-      } catch {
-        // Silencioso: si falla storage, la UI sigue utilizable.
-      }
-    }, 350);
+      syncNotesToServer(notes).catch((error) => {
+        console.error('Error saving notes:', error);
+        setSyncStatus('No se pudo sincronizar. Se mantiene la copia local.');
+      });
+    }, 500);
 
     return () => window.clearTimeout(timeoutId);
-  }, [notes, selectedNoteSafeId]);
+  }, [isRemoteReady, notes, syncNotesToServer]);
+
+  useEffect(() => {
+    if (!isRemoteReady) return undefined;
+
+    const refreshIfIdle = () => {
+      if (Date.now() - lastLocalEditAtRef.current < 3000) return;
+      refreshNotesFromServer({ silent: true }).catch(() => {
+        // Mantener silencioso el polling.
+      });
+    };
+
+    const intervalId = window.setInterval(refreshIfIdle, 15000);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        refreshIfIdle();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [isRemoteReady, refreshNotesFromServer]);
 
   const handleCreateNote = () => {
     const newNote = createNote();
@@ -153,7 +286,7 @@ export default function NotesPage() {
 
     openConfirmModal({
       title: 'Eliminar nota',
-      message: 'Esta nota se eliminará del navegador de la clínica. ¿Deseas continuar?',
+      message: 'Esta nota se eliminará para todos los dispositivos conectados. ¿Deseas continuar?',
       confirmText: 'Eliminar',
       danger: true,
       icon: Trash2,
@@ -161,8 +294,7 @@ export default function NotesPage() {
         setNotes((prev) => {
           const remainingNotes = prev.filter((note) => note.id !== selectedNote.id);
           if (remainingNotes.length > 0) {
-            const nextSelected = remainingNotes[0];
-            setSelectedNoteId(nextSelected.id);
+            setSelectedNoteId(remainingNotes[0].id);
             return remainingNotes;
           }
 
@@ -185,12 +317,25 @@ export default function NotesPage() {
             </div>
 
             <h1 className="mt-6 text-3xl font-black tracking-tight text-slate-900 sm:text-4xl">
-              Varias notas internas, guardadas en este navegador.
+              Varias notas internas, sincronizadas entre dispositivos.
             </h1>
             <p className="mt-4 max-w-lg text-sm font-semibold leading-6 text-slate-600">
-              Cada nota mantiene su propio título, contenido y fecha de última actualización. La información sigue
-              quedando local en la computadora de la clínica.
+              Cada nota mantiene su propio título, contenido y fecha de última actualización. La información queda
+              guardada en la clínica y además se conserva como respaldo en este navegador.
             </p>
+
+            <div className="mt-5 flex flex-wrap items-center gap-3 text-sm font-semibold text-slate-600">
+              <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-teal-700 shadow-sm">
+                <Save size={13} />
+                {syncStatus}
+              </span>
+              {(isSyncing || isRefreshing) && (
+                <span className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-white">
+                  <RefreshCcw size={13} className="animate-spin" />
+                  Actualizando
+                </span>
+              )}
+            </div>
 
             <div className="mt-8 flex flex-wrap gap-3">
               <button
@@ -211,6 +356,14 @@ export default function NotesPage() {
               </button>
               <button
                 type="button"
+                onClick={() => refreshNotesFromServer()}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
+              >
+                <RefreshCcw size={14} className={isRefreshing ? 'animate-spin' : ''} />
+                Recargar
+              </button>
+              <button
+                type="button"
                 onClick={handleDeleteSelectedNote}
                 className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-red-600 transition hover:border-red-300 hover:bg-red-100"
               >
@@ -223,7 +376,7 @@ export default function NotesPage() {
               <div className="rounded-[1.5rem] bg-white/80 p-5 shadow-sm">
                 <p className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">Notas guardadas</p>
                 <p className="mt-2 text-3xl font-black text-slate-900">{notes.length}</p>
-                <p className="mt-1 text-sm font-semibold text-slate-500">Podés crear, editar y borrar varias.</p>
+                <p className="mt-1 text-sm font-semibold text-slate-500">Se ven igual en cualquier dispositivo logueado.</p>
               </div>
 
               <div className="rounded-[1.5rem] bg-white/80 p-5 shadow-sm">

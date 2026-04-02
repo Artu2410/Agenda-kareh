@@ -1,5 +1,10 @@
 import { Router } from 'express';
-import { getAgendaConfig, updateAgendaConfig } from '../controllers/agendaController.js';
+import {
+  getAgendaConfig,
+  getAgendaTimers,
+  toggleAgendaTimer,
+  updateAgendaConfig,
+} from '../controllers/agendaController.js';
 
 const createRouter = (prisma) => {
   const router = Router();
@@ -9,6 +14,12 @@ const createRouter = (prisma) => {
 
   // Actualizar configuración de agenda
   router.put('/config', (req, res) => updateAgendaConfig(req, res, prisma));
+
+  // Obtener cronómetros del bloque horario activo
+  router.get('/timers', (req, res) => getAgendaTimers(req, res, prisma));
+
+  // Iniciar / pausar / reanudar cronómetro
+  router.post('/timers/toggle', (req, res) => toggleAgendaTimer(req, res, prisma));
 
   return router;
 };
