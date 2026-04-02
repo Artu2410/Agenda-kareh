@@ -20,6 +20,8 @@ const FLOW_STATES = Object.freeze({
   PARTICULAR: 'particular',
   PAMI: 'pami',
   RESPIRATORIO: 'respiratorio',
+  PARTICULAR_TREATMENT_TYPE: 'particular_treatment_type',
+  PAMI_TREATMENT_TYPE: 'pami_treatment_type',
   FINAL_DOCS: 'final_docs',
   LOCATION: 'location',
   WAITING_HUMAN_REVIEW: 'waiting_human_review',
@@ -76,9 +78,11 @@ const AUTO_REPLY_PAMI_TEXT = [
   '💰 Doble tratamiento: $20.000.',
   '(Solo efectivo, por favor).',
   '',
-  'Elegí el esquema de días que te quede mejor:',
+  'Elegí el esquema de días que más te convenga:',
   '🅰️ Lunes y Viernes (14 a 19 hs).',
+  '(Opcional: podés sumar los Miércoles de 17:30 a 19 hs).',
   '🅱️ Martes y Jueves (17:30 a 19 hs).',
+  '(Opcional: podés sumar los Sábados de 8 a 12 hs).',
   '',
   '0️⃣ Volver al Menú Principal.',
 ].join('\n');
@@ -87,10 +91,34 @@ const AUTO_REPLY_RESPIRATORIO_TEXT = [
   '¡Recibido! Información para Kinesiología Respiratoria:',
   '💰 Valor de la sesión: $30.000 (solo efectivo).',
   '',
-  'Esquemas disponibles:',
+  'Elegí el esquema de días que más te convenga:',
   '🅰️ Lunes y Viernes (14 a 19 hs).',
+  '(Opcional: podés sumar los Miércoles de 17:30 a 19 hs).',
   '🅱️ Martes y Jueves (17:30 a 19 hs).',
+  '(Opcional: podés sumar los Sábados de 8 a 12 hs).',
   '',
+  '0️⃣ Volver al Menú Principal.',
+].join('\n');
+
+const PARTICULAR_TREATMENT_TYPE_TEXT = [
+  '¡Perfecto! Ya registramos tu esquema de días.',
+  '',
+  'Ahora indicanos si el tratamiento es:',
+  '1️⃣ Simple',
+  '2️⃣ Doble',
+  '',
+  'También podés responder *simple* o *doble*.',
+  '0️⃣ Volver al Menú Principal.',
+].join('\n');
+
+const PAMI_TREATMENT_TYPE_TEXT = [
+  '¡Perfecto! Ya registramos tu esquema de días.',
+  '',
+  'Ahora indicanos si el tratamiento es:',
+  '1️⃣ Simple',
+  '2️⃣ Doble',
+  '',
+  'También podés responder *simple* o *doble*.',
   '0️⃣ Volver al Menú Principal.',
 ].join('\n');
 
@@ -101,13 +129,14 @@ const FINAL_DOCUMENTATION_TEXT = [
   '✅ Foto de la Orden Médica (legible).',
   '✅ Antecedentes: (marcapasos, cáncer o alguna otra condición).',
   '',
-  '⏳ Tolerancia máxima de llegada: 20 minutos.',
-  '⚠️ Inasistencia sin aviso previo: 50% de recargo en la próxima sesión.',
-  '',
-  'Escribí LISTO cuando hayas enviado todo y en breve te mandamos el comprobante con tu cronograma confirmado. ✨',
+  
+  'Escribí *LISTO* cuando hayas enviado todo y en breve te enviaremos el comprobante con tu cronograma confirmado. ✨',
   '',
   '0️⃣ Volver al Menú Principal.',
 ].join('\n');
+
+const UNKNOWN_INPUT_TEXT = 'Perdón, no entendí eso. Por favor, enviá los datos solicitados o escribí *0* para volver al inicio. 🙏';
+const WAITING_HUMAN_REVIEW_TEXT = 'Ya recibimos tu documentación y la estamos revisando. Si necesitás reiniciar el flujo, escribí *0*.';
 
 const FINAL_CONFIRMATION_TEXT = [
   '¡Gracias! Recibimos todo correctamente.',
@@ -141,7 +170,7 @@ const DIRECT_INTENT_RULES = [
     nextState: FLOW_STATES.OBRA_SOCIAL,
   },
   {
-    patterns: [/\b(obra social|obras sociales|prepaga|art|osde|ioma|galeno|swiss|swiss medical)\b/],
+    patterns: [/\b(obra social|obras sociales|prepaga|art|osde|ioma|galeno|swiss|swiss medical|medicus|omint|pago con carnet)\b/],
     text: AUTO_REPLY_OBRA_SOCIAL_TEXT,
     nextState: FLOW_STATES.OBRA_SOCIAL,
   },
@@ -151,7 +180,7 @@ const DIRECT_INTENT_RULES = [
     nextState: FLOW_STATES.PARTICULAR,
   },
   {
-    patterns: [/\b(particular|precio|precios|cuanto sale|cuanto cuesta|costo|costos)\b/],
+    patterns: [/\b(particular|precio|precios|cuanto sale|cuanto cuesta|costo|costos|valor|efectivo|pagar en el centro)\b/],
     text: AUTO_REPLY_PARTICULAR_TEXT,
     nextState: FLOW_STATES.PARTICULAR,
   },
@@ -171,7 +200,7 @@ const DIRECT_INTENT_RULES = [
     nextState: FLOW_STATES.RESPIRATORIO,
   },
   {
-    patterns: [/\b(respiratorio|respiratoria|nebulizacion|pecho|kinesiologia respiratoria|rehabilitacion respiratoria)\b/],
+    patterns: [/\b(respiratorio|respiratoria|nebulizacion|pecho|kinesiologia respiratoria|rehabilitacion respiratoria|respira)\b/],
     text: AUTO_REPLY_RESPIRATORIO_TEXT,
     nextState: FLOW_STATES.RESPIRATORIO,
   },
@@ -220,6 +249,11 @@ const WHATSAPP_OUTBOUND_PLACEHOLDER = '[Archivo adjunto]';
 const getPreviewText = (message) => {
   if (!message) return '';
   if (message.type === 'text') return message.text?.body || '';
+  if (message.type === 'reaction') {
+    const emoji = message.reaction?.emoji || '';
+    return emoji ? `Reaccionó ${emoji}` : '[Reacción]';
+  }
+  if (message.type === 'sticker') return '[Sticker]';
   const caption = message[message.type]?.caption;
   return caption || `[${message.type || 'archivo'}]`;
 };
@@ -232,7 +266,7 @@ const getMediaInfoFromMessage = (message) => {
     mediaId: payload.id,
     mimeType: payload.mime_type,
     sha256: payload.sha256,
-    filename: payload.filename || null,
+    filename: payload.filename || (message.type === 'sticker' ? 'sticker.webp' : null),
     caption: payload.caption || null,
   };
 };
@@ -449,6 +483,7 @@ const normalizeText = (value) => {
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\u200d\uFE0F\u20E3]/g, '')
     .replace(/[^a-z0-9\s]/g, '')
     .replace(/\s+/g, ' ');
 };
@@ -459,6 +494,8 @@ const MENU_COMMAND_PATTERNS = [/^(0|menu|menu principal|volver|inicio)(\b.*)?$/]
 const LISTO_COMMAND_PATTERNS = [/^(listo|ya esta|ya envie todo|termine)(\b.*)?$/];
 const SCHEME_A_PATTERNS = [/^(a|opcion a|lunes y viernes|lunes viernes|lun y vie)(\b.*)?$/];
 const SCHEME_B_PATTERNS = [/^(b|opcion b|martes y jueves|martes jueves|mar y jue)(\b.*)?$/];
+const SIMPLE_TREATMENT_PATTERNS = [/^(1|simple|tratamiento simple|una zona|1 zona|sencillo)(\b.*)?$/];
+const DOUBLE_TREATMENT_PATTERNS = [/^(2|doble|tratamiento doble|dos zonas|2 zonas)(\b.*)?$/];
 
 const matchesAnyPattern = (text, patterns) => patterns.some((pattern) => pattern.test(text));
 
@@ -470,12 +507,20 @@ const isMenuCommand = (normalizedText) => matchesAnyPattern(normalizedText, MENU
 const isListoCommand = (normalizedText) => matchesAnyPattern(normalizedText, LISTO_COMMAND_PATTERNS);
 const isSchemeASelection = (normalizedText) => matchesAnyPattern(normalizedText, SCHEME_A_PATTERNS);
 const isSchemeBSelection = (normalizedText) => matchesAnyPattern(normalizedText, SCHEME_B_PATTERNS);
+const isSimpleTreatmentSelection = (normalizedText) => matchesAnyPattern(normalizedText, SIMPLE_TREATMENT_PATTERNS);
+const isDoubleTreatmentSelection = (normalizedText) => matchesAnyPattern(normalizedText, DOUBLE_TREATMENT_PATTERNS);
 
 const canApplyDirectIntent = (currentState) => !currentState
   || currentState === FLOW_STATES.WELCOME
   || currentState === FLOW_STATES.LOCATION
   || currentState === FLOW_STATES.WAITING_HUMAN_REVIEW
   || SCHEME_SELECTION_STATES.has(currentState);
+
+const buildDocumentationReplyText = (treatmentLabel = '') => (
+  treatmentLabel
+    ? [`¡Perfecto! Quedó registrado como tratamiento *${treatmentLabel}*.`, FINAL_DOCUMENTATION_TEXT].join('\n\n')
+    : FINAL_DOCUMENTATION_TEXT
+);
 
 const getDirectIntentReply = (normalizedText) => {
   const matchedRule = DIRECT_INTENT_RULES.find(({ patterns }) => patterns.some((pattern) => pattern.test(normalizedText)));
@@ -490,11 +535,20 @@ const getDirectIntentReply = (normalizedText) => {
 
 const getConversationAutoReply = ({
   messageText,
+  messageType = 'text',
   currentState,
   shouldSendWelcome,
   hasNonTextMessage = false,
 }) => {
   const normalized = normalizeText(messageText);
+
+  if (messageType === 'reaction') {
+    return null;
+  }
+
+  if (hasNonTextMessage && currentState === FLOW_STATES.FINAL_DOCS) {
+    return null;
+  }
 
   if (normalized && isMenuCommand(normalized)) {
     return { type: 'welcome', nextState: FLOW_STATES.WELCOME };
@@ -507,9 +561,61 @@ const getConversationAutoReply = ({
 
   if (normalized && SCHEME_SELECTION_STATES.has(currentState)) {
     if (isSchemeASelection(normalized) || isSchemeBSelection(normalized)) {
+      if (currentState === FLOW_STATES.PARTICULAR) {
+        return {
+          type: 'text',
+          text: PARTICULAR_TREATMENT_TYPE_TEXT,
+          nextState: FLOW_STATES.PARTICULAR_TREATMENT_TYPE,
+        };
+      }
+
+      if (currentState === FLOW_STATES.PAMI) {
+        return {
+          type: 'text',
+          text: PAMI_TREATMENT_TYPE_TEXT,
+          nextState: FLOW_STATES.PAMI_TREATMENT_TYPE,
+        };
+      }
+
       return {
         type: 'text',
         text: FINAL_DOCUMENTATION_TEXT,
+        nextState: FLOW_STATES.FINAL_DOCS,
+      };
+    }
+  }
+
+  if (normalized && currentState === FLOW_STATES.PARTICULAR_TREATMENT_TYPE) {
+    if (isSimpleTreatmentSelection(normalized)) {
+      return {
+        type: 'text',
+        text: buildDocumentationReplyText('simple'),
+        nextState: FLOW_STATES.FINAL_DOCS,
+      };
+    }
+
+    if (isDoubleTreatmentSelection(normalized)) {
+      return {
+        type: 'text',
+        text: buildDocumentationReplyText('doble'),
+        nextState: FLOW_STATES.FINAL_DOCS,
+      };
+    }
+  }
+
+  if (normalized && currentState === FLOW_STATES.PAMI_TREATMENT_TYPE) {
+    if (isSimpleTreatmentSelection(normalized)) {
+      return {
+        type: 'text',
+        text: buildDocumentationReplyText('simple'),
+        nextState: FLOW_STATES.FINAL_DOCS,
+      };
+    }
+
+    if (isDoubleTreatmentSelection(normalized)) {
+      return {
+        type: 'text',
+        text: buildDocumentationReplyText('doble'),
         nextState: FLOW_STATES.FINAL_DOCS,
       };
     }
@@ -529,6 +635,26 @@ const getConversationAutoReply = ({
 
   if (normalized && currentState === FLOW_STATES.WELCOME && isGreeting(normalized)) {
     return { type: 'welcome', nextState: FLOW_STATES.WELCOME };
+  }
+
+  if (!normalized && hasNonTextMessage) {
+    return null;
+  }
+
+  if (normalized && currentState === FLOW_STATES.WAITING_HUMAN_REVIEW) {
+    return {
+      type: 'text',
+      text: WAITING_HUMAN_REVIEW_TEXT,
+      nextState: FLOW_STATES.WAITING_HUMAN_REVIEW,
+    };
+  }
+
+  if (normalized && currentState !== FLOW_STATES.WELCOME) {
+    return {
+      type: 'text',
+      text: UNKNOWN_INPUT_TEXT,
+      nextState: currentState,
+    };
   }
 
   return null;
@@ -617,6 +743,7 @@ export const handleWhatsAppWebhook = async (req, res, prisma) => {
             : (conversation.currentState || FLOW_STATES.WELCOME);
           const autoReply = getConversationAutoReply({
             messageText: inboundText,
+            messageType: message.type,
             currentState: effectiveState,
             shouldSendWelcome: shouldResetSession,
             hasNonTextMessage: message.type !== 'text',

@@ -36,6 +36,14 @@ const isImage = (message) => {
   return mime.startsWith('image/');
 };
 
+const isSticker = (message) => message.type === 'sticker';
+const isReaction = (message) => message.type === 'reaction';
+const shouldRenderTextBlock = (message) => {
+  if (!message.text) return false;
+  if (isSticker(message) && message.text === '[Sticker]') return false;
+  return true;
+};
+
 const isMobileViewport = () => {
   if (typeof window === 'undefined') return false;
   return window.matchMedia('(max-width: 1023px)').matches;
@@ -63,9 +71,11 @@ const areMessagesEqual = (previous, next) => {
     const candidate = next[index];
     return candidate
       && message.id === candidate.id
+      && message.type === candidate.type
       && message.text === candidate.text
       && message.mediaUrl === candidate.mediaUrl
       && message.mediaMime === candidate.mediaMime
+      && message.mediaName === candidate.mediaName
       && message.status === candidate.status
       && message.createdAt === candidate.createdAt;
   });
@@ -404,18 +414,21 @@ const WhatsAppPage = () => {
               ) : (
                 messages.map((message) => {
                   const isOutbound = message.direction === 'outbound';
+                  const renderAsReaction = isReaction(message);
 
                   return (
                     <div key={message.id} className={`flex ${isOutbound ? 'justify-end' : 'justify-start'}`}>
                       <div className={`max-w-[85%] rounded-3xl px-4 py-3 shadow-sm sm:max-w-xl ${
-                        isOutbound ? 'bg-teal-600 text-white' : 'border border-slate-200 bg-white text-slate-700'
+                        renderAsReaction
+                          ? (isOutbound ? 'bg-amber-100 text-slate-800' : 'border border-amber-200 bg-amber-50 text-slate-800')
+                          : (isOutbound ? 'bg-teal-600 text-white' : 'border border-slate-200 bg-white text-slate-700')
                       }`}>
                         {message.mediaUrl && (
                           isImage(message) ? (
                             <img
                               src={message.mediaUrl}
                               alt={message.mediaName || 'media'}
-                              className="mb-2 max-h-72 rounded-2xl"
+                              className={`mb-2 max-h-72 rounded-2xl ${isSticker(message) ? 'bg-transparent object-contain p-1' : ''}`}
                             />
                           ) : (
                             <a
@@ -430,8 +443,8 @@ const WhatsAppPage = () => {
                           )
                         )}
 
-                        {message.text && (
-                          <p className="whitespace-pre-wrap break-words text-sm font-semibold">{message.text}</p>
+                        {shouldRenderTextBlock(message) && (
+                          <p className={`whitespace-pre-wrap break-words text-sm font-semibold ${renderAsReaction ? 'text-base' : ''}`}>{message.text}</p>
                         )}
 
                         <div className="mt-2 text-right text-[10px] opacity-70">
