@@ -32,9 +32,11 @@ const FLOW_STATES = Object.freeze({
 });
 
 const DEFAULT_WELCOME_TEXT = [
-  '¡Hola! {{1}} Qué bueno que te contactes con nosotros. Bienvenida/o a Kinesiología Kareh 🌿.',
+  '¡Hola! {{1}}',
+  '*Bienvenido/a a Kinesiología Kareh* 🌿.',
   '',
-  'Para poder asesorarte de la mejor manera, indicanos con qué modalidad te gustaría atenderte:',
+  'Para asesorarte mejor,',
+  '*enviá el número de tu opción:*',
   '',
   '1️⃣ Obra Social / Prepaga / ART',
   '2️⃣ Particular',
@@ -103,7 +105,7 @@ const FINAL_DOCUMENTATION_TEXT = [
   '',
   '✅ Foto de tu DNI (ambos lados).',
   '✅ Foto de la Orden Médica (legible).',
-  '✅ Antecedentes: Contanos si tenés marcapasos, algún embarazo o alguna otra condición de salud.',
+  '✅ Antecedentes: (marcapasos, cáncer o alguna otra condición).',
   '',
   '⏳ Tolerancia máxima de llegada: 20 minutos.',
   '⚠️ Inasistencia sin aviso previo: 50% de recargo en la próxima sesión.',
