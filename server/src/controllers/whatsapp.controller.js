@@ -533,7 +533,6 @@ const MENU_COMMAND_PATTERNS = [/^(0|menu|menu principal|volver|inicio)(\b.*)?$/]
 const LISTO_COMMAND_PATTERNS = [/^(listo|ya esta|ya envie todo|termine)(\b.*)?$/];
 const SCHEME_A_PATTERNS = [/^(a|opcion a|lunes y viernes|lunes viernes|lun y vie)(\b.*)?$/];
 const SCHEME_B_PATTERNS = [/^(b|opcion b|martes y jueves|martes jueves|mar y jue)(\b.*)?$/];
-const SCHEME_C_PATTERNS = [/^(c|opcion c|sabados|sabados unicamente|solo sabados|sabado)(\b.*)?$/];
 const SIMPLE_TREATMENT_PATTERNS = [/^(1|simple|tratamiento simple|una zona|1 zona|sencillo)(\b.*)?$/];
 const DOUBLE_TREATMENT_PATTERNS = [/^(2|doble|tratamiento doble|dos zonas|2 zonas)(\b.*)?$/];
 
@@ -547,7 +546,6 @@ const isMenuCommand = (normalizedText) => matchesAnyPattern(normalizedText, MENU
 const isListoCommand = (normalizedText) => matchesAnyPattern(normalizedText, LISTO_COMMAND_PATTERNS);
 const isSchemeASelection = (normalizedText) => matchesAnyPattern(normalizedText, SCHEME_A_PATTERNS);
 const isSchemeBSelection = (normalizedText) => matchesAnyPattern(normalizedText, SCHEME_B_PATTERNS);
-const isSchemeCSelection = (normalizedText) => matchesAnyPattern(normalizedText, SCHEME_C_PATTERNS);
 const isSimpleTreatmentSelection = (normalizedText) => matchesAnyPattern(normalizedText, SIMPLE_TREATMENT_PATTERNS);
 const isDoubleTreatmentSelection = (normalizedText) => matchesAnyPattern(normalizedText, DOUBLE_TREATMENT_PATTERNS);
 
@@ -576,9 +574,6 @@ const getSelectedSchemeLabel = (normalizedText) => {
   }
   if (isSchemeBSelection(normalizedText)) {
     return 'B: Martes y Jueves (con opción de sumar Sábados)';
-  }
-  if (isSchemeCSelection(normalizedText)) {
-    return 'C: Sábados únicamente';
   }
   return null;
 };
