@@ -48,8 +48,7 @@ const DEFAULT_WELCOME_TEXT = [
 const AUTO_REPLY_OBRA_SOCIAL_TEXT = [
   '¡Perfecto! Para verificar tu cobertura y ver si tenemos convenio vigente, por favor envianos:',
   '✅ Nombre de tu Obra Social, Prepaga o ART.',
-  '✅ Nombre y Apellido.',
-  '✅ DNI y Numero de Afiliado.',
+  '✅ Nombre, Apellido y tu DNI.',
   '✅ Fecha de nacimiento.',
   '✅ Foto de la Orden Médica (legible) + Autorización si ya la tenés.',
   '✅ Foto de tu Credencial (frente y dorso).',
