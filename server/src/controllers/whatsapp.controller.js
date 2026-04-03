@@ -9,7 +9,10 @@ import {
   uploadMedia,
 } from '../services/whatsapp.js';
 import { normalizePhone } from '../utils/phone.js';
-import { findInMemoryWhatsAppCoverageByInput } from '../utils/whatsappCoverageCatalog.js';
+import {
+  findInMemoryWhatsAppCoverageById,
+  findInMemoryWhatsAppCoverageByInput,
+} from '../utils/whatsappCoverageCatalog.js';
 
 const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
 const WELCOME_TEMPLATE = process.env.WHATSAPP_WELCOME_TEMPLATE || 'bienvenida_kareh';
@@ -30,6 +33,22 @@ const FLOW_STATES = Object.freeze({
   LOCATION: 'location',
   WAITING_HUMAN_REVIEW: 'waiting_human_review',
 });
+
+const FLOW_STATE_SEPARATOR = '::';
+
+const buildFlowState = (baseState, ...metaParts) => [
+  baseState,
+  ...metaParts.map((part) => String(part || '').trim()).filter(Boolean),
+].join(FLOW_STATE_SEPARATOR);
+
+const getFlowStateBase = (state) => String(state || FLOW_STATES.WELCOME)
+  .split(FLOW_STATE_SEPARATOR)
+  .filter(Boolean)[0] || FLOW_STATES.WELCOME;
+
+const getFlowStateMeta = (state) => String(state || '')
+  .split(FLOW_STATE_SEPARATOR)
+  .slice(1)
+  .filter(Boolean);
 
 const DEFAULT_WELCOME_TEXT = [
   '¡Hola! {{1}}',
@@ -70,11 +89,12 @@ const buildObraSocialSchemeReplyText = (coverageName) => [
   '',
   'Ahora, para organizar tu tratamiento de 10 sesiones, elegí la combinación de días que mejor te quede:',
   '',
-  '🅰️ Lunes y Viernes (14 a 19 hs).',
-  'Podés sumar los Miércoles de 17:30 a 19 hs.',
+  '🅰️ Lunes y Viernes (14 a 19 hs).', 'los horarios son cada 30 min','Ej: Lunes y Viernes 16:00',
+  'Podés combinar con los Miércoles en el horario de 17:30 a 19 hs.', 'Ej: Lunes, Miércoles y Viernes 17:30',
   '',
-  '🅱️ Martes y Jueves (17:30 a 19 hs).',
-  'Podés sumar los Sábados de 8 a 12 hs.',
+  '🅱️ Martes y Jueves (17:30 a 19 hs).','los horarios son cada 30 min','Ej: Martes y Jueves 17:30',
+  'Podés combinar con los Sábados en el horario de 8:00 a 12 hs.', 'Ej: Martes, Jueves 18:30 y Sábados 9:00',
+  '',
   'Escribí *A* o *B* para continuar.',
   '0️⃣ Volver al Menú Principal.',
 ].join('\n');
@@ -83,13 +103,13 @@ const AUTO_REPLY_PARTICULAR_TEXT = [
   '¡Excelente! Información para sesiones particulares:',
   '💰 Valor: $15.000 por zona a tratar.',
   '💰 Doble tratamiento: $28.000.',
-  '(Solo efectivo, por favor).',
+  '(Solo efectivo).',
   '',
-  'Elegí el esquema de días que más te convenga:',
-  '🅰️ Lunes y Viernes (14 a 19 hs).',
-  '(Opcional: podés sumar los Miércoles de 17:30 a 19 hs).',
-  '🅱️ Martes y Jueves (17:30 a 19 hs).',
-  '(Opcional: podés sumar los Sábados de 8 a 12 hs).',
+  '🅰️ Lunes y Viernes (14 a 19 hs).', 'los horarios son cada 30 min','Ej: Lunes y Viernes 16:00',
+  'Podés combinar con los Miércoles en el horario de 17:30 a 19 hs.', 'Ej: Lunes, Miércoles y Viernes 17:30',
+  '',
+  '🅱️ Martes y Jueves (17:30 a 19 hs).','los horarios son cada 30 min','Ej: Martes y Jueves 17:30',
+  'Podés combinar con los Sábados en el horario de 8:00 a 12 hs.', 'Ej: Martes, Jueves 18:30 y Sábados 9:00',
   '',
   '0️⃣ Volver al Menú Principal.',
 ].join('\n');
@@ -98,13 +118,14 @@ const AUTO_REPLY_PAMI_TEXT = [
   '¡Entendido! Para pacientes de PAMI el valor es diferencial:',
   '💰 Valor (Bonificado): $10.000 por zona a tratar.',
   '💰 Doble tratamiento: $20.000.',
-  '(Solo efectivo, por favor).',
+  '(Solo efectivo).',
   '',
   'Elegí el esquema de días que más te convenga:',
-  '🅰️ Lunes y Viernes (14 a 19 hs).',
-  '(Opcional: podés sumar los Miércoles de 17:30 a 19 hs).',
-  '🅱️ Martes y Jueves (17:30 a 19 hs).',
-  '(Opcional: podés sumar los Sábados de 8 a 12 hs).',
+  '🅰️ Lunes y Viernes (14 a 19 hs).', 'los horarios son cada 30 min','Ej: Lunes y Viernes 16:00',
+  'Podés combinar con los Miércoles en el horario de 17:30 a 19 hs.', 'Ej: Lunes, Miércoles y Viernes 17:30',
+  '',
+  '🅱️ Martes y Jueves (17:30 a 19 hs).','los horarios son cada 30 min','Ej: Martes y Jueves 17:30',
+  'Podés combinar con los Sábados en el horario de 8:00 a 12 hs.', 'Ej: Martes, Jueves 18:30 y Sábados 9:00',
   '',
   '0️⃣ Volver al Menú Principal.',
 ].join('\n');
@@ -114,10 +135,11 @@ const AUTO_REPLY_RESPIRATORIO_TEXT = [
   '💰 Valor de la sesión: $30.000 (solo efectivo).',
   '',
   'Elegí el esquema de días que más te convenga:',
-  '🅰️ Lunes y Viernes (14 a 19 hs).',
-  '(Opcional: podés sumar los Miércoles de 17:30 a 19 hs).',
-  '🅱️ Martes y Jueves (17:30 a 19 hs).',
-  '(Opcional: podés sumar los Sábados de 8 a 12 hs).',
+  '🅰️ Lunes y Viernes (14 a 19 hs).', 'los horarios son cada 30 min','Ej: Lunes y Viernes 16:00',
+  'Podés combinar con los Miércoles en el horario de 17:30 a 19 hs.', 'Ej: Lunes, Miércoles y Viernes 17:30',
+  '',
+  '🅱️ Martes y Jueves (17:30 a 19 hs).','los horarios son cada 30 min','Ej: Martes y Jueves 17:30',
+  'Podés combinar con los Sábados en el horario de 8:00 a 12 hs.', 'Ej: Martes, Jueves 18:30 y Sábados 9:00',
   '',
   '0️⃣ Volver al Menú Principal.',
 ].join('\n');
@@ -157,14 +179,15 @@ const FINAL_DOCUMENTATION_TEXT = [
   '0️⃣ Volver al Menú Principal.',
 ].join('\n');
 
-const buildObraSocialDocumentationReplyText = (schemeLabel) => [
-  `¡Excelente! Registramos el esquema *${schemeLabel}*.`,
+const buildObraSocialDocumentationReplyText = ({ schemeLabel, coverageName, documentationRequired }) => [
+  `¡Excelente! Registramos el esquema *${schemeLabel}* para *${coverageName || 'tu cobertura'}*.`,
   '',
   'Para reservar tu turno, envianos:',
   '',
   '✅ Nombre y Apellido, DNI y Fecha de nacimiento.',
-  '✅ Foto de la Orden Médica (legible) y autorización, si es requerida.',
   '✅ Foto del DNI (ambos lados).',
+  '✅ Foto de la Orden Médica (legible) y autorización, si es requerida.',
+  `✅ Documentación específica de *${coverageName || 'tu cobertura'}*: ${documentationRequired || 'Orden + Credencial'}.`,
   '✅ Antecedentes (marcapasos, cáncer u otra condición importante).',
   '',
   'Cuando envíes toda la documentación, escribí *LISTO*.',
@@ -549,13 +572,13 @@ const isSchemeBSelection = (normalizedText) => matchesAnyPattern(normalizedText,
 const isSimpleTreatmentSelection = (normalizedText) => matchesAnyPattern(normalizedText, SIMPLE_TREATMENT_PATTERNS);
 const isDoubleTreatmentSelection = (normalizedText) => matchesAnyPattern(normalizedText, DOUBLE_TREATMENT_PATTERNS);
 
-const canApplyDirectIntent = (currentState) => !currentState
-  || currentState === FLOW_STATES.WELCOME
-  || currentState === FLOW_STATES.OBRA_SOCIAL
-  || currentState === FLOW_STATES.OBRA_SOCIAL_UNAVAILABLE
-  || currentState === FLOW_STATES.LOCATION
-  || currentState === FLOW_STATES.WAITING_HUMAN_REVIEW
-  || SCHEME_SELECTION_STATES.has(currentState);
+const canApplyDirectIntent = (currentStateBase) => !currentStateBase
+  || currentStateBase === FLOW_STATES.WELCOME
+  || currentStateBase === FLOW_STATES.OBRA_SOCIAL
+  || currentStateBase === FLOW_STATES.OBRA_SOCIAL_UNAVAILABLE
+  || currentStateBase === FLOW_STATES.LOCATION
+  || currentStateBase === FLOW_STATES.WAITING_HUMAN_REVIEW
+  || SCHEME_SELECTION_STATES.has(currentStateBase);
 
 const buildDocumentationReplyText = (treatmentLabel = '') => (
   treatmentLabel
@@ -578,6 +601,11 @@ const getSelectedSchemeLabel = (normalizedText) => {
   return null;
 };
 
+const getCoverageFromConversationState = (state) => {
+  const [coverageId] = getFlowStateMeta(state);
+  return coverageId ? findInMemoryWhatsAppCoverageById(coverageId) : null;
+};
+
 const getDirectIntentReply = (normalizedText) => {
   const matchedRule = DIRECT_INTENT_RULES.find(({ patterns }) => patterns.some((pattern) => pattern.test(normalizedText)));
   if (!matchedRule) return null;
@@ -597,6 +625,8 @@ const getConversationAutoReply = ({
   hasNonTextMessage = false,
 }) => {
   const normalized = normalizeText(messageText);
+  const currentStateBase = getFlowStateBase(currentState);
+  const selectedCoverage = getCoverageFromConversationState(currentState);
   const matchedActiveCoverage = findInMemoryWhatsAppCoverageByInput(messageText, { includeInactive: false });
   const matchedCoverage = matchedActiveCoverage || findInMemoryWhatsAppCoverageByInput(messageText, { includeInactive: true });
 
@@ -604,7 +634,7 @@ const getConversationAutoReply = ({
     return null;
   }
 
-  if (hasNonTextMessage && (currentState === FLOW_STATES.FINAL_DOCS || currentState === FLOW_STATES.OBRA_SOCIAL_DOCS)) {
+  if (hasNonTextMessage && (currentStateBase === FLOW_STATES.FINAL_DOCS || currentStateBase === FLOW_STATES.OBRA_SOCIAL_DOCS)) {
     return null;
   }
 
@@ -616,22 +646,22 @@ const getConversationAutoReply = ({
     matchedActiveCoverage
     && (
       shouldSendWelcome
-      || currentState === FLOW_STATES.WELCOME
-      || currentState === FLOW_STATES.OBRA_SOCIAL
-      || currentState === FLOW_STATES.OBRA_SOCIAL_UNAVAILABLE
+      || currentStateBase === FLOW_STATES.WELCOME
+      || currentStateBase === FLOW_STATES.OBRA_SOCIAL
+      || currentStateBase === FLOW_STATES.OBRA_SOCIAL_UNAVAILABLE
     )
   ) {
     return {
       type: 'text',
       text: buildObraSocialSchemeReplyText(matchedActiveCoverage.name),
-      nextState: FLOW_STATES.OBRA_SOCIAL_SCHEME,
+      nextState: buildFlowState(FLOW_STATES.OBRA_SOCIAL_SCHEME, matchedActiveCoverage.id),
     };
   }
 
   if (
     normalized
     && !matchedActiveCoverage
-    && (currentState === FLOW_STATES.OBRA_SOCIAL || currentState === FLOW_STATES.OBRA_SOCIAL_UNAVAILABLE)
+    && (currentStateBase === FLOW_STATES.OBRA_SOCIAL || currentStateBase === FLOW_STATES.OBRA_SOCIAL_UNAVAILABLE)
     && !isMenuCommand(normalized)
   ) {
     return {
@@ -641,23 +671,27 @@ const getConversationAutoReply = ({
     };
   }
 
-  if (normalized && (shouldSendWelcome || canApplyDirectIntent(currentState))) {
+  if (normalized && (shouldSendWelcome || canApplyDirectIntent(currentStateBase))) {
     const directIntentReply = getDirectIntentReply(normalized);
     if (directIntentReply) return directIntentReply;
   }
 
-  if (normalized && SCHEME_SELECTION_STATES.has(currentState)) {
+  if (normalized && SCHEME_SELECTION_STATES.has(currentStateBase)) {
     const selectedSchemeLabel = getSelectedSchemeLabel(normalized);
     if (selectedSchemeLabel) {
-      if (currentState === FLOW_STATES.OBRA_SOCIAL_SCHEME) {
+      if (currentStateBase === FLOW_STATES.OBRA_SOCIAL_SCHEME) {
         return {
           type: 'text',
-          text: buildObraSocialDocumentationReplyText(selectedSchemeLabel),
-          nextState: FLOW_STATES.OBRA_SOCIAL_DOCS,
+          text: buildObraSocialDocumentationReplyText({
+            schemeLabel: selectedSchemeLabel,
+            coverageName: selectedCoverage?.name,
+            documentationRequired: selectedCoverage?.documentationRequired,
+          }),
+          nextState: buildFlowState(FLOW_STATES.OBRA_SOCIAL_DOCS, selectedCoverage?.id),
         };
       }
 
-      if (currentState === FLOW_STATES.PARTICULAR) {
+      if (currentStateBase === FLOW_STATES.PARTICULAR) {
         return {
           type: 'text',
           text: PARTICULAR_TREATMENT_TYPE_TEXT,
@@ -665,7 +699,7 @@ const getConversationAutoReply = ({
         };
       }
 
-      if (currentState === FLOW_STATES.PAMI) {
+      if (currentStateBase === FLOW_STATES.PAMI) {
         return {
           type: 'text',
           text: PAMI_TREATMENT_TYPE_TEXT,
@@ -681,7 +715,7 @@ const getConversationAutoReply = ({
     }
   }
 
-  if (normalized && currentState === FLOW_STATES.PARTICULAR_TREATMENT_TYPE) {
+  if (normalized && currentStateBase === FLOW_STATES.PARTICULAR_TREATMENT_TYPE) {
     if (isSimpleTreatmentSelection(normalized)) {
       return {
         type: 'text',
@@ -699,7 +733,7 @@ const getConversationAutoReply = ({
     }
   }
 
-  if (normalized && currentState === FLOW_STATES.PAMI_TREATMENT_TYPE) {
+  if (normalized && currentStateBase === FLOW_STATES.PAMI_TREATMENT_TYPE) {
     if (isSimpleTreatmentSelection(normalized)) {
       return {
         type: 'text',
@@ -719,7 +753,7 @@ const getConversationAutoReply = ({
 
   if (
     normalized
-    && (currentState === FLOW_STATES.FINAL_DOCS || currentState === FLOW_STATES.OBRA_SOCIAL_DOCS)
+    && (currentStateBase === FLOW_STATES.FINAL_DOCS || currentStateBase === FLOW_STATES.OBRA_SOCIAL_DOCS)
     && isListoCommand(normalized)
   ) {
     return {
@@ -733,7 +767,7 @@ const getConversationAutoReply = ({
     return { type: 'welcome', nextState: FLOW_STATES.WELCOME };
   }
 
-  if (normalized && currentState === FLOW_STATES.WELCOME && isGreeting(normalized)) {
+  if (normalized && currentStateBase === FLOW_STATES.WELCOME && isGreeting(normalized)) {
     return { type: 'welcome', nextState: FLOW_STATES.WELCOME };
   }
 
@@ -741,7 +775,7 @@ const getConversationAutoReply = ({
     return null;
   }
 
-  if (normalized && currentState === FLOW_STATES.WAITING_HUMAN_REVIEW) {
+  if (normalized && currentStateBase === FLOW_STATES.WAITING_HUMAN_REVIEW) {
     return {
       type: 'text',
       text: WAITING_HUMAN_REVIEW_TEXT,
@@ -749,7 +783,7 @@ const getConversationAutoReply = ({
     };
   }
 
-  if (normalized && currentState !== FLOW_STATES.WELCOME) {
+  if (normalized && currentStateBase !== FLOW_STATES.WELCOME) {
     return {
       type: 'text',
       text: UNKNOWN_INPUT_TEXT,
