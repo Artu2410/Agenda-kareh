@@ -240,19 +240,6 @@ model WhatsAppConversation {
   @@index([lastMessageAt])
 }
 
-model WhatsAppCoverage {
-  id        String   @id @default(cuid())
-  name      String   @unique
-  category  String   @default("obra_social")
-  aliases   String[] @default([])
-  isActive  Boolean  @default(true)
-  sortOrder Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([isActive, sortOrder])
-}
-
 model WhatsAppMessage {
   id             String   @id @default(cuid())
   conversationId String
