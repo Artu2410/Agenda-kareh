@@ -1,52 +1,56 @@
+const DEFAULT_DOCUMENTATION = 'Orden + Credencial';
+const ART_DOCUMENTATION = 'N° Siniestro + Orden';
+const CONSULTAR_DOCUMENTATION = 'Consultar con administración';
+
 const INITIAL_COVERAGES = [
-  { name: 'ACTIVA SALUD', aliases: ['OSFATLYF', 'OSCONARA'], isActive: true },
-  { name: 'AMEBPBA', aliases: ['Banco Provincia'], isActive: true },
-  { name: 'AMFFA', aliases: ['Farmacéuticos'], isActive: true },
-  { name: 'AMSTERDAM SALUD', aliases: ['Amsterdam'], isActive: true },
-  { name: 'APRES S.A.', aliases: ['APRES', 'APRES SA'], isActive: true },
-  { name: 'APSOT', aliases: [], isActive: true },
-  { name: 'ASI', aliases: ['Asistencia Sanitaria Integral'], isActive: true },
-  { name: 'ASOCIACIÓN ECLESIÁSTICA SAN PEDRO', aliases: ['San Pedro'], isActive: true },
-  { name: 'AVALIAN', aliases: ['Ex AC Salud', 'AC Salud'], isActive: true },
-  { name: 'CASA', aliases: [], isActive: true },
-  { name: 'CENTRO MÉDICO PUEYRREDÓN', aliases: ['Pueyrredón'], isActive: true },
-  { name: 'COLEGIO DE ESCRIBANOS', aliases: [], isActive: true },
-  { name: 'COMEI', aliases: ['Odontólogos'], isActive: true },
-  { name: 'DASMI', aliases: [], isActive: true },
-  { name: 'DASUTEN', aliases: [], isActive: true },
-  { name: 'E.W. HOPE', aliases: ['William Hope'], isActive: true },
-  { name: 'FEDERADA SALUD', aliases: ['Federada'], isActive: true },
-  { name: 'FUTBOLISTAS', aliases: [], isActive: true },
-  { name: 'GLOBAL EMPRESARIA', aliases: [], isActive: true },
-  { name: 'IOMA', aliases: [], isActive: true },
-  { name: 'JERÁRQUICOS SALUD', aliases: ['Jerárquicos'], isActive: true },
-  { name: 'LUIS PASTEUR', aliases: ['Pasteur'], isActive: true },
-  { name: 'MEDICUS', aliases: [], isActive: true },
-  { name: 'MEDIFÉ', aliases: ['Medife'], isActive: true },
-  { name: 'OPDEA', aliases: [], isActive: true },
-  { name: 'OSDOP', aliases: ['Docentes particulares'], isActive: true },
-  { name: 'OSFATUN', aliases: [], isActive: true },
-  { name: 'OSPE', aliases: ['Petroleros'], isActive: true },
-  { name: 'OSPEDYC', aliases: [], isActive: true },
-  { name: 'OSPEPBA', aliases: ['Escribanías'], isActive: true },
-  { name: 'OSPIA', aliases: ['Alimentación'], isActive: true },
-  { name: 'OSPSA', aliases: ['Sanidad'], isActive: true },
-  { name: 'OSPTV', aliases: ['Televisión'], isActive: true },
-  { name: 'OSSEG', aliases: ['Integral', 'Adherente'], isActive: true },
-  { name: 'PODER JUDICIAL', aliases: [], isActive: true },
-  { name: 'PREVENCIÓN SALUD', aliases: ['Prevención'], isActive: true },
-  { name: 'SANCOR SALUD', aliases: ['Sancor'], isActive: true },
-  { name: 'SCIS S.A.', aliases: ['SCIS', 'SCIS SA'], isActive: true },
-  { name: 'SWISS MEDICAL', aliases: ['Swiss'], isActive: true },
-  { name: 'UNION PERSONAL', aliases: ['UP'], isActive: true },
-  { name: 'LA HOLANDO ART', aliases: ['Holando Art', 'Holando'], isActive: true },
-  { name: 'LA SEGUNDA ART', aliases: ['La Segunda', 'Segunda Art'], isActive: true },
-  { name: 'OMINT ART (SERENA)', aliases: ['OMINT ART', 'SERENA'], isActive: true },
-  { name: 'PARANÁ ART', aliases: ['Paraná'], isActive: true },
-  { name: 'RECONQUISTA ART', aliases: ['Reconquista'], isActive: true },
-  { name: 'RURAL MUTUAL ART', aliases: ['Rural Mutual'], isActive: true },
-  { name: 'SAN FRANCISCO ART', aliases: [], isActive: true },
-  { name: 'SMG ART (Swiss Medical)', aliases: ['SMG ART', 'SMG'], isActive: true },
+  { name: 'ACTIVA SALUD', aliases: ['OSFATLYF', 'OSCONARA'], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
+  { name: 'AMEBPBA', aliases: ['Banco Provincia'], isActive: true, documentationRequired: 'Orden + Planilla/Bono' },
+  { name: 'AMFFA', aliases: ['Farmacéuticos'], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
+  { name: 'AMSTERDAM SALUD', aliases: ['Amsterdam'], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
+  { name: 'APRES S.A.', aliases: ['APRES', 'APRES SA'], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
+  { name: 'APSOT', aliases: [], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
+  { name: 'ASI', aliases: ['Asistencia Sanitaria Integral'], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
+  { name: 'ASOCIACIÓN ECLESIÁSTICA SAN PEDRO', aliases: ['San Pedro'], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
+  { name: 'AVALIAN', aliases: ['Ex AC Salud', 'AC Salud'], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
+  { name: 'CASA', aliases: ['Abogados'], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
+  { name: 'CENTRO MÉDICO PUEYRREDÓN', aliases: ['Pueyrredón', 'C.M. PUEYRREDÓN'], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
+  { name: 'COLEGIO DE ESCRIBANOS', aliases: ['COL. ESCRIBANOS'], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
+  { name: 'COMEI', aliases: ['Odontólogos'], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
+  { name: 'DASMI', aliases: [], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
+  { name: 'DASUTEN', aliases: [], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
+  { name: 'E.W. HOPE', aliases: ['William Hope'], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
+  { name: 'FEDERADA SALUD', aliases: ['Federada'], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
+  { name: 'FUTBOLISTAS', aliases: [], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
+  { name: 'GLOBAL EMPRESARIA', aliases: ['GLOBAL MPRESARIA'], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
+  { name: 'IOMA', aliases: [], isActive: true, documentationRequired: 'Orden + Planilla Firmas' },
+  { name: 'JERÁRQUICOS SALUD', aliases: ['Jerárquicos'], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
+  { name: 'LUIS PASTEUR', aliases: ['Pasteur'], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
+  { name: 'MEDICUS', aliases: [], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
+  { name: 'MEDIFÉ', aliases: ['Medife'], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
+  { name: 'OPDEA', aliases: [], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
+  { name: 'OSDOP', aliases: ['Docentes particulares'], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
+  { name: 'OSFATUN', aliases: [], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
+  { name: 'OSPE', aliases: ['Petroleros'], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
+  { name: 'OSPEDYC', aliases: [], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
+  { name: 'OSPEPBA', aliases: ['Escribanías'], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
+  { name: 'OSPIA', aliases: ['Alimentación'], isActive: true, documentationRequired: CONSULTAR_DOCUMENTATION },
+  { name: 'OSPSA', aliases: ['Sanidad'], isActive: true, documentationRequired: CONSULTAR_DOCUMENTATION },
+  { name: 'OSPTV', aliases: ['Televisión'], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
+  { name: 'OSSEG', aliases: ['Integral', 'Adherente'], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
+  { name: 'PODER JUDICIAL', aliases: [], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
+  { name: 'PREVENCIÓN SALUD', aliases: ['Prevención'], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
+  { name: 'SANCOR SALUD', aliases: ['Sancor'], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
+  { name: 'SCIS S.A.', aliases: ['SCIS', 'SCIS SA'], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
+  { name: 'SWISS MEDICAL', aliases: ['Swiss'], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
+  { name: 'UNION PERSONAL', aliases: ['UP'], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
+  { name: 'LA HOLANDO ART', aliases: ['Holando Art', 'Holando'], isActive: true, documentationRequired: ART_DOCUMENTATION },
+  { name: 'LA SEGUNDA ART', aliases: ['La Segunda', 'Segunda Art'], isActive: true, documentationRequired: ART_DOCUMENTATION },
+  { name: 'OMINT ART (SERENA)', aliases: ['OMINT ART', 'SERENA'], isActive: true, documentationRequired: ART_DOCUMENTATION },
+  { name: 'PARANÁ ART', aliases: ['Paraná'], isActive: true, documentationRequired: ART_DOCUMENTATION },
+  { name: 'RECONQUISTA ART', aliases: ['Reconquista'], isActive: true, documentationRequired: ART_DOCUMENTATION },
+  { name: 'RURAL MUTUAL ART', aliases: ['Rural Mutual'], isActive: true, documentationRequired: ART_DOCUMENTATION },
+  { name: 'SAN FRANCISCO ART', aliases: [], isActive: true, documentationRequired: ART_DOCUMENTATION },
+  { name: 'SMG ART (Swiss Medical)', aliases: ['SMG ART', 'SMG'], isActive: true, documentationRequired: ART_DOCUMENTATION },
 ];
 
 const EXACT_MATCH_ONLY_ALIASES = new Set(['asi', 'casa', 'up']);
@@ -73,6 +77,11 @@ const toUniqueAliases = (value) => {
   ));
 };
 
+const normalizeDocumentationRequired = (value) => {
+  const normalized = String(value || '').trim();
+  return normalized || DEFAULT_DOCUMENTATION;
+};
+
 const slugifyCoverageId = (value) => normalizeCoverageText(value).replace(/\s+/g, '-');
 
 let coverageCounter = INITIAL_COVERAGES.length + 1;
@@ -81,6 +90,7 @@ let inMemoryCoverages = INITIAL_COVERAGES.map((coverage, index) => ({
   name: coverage.name,
   aliases: toUniqueAliases(coverage.aliases),
   isActive: coverage.isActive !== false,
+  documentationRequired: normalizeDocumentationRequired(coverage.documentationRequired),
   sortOrder: index + 1,
 }));
 
@@ -102,6 +112,7 @@ const buildCoverageSnapshot = (coverage) => ({
   name: coverage.name,
   aliases: [...coverage.aliases],
   isActive: coverage.isActive,
+  documentationRequired: coverage.documentationRequired,
   sortOrder: coverage.sortOrder,
 });
 
@@ -148,7 +159,13 @@ export const findInMemoryWhatsAppCoverageByInput = (value, { includeInactive = f
   return matchedCoverage || null;
 };
 
-export const createInMemoryWhatsAppCoverage = ({ name, aliases, isActive = true }) => {
+export const findInMemoryWhatsAppCoverageById = (id) => {
+  rebuildCoverageOrder();
+  const matchedCoverage = inMemoryCoverages.find((coverage) => coverage.id === id);
+  return matchedCoverage ? buildCoverageSnapshot(matchedCoverage) : null;
+};
+
+export const createInMemoryWhatsAppCoverage = ({ name, aliases, isActive = true, documentationRequired }) => {
   const normalizedName = String(name || '').trim();
   if (!normalizedName) {
     throw new Error('El nombre es obligatorio.');
@@ -163,6 +180,7 @@ export const createInMemoryWhatsAppCoverage = ({ name, aliases, isActive = true 
     name: normalizedName,
     aliases: toUniqueAliases(aliases),
     isActive: !!isActive,
+    documentationRequired: normalizeDocumentationRequired(documentationRequired),
     sortOrder: inMemoryCoverages.length + 1,
   };
 
@@ -193,6 +211,9 @@ export const updateInMemoryWhatsAppCoverage = (id, payload = {}) => {
     name: nextName,
     aliases: payload.aliases === undefined ? currentCoverage.aliases : toUniqueAliases(payload.aliases),
     isActive: payload.isActive === undefined ? currentCoverage.isActive : !!payload.isActive,
+    documentationRequired: payload.documentationRequired === undefined
+      ? currentCoverage.documentationRequired
+      : normalizeDocumentationRequired(payload.documentationRequired),
   };
 
   inMemoryCoverages[coverageIndex] = updatedCoverage;
