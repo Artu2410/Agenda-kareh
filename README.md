@@ -77,6 +77,12 @@ npm run server:prisma:status
 
 These commands run Prisma from `/server`, which is currently pinned to `5.22.0`.
 
+### Render + Neon
+
+If you deploy the backend on Render and your Neon `DATABASE_URL` points to a host containing `-pooler`, keep that URL for the running app but also define `DIRECT_URL` with the direct Neon host (without `-pooler`).
+
+Prisma Migrate should use `DIRECT_URL`, while the app can continue using `DATABASE_URL`.
+
 ### Client (`/client`)
 
 -   `npm run dev`: Starts the client in development mode.
