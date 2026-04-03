@@ -51,27 +51,26 @@ const getFlowStateMeta = (state) => String(state || '')
   .filter(Boolean);
 
 const DEFAULT_WELCOME_TEXT = [
-  '¡Hola! {{1}}',
-  '*Bienvenido/a a Kinesiología Kareh* 🌿.',
+  '¡Hola! 👋',
+  '*Bienvenido/a a Kinesiología Kareh* 🌿',
   '',
-  'Para asesorarte mejor,',
-  '*enviá el número de tu opción:*',
+  'Para asesorarte mejor con tu turno, por favor *enviá el número* de tu opción:',
   '',
   '1️⃣ Obra Social / Prepaga / ART',
   '2️⃣ Particular',
   '3️⃣ PAMI',
-  '4️⃣ Respiratorio',
+  '4️⃣ Kinesiología Respiratoria',
   '5️⃣ Ubicación y Horarios 📍',
   '',
-  '📍 Av. Senador Morón 782, Bella Vista.',
-  '',
-  '¡Estamos procesando tu mensaje y en un ratito te respondemos personalmente! ✨🏥',
+  'Estamos procesando los mensajes para responderte lo antes posible. ✨',
 ].join('\n');
 
 const AUTO_REPLY_OBRA_SOCIAL_TEXT = [
-  '¡Perfecto! Para verificar tu cobertura, por favor indicanos el nombre de tu Obra Social, Prepaga o ART.',
+  '¡Perfecto! Para verificar tu cobertura, por favor escribí el *nombre de tu Obra Social, Prepaga o ART*.',
   '',
-  '0️⃣ Volver al Menú Principal.',
+  '_(Ejemplo: IOMA, Swiss Medical, La Segunda ART)_',
+  '',
+  '0️⃣ Volver al inicio.',
 ].join('\n');
 
 const buildInactiveCoverageReplyText = (coverageName) => [
@@ -81,37 +80,37 @@ const buildInactiveCoverageReplyText = (coverageName) => [
   '💰 Valor: $15.000 por zona.',
   '',
   'Si querés continuar como particular, escribí *PARTICULAR*.',
-  '0️⃣ Volver al Menú Principal.',
+  '0️⃣ Volver al inicio.',
 ].join('\n');
 
 const buildObraSocialSchemeReplyText = (coverageName) => [
-  `¡Genial! Tenemos convenio vigente con *${coverageName}*.`,
+  `¡Genial! Tenemos convenio con *${coverageName}* ✅`,
   '',
-  'Ahora, para organizar tu tratamiento de 10 sesiones, elegí la combinación de días que mejor te quede:',
+  'Para organizar tu tratamiento de 10 sesiones, elegí el esquema de días que prefieras:',
   '',
-  '🅰️ Lunes y Viernes (14 a 19 hs).', 'los horarios son cada 30 min','Ej: Lunes y Viernes 16:00',
-  'Podés combinar con los Miércoles en el horario de 17:30 a 19 hs.', 'Ej: Lunes, Miércoles y Viernes 17:30',
+  '🅰️ *Lunes y Viernes* (14:00 a 19:00 hs)',
+  '   _Se puede combinar con Miércoles (17:30 a 19:00 hs)_',
   '',
-  '🅱️ Martes y Jueves (17:30 a 19 hs).','los horarios son cada 30 min','Ej: Martes y Jueves 17:30',
-  'Podés combinar con los Sábados en el horario de 8:00 a 12 hs.', 'Ej: Martes, Jueves 18:30 y Sábados 9:00',
+  '🅱️ *Martes y Jueves* (17:30 a 19:00 hs)',
+  '   _Se puede combinar con Sábados (08:00 a 12:00 hs)_',
   '',
-  'Escribí *A* o *B* para continuar.',
-  '0️⃣ Volver al Menú Principal.',
+  'Escribí la letra *A* o *B* para continuar.',
+  '0️⃣ Volver al inicio.',
 ].join('\n');
 
 const AUTO_REPLY_PARTICULAR_TEXT = [
-  '¡Excelente! Información para sesiones particulares:',
-  '💰 Valor: $15.000 por zona a tratar.',
-  '💰 Doble tratamiento: $28.000.',
-  '(Solo efectivo).',
+  '¡Entendido! Información para sesiones *Particulares*:',
   '',
-  '🅰️ Lunes y Viernes (14 a 19 hs).', 'los horarios son cada 30 min','Ej: Lunes y Viernes 16:00',
-  'Podés combinar con los Miércoles en el horario de 17:30 a 19 hs.', 'Ej: Lunes, Miércoles y Viernes 17:30',
+  '💰 *Valor:* $15.000 por zona a tratar.',
+  '💰 *Doble zona:* $28.000.',
+  '_(Solo efectivo)_',
   '',
-  '🅱️ Martes y Jueves (17:30 a 19 hs).','los horarios son cada 30 min','Ej: Martes y Jueves 17:30',
-  'Podés combinar con los Sábados en el horario de 8:00 a 12 hs.', 'Ej: Martes, Jueves 18:30 y Sábados 9:00',
+  'Elegí tu esquema de días:',
+  '🅰️ Lunes y Viernes (14 a 19 hs).',
+  '🅱️ Martes y Jueves (17:30 a 19 hs).',
   '',
-  '0️⃣ Volver al Menú Principal.',
+  'Escribí *A* o *B* para continuar.',
+  '0️⃣ Volver al inicio.',
 ].join('\n');
 
 const AUTO_REPLY_PAMI_TEXT = [
@@ -179,43 +178,48 @@ const FINAL_DOCUMENTATION_TEXT = [
   '0️⃣ Volver al Menú Principal.',
 ].join('\n');
 
-const buildObraSocialDocumentationReplyText = ({ schemeLabel, coverageName, documentationRequired }) => [
-  `¡Excelente! Registramos el esquema *${schemeLabel}* para *${coverageName || 'tu cobertura'}*.`,
-  '',
-  'Para reservar tu turno, envianos:',
-  '',
-  '✅ Nombre y Apellido, DNI y Fecha de nacimiento.',
-  '✅ Foto del DNI (ambos lados).',
-  '✅ Foto de la Orden Médica (legible) y autorización, si es requerida.',
-  `✅ Documentación específica de *${coverageName || 'tu cobertura'}*: ${documentationRequired || 'Orden + Credencial'}.`,
-  '✅ Antecedentes (marcapasos, cáncer u otra condición importante).',
-  '',
-  'Cuando envíes toda la documentación, escribí *LISTO*.',
-  'En breve te enviaremos un comprobante con el cronograma seleccionado.',
-  '',
-  '0️⃣ Volver al Menú Principal.',
-].join('\n');
+const buildObraSocialDocumentationReplyText = ({ schemeLabel, coverageName, documentationRequired, isART }) => {
+  const specificDocumentation = documentationRequired || (isART ? 'N° Siniestro + Orden' : 'Orden + Credencial');
+
+  return [
+    `¡Excelente! Registramos tu esquema de días: *${schemeLabel}*.`,
+    '',
+    'Para confirmar tu reserva, por favor envianos:',
+    '',
+    '✅ *Nombre y Apellido, DNI y Fecha de nacimiento*.',
+    '✅ *Foto del DNI* (frente y dorso).',
+    '✅ *Foto de la Orden Médica* (debe ser legible y tener menos de 30 días de emitida).',
+    isART
+      ? `✅ *Documentación de ${coverageName || 'tu ART'}:* ${specificDocumentation}.`
+      : `✅ *Documentación de ${coverageName || 'tu cobertura'}:* ${specificDocumentation}.`,
+    '✅ *Antecedentes:* Informanos si tenés marcapasos, antecedentes de cáncer u otra condición.',
+    '',
+    '⚠️ *Aviso sobre copagos:* El valor del coseguro, si tu plan lo requiere, se informará al validar la orden en el sistema.',
+    '',
+    'Escribí *LISTO* cuando hayas enviado todo.',
+    '0️⃣ Volver al inicio.',
+  ].join('\n');
+};
 
 const UNKNOWN_INPUT_TEXT = 'Perdón, no entendí eso. Por favor, enviá los datos solicitados o escribí *0* para volver al inicio. 🙏';
 const WAITING_HUMAN_REVIEW_TEXT = 'Ya recibimos tu documentación y la estamos revisando. Si necesitás reiniciar el flujo, escribí *0*.';
 
 const FINAL_CONFIRMATION_TEXT = [
   '¡Gracias! Recibimos todo correctamente.',
-  'En breve te mandamos el comprobante con tu cronograma confirmado. ✨',
+  'En breve revisaremos la documentación y te confirmaremos el cronograma. ✨',
 ].join('\n');
 
 const AUTO_REPLY_LOCATION_TEXT = [
-  '¡Con gusto! Acá te compartimos los datos para que puedas encontrarnos fácilmente:',
-  '',
-  '📍 Dirección: Av. Senador Morón 782, Bella Vista.',
+  '📍 *Nuestra Ubicación:*',
+  'Av. Senador Morón 782, Bella Vista.',
   '🗺️ Google Maps: https://maps.app.goo.gl/ChIJccvYOMO9vJURBOmqm_VIytA',
   '',
-  '⏰ Horarios de atención:',
+  '⏰ *Horarios:*',
   '• Lun y Vie: 14:00 a 19:00 hs.',
   '• Mar, Mié y Jue: 17:30 a 19:00 hs.',
   '• Sábados: 08:00 a 12:00 hs.',
   '',
-  '0️⃣ Volver al Menú Principal.',
+  '0️⃣ Volver al inicio.',
 ].join('\n');
 
 const SCHEME_SELECTION_STATES = new Set([
@@ -606,6 +610,13 @@ const getCoverageFromConversationState = (state) => {
   return coverageId ? findInMemoryWhatsAppCoverageById(coverageId) : null;
 };
 
+const isArtCoverage = (coverage) => {
+  if (!coverage) return false;
+  const coverageName = String(coverage.name || '').toUpperCase();
+  const documentation = String(coverage.documentationRequired || '').toUpperCase();
+  return coverageName.includes('ART') || documentation.includes('SINIESTRO');
+};
+
 const getDirectIntentReply = (normalizedText) => {
   const matchedRule = DIRECT_INTENT_RULES.find(({ patterns }) => patterns.some((pattern) => pattern.test(normalizedText)));
   if (!matchedRule) return null;
@@ -686,6 +697,7 @@ const getConversationAutoReply = ({
             schemeLabel: selectedSchemeLabel,
             coverageName: selectedCoverage?.name,
             documentationRequired: selectedCoverage?.documentationRequired,
+            isART: isArtCoverage(selectedCoverage),
           }),
           nextState: buildFlowState(FLOW_STATES.OBRA_SOCIAL_DOCS, selectedCoverage?.id),
         };
