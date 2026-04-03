@@ -11,7 +11,6 @@ import {
 import {
   createWhatsAppCoverage,
   listWhatsAppCoverages,
-  moveWhatsAppCoverage,
   updateWhatsAppCoverage,
 } from '../controllers/whatsappCoverage.controller.js';
 
@@ -45,7 +44,6 @@ export default function createWhatsAppRoutes(prisma) {
   router.get('/conversations', (req, res) => listConversations(req, res, prisma));
   router.get('/coverages', (req, res) => listWhatsAppCoverages(req, res, prisma));
   router.post('/coverages', (req, res) => createWhatsAppCoverage(req, res, prisma));
-  router.post('/coverages/:id/move', (req, res) => moveWhatsAppCoverage(req, res, prisma));
   router.put('/coverages/:id', (req, res) => updateWhatsAppCoverage(req, res, prisma));
   router.get('/conversations/:id/messages', (req, res) => listMessages(req, res, prisma));
   router.post('/conversations/:id/messages', upload.single('file'), (req, res) => sendConversationMessage(req, res, prisma));

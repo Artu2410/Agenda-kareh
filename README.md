@@ -59,23 +59,6 @@ The frontend will be running on `http://localhost:5173`.
 
 -   `npm run dev`: Starts the server in development mode.
 -   `npm start`: Starts the server in production mode.
--   `npm run prisma:generate`: Generates Prisma client using the backend-local Prisma version.
--   `npm run prisma:migrate:deploy`: Applies pending migrations using the backend-local Prisma version.
--   `npm run prisma:migrate:status`: Shows migration status using the backend-local Prisma version.
-
-### Prisma migrations from repo root
-
-If you are standing at the repository root, do not run plain `npx prisma ...` because npm can download the latest Prisma CLI and ignore the backend version pinned in `/server`.
-
-Use these commands instead:
-
-```bash
-npm run server:prisma:generate
-npm run server:prisma:deploy
-npm run server:prisma:status
-```
-
-These commands run Prisma from `/server`, which is currently pinned to `5.22.0`.
 
 ### Client (`/client`)
 
