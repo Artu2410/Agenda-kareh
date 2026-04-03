@@ -51,7 +51,7 @@ const getFlowStateMeta = (state) => String(state || '')
   .filter(Boolean);
 
 const DEFAULT_WELCOME_TEXT = [
-  '¡Hola! 👋',
+  '¡Hola! {{1}} 👋',
   '*Bienvenido/a a Kinesiología Kareh* 🌿',
   '',
   'Para asesorarte mejor con tu turno, por favor *enviá el número* de tu opción:',
