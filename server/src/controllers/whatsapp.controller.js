@@ -9,6 +9,7 @@ import {
   uploadMedia,
 } from '../services/whatsapp.js';
 import { normalizePhone } from '../utils/phone.js';
+import { findInMemoryWhatsAppCoverageByInput } from '../utils/whatsappCoverageCatalog.js';
 
 const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
 const WELCOME_TEMPLATE = process.env.WHATSAPP_WELCOME_TEMPLATE || 'bienvenida_kareh';
@@ -17,6 +18,9 @@ const HOLA_TEMPLATE = process.env.WHATSAPP_HOLA_TEMPLATE || 'bienvenida_kareh';
 const FLOW_STATES = Object.freeze({
   WELCOME: 'welcome',
   OBRA_SOCIAL: 'obra_social',
+  OBRA_SOCIAL_UNAVAILABLE: 'obra_social_unavailable',
+  OBRA_SOCIAL_SCHEME: 'obra_social_scheme',
+  OBRA_SOCIAL_DOCS: 'obra_social_docs',
   PARTICULAR: 'particular',
   PAMI: 'pami',
   RESPIRATORIO: 'respiratorio',
@@ -46,14 +50,32 @@ const DEFAULT_WELCOME_TEXT = [
 ].join('\n');
 
 const AUTO_REPLY_OBRA_SOCIAL_TEXT = [
-  '¡Perfecto! Para verificar tu cobertura y ver si tenemos convenio vigente, por favor envianos:',
-  '✅ Nombre de tu Obra Social, Prepaga o ART.',
-  '✅ Nombre, Apellido y tu DNI.',
-  '✅ Fecha de nacimiento.',
-  '✅ Foto de la Orden Médica (legible) + Autorización si ya la tenés.',
-  '✅ Foto de tu Credencial (frente y dorso).',
+  '¡Perfecto! Para verificar tu cobertura, por favor indicanos el nombre de tu Obra Social, Prepaga o ART.',
   '',
-  'En cuanto revisemos los datos, te escribiremos con la palabra RESERVAR para coordinar tus días. 📝',
+  '0️⃣ Volver al Menú Principal.',
+].join('\n');
+
+const buildInactiveCoverageReplyText = (coverageName) => [
+  `Lo lamentamos, actualmente no contamos con convenio vigente para atención a través de *${coverageName}*.`,
+  '',
+  'Sin embargo, podés atenderte de forma *Particular* y te entregamos la factura para que gestiones el reintegro si tu plan lo permite.',
+  '💰 Valor: $15.000 por zona.',
+  '',
+  'Si querés continuar como particular, escribí *PARTICULAR*.',
+  '0️⃣ Volver al Menú Principal.',
+].join('\n');
+
+const buildObraSocialSchemeReplyText = (coverageName) => [
+  `¡Genial! Tenemos convenio vigente con *${coverageName}*.`,
+  '',
+  'Ahora, para organizar tu tratamiento de 10 sesiones, elegí la combinación de días que mejor te quede:',
+  '',
+  '🅰️ Lunes y Viernes (14 a 19 hs).',
+  'Podés sumar los Miércoles de 17:30 a 19 hs.',
+  '',
+  '🅱️ Martes y Jueves (17:30 a 19 hs).',
+  'Podés sumar los Sábados de 8 a 12 hs.',
+  'Escribí *A* o *B* para continuar.',
   '0️⃣ Volver al Menú Principal.',
 ].join('\n');
 
@@ -135,6 +157,22 @@ const FINAL_DOCUMENTATION_TEXT = [
   '0️⃣ Volver al Menú Principal.',
 ].join('\n');
 
+const buildObraSocialDocumentationReplyText = (schemeLabel) => [
+  `¡Excelente! Registramos el esquema *${schemeLabel}*.`,
+  '',
+  'Para reservar tu turno, envianos:',
+  '',
+  '✅ Nombre y Apellido, DNI y Fecha de nacimiento.',
+  '✅ Foto de la Orden Médica (legible) y autorización, si es requerida.',
+  '✅ Foto del DNI (ambos lados).',
+  '✅ Antecedentes (marcapasos, cáncer u otra condición importante).',
+  '',
+  'Cuando envíes toda la documentación, escribí *LISTO*.',
+  'En breve te enviaremos un comprobante con el cronograma seleccionado.',
+  '',
+  '0️⃣ Volver al Menú Principal.',
+].join('\n');
+
 const UNKNOWN_INPUT_TEXT = 'Perdón, no entendí eso. Por favor, enviá los datos solicitados o escribí *0* para volver al inicio. 🙏';
 const WAITING_HUMAN_REVIEW_TEXT = 'Ya recibimos tu documentación y la estamos revisando. Si necesitás reiniciar el flujo, escribí *0*.';
 
@@ -158,6 +196,7 @@ const AUTO_REPLY_LOCATION_TEXT = [
 ].join('\n');
 
 const SCHEME_SELECTION_STATES = new Set([
+  FLOW_STATES.OBRA_SOCIAL_SCHEME,
   FLOW_STATES.PARTICULAR,
   FLOW_STATES.PAMI,
   FLOW_STATES.RESPIRATORIO,
@@ -170,7 +209,7 @@ const DIRECT_INTENT_RULES = [
     nextState: FLOW_STATES.OBRA_SOCIAL,
   },
   {
-    patterns: [/\b(obra social|obras sociales|prepaga|art|osde|ioma|galeno|swiss|swiss medical|medicus|omint|pago con carnet)\b/],
+    patterns: [/\b(obra social|obras sociales|prepaga|art|carnet|cobertura)\b/],
     text: AUTO_REPLY_OBRA_SOCIAL_TEXT,
     nextState: FLOW_STATES.OBRA_SOCIAL,
   },
@@ -494,6 +533,7 @@ const MENU_COMMAND_PATTERNS = [/^(0|menu|menu principal|volver|inicio)(\b.*)?$/]
 const LISTO_COMMAND_PATTERNS = [/^(listo|ya esta|ya envie todo|termine)(\b.*)?$/];
 const SCHEME_A_PATTERNS = [/^(a|opcion a|lunes y viernes|lunes viernes|lun y vie)(\b.*)?$/];
 const SCHEME_B_PATTERNS = [/^(b|opcion b|martes y jueves|martes jueves|mar y jue)(\b.*)?$/];
+const SCHEME_C_PATTERNS = [/^(c|opcion c|sabados|sabados unicamente|solo sabados|sabado)(\b.*)?$/];
 const SIMPLE_TREATMENT_PATTERNS = [/^(1|simple|tratamiento simple|una zona|1 zona|sencillo)(\b.*)?$/];
 const DOUBLE_TREATMENT_PATTERNS = [/^(2|doble|tratamiento doble|dos zonas|2 zonas)(\b.*)?$/];
 
@@ -507,11 +547,14 @@ const isMenuCommand = (normalizedText) => matchesAnyPattern(normalizedText, MENU
 const isListoCommand = (normalizedText) => matchesAnyPattern(normalizedText, LISTO_COMMAND_PATTERNS);
 const isSchemeASelection = (normalizedText) => matchesAnyPattern(normalizedText, SCHEME_A_PATTERNS);
 const isSchemeBSelection = (normalizedText) => matchesAnyPattern(normalizedText, SCHEME_B_PATTERNS);
+const isSchemeCSelection = (normalizedText) => matchesAnyPattern(normalizedText, SCHEME_C_PATTERNS);
 const isSimpleTreatmentSelection = (normalizedText) => matchesAnyPattern(normalizedText, SIMPLE_TREATMENT_PATTERNS);
 const isDoubleTreatmentSelection = (normalizedText) => matchesAnyPattern(normalizedText, DOUBLE_TREATMENT_PATTERNS);
 
 const canApplyDirectIntent = (currentState) => !currentState
   || currentState === FLOW_STATES.WELCOME
+  || currentState === FLOW_STATES.OBRA_SOCIAL
+  || currentState === FLOW_STATES.OBRA_SOCIAL_UNAVAILABLE
   || currentState === FLOW_STATES.LOCATION
   || currentState === FLOW_STATES.WAITING_HUMAN_REVIEW
   || SCHEME_SELECTION_STATES.has(currentState);
@@ -521,6 +564,24 @@ const buildDocumentationReplyText = (treatmentLabel = '') => (
     ? [`¡Perfecto! Quedó registrado como tratamiento *${treatmentLabel}*.`, FINAL_DOCUMENTATION_TEXT].join('\n\n')
     : FINAL_DOCUMENTATION_TEXT
 );
+
+const getCoverageInputLabel = (messageText) => {
+  const normalized = String(messageText || '').trim();
+  return normalized || 'la cobertura indicada';
+};
+
+const getSelectedSchemeLabel = (normalizedText) => {
+  if (isSchemeASelection(normalizedText)) {
+    return 'A: Lunes y Viernes (con opción de sumar Miércoles)';
+  }
+  if (isSchemeBSelection(normalizedText)) {
+    return 'B: Martes y Jueves (con opción de sumar Sábados)';
+  }
+  if (isSchemeCSelection(normalizedText)) {
+    return 'C: Sábados únicamente';
+  }
+  return null;
+};
 
 const getDirectIntentReply = (normalizedText) => {
   const matchedRule = DIRECT_INTENT_RULES.find(({ patterns }) => patterns.some((pattern) => pattern.test(normalizedText)));
@@ -541,17 +602,48 @@ const getConversationAutoReply = ({
   hasNonTextMessage = false,
 }) => {
   const normalized = normalizeText(messageText);
+  const matchedActiveCoverage = findInMemoryWhatsAppCoverageByInput(messageText, { includeInactive: false });
+  const matchedCoverage = matchedActiveCoverage || findInMemoryWhatsAppCoverageByInput(messageText, { includeInactive: true });
 
   if (messageType === 'reaction') {
     return null;
   }
 
-  if (hasNonTextMessage && currentState === FLOW_STATES.FINAL_DOCS) {
+  if (hasNonTextMessage && (currentState === FLOW_STATES.FINAL_DOCS || currentState === FLOW_STATES.OBRA_SOCIAL_DOCS)) {
     return null;
   }
 
   if (normalized && isMenuCommand(normalized)) {
     return { type: 'welcome', nextState: FLOW_STATES.WELCOME };
+  }
+
+  if (
+    matchedActiveCoverage
+    && (
+      shouldSendWelcome
+      || currentState === FLOW_STATES.WELCOME
+      || currentState === FLOW_STATES.OBRA_SOCIAL
+      || currentState === FLOW_STATES.OBRA_SOCIAL_UNAVAILABLE
+    )
+  ) {
+    return {
+      type: 'text',
+      text: buildObraSocialSchemeReplyText(matchedActiveCoverage.name),
+      nextState: FLOW_STATES.OBRA_SOCIAL_SCHEME,
+    };
+  }
+
+  if (
+    normalized
+    && !matchedActiveCoverage
+    && (currentState === FLOW_STATES.OBRA_SOCIAL || currentState === FLOW_STATES.OBRA_SOCIAL_UNAVAILABLE)
+    && !isMenuCommand(normalized)
+  ) {
+    return {
+      type: 'text',
+      text: buildInactiveCoverageReplyText(matchedCoverage?.name || getCoverageInputLabel(messageText)),
+      nextState: FLOW_STATES.OBRA_SOCIAL_UNAVAILABLE,
+    };
   }
 
   if (normalized && (shouldSendWelcome || canApplyDirectIntent(currentState))) {
@@ -560,7 +652,16 @@ const getConversationAutoReply = ({
   }
 
   if (normalized && SCHEME_SELECTION_STATES.has(currentState)) {
-    if (isSchemeASelection(normalized) || isSchemeBSelection(normalized)) {
+    const selectedSchemeLabel = getSelectedSchemeLabel(normalized);
+    if (selectedSchemeLabel) {
+      if (currentState === FLOW_STATES.OBRA_SOCIAL_SCHEME) {
+        return {
+          type: 'text',
+          text: buildObraSocialDocumentationReplyText(selectedSchemeLabel),
+          nextState: FLOW_STATES.OBRA_SOCIAL_DOCS,
+        };
+      }
+
       if (currentState === FLOW_STATES.PARTICULAR) {
         return {
           type: 'text',
@@ -621,7 +722,11 @@ const getConversationAutoReply = ({
     }
   }
 
-  if (normalized && currentState === FLOW_STATES.FINAL_DOCS && isListoCommand(normalized)) {
+  if (
+    normalized
+    && (currentState === FLOW_STATES.FINAL_DOCS || currentState === FLOW_STATES.OBRA_SOCIAL_DOCS)
+    && isListoCommand(normalized)
+  ) {
     return {
       type: 'text',
       text: FINAL_CONFIRMATION_TEXT,

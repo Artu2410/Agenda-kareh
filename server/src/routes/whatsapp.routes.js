@@ -8,6 +8,11 @@ import {
   sendConversationMessage,
   sendWelcomeTemplate,
 } from '../controllers/whatsapp.controller.js';
+import {
+  createWhatsAppCoverage,
+  listWhatsAppCoverages,
+  updateWhatsAppCoverage,
+} from '../controllers/whatsappCoverageMemory.controller.js';
 
 export default function createWhatsAppRoutes(prisma) {
   const router = Router();
@@ -37,6 +42,9 @@ export default function createWhatsAppRoutes(prisma) {
   });
 
   router.get('/conversations', (req, res) => listConversations(req, res, prisma));
+  router.get('/coverages', (req, res) => listWhatsAppCoverages(req, res));
+  router.post('/coverages', (req, res) => createWhatsAppCoverage(req, res));
+  router.put('/coverages/:id', (req, res) => updateWhatsAppCoverage(req, res));
   router.get('/conversations/:id/messages', (req, res) => listMessages(req, res, prisma));
   router.post('/conversations/:id/messages', upload.single('file'), (req, res) => sendConversationMessage(req, res, prisma));
   router.post('/conversations/:id/send-welcome', (req, res) => sendWelcomeTemplate(req, res, prisma));
