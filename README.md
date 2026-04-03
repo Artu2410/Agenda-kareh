@@ -79,14 +79,9 @@ These commands run Prisma from `/server`, which is currently pinned to `5.22.0`.
 
 ### Render + Neon
 
-If you deploy the backend on Render, the recommended Start Command is `npm start` from the `/server` directory. That runs the production bootstrap script, which executes Prisma safely before starting the API.
+If you deploy the backend on Render and your Neon `DATABASE_URL` points to a host containing `-pooler`, keep that URL for the running app but also define `DIRECT_URL` with the direct Neon host (without `-pooler`).
 
-If your Neon `DATABASE_URL` points to a host containing `-pooler`, Prisma Migrate should use a direct connection. The bootstrap script can derive `DIRECT_URL` automatically from `DATABASE_URL`, but setting `DIRECT_URL` explicitly in Render is still the safest option.
-
-Recommended Render variables:
-
-- `DATABASE_URL`: pooled Neon URL for runtime
-- `DIRECT_URL`: direct Neon URL without `-pooler` for Prisma CLI
+Prisma Migrate should use `DIRECT_URL`, while the app can continue using `DATABASE_URL`.
 
 ### Client (`/client`)
 
