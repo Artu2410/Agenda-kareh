@@ -17,8 +17,6 @@ const HOLA_TEMPLATE = process.env.WHATSAPP_HOLA_TEMPLATE || 'bienvenida_kareh';
 const FLOW_STATES = Object.freeze({
   WELCOME: 'welcome',
   OBRA_SOCIAL: 'obra_social',
-  OBRA_SOCIAL_SCHEME: 'obra_social_scheme',
-  OBRA_SOCIAL_DOCS: 'obra_social_docs',
   PARTICULAR: 'particular',
   PAMI: 'pami',
   RESPIRATORIO: 'respiratorio',
@@ -48,17 +46,16 @@ const DEFAULT_WELCOME_TEXT = [
 ].join('\n');
 
 const AUTO_REPLY_OBRA_SOCIAL_TEXT = [
-  '¡Perfecto! Para continuar, decinos cuál es tu Obra Social, Prepaga o ART.',
+  '¡Perfecto! Para verificar tu cobertura y ver si tenemos convenio vigente, por favor envianos:',
+  '✅ Nombre de tu Obra Social, Prepaga o ART.',
+  '✅ Nombre y Apellido.',
+  '✅ DNI y Numero de Afiliado.',
+  '✅ Fecha de nacimiento.',
+  '✅ Foto de la Orden Médica (legible) + Autorización si ya la tenés.',
+  '✅ Foto de tu Credencial (frente y dorso).',
   '',
-  'Si esa cobertura está dentro de nuestros convenios cargados, seguimos automáticamente con la reserva.',
-  'Podés escribir, por ejemplo: *IOMA*, *Swiss Medical*, *Medicus*, *Sancor Salud* o *Unión Personal*.',
-  '',
+  'En cuanto revisemos los datos, te escribiremos con la palabra RESERVAR para coordinar tus días. 📝',
   '0️⃣ Volver al Menú Principal.',
-].join('\n');
-
-const OBRA_SOCIAL_NOT_FOUND_TEXT = [
-  'No encontré esa cobertura dentro de los convenios cargados.',
-  'Escribila tal como figura en tu credencial o escribí *0* para volver al inicio.',
 ].join('\n');
 
 const AUTO_REPLY_PARTICULAR_TEXT = [
@@ -104,18 +101,6 @@ const AUTO_REPLY_RESPIRATORIO_TEXT = [
   '0️⃣ Volver al Menú Principal.',
 ].join('\n');
 
-const buildObraSocialSchemeReplyText = (coverageLabel = 'tu cobertura') => [
-  `¡Perfecto! Trabajamos con *${coverageLabel}*.`,
-  '',
-  'Elegí el esquema de días que más te convenga:',
-  '🅰️ Lunes y Viernes (14 a 19 hs).',
-  '(Opcional: podés sumar los Miércoles de 17:30 a 19 hs).',
-  '🅱️ Martes y Jueves (17:30 a 19 hs).',
-  '(Opcional: podés sumar los Sábados de 8 a 12 hs).',
-  '',
-  '0️⃣ Volver al Menú Principal.',
-].join('\n');
-
 const PARTICULAR_TREATMENT_TYPE_TEXT = [
   '¡Perfecto! Ya registramos tu esquema de días.',
   '',
@@ -151,21 +136,6 @@ const FINAL_DOCUMENTATION_TEXT = [
   '0️⃣ Volver al Menú Principal.',
 ].join('\n');
 
-const OBRA_SOCIAL_DOCUMENTATION_TEXT = [
-  '¡Genial! Para continuar con tu reserva, enviános esta documentación:',
-  '',
-  '✅ Nombre y Apellido.',
-  '✅ Número de Afiliado.',
-  '✅ DNI.',
-  '✅ Fecha de nacimiento.',
-  '✅ Foto de la Orden Médica (legible) + Autorización (si la requiere).',
-  '✅ Foto de tu Credencial (frente y dorso).',
-  '',
-  'Escribí *LISTO* cuando hayas enviado todo y en breve te mandamos el comprobante con tu cronograma confirmado. ✨',
-  '',
-  '0️⃣ Volver al Menú Principal.',
-].join('\n');
-
 const UNKNOWN_INPUT_TEXT = 'Perdón, no entendí eso. Por favor, enviá los datos solicitados o escribí *0* para volver al inicio. 🙏';
 const WAITING_HUMAN_REVIEW_TEXT = 'Ya recibimos tu documentación y la estamos revisando. Si necesitás reiniciar el flujo, escribí *0*.';
 
@@ -189,7 +159,6 @@ const AUTO_REPLY_LOCATION_TEXT = [
 ].join('\n');
 
 const SCHEME_SELECTION_STATES = new Set([
-  FLOW_STATES.OBRA_SOCIAL_SCHEME,
   FLOW_STATES.PARTICULAR,
   FLOW_STATES.PAMI,
   FLOW_STATES.RESPIRATORIO,
@@ -202,7 +171,7 @@ const DIRECT_INTENT_RULES = [
     nextState: FLOW_STATES.OBRA_SOCIAL,
   },
   {
-    patterns: [/\b(obra social|obras sociales|prepaga|prepaga medica|art|carnet|cobertura)\b/],
+    patterns: [/\b(obra social|obras sociales|prepaga|art|osde|ioma|galeno|swiss|swiss medical|medicus|omint|pago con carnet)\b/],
     text: AUTO_REPLY_OBRA_SOCIAL_TEXT,
     nextState: FLOW_STATES.OBRA_SOCIAL,
   },
@@ -520,8 +489,6 @@ const normalizeText = (value) => {
     .replace(/\s+/g, ' ');
 };
 
-const AMBIGUOUS_COVERAGE_ALIASES = new Set(['asi', 'casa']);
-
 const GREETING_PREFIXES = ['hola', 'buenas', 'buen dia', 'buenos dias', 'buenas tardes', 'buenas noches'];
 
 const MENU_COMMAND_PATTERNS = [/^(0|menu|menu principal|volver|inicio)(\b.*)?$/];
@@ -532,33 +499,6 @@ const SIMPLE_TREATMENT_PATTERNS = [/^(1|simple|tratamiento simple|una zona|1 zon
 const DOUBLE_TREATMENT_PATTERNS = [/^(2|doble|tratamiento doble|dos zonas|2 zonas)(\b.*)?$/];
 
 const matchesAnyPattern = (text, patterns) => patterns.some((pattern) => pattern.test(text));
-
-const normalizeCoverageCatalog = (coverages = []) => coverages.map((coverage) => ({
-  ...coverage,
-  normalizedAliases: [coverage.name, ...(coverage.aliases || [])]
-    .map((alias) => normalizeText(alias))
-    .filter(Boolean),
-}));
-
-const matchesCoverageAlias = (normalizedText, alias) => {
-  if (!normalizedText || !alias) return false;
-  if (normalizedText === alias) return true;
-
-  const paddedText = ` ${normalizedText} `;
-  if (AMBIGUOUS_COVERAGE_ALIASES.has(alias)) {
-    return false;
-  }
-
-  return paddedText.includes(` ${alias} `);
-};
-
-const findKnownCoverage = (normalizedText, coverageCatalog = []) => {
-  const matchedCoverage = coverageCatalog.find(({ normalizedAliases }) => (
-    normalizedAliases.some((alias) => matchesCoverageAlias(normalizedText, alias))
-  ));
-
-  return matchedCoverage?.name || null;
-};
 
 const isGreeting = (normalizedText) => GREETING_PREFIXES.some(
   (prefix) => normalizedText === prefix || normalizedText.startsWith(`${prefix} `),
@@ -573,7 +513,6 @@ const isDoubleTreatmentSelection = (normalizedText) => matchesAnyPattern(normali
 
 const canApplyDirectIntent = (currentState) => !currentState
   || currentState === FLOW_STATES.WELCOME
-  || currentState === FLOW_STATES.OBRA_SOCIAL
   || currentState === FLOW_STATES.LOCATION
   || currentState === FLOW_STATES.WAITING_HUMAN_REVIEW
   || SCHEME_SELECTION_STATES.has(currentState);
@@ -600,30 +539,20 @@ const getConversationAutoReply = ({
   messageType = 'text',
   currentState,
   shouldSendWelcome,
-  coverageCatalog = [],
   hasNonTextMessage = false,
 }) => {
   const normalized = normalizeText(messageText);
-  const recognizedCoverage = normalized ? findKnownCoverage(normalized, coverageCatalog) : null;
 
   if (messageType === 'reaction') {
     return null;
   }
 
-  if (hasNonTextMessage && (currentState === FLOW_STATES.FINAL_DOCS || currentState === FLOW_STATES.OBRA_SOCIAL_DOCS)) {
+  if (hasNonTextMessage && currentState === FLOW_STATES.FINAL_DOCS) {
     return null;
   }
 
   if (normalized && isMenuCommand(normalized)) {
     return { type: 'welcome', nextState: FLOW_STATES.WELCOME };
-  }
-
-  if (recognizedCoverage && (shouldSendWelcome || canApplyDirectIntent(currentState) || currentState === FLOW_STATES.OBRA_SOCIAL)) {
-    return {
-      type: 'text',
-      text: buildObraSocialSchemeReplyText(recognizedCoverage),
-      nextState: FLOW_STATES.OBRA_SOCIAL_SCHEME,
-    };
   }
 
   if (normalized && (shouldSendWelcome || canApplyDirectIntent(currentState))) {
@@ -646,14 +575,6 @@ const getConversationAutoReply = ({
           type: 'text',
           text: PAMI_TREATMENT_TYPE_TEXT,
           nextState: FLOW_STATES.PAMI_TREATMENT_TYPE,
-        };
-      }
-
-      if (currentState === FLOW_STATES.OBRA_SOCIAL_SCHEME) {
-        return {
-          type: 'text',
-          text: OBRA_SOCIAL_DOCUMENTATION_TEXT,
-          nextState: FLOW_STATES.OBRA_SOCIAL_DOCS,
         };
       }
 
@@ -701,15 +622,7 @@ const getConversationAutoReply = ({
     }
   }
 
-  if (normalized && currentState === FLOW_STATES.OBRA_SOCIAL && !recognizedCoverage) {
-    return {
-      type: 'text',
-      text: OBRA_SOCIAL_NOT_FOUND_TEXT,
-      nextState: FLOW_STATES.OBRA_SOCIAL,
-    };
-  }
-
-  if (normalized && (currentState === FLOW_STATES.FINAL_DOCS || currentState === FLOW_STATES.OBRA_SOCIAL_DOCS) && isListoCommand(normalized)) {
+  if (normalized && currentState === FLOW_STATES.FINAL_DOCS && isListoCommand(normalized)) {
     return {
       type: 'text',
       text: FINAL_CONFIRMATION_TEXT,
@@ -780,20 +693,6 @@ const storeInboundMedia = async ({ mediaId, mimeType, conversationId }) => {
   });
 };
 
-const loadActiveCoverageCatalog = async (prisma) => {
-  try {
-    const coverages = await prisma.whatsAppCoverage.findMany({
-      where: { isActive: true },
-      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
-    });
-
-    return normalizeCoverageCatalog(coverages);
-  } catch (error) {
-    console.error('ERROR CARGANDO COBERTURAS WHATSAPP:', error);
-    return [];
-  }
-};
-
 export const verifyWhatsAppWebhook = (req, res) => {
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
@@ -810,7 +709,6 @@ export const handleWhatsAppWebhook = async (req, res, prisma) => {
     const body = req.body;
     if (!body || body.object !== 'whatsapp_business_account') return res.sendStatus(404);
 
-    const coverageCatalog = await loadActiveCoverageCatalog(prisma);
     const entries = body.entry || [];
     for (const entry of entries) {
       for (const change of entry.changes || []) {
@@ -849,7 +747,6 @@ export const handleWhatsAppWebhook = async (req, res, prisma) => {
             messageType: message.type,
             currentState: effectiveState,
             shouldSendWelcome: shouldResetSession,
-            coverageCatalog,
             hasNonTextMessage: message.type !== 'text',
           });
           const nextConversationState = autoReply?.nextState || effectiveState;
