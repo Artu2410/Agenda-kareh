@@ -5,7 +5,6 @@ import api from '@/services/api';
 const DEFAULT_CAPACITY_PER_SLOT = 5;
 const DEFAULT_TIMER_DURATION_MINUTES = 25;
 const DEFAULT_SLOT_DURATION_MINUTES = 30;
-const TIMER_DOUBLE_CLICK_DELAY_MS = 300;
 const TIMER_SYNC_INTERVAL_MS = 5000;
 const TIMER_STATUSES = new Set(['idle', 'active', 'paused', 'finished']);
 
@@ -151,7 +150,6 @@ const computeTimerView = (timer, defaultSeconds, nowMs) => {
 
 const SlotTimersPanel = ({ currentTime, appointments = [], agendaConfig = null }) => {
   const audioContextRef = useRef(null);
-  const clickTimeoutsRef = useRef(new Map());
   const previousStatusesRef = useRef(new Map());
   const hasHydratedTimersRef = useRef(false);
   const slotDurationMinutes = Math.max(1, Number(agendaConfig?.slotDuration) || DEFAULT_SLOT_DURATION_MINUTES);
@@ -203,26 +201,11 @@ const SlotTimersPanel = ({ currentTime, appointments = [], agendaConfig = null }
 
   const [timerRecords, setTimerRecords] = useState(() => createTimerShell(timerDefaultSecondsBySlot));
 
-  const clearPendingClick = (slotNumber) => {
-    const timeoutId = clickTimeoutsRef.current.get(slotNumber);
-    if (timeoutId) {
-      window.clearTimeout(timeoutId);
-      clickTimeoutsRef.current.delete(slotNumber);
-    }
-  };
-
   useEffect(() => {
     setTimerRecords(createTimerShell(timerDefaultSecondsBySlot));
-    clickTimeoutsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
-    clickTimeoutsRef.current.clear();
     previousStatusesRef.current = new Map();
     hasHydratedTimersRef.current = false;
   }, [timerDefaultSecondsBySlot, todayKey, currentSlotTime]);
-
-  useEffect(() => () => {
-    clickTimeoutsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
-    clickTimeoutsRef.current.clear();
-  }, []);
 
   const applyServerSnapshot = (serverTimers = []) => {
     const recordsBySlot = new Map(serverTimers.map((timer) => [Number(timer.slotNumber), timer]));
@@ -347,8 +330,6 @@ const SlotTimersPanel = ({ currentTime, appointments = [], agendaConfig = null }
   const handleToggleTimer = async (slotNumber) => {
     if (pendingSlots.includes(slotNumber)) return;
 
-    clearPendingClick(slotNumber);
-
     setPendingSlots((prev) => [...prev, slotNumber]);
 
     try {
@@ -372,47 +353,6 @@ const SlotTimersPanel = ({ currentTime, appointments = [], agendaConfig = null }
     }
   };
 
-  const handleResetTimer = async (slotNumber) => {
-    if (pendingSlots.includes(slotNumber)) return;
-
-    clearPendingClick(slotNumber);
-    setPendingSlots((prev) => [...prev, slotNumber]);
-
-    try {
-      const defaultDurationSeconds = getDefaultSecondsForSlot(timerDefaultSecondsBySlot, slotNumber);
-      const response = await api.post('/agenda/timers/reset', {
-        timerDate: todayKey,
-        slotTime: currentSlotTime,
-        slotNumber,
-        defaultDurationSeconds,
-      });
-
-      const serverTimer = normalizeTimerRecord(response.data?.timer, defaultDurationSeconds, slotNumber);
-      setTimerRecords((previous) => previous.map((timer) => (
-        timer.slotNumber === slotNumber ? serverTimer : timer
-      )));
-    } catch (error) {
-      console.error('Error resetting timer:', error);
-      toast.error('No se pudo resetear el cronómetro');
-    } finally {
-      setPendingSlots((prev) => prev.filter((value) => value !== slotNumber));
-    }
-  };
-
-  const handleTimerClick = (slotNumber, clickCount) => {
-    if (clickCount >= 2) {
-      handleResetTimer(slotNumber);
-      return;
-    }
-
-    clearPendingClick(slotNumber);
-    const timeoutId = window.setTimeout(() => {
-      clickTimeoutsRef.current.delete(slotNumber);
-      handleToggleTimer(slotNumber);
-    }, TIMER_DOUBLE_CLICK_DELAY_MS);
-    clickTimeoutsRef.current.set(slotNumber, timeoutId);
-  };
-
   return (
     <section className="mb-4 overflow-x-auto px-3 py-2 sm:px-4">
       <div className="inline-flex min-w-max rounded-[1.4rem] border border-slate-200 bg-white/90 px-3 py-3 shadow-sm">
@@ -426,14 +366,10 @@ const SlotTimersPanel = ({ currentTime, appointments = [], agendaConfig = null }
               <button
                 type="button"
                 key={`${todayKey}-${currentSlotTime}-${timer.slotNumber}`}
-                onClick={(event) => handleTimerClick(timer.slotNumber, event.detail)}
+                onClick={() => handleToggleTimer(timer.slotNumber)}
                 disabled={isPending}
                 className={`relative flex h-[92px] w-[84px] shrink-0 flex-col items-center justify-center rounded-[1.1rem] border-[4px] px-1 font-black transition-all ${getTimerBoxClasses(timer.status)} ${isPending ? 'cursor-wait opacity-70' : ''}`}
-                title={timer.status === 'active'
-                  ? 'Click: pausar. Doble click: resetear.'
-                  : (timer.status === 'paused'
-                    ? 'Click: reanudar. Doble click: resetear.'
-                    : 'Click: iniciar. Doble click: resetear.')}
+                title={timer.status === 'active' ? 'Pausar cronómetro' : (timer.status === 'paused' ? 'Reanudar cronómetro' : 'Iniciar cronómetro')}
               >
                 {hasAppointment && (
                   <span className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-slate-950/80" />
