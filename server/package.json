@@ -8,10 +8,7 @@
     "start": "node scripts/bootstrap-production.js",
     "dev": "nodemon server.js",
     "check-whatsapp": "node check-whatsapp-config.js",
-    "whatsapp-reminders": "node scripts/whatsapp-reminders.js",
-    "prisma:generate": "prisma generate",
-    "prisma:migrate:deploy": "prisma migrate deploy",
-    "prisma:migrate:status": "prisma migrate status"
+    "whatsapp-reminders": "node scripts/whatsapp-reminders.js"
   },
   "keywords": [],
   "author": "",

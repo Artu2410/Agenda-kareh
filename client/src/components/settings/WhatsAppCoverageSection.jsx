@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ChevronDown, ChevronUp, Loader2, Pencil, Plus, Power, Save, X } from 'lucide-react';
+import { Loader2, Pencil, Plus, Power, Save, X } from 'lucide-react';
 import instance from '../../api/axios';
 
 const COVERAGE_CATEGORY_OPTIONS = [
@@ -124,21 +124,6 @@ const WhatsAppCoverageSection = () => {
     } catch (err) {
       console.error('Error actualizando estado de cobertura WhatsApp:', err);
       setError(err.response?.data?.message || 'No se pudo actualizar el estado de la cobertura.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleMoveCoverage = async (coverageId, direction) => {
-    try {
-      setSaving(true);
-      setError(null);
-
-      await instance.post(`/whatsapp/coverages/${coverageId}/move`, { direction });
-      await fetchCoverages();
-    } catch (err) {
-      console.error('Error reordenando cobertura WhatsApp:', err);
-      setError(err.response?.data?.message || 'No se pudo actualizar el orden de la cobertura.');
     } finally {
       setSaving(false);
     }
@@ -273,7 +258,7 @@ const WhatsAppCoverageSection = () => {
           ) : (
             <div className="max-h-[620px] overflow-y-auto p-4">
               <div className="grid gap-3">
-                {coverages.map((coverage, index) => (
+                {coverages.map((coverage) => (
                   <article
                     key={coverage.id}
                     className={`rounded-2xl border p-4 transition-all ${coverage.isActive ? 'border-slate-200 bg-white' : 'border-slate-200 bg-slate-50/80'}`}
@@ -300,24 +285,6 @@ const WhatsAppCoverageSection = () => {
                       </div>
 
                       <div className="flex items-center gap-2 self-end sm:self-start">
-                        <button
-                          type="button"
-                          onClick={() => handleMoveCoverage(coverage.id, 'up')}
-                          disabled={saving || index === 0}
-                          className="rounded-xl border border-slate-200 bg-white p-2 text-slate-500 transition-all hover:border-teal-200 hover:bg-teal-50 hover:text-teal-700 disabled:cursor-not-allowed disabled:opacity-40"
-                          title="Subir cobertura"
-                        >
-                          <ChevronUp size={16} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleMoveCoverage(coverage.id, 'down')}
-                          disabled={saving || index === coverages.length - 1}
-                          className="rounded-xl border border-slate-200 bg-white p-2 text-slate-500 transition-all hover:border-teal-200 hover:bg-teal-50 hover:text-teal-700 disabled:cursor-not-allowed disabled:opacity-40"
-                          title="Bajar cobertura"
-                        >
-                          <ChevronDown size={16} />
-                        </button>
                         <button
                           type="button"
                           onClick={() => handleEditCoverage(coverage)}
