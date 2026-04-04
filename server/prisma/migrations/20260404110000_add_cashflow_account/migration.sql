@@ -1,0 +1,8 @@
+ALTER TABLE "CashFlow"
+ADD COLUMN "account" TEXT NOT NULL DEFAULT 'CASH';
+
+UPDATE "CashFlow"
+SET "account" = CASE
+  WHEN UPPER(COALESCE("paymentMethod", '')) = 'EFECTIVO' THEN 'CASH'
+  ELSE 'MERCADO_PAGO'
+END;

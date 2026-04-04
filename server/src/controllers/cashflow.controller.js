@@ -1,17 +1,28 @@
 import { appointmentBaseSelect } from '../prisma/selects.js';
 
+const DEFAULT_CATEGORY = 'GENERAL';
 const BONOS_QR_CATEGORY = 'BONOS_QR';
+const CASHFLOW_ACCOUNTS = new Set(['CASH', 'MERCADO_PAGO']);
+
+const normalizeText = (value) => String(value || '').trim().toUpperCase();
+
 const looksLikeBonosQr = ({ type, paymentMethod, concept }) => {
   if (type !== 'INCOME') return false;
-  const normalizedMethod = String(paymentMethod || '').trim().toUpperCase();
-  const normalizedConcept = String(concept || '').trim().toUpperCase();
+  const normalizedMethod = normalizeText(paymentMethod);
+  const normalizedConcept = normalizeText(concept);
   return normalizedMethod === 'QR' && /(IOMA|BONO|BONOS)/.test(normalizedConcept);
 };
 
 const resolveCategory = ({ type, category, paymentMethod, concept }) => {
-  if (type !== 'INCOME') return 'GENERAL';
+  if (type !== 'INCOME') return DEFAULT_CATEGORY;
   if (category === BONOS_QR_CATEGORY) return BONOS_QR_CATEGORY;
-  return looksLikeBonosQr({ type, paymentMethod, concept }) ? BONOS_QR_CATEGORY : 'GENERAL';
+  return looksLikeBonosQr({ type, paymentMethod, concept }) ? BONOS_QR_CATEGORY : DEFAULT_CATEGORY;
+};
+
+const resolveAccount = ({ account, paymentMethod }) => {
+  const normalizedAccount = normalizeText(account);
+  if (CASHFLOW_ACCOUNTS.has(normalizedAccount)) return normalizedAccount;
+  return normalizeText(paymentMethod) === 'EFECTIVO' ? 'CASH' : 'MERCADO_PAGO';
 };
 
 // 1. OBTENER TRANSACCIONES (Con filtros de fecha)
@@ -53,20 +64,22 @@ export const getTransactions = async (req, res, prisma) => {
 
 // 2. FUNCIÓN GENÉRICA PARA CREAR (Base para Income/Expense)
 export const createTransaction = async (req, res, prisma) => {
-  const { amount, category, concept, paymentMethod, date, type } = req.body;
+  const { amount, category, concept, paymentMethod, date, type, account } = req.body;
+  const parsedAmount = Number.parseFloat(amount);
 
-  if (!amount || !concept || !paymentMethod || !type) {
-    return res.status(400).json({ error: 'Faltan campos obligatorios (monto, concepto, método o tipo)' });
+  if (!Number.isFinite(parsedAmount) || parsedAmount <= 0 || !concept || !paymentMethod || !type) {
+    return res.status(400).json({ error: 'Faltan campos válidos (monto, concepto, método o tipo)' });
   }
 
   try {
     const transaction = await prisma.cashFlow.create({
       data: {
-        type: type, // 'INCOME' o 'EXPENSE'
-        amount: parseFloat(amount),
+        type, // 'INCOME' o 'EXPENSE'
+        amount: parsedAmount,
         category: resolveCategory({ type, category, paymentMethod, concept }),
         concept,
         paymentMethod,
+        account: resolveAccount({ account, paymentMethod }),
         date: date ? new Date(date) : new Date(),
       },
     });
@@ -91,16 +104,22 @@ export const addExpense = async (req, res, prisma) => {
 // 4. ACTUALIZAR TRANSACCIÓN
 export const updateTransaction = async (req, res, prisma) => {
   const { id } = req.params;
-  const { amount, category, concept, paymentMethod, date, type } = req.body;
+  const { amount, category, concept, paymentMethod, date, type, account } = req.body;
+  const parsedAmount = amount === undefined ? undefined : Number.parseFloat(amount);
+
+  if (amount !== undefined && (!Number.isFinite(parsedAmount) || parsedAmount <= 0)) {
+    return res.status(400).json({ error: 'El monto debe ser mayor a cero' });
+  }
 
   try {
     const updated = await prisma.cashFlow.update({
       where: { id },
       data: {
-        amount: amount ? parseFloat(amount) : undefined,
+        amount: parsedAmount,
         category: resolveCategory({ type, category, paymentMethod, concept }),
         concept,
         paymentMethod,
+        account: resolveAccount({ account, paymentMethod }),
         type,
         date: date ? new Date(date) : undefined,
       },
