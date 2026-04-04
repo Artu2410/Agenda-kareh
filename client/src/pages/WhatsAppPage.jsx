@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, FileText, Loader2, Paperclip, Search, Send, Trash2, X } from 'lucide-react';
 import api from '../services/api';
-import { useConfirmModal } from '../components/ConfirmModal';
+import { useConfirmModal } from '../hooks/useConfirmModal';
 
 const ACCEPTED_FILE_TYPES = [
   '.jpg',

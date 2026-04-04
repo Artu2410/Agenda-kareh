@@ -1,6 +1,9 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertCircle, Trash2, LogOut, Check, X } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
+
+const MotionDiv = motion.div;
+const MotionButton = motion.button;
 
 export const ConfirmModal = ({
   isOpen,
@@ -50,15 +53,14 @@ export const ConfirmModal = ({
   return (
     <AnimatePresence>
       {isOpen && (
-        <motion.div
+        <MotionDiv
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
           variants={backdropVariants}
           initial="hidden"
           animate="visible"
           exit="hidden"
         >
-          {/* Fondo oscuro con blur glassmorphism */}
-          <motion.div
+          <MotionDiv
             className="absolute inset-0 bg-black/40 backdrop-blur-md"
             onClick={onCancel}
             initial={{ opacity: 0 }}
@@ -66,8 +68,7 @@ export const ConfirmModal = ({
             exit={{ opacity: 0 }}
           />
 
-          {/* Modal con glassmorphism */}
-          <motion.div
+          <MotionDiv
             className={`relative w-full max-w-sm mx-auto rounded-2xl shadow-2xl overflow-hidden backdrop-blur-xl border border-white/20 ${
               danger
                 ? 'bg-red-50/95'
@@ -78,7 +79,6 @@ export const ConfirmModal = ({
             animate="visible"
             exit="exit"
           >
-            {/* Header con gradiente */}
             <div
               className={`px-6 py-4 flex items-center gap-3 border-b ${
                 danger
@@ -104,12 +104,10 @@ export const ConfirmModal = ({
               </h2>
             </div>
 
-            {/* Body */}
             <div className="px-6 py-4">
               <p className="text-slate-600 text-sm leading-relaxed">{message}</p>
             </div>
 
-            {/* Footer con botones */}
             <div className="px-6 py-4 bg-slate-50/50 border-t border-slate-200 flex gap-3 justify-end">
               <button
                 onClick={onCancel}
@@ -122,7 +120,7 @@ export const ConfirmModal = ({
               >
                 {cancelText}
               </button>
-              <motion.button
+              <MotionButton
                 onClick={onConfirm}
                 disabled={isLoading}
                 whileHover={{ scale: isLoading ? 1 : 1.02 }}
@@ -134,90 +132,22 @@ export const ConfirmModal = ({
                 } ${isLoading ? 'opacity-75 cursor-not-allowed' : 'active:scale-95'}`}
               >
                 {isLoading && (
-                  <motion.div
+                  <MotionDiv
                     animate={{ rotate: 360 }}
                     transition={{ duration: 1, repeat: Infinity }}
                     className="w-4 h-4"
                   >
                     ⏳
-                  </motion.div>
+                  </MotionDiv>
                 )}
                 {confirmText}
-              </motion.button>
+              </MotionButton>
             </div>
-          </motion.div>
-        </motion.div>
+          </MotionDiv>
+        </MotionDiv>
       )}
     </AnimatePresence>
   );
 };
 
-// Hook personalizado para usar el modal
-export const useConfirmModal = () => {
-  const [state, setState] = React.useState({
-    isOpen: false,
-    title: '',
-    message: '',
-    confirmText: 'Confirmar',
-    cancelText: 'Cancelar',
-    danger: false,
-    icon: AlertCircle,
-    onConfirm: null,
-    onCancel: null,
-    isLoading: false,
-  });
-
-  const openModal = (config) => {
-    setState((prev) => ({
-      ...prev,
-      isOpen: true,
-      ...config,
-    }));
-  };
-
-  const closeModal = () => {
-    setState((prev) => ({
-      ...prev,
-      isOpen: false,
-    }));
-  };
-
-  const setLoading = (isLoading) => {
-    setState((prev) => ({
-      ...prev,
-      isLoading,
-    }));
-  };
-
-  const handleConfirm = async () => {
-    setLoading(true);
-    try {
-      if (state.onConfirm) {
-        await state.onConfirm();
-      }
-    } finally {
-      setLoading(false);
-      closeModal();
-    }
-  };
-
-  const handleCancel = () => {
-    if (state.onCancel) {
-      state.onCancel();
-    }
-    closeModal();
-  };
-
-  return {
-    ConfirmModalComponent: (
-      <ConfirmModal
-        {...state}
-        onConfirm={handleConfirm}
-        onCancel={handleCancel}
-      />
-    ),
-    openModal,
-    closeModal,
-    setLoading,
-  };
-};
+export default ConfirmModal;

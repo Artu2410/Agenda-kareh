@@ -34,45 +34,79 @@ function DocumentTitleSync() {
   return null;
 }
 
+function AppBootSplash() {
+  return (
+    <div className="flex min-h-dvh items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(45,212,191,0.18),_transparent_45%),linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)] px-6">
+      <div className="w-full max-w-sm rounded-[2rem] border border-white/70 bg-white/85 p-8 text-center shadow-[0_30px_80px_-40px_rgba(15,23,42,0.45)] backdrop-blur">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-lg">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-white/35 border-t-white" />
+        </div>
+        <p className="mt-6 text-[11px] font-black uppercase tracking-[0.3em] text-teal-600">
+          Agenda Kareh
+        </p>
+        <h1 className="mt-3 text-2xl font-black text-slate-900">
+          Preparando panel
+        </h1>
+        <p className="mt-2 text-sm font-medium text-slate-500">
+          Verificando tu sesión y cargando la interfaz.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
   const [mobileViewport, setMobileViewport] = useState(isMobileViewport);
   const [sidebarOpen, setSidebarOpen] = useState(() => !isMobileViewport());
 
-  const verifyAuth = useCallback(async () => {
-    let validSession = false;
-
-    try {
-      const response = await api.get('/auth/verify');
-      validSession = Boolean(response.data?.valid);
-    } catch {
-      // Si el token expira, el interceptor de axios intentará refrescarlo.
-      // Si aún así falla, no será válido.
-    }
-
-    if (validSession) {
-      setIsAuthenticated(true);
-    } else {
-      clearClientSession();
-      setIsAuthenticated(false);
-    }
-
-    setLoading(false);
-  }, []);
-
   useEffect(() => {
+    let isMounted = true;
+
     initializeCsrf();
-    verifyAuth();
-  }, [verifyAuth]);
+
+    const timeoutId = window.setTimeout(() => {
+      void (async () => {
+        let validSession = false;
+
+        try {
+          const response = await api.get('/auth/verify');
+          validSession = Boolean(response.data?.valid);
+        } catch {
+          // Si el token expira, el interceptor de axios intentará refrescarlo.
+          // Si aún así falla, no será válido.
+        }
+
+        if (!isMounted) return;
+
+        if (validSession) {
+          setIsAuthenticated(true);
+        } else {
+          clearClientSession();
+          setIsAuthenticated(false);
+        }
+
+        setLoading(false);
+      })();
+    }, 0);
+
+    return () => {
+      isMounted = false;
+      window.clearTimeout(timeoutId);
+    };
+  }, []);
 
   useEffect(() => {
     const handleResize = () => {
       const nextIsMobile = isMobileViewport();
-      setMobileViewport(nextIsMobile);
-      setSidebarOpen((prev) => {
-        if (nextIsMobile) return false;
-        return prev || true;
+      setMobileViewport((currentIsMobile) => {
+        setSidebarOpen((currentSidebarOpen) => {
+          if (nextIsMobile) return false;
+          return currentIsMobile ? true : currentSidebarOpen;
+        });
+
+        return nextIsMobile;
       });
     };
 
@@ -97,7 +131,7 @@ function App() {
     setSidebarOpen((prev) => !prev);
   }, []);
 
-  if (loading) return null;
+  if (loading) return <AppBootSplash />;
 
   return (
     <Router>

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import api from '@/services/api';
 
@@ -207,7 +207,7 @@ const SlotTimersPanel = ({ currentTime, appointments = [], agendaConfig = null }
     hasHydratedTimersRef.current = false;
   }, [timerDefaultSecondsBySlot, todayKey, currentSlotTime]);
 
-  const applyServerSnapshot = (serverTimers = []) => {
+  const applyServerSnapshot = useCallback((serverTimers = []) => {
     const recordsBySlot = new Map(serverTimers.map((timer) => [Number(timer.slotNumber), timer]));
 
     setTimerRecords(
@@ -217,9 +217,9 @@ const SlotTimersPanel = ({ currentTime, appointments = [], agendaConfig = null }
         return normalizeTimerRecord(serverTimer, defaultSeconds, slotNumber);
       }),
     );
-  };
+  }, [timerDefaultSecondsBySlot]);
 
-  const fetchTimerSnapshot = async ({ silent = false } = {}) => {
+  const fetchTimerSnapshot = useCallback(async ({ silent = false } = {}) => {
     try {
       const response = await api.get('/agenda/timers', {
         params: {
@@ -235,20 +235,20 @@ const SlotTimersPanel = ({ currentTime, appointments = [], agendaConfig = null }
         console.error('Error fetching timers:', error);
       }
     }
-  };
+  }, [applyServerSnapshot, currentSlotTime, todayKey]);
 
   useEffect(() => {
-    fetchTimerSnapshot();
-  }, [todayKey, currentSlotTime]);
+    void fetchTimerSnapshot();
+  }, [fetchTimerSnapshot]);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
-      fetchTimerSnapshot({ silent: true });
+      void fetchTimerSnapshot({ silent: true });
     }, TIMER_SYNC_INTERVAL_MS);
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        fetchTimerSnapshot({ silent: true });
+        void fetchTimerSnapshot({ silent: true });
       }
     };
 
@@ -257,7 +257,7 @@ const SlotTimersPanel = ({ currentTime, appointments = [], agendaConfig = null }
       window.clearInterval(intervalId);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [todayKey, currentSlotTime, timerDefaultSecondsBySlot]);
+  }, [fetchTimerSnapshot]);
 
   const timers = useMemo(
     () => timerRecords.map((timer) => computeTimerView(

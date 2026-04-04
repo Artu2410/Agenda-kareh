@@ -12,7 +12,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { MedicalAlertTooltip } from '../components/Tooltip';
-import { useConfirmModal } from '../components/ConfirmModal';
+import { useConfirmModal } from '../hooks/useConfirmModal';
 import DocumentUploadField from '../components/DocumentUploadField';
 import { buildClinicalHistoryPath, persistClinicalHistoryContext } from '../utils/appRoutes';
 import { getCoverageLabel, isParticularCoverage } from '../utils/coverage';
