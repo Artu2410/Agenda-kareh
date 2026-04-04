@@ -8,7 +8,7 @@ import {
   AlertCircle,
   ArrowRight 
 } from 'lucide-react';
-import { showErrorToast, showSuccessToast, showLoadingToast } from '../components/Toast';
+import { showErrorToast, showSuccessToast, showLoadingToast } from '../components/toastHelpers';
 import { storeAuthenticatedUser } from '../services/session';
 import { APP_ROUTES } from '../utils/appRoutes';
 

@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import instance from '../api/axios';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Plus, ArrowUp, ArrowDown, ArrowLeftRight, ChevronDown, ChevronRight, DollarSign, Printer, Trash2, Wallet, Smartphone } from 'lucide-react';
 import CashflowModal from '../components/cashflow/CashflowModal';
-import { useConfirmModal } from '../components/ConfirmModal';
+import { useConfirmModal } from '../hooks/useConfirmModal';
 import {
   BONOS_QR_CATEGORY,
   formatAccountFlow,
@@ -13,52 +13,62 @@ import {
   resolveCategory,
 } from '../utils/cashflow';
 import { openCashflowReceiptPrintWindow } from '../utils/cashflowReceipt';
+import { showErrorToast, showSuccessToast } from '../components/toastHelpers';
 
 const CashflowPage = () => {
   const { ConfirmModalComponent, openModal: openConfirmModal } = useConfirmModal();
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSavingTransaction, setIsSavingTransaction] = useState(false);
+  const [modalInstanceKey, setModalInstanceKey] = useState(0);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [collapsedMonths, setCollapsedMonths] = useState({});
 
-  const fetchTransactions = async () => {
+  const fetchTransactions = useCallback(async ({ silent = false } = {}) => {
     try {
       setLoading(true);
       const response = await instance.get('/cashflow');
       setTransactions(response.data);
     } catch (error) {
       console.error("Error fetching transactions:", error);
+      if (!silent) {
+        showErrorToast('No se pudieron cargar los movimientos de caja.');
+      }
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchTransactions();
   }, []);
 
-  // --- GUARDAR O ACTUALIZAR ---
+  useEffect(() => {
+    void fetchTransactions();
+  }, [fetchTransactions]);
+
+  const closeModal = useCallback(() => {
+    setIsModalOpen(false);
+    setSelectedTransaction(null);
+  }, []);
+
   const handleSaveTransaction = async (transactionData) => {
     try {
+      setIsSavingTransaction(true);
       const url = transactionData.id ? `/cashflow/${transactionData.id}` : '/cashflow';
       const method = transactionData.id ? 'put' : 'post';
       await instance[method](url, transactionData);
-
-      // Refrescamos toda la lista para asegurar consistencia con la DB
-      fetchTransactions();
-      setIsModalOpen(false);
-      setSelectedTransaction(null);
+      await fetchTransactions({ silent: true });
+      closeModal();
+      showSuccessToast(transactionData.id ? 'Movimiento actualizado.' : 'Movimiento guardado.');
     } catch (error) {
       console.error("Error saving transaction:", error);
       const backendMessage = error?.response?.data?.error || error?.response?.data?.message;
-      alert(backendMessage || "Error al guardar el movimiento");
+      showErrorToast(backendMessage || 'Error al guardar el movimiento.');
+    } finally {
+      setIsSavingTransaction(false);
     }
   };
 
-  // --- ELIMINAR ---
   const handleDeleteTransaction = async (e, id) => {
-    e.stopPropagation(); // Evita que al hacer clic en borrar se abra el modal de edición
+    e.stopPropagation();
 
     openConfirmModal({
       title: 'Eliminar movimiento',
@@ -70,9 +80,10 @@ const CashflowPage = () => {
         try {
           await instance.delete(`/cashflow/${id}`);
           setTransactions((prev) => prev.filter((transaction) => transaction.id !== id));
+          showSuccessToast('Movimiento eliminado.');
         } catch (error) {
           console.error('Error al eliminar:', error);
-          alert('No se pudo eliminar el movimiento');
+          showErrorToast('No se pudo eliminar el movimiento.');
         }
       },
     });
@@ -85,6 +96,7 @@ const CashflowPage = () => {
 
   const openModal = (transaction = null) => {
     setSelectedTransaction(transaction);
+    setModalInstanceKey((current) => current + 1);
     setIsModalOpen(true);
   };
 
@@ -126,9 +138,9 @@ const CashflowPage = () => {
   const cashBalance = balancesByAccount.CASH;
   const mercadoPagoBalance = balancesByAccount.MERCADO_PAGO;
 
-  const formatCurrency = (value) => {
-    return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(value);
-  }
+  const formatCurrency = (value) => (
+    new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(value)
+  );
 
   const summaryCards = [
     {
@@ -298,7 +310,7 @@ const CashflowPage = () => {
                 El mes más reciente queda visible y los anteriores se pueden ocultar o mostrar cuando los necesites.
               </p>
             </div>
-            <button onClick={() => openModal()} className="flex w-full items-center justify-center gap-2 rounded-lg bg-teal-600 px-4 py-2 font-bold text-white transition-all hover:bg-teal-700 sm:w-auto">
+            <button type="button" onClick={() => openModal()} className="flex w-full items-center justify-center gap-2 rounded-lg bg-teal-600 px-4 py-2 font-bold text-white transition-all hover:bg-teal-700 sm:w-auto">
               <Plus size={18} /> Nuevo Movimiento
             </button>
           </div>
@@ -462,8 +474,10 @@ const CashflowPage = () => {
       </div>
 
       <CashflowModal
+        key={modalInstanceKey}
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        isSaving={isSavingTransaction}
+        onClose={closeModal}
         onSave={handleSaveTransaction}
         transaction={selectedTransaction}
       />

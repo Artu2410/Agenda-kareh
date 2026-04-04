@@ -1,6 +1,13 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+const MotionDiv = motion.div;
+const MEDICAL_ALERT_MESSAGES = {
+  oncologico: 'Paciente oncológico',
+  marcapasos: 'Paciente con marcapasos',
+  ea: 'Paciente con electroanalgesia',
+};
+
 export const Tooltip = ({ children, content, position = 'top', delay = 0 }) => {
   const [isVisible, setIsVisible] = useState(false);
 
@@ -65,32 +72,32 @@ export const Tooltip = ({ children, content, position = 'top', delay = 0 }) => {
 
       <AnimatePresence>
         {isVisible && (
-          <motion.div
+          <MotionDiv
             className={`absolute ${positionClasses[position]} ${originClasses[position]} z-50`}
             variants={variants}
             initial="hidden"
             animate="visible"
             exit="exit"
           >
-            {/* Contenido del tooltip */}
             <div className="px-3 py-2 bg-slate-700 text-white text-xs font-medium rounded-lg whitespace-nowrap shadow-lg backdrop-blur-sm">
               {content}
-              {/* Flecha */}
               <div
                 className={`absolute w-0 h-0 border-4 ${arrowClasses[position]} -mx-4`}
               />
             </div>
-          </motion.div>
+          </MotionDiv>
         )}
       </AnimatePresence>
     </div>
   );
 };
 
-// Tooltip específico para iconos de alertas médicas
-export const MedicalAlertTooltip = ({ icon: Icon, alert, message }) => {
+export const MedicalAlertTooltip = ({ icon, alert, message }) => {
+  const tooltipMessage = message || MEDICAL_ALERT_MESSAGES[alert] || 'Alerta médica';
+  const iconElement = icon ? React.createElement(icon, { size: 18 }) : null;
+
   return (
-    <Tooltip content={message} position="top" delay={0.1}>
+    <Tooltip content={tooltipMessage} position="top" delay={0.1}>
       <div
         className={`inline-flex items-center justify-center w-8 h-8 rounded-lg cursor-help transition-all duration-200 ${
           alert === 'oncologico'
@@ -100,7 +107,7 @@ export const MedicalAlertTooltip = ({ icon: Icon, alert, message }) => {
               : 'bg-orange-100 text-orange-600 hover:bg-orange-200 hover:shadow-lg hover:shadow-orange-300/30'
         }`}
       >
-        <Icon size={18} />
+        {iconElement}
       </div>
     </Tooltip>
   );

@@ -20,12 +20,23 @@ const getFallbackToken = () => localStorage.getItem('auth_fallback_token');
 const isFallbackMode = () => localStorage.getItem('auth_fallback') === '1';
 const enableFallbackMode = () => localStorage.setItem('auth_fallback', '1');
 const clearFallbackMode = () => localStorage.removeItem('auth_fallback');
+const shouldLogRequests = import.meta.env.DEV && import.meta.env.VITE_API_DEBUG !== '0';
 const isRefreshableAuthError = (response) => {
   const status = response?.status;
   if (status === 401) return true;
   if (status !== 403) return false;
   const message = String(response?.data?.message || '').toLowerCase();
   return message.includes('token');
+};
+const buildRequestUrl = (config) => {
+  const baseURL = String(config.baseURL || '');
+  const url = String(config.url || '');
+
+  try {
+    return new URL(url, baseURL || window.location.origin).toString();
+  } catch {
+    return `${baseURL}${url}`;
+  }
 };
 
 // Interceptor para logging/debug
@@ -46,8 +57,11 @@ api.interceptors.request.use(
         config.headers['X-CSRF-Token'] = csrfToken;
       }
     }
-    // Útil para ver en consola si la URL se está armando bien
-    console.log(`🌐 Llamando a: ${config.baseURL}${config.url}`);
+
+    if (shouldLogRequests) {
+      console.info(`[api] ${method.toUpperCase()} ${buildRequestUrl(config)}`);
+    }
+
     return config;
   },
   (error) => Promise.reject(error)
@@ -90,7 +104,7 @@ api.interceptors.response.use(
             localStorage.setItem('auth_fallback_token', refreshResponse.data.accessToken);
           }
           return api(originalRequest);
-        } catch (refreshError) {
+        } catch {
           const fallbackToken = getFallbackToken();
           if (fallbackToken) {
             enableFallbackMode();

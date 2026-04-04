@@ -5,7 +5,7 @@ import { es } from 'date-fns/locale';
 import api from '@/services/api';
 import { getCoverageLabel, isParticularCoverage } from '@/utils/coverage';
 import PrintSessions from './PrintSessions';
-import { useConfirmModal } from './ConfirmModal';
+import { useConfirmModal } from '../hooks/useConfirmModal';
 
 const WEEK_DAYS = [
   { label: 'L', value: 1 }, { label: 'Ma', value: 2 }, { label: 'Mi', value: 3 },
@@ -152,7 +152,9 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
           hasCancer: data.hasCancer || false, hasMarcapasos: data.hasMarcapasos || false, usesEA: data.usesEA || false,
         }));
       }
-    } catch { console.log('Nuevo'); }
+    } catch {
+      // Si no existe el paciente todavía, dejamos el formulario para alta manual.
+    }
   }, []);
 
   const handleAction = async () => {

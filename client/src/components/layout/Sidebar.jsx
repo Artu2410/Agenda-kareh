@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { BarChart3, Calendar, Users, DollarSign, Settings, FileText, LogOut, MessageCircle, ChevronLeft, NotebookPen } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
-import toast, { showSuccessToast } from '../Toast';
-import { useConfirmModal } from '../ConfirmModal';
+import toast, { showSuccessToast } from '../toastHelpers';
+import { useConfirmModal } from '../../hooks/useConfirmModal';
 import { APP_ROUTES } from '../../utils/appRoutes';
 import api from '../../services/api';
 import { clearClientSession, getStoredUser } from '../../services/session';
@@ -67,7 +67,7 @@ const Sidebar = ({ onToggle, onLogout, onNavigate, isMobile = false }) => {
       onConfirm: async () => {
         try {
           await api.post('/auth/logout');
-        } catch (error) {
+        } catch {
           // Si falla, igual dejamos al cliente sin sesión activa.
         }
         clearClientSession();
@@ -95,12 +95,12 @@ const Sidebar = ({ onToggle, onLogout, onNavigate, isMobile = false }) => {
       gain.gain.value = 0.04;
       oscillator.connect(gain);
       gain.connect(ctx.destination);
-      oscillator.start();
-      setTimeout(() => {
-        oscillator.stop();
-        ctx.close();
-      }, 180);
-    } catch (error) {
+        oscillator.start();
+        setTimeout(() => {
+          oscillator.stop();
+          ctx.close();
+        }, 180);
+    } catch {
       // Silencioso: algunas plataformas bloquean audio sin interacción previa
     }
   };
@@ -140,7 +140,7 @@ const Sidebar = ({ onToggle, onLogout, onNavigate, isMobile = false }) => {
           maxTemp: Number.isFinite(data?.daily?.temperature_2m_max?.[0]) ? Math.round(data.daily.temperature_2m_max[0]) : null,
           minTemp: Number.isFinite(data?.daily?.temperature_2m_min?.[0]) ? Math.round(data.daily.temperature_2m_min[0]) : null,
         });
-      } catch (error) {
+      } catch {
         if (!isMounted) return;
         setWeather({ currentTemp: null, maxTemp: null, minTemp: null });
       }
@@ -209,7 +209,7 @@ const Sidebar = ({ onToggle, onLogout, onNavigate, isMobile = false }) => {
           toast(message);
           playNotificationSound();
         }
-      } catch (error) {
+      } catch {
         // Silencioso para no interrumpir la UI
       }
     };
@@ -255,6 +255,7 @@ const Sidebar = ({ onToggle, onLogout, onNavigate, isMobile = false }) => {
                 key={item.path}
                 to={item.path}
                 onClick={onNavigate}
+                aria-current={isActive ? 'page' : undefined}
                 className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
                   isActive
                     ? 'bg-teal-600 text-white shadow-lg shadow-teal-900/20'

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { NotebookPen, Plus, RefreshCcw, RotateCcw, Save, Trash2 } from 'lucide-react';
 import api from '../services/api';
-import { useConfirmModal } from '../components/ConfirmModal';
+import { useConfirmModal } from '../hooks/useConfirmModal';
 
 const NOTES_STORAGE_KEY = 'kareh_notes_collection_v2';
 const NOTES_SELECTED_KEY = 'kareh_notes_selected_v2';
