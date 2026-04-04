@@ -124,6 +124,67 @@ const CashflowPage = () => {
   const cashBalance = balancesByAccount.CASH;
   const mercadoPagoBalance = balancesByAccount.MERCADO_PAGO;
 
+  const formatCurrency = (value) => {
+    return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(value);
+  }
+
+  const summaryCards = [
+    {
+      key: 'cash-balance',
+      label: 'Saldo en Efectivo',
+      value: formatCurrency(cashBalance),
+      valueClassName: cashBalance >= 0 ? 'text-amber-800' : 'text-red-700',
+      icon: Wallet,
+      iconWrapperClassName: 'bg-amber-100',
+      iconClassName: 'text-amber-700',
+    },
+    {
+      key: 'mercado-pago-balance',
+      label: 'Saldo Mercado Pago',
+      value: formatCurrency(mercadoPagoBalance),
+      valueClassName: mercadoPagoBalance >= 0 ? 'text-sky-800' : 'text-red-700',
+      icon: Smartphone,
+      iconWrapperClassName: 'bg-sky-100',
+      iconClassName: 'text-sky-700',
+    },
+    {
+      key: 'general-balance',
+      label: 'Balance General',
+      value: formatCurrency(balance),
+      valueClassName: balance >= 0 ? 'text-teal-700' : 'text-red-700',
+      icon: DollarSign,
+      iconWrapperClassName: 'bg-teal-100',
+      iconClassName: 'text-teal-600',
+    },
+    {
+      key: 'bonos-qr',
+      label: 'Bonos QR',
+      value: formatCurrency(totalBonosQr),
+      valueClassName: 'text-cyan-800',
+      icon: DollarSign,
+      iconWrapperClassName: 'bg-cyan-100',
+      iconClassName: 'text-cyan-700',
+    },
+    {
+      key: 'income',
+      label: 'Ingresos Totales',
+      value: formatCurrency(totalIncome),
+      valueClassName: 'text-slate-800',
+      icon: ArrowUp,
+      iconWrapperClassName: 'bg-green-100',
+      iconClassName: 'text-green-600',
+    },
+    {
+      key: 'expense',
+      label: 'Egresos Totales',
+      value: formatCurrency(totalExpense),
+      valueClassName: 'text-slate-800',
+      icon: ArrowDown,
+      iconWrapperClassName: 'bg-red-100',
+      iconClassName: 'text-red-600',
+    },
+  ];
+
   const monthlyGroups = useMemo(() => {
     const groups = new Map();
 
@@ -147,10 +208,6 @@ const CashflowPage = () => {
 
     return Array.from(groups.values());
   }, [transactions]);
-
-  const formatCurrency = (value) => {
-    return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(value);
-  }
 
   const formatCategory = (transaction) => {
     if (transaction.type === 'TRANSFER') return 'Traspaso';
@@ -200,31 +257,24 @@ const CashflowPage = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-6 mb-8 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
-          <div className="bg-white p-6 rounded-2xl shadow-md flex items-center gap-4">
-            <div className="p-3 bg-amber-100 rounded-full"><Wallet className="text-amber-700" size={24} /></div>
-            <div><p className="text-sm text-slate-500">Saldo en Efectivo</p><p className={`text-2xl font-bold ${cashBalance >= 0 ? 'text-amber-800' : 'text-red-700'}`}>{formatCurrency(cashBalance)}</p></div>
-          </div>
-          <div className="bg-white p-6 rounded-2xl shadow-md flex items-center gap-4">
-            <div className="p-3 bg-sky-100 rounded-full"><Smartphone className="text-sky-700" size={24} /></div>
-            <div><p className="text-sm text-slate-500">Saldo Mercado Pago</p><p className={`text-2xl font-bold ${mercadoPagoBalance >= 0 ? 'text-sky-800' : 'text-red-700'}`}>{formatCurrency(mercadoPagoBalance)}</p></div>
-          </div>
-          <div className="bg-white p-6 rounded-2xl shadow-md flex items-center gap-4">
-            <div className="p-3 bg-teal-100 rounded-full"><DollarSign className="text-teal-600" size={24} /></div>
-            <div><p className="text-sm text-slate-500">Balance General</p><p className={`text-2xl font-bold ${balance >= 0 ? 'text-teal-700' : 'text-red-700'}`}>{formatCurrency(balance)}</p></div>
-          </div>
-          <div className="bg-white p-6 rounded-2xl shadow-md flex items-center gap-4">
-            <div className="p-3 bg-cyan-100 rounded-full"><DollarSign className="text-cyan-700" size={24} /></div>
-            <div><p className="text-sm text-slate-500">Bonos QR</p><p className="text-2xl font-bold text-cyan-800">{formatCurrency(totalBonosQr)}</p></div>
-          </div>
-          <div className="bg-white p-6 rounded-2xl shadow-md flex items-center gap-4">
-            <div className="p-3 bg-green-100 rounded-full"><ArrowUp className="text-green-600" size={24} /></div>
-            <div><p className="text-sm text-slate-500">Ingresos Totales</p><p className="text-2xl font-bold text-slate-800">{formatCurrency(totalIncome)}</p></div>
-          </div>
-          <div className="bg-white p-6 rounded-2xl shadow-md flex items-center gap-4">
-            <div className="p-3 bg-red-100 rounded-full"><ArrowDown className="text-red-600" size={24} /></div>
-            <div><p className="text-sm text-slate-500">Egresos Totales</p><p className="text-2xl font-bold text-slate-800">{formatCurrency(totalExpense)}</p></div>
-          </div>
+        <div className="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
+          {summaryCards.map((card) => {
+            const Icon = card.icon;
+
+            return (
+              <div key={card.key} className="flex min-w-0 items-start gap-4 rounded-2xl bg-white p-6 shadow-md">
+                <div className={`shrink-0 rounded-full p-3 ${card.iconWrapperClassName}`}>
+                  <Icon className={card.iconClassName} size={24} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm leading-snug text-slate-500">{card.label}</p>
+                  <p className={`mt-2 break-words text-xl font-bold leading-tight sm:text-2xl ${card.valueClassName}`}>
+                    {card.value}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         {/* Transactions by Month */}
