@@ -91,7 +91,7 @@ const buildObraSocialSchemeReplyText = (coverageName) => [
   '1️⃣ *Lunes y Miércoles* (17:30 a 19:00 hs)',
   '2️⃣ *Lunes, Miércoles y Viernes* (17:30 a 19:00 hs)',
   '3️⃣ *Martes y Jueves* (17:30 a 19:00 hs)',
-  '4️⃣ *Martes, Jueves y Sábado* (17:30 a 19:00 hs)',
+  '4️⃣ *Sábados* (08:00 a 12:00 hs)',
   '',
   'Escribí *1, 2, 3 o 4* para continuar.',
   '0️⃣ Volver al inicio.',
@@ -109,7 +109,7 @@ const AUTO_REPLY_PARTICULAR_TEXT = [
   '1️⃣ *Lunes y Miércoles* (17:30 a 19:00 hs)',
   '2️⃣ *Lunes, Miércoles y Viernes* (17:30 a 19:00 hs)',
   '3️⃣ *Martes y Jueves* (17:30 a 19:00 hs)',
-  '4️⃣ *Martes, Jueves y Sábado* (17:30 a 19:00 hs)',
+  '4️⃣ *Sábados* (08:00 a 12:00 hs)',
   '',
   'Escribí *1, 2, 3 o 4* para continuar.',
   '0️⃣ Volver al inicio.',
@@ -126,7 +126,7 @@ const AUTO_REPLY_PAMI_TEXT = [
   '1️⃣ *Lunes y Miércoles* (17:30 a 19:00 hs)',
   '2️⃣ *Lunes, Miércoles y Viernes* (17:30 a 19:00 hs)',
   '3️⃣ *Martes y Jueves* (17:30 a 19:00 hs)',
-  '4️⃣ *Martes, Jueves y Sábado* (17:30 a 19:00 hs)',
+  '4️⃣ *Sábados* (08:00 a 12:00 hs)',
   '',
   'Escribí *1, 2, 3 o 4* para continuar.',
   '0️⃣ Volver al inicio.',
@@ -141,7 +141,7 @@ const AUTO_REPLY_RESPIRATORIO_TEXT = [
   '1️⃣ *Lunes y Miércoles* (17:30 a 19:00 hs)',
   '2️⃣ *Lunes, Miércoles y Viernes* (17:30 a 19:00 hs)',
   '3️⃣ *Martes y Jueves* (17:30 a 19:00 hs)',
-  '4️⃣ *Martes, Jueves y Sábado* (17:30 a 19:00 hs)',
+  '4️⃣ *Sábados* (08:00 a 12:00 hs)',
   '',
   'Escribí *1, 2, 3 o 4* para continuar.',
   '0️⃣ Volver al inicio.',
@@ -565,7 +565,7 @@ const LISTO_COMMAND_PATTERNS = [/^(listo|ya esta|ya envie todo|termine)(\b.*)?$/
 const SCHEME_1_PATTERNS = [/^(1|opcion 1|lunes y miercoles|lun y miercoles|lunes miercoles)(\b.*)?$/];
 const SCHEME_2_PATTERNS = [/^(2|opcion 2|lunes miercoles y viernes|lunes y miercoles y viernes|lun mie vie)(\b.*)?$/];
 const SCHEME_3_PATTERNS = [/^(3|opcion 3|martes y jueves|martes jueves|mar y jue)(\b.*)?$/];
-const SCHEME_4_PATTERNS = [/^(4|opcion 4|martes jueves y sabado|martes y jueves y sabado|mar jue sab)(\b.*)?$/];
+const SCHEME_4_PATTERNS = [/^(4|opcion 4|sabado|sabados|sábado|sábados)(\b.*)?$/];
 const SIMPLE_TREATMENT_PATTERNS = [/^(1|simple|tratamiento simple|una zona|1 zona|sencillo)(\b.*)?$/];
 const DOUBLE_TREATMENT_PATTERNS = [/^(2|doble|tratamiento doble|dos zonas|2 zonas)(\b.*)?$/];
 
@@ -614,7 +614,7 @@ const getSelectedSchemeLabel = (normalizedText) => {
     return '3: Martes y Jueves (17:30 a 19:00 hs)';
   }
   if (isScheme4Selection(normalizedText)) {
-    return '4: Martes, Jueves y Sábado (17:30 a 19:00 hs)';
+    return '4: Sábados (08:00 a 12:00 hs)';
   }
   return null;
 };
