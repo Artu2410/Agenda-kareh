@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import instance from '../api/axios';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Plus, ArrowUp, ArrowDown, ArrowLeftRight, DollarSign, Trash2, Wallet, Smartphone } from 'lucide-react';
+import { Plus, ArrowUp, ArrowDown, ArrowLeftRight, ChevronDown, ChevronRight, DollarSign, Trash2, Wallet, Smartphone } from 'lucide-react';
 import CashflowModal from '../components/cashflow/CashflowModal';
 import { useConfirmModal } from '../components/ConfirmModal';
 import {
@@ -19,6 +19,7 @@ const CashflowPage = () => {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
+  const [collapsedMonths, setCollapsedMonths] = useState({});
 
   const fetchTransactions = async () => {
     try {
@@ -82,7 +83,7 @@ const CashflowPage = () => {
   };
 
   // --- CÁLCULOS ---
-  const { totalIncome, totalExpense, totalBonosQr, balance, balancesByAccount } = useMemo(() => {
+  const { totalIncome, totalExpense, balance, balancesByAccount } = useMemo(() => {
     return transactions.reduce((summary, transaction) => {
       const amount = parseFloat(transaction.amount);
       const sourceAccount = resolveAccount(transaction);
@@ -104,15 +105,10 @@ const CashflowPage = () => {
         }
       }
 
-      if (resolveCategory(transaction) === BONOS_QR_CATEGORY) {
-        summary.totalBonosQr += amount;
-      }
-
       return summary;
     }, {
       totalIncome: 0,
       totalExpense: 0,
-      totalBonosQr: 0,
       balance: 0,
       balancesByAccount: {
         CASH: 0,
@@ -155,15 +151,6 @@ const CashflowPage = () => {
       icon: DollarSign,
       iconWrapperClassName: 'bg-teal-100',
       iconClassName: 'text-teal-600',
-    },
-    {
-      key: 'bonos-qr',
-      label: 'Bonos QR',
-      value: formatCurrency(totalBonosQr),
-      valueClassName: 'text-cyan-800',
-      icon: DollarSign,
-      iconWrapperClassName: 'bg-cyan-100',
-      iconClassName: 'text-cyan-700',
     },
     {
       key: 'income',
@@ -209,6 +196,18 @@ const CashflowPage = () => {
     return Array.from(groups.values());
   }, [transactions]);
 
+  useEffect(() => {
+    setCollapsedMonths((current) => {
+      const next = {};
+
+      monthlyGroups.forEach((group, index) => {
+        next[group.key] = current[group.key] ?? index > 0;
+      });
+
+      return next;
+    });
+  }, [monthlyGroups]);
+
   const formatCategory = (transaction) => {
     if (transaction.type === 'TRANSFER') return 'Traspaso';
     if (resolveCategory(transaction) === BONOS_QR_CATEGORY) return 'Bonos QR';
@@ -243,6 +242,13 @@ const CashflowPage = () => {
   const formatAmount = (transaction) => {
     if (transaction.type === 'TRANSFER') return formatCurrency(transaction.amount);
     return `${transaction.type === 'INCOME' ? '+' : '-'} ${formatCurrency(transaction.amount)}`;
+  };
+
+  const toggleMonthVisibility = (monthKey) => {
+    setCollapsedMonths((current) => ({
+      ...current,
+      [monthKey]: !current[monthKey],
+    }));
   };
 
   return (
@@ -283,7 +289,7 @@ const CashflowPage = () => {
             <div>
               <h2 className="text-xl font-bold text-slate-700">Caja organizada por mes</h2>
               <p className="text-sm font-medium text-slate-400">
-                Cada bloque resume los números del negocio en su propio mes.
+                El mes más reciente queda visible y los anteriores se pueden ocultar o mostrar cuando los necesites.
               </p>
             </div>
             <button onClick={() => openModal()} className="flex w-full items-center justify-center gap-2 rounded-lg bg-teal-600 px-4 py-2 font-bold text-white transition-all hover:bg-teal-700 sm:w-auto">
@@ -294,16 +300,33 @@ const CashflowPage = () => {
           <div>
             {loading ? <p className="text-center p-4">Cargando...</p> : (
               <div className="space-y-6">
-                {monthlyGroups.map((group) => (
+                {monthlyGroups.map((group) => {
+                  const isCollapsed = collapsedMonths[group.key] ?? false;
+
+                  return (
                   <section key={group.key} className="overflow-hidden rounded-[1.75rem] border border-slate-200 bg-slate-50/80">
-                    <div className="border-b border-slate-200 bg-white px-4 py-4 sm:px-5">
-                      <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400">Mes contable</p>
-                      <h3 className="mt-1 text-2xl font-black capitalize text-slate-900">{group.label}</h3>
-                      <p className="mt-1 text-sm font-semibold text-slate-500">
-                        {group.items.length} movimiento{group.items.length === 1 ? '' : 's'} registrados
-                      </p>
+                    <div className={`bg-white px-4 py-4 sm:px-5 ${isCollapsed ? '' : 'border-b border-slate-200'}`}>
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400">Mes contable</p>
+                          <h3 className="mt-1 text-2xl font-black capitalize text-slate-900">{group.label}</h3>
+                          <p className="mt-1 text-sm font-semibold text-slate-500">
+                            {group.items.length} movimiento{group.items.length === 1 ? '' : 's'} registrados
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => toggleMonthVisibility(group.key)}
+                          className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-100"
+                        >
+                          {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+                          {isCollapsed ? 'Mostrar movimientos' : 'Ocultar movimientos'}
+                        </button>
+                      </div>
                     </div>
 
+                    {!isCollapsed && (
+                    <>
                     <div className="hidden overflow-x-auto md:block">
                       <table className="w-full text-left">
                         <thead>
@@ -398,8 +421,10 @@ const CashflowPage = () => {
                         );
                       })}
                     </div>
+                    </>
+                    )}
                   </section>
-                ))}
+                )})}
               </div>
             )}
 
