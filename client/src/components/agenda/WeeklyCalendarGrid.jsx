@@ -173,7 +173,7 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
     return findCurrentTimeSlotIndex(timeSlots, currentMinutes);
   }, [timeSlots, currentTime]);
 
-  const gridTemplateColumns = `85px repeat(${dayColumns.length}, minmax(180px, 1fr))`;
+  const gridTemplateColumns = `var(--calendar-time-column) repeat(${dayColumns.length}, minmax(var(--calendar-day-min-width), 1fr))`;
 
   if (!selectedProfessional && !appointments.length) {
     return (
@@ -188,8 +188,8 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
   }
 
   return (
-    <div ref={scrollContainerRef} className="calendar-scroll-container border shadow-2xl bg-white rounded-2xl overflow-auto max-h-[85vh] relative">
-      <div className="grid min-w-max" style={{ gridTemplateColumns }}>
+    <div ref={scrollContainerRef} className="calendar-scroll-container relative isolate max-h-[72vh] overflow-auto rounded-2xl border bg-white shadow-2xl sm:max-h-[85vh]">
+      <div className="calendar-grid grid min-w-max" style={{ gridTemplateColumns }}>
         <div className="sticky-corner border-b border-r p-2 bg-slate-100 z-50" />
 
         {dayColumns.map((day) => (
@@ -213,7 +213,7 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
           return (
             <React.Fragment key={slotTime}>
               <div
-                className={`sticky-time-column p-2 sm:p-4 text-center border-r border-b flex items-center justify-center min-h-[160px] z-30 transition-colors ${
+                className={`sticky-time-column flex min-h-[160px] items-center justify-center border-b border-r p-2 text-center transition-colors sm:p-4 ${
                   isCurrentTimeSlot
                     ? 'bg-emerald-100 border-emerald-200 shadow-inner'
                     : 'bg-slate-50'

@@ -224,18 +224,18 @@ const Sidebar = ({ onToggle, onLogout, onNavigate, isMobile = false }) => {
 
   return (
     <>
-      <div className={isMobile ? 'fixed inset-0 z-40' : 'relative z-20'}>
+      <div className={isMobile ? 'fixed inset-0 z-[70]' : 'relative z-20'}>
         {isMobile && (
           <button
             type="button"
             aria-label="Cerrar menú"
-            className="absolute inset-0 bg-slate-950/50"
+            className="absolute inset-0 z-[70] bg-slate-950/55 backdrop-blur-[2px]"
             onClick={onToggle}
           />
         )}
         <aside className={`${
           isMobile
-            ? 'fixed inset-y-0 left-0 z-50 flex w-[82vw] max-w-xs flex-col bg-slate-900 text-white shadow-2xl'
+            ? 'fixed inset-y-0 left-0 z-[80] flex w-[82vw] max-w-xs flex-col bg-slate-900 text-white shadow-2xl'
             : 'flex h-screen w-64 flex-col bg-slate-900 text-white shadow-xl'
         }`}>
         <div className="relative p-5 text-center border-b border-slate-800 sm:p-6">

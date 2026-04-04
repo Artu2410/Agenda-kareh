@@ -127,6 +127,24 @@ function App() {
     return () => clearInterval(intervalId);
   }, [isAuthenticated]);
 
+  useEffect(() => {
+    if (typeof document === 'undefined') return undefined;
+
+    const shouldLockViewport = isAuthenticated && mobileViewport && sidebarOpen;
+    const originalBodyOverflow = document.body.style.overflow;
+    const originalHtmlOverflow = document.documentElement.style.overflow;
+
+    if (shouldLockViewport) {
+      document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
+    }
+
+    return () => {
+      document.body.style.overflow = originalBodyOverflow;
+      document.documentElement.style.overflow = originalHtmlOverflow;
+    };
+  }, [isAuthenticated, mobileViewport, sidebarOpen]);
+
   const toggleSidebar = useCallback(() => {
     setSidebarOpen((prev) => !prev);
   }, []);
@@ -148,7 +166,7 @@ function App() {
             isMobile={mobileViewport}
           />
         )}
-        <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
           {isAuthenticated && mobileViewport && !sidebarOpen && (
             <button
               type="button"
@@ -176,7 +194,7 @@ function App() {
               type="button"
               onClick={toggleSidebar}
               aria-label="Ocultar menú lateral"
-              className="fixed right-4 top-4 z-50 flex h-11 w-11 items-center justify-center rounded-2xl bg-white/95 text-slate-900 shadow-lg ring-1 ring-slate-200 transition hover:bg-white"
+              className="fixed right-4 top-4 z-[90] flex h-11 w-11 items-center justify-center rounded-2xl bg-white/95 text-slate-900 shadow-lg ring-1 ring-slate-200 transition hover:bg-white"
             >
               <ChevronLeft size={18} />
             </button>
