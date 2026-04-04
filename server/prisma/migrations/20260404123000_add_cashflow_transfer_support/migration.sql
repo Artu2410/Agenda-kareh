@@ -1,0 +1,4 @@
+ALTER TYPE "FlowType" ADD VALUE IF NOT EXISTS 'TRANSFER';
+
+ALTER TABLE "CashFlow"
+ADD COLUMN "destinationAccount" TEXT;

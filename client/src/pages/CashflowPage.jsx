@@ -2,13 +2,14 @@ import React, { useState, useEffect, useMemo } from 'react';
 import instance from '../api/axios';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Plus, ArrowUp, ArrowDown, DollarSign, Trash2, Wallet, Smartphone } from 'lucide-react';
+import { Plus, ArrowUp, ArrowDown, ArrowLeftRight, DollarSign, Trash2, Wallet, Smartphone } from 'lucide-react';
 import CashflowModal from '../components/cashflow/CashflowModal';
 import { useConfirmModal } from '../components/ConfirmModal';
 import {
   BONOS_QR_CATEGORY,
-  formatAccount,
+  formatAccountFlow,
   resolveAccount,
+  resolveDestinationAccount,
   resolveCategory,
 } from '../utils/cashflow';
 
@@ -83,16 +84,23 @@ const CashflowPage = () => {
   const { totalIncome, totalExpense, totalBonosQr, balance, balancesByAccount } = useMemo(() => {
     return transactions.reduce((summary, transaction) => {
       const amount = parseFloat(transaction.amount);
-      const resolvedAccount = resolveAccount(transaction);
+      const sourceAccount = resolveAccount(transaction);
 
       if (transaction.type === 'INCOME') {
         summary.totalIncome += amount;
         summary.balance += amount;
-        summary.balancesByAccount[resolvedAccount] += amount;
-      } else {
+        summary.balancesByAccount[sourceAccount] += amount;
+      } else if (transaction.type === 'EXPENSE') {
         summary.totalExpense += amount;
         summary.balance -= amount;
-        summary.balancesByAccount[resolvedAccount] -= amount;
+        summary.balancesByAccount[sourceAccount] -= amount;
+      } else if (transaction.type === 'TRANSFER') {
+        const destinationAccount = resolveDestinationAccount(transaction);
+        summary.balancesByAccount[sourceAccount] -= amount;
+
+        if (destinationAccount && destinationAccount !== sourceAccount) {
+          summary.balancesByAccount[destinationAccount] += amount;
+        }
       }
 
       if (resolveCategory(transaction) === BONOS_QR_CATEGORY) {
@@ -143,15 +151,40 @@ const CashflowPage = () => {
     return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(value);
   }
 
-  const formatCategory = (category) => {
-    if (category === BONOS_QR_CATEGORY) return 'Bonos QR';
+  const formatCategory = (transaction) => {
+    if (transaction.type === 'TRANSFER') return 'Traspaso';
+    if (resolveCategory(transaction) === BONOS_QR_CATEGORY) return 'Bonos QR';
     return 'General';
   };
 
   const getAccountBadgeClass = (transaction) => {
+    if (transaction.type === 'TRANSFER') {
+      return 'bg-indigo-100 text-indigo-800';
+    }
+
     return resolveAccount(transaction) === 'CASH'
       ? 'bg-amber-100 text-amber-800'
       : 'bg-sky-100 text-sky-800';
+  };
+
+  const getCategoryBadgeClass = (transaction) => {
+    if (transaction.type === 'TRANSFER') {
+      return 'bg-indigo-100 text-indigo-800';
+    }
+
+    return resolveCategory(transaction) === BONOS_QR_CATEGORY
+      ? 'bg-cyan-100 text-cyan-800'
+      : 'bg-slate-100 text-slate-600';
+  };
+
+  const getAmountClass = (transaction) => {
+    if (transaction.type === 'TRANSFER') return 'text-indigo-600';
+    return transaction.type === 'INCOME' ? 'text-green-600' : 'text-red-600';
+  };
+
+  const formatAmount = (transaction) => {
+    if (transaction.type === 'TRANSFER') return formatCurrency(transaction.amount);
+    return `${transaction.type === 'INCOME' ? '+' : '-'} ${formatCurrency(transaction.amount)}`;
   };
 
   return (
@@ -235,7 +268,6 @@ const CashflowPage = () => {
                         </thead>
                         <tbody>
                           {group.items.map((transaction) => {
-                            const resolvedCategory = resolveCategory(transaction);
                             return (
                               <tr
                                 key={transaction.id}
@@ -245,22 +277,19 @@ const CashflowPage = () => {
                                 <td className="p-3 text-slate-600">{format(new Date(transaction.date), 'dd/MM/yyyy')}</td>
                                 <td className="p-3 font-medium text-slate-800">{transaction.concept}</td>
                                 <td className="p-3">
-                                  <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${
-                                    resolvedCategory === BONOS_QR_CATEGORY
-                                      ? 'bg-cyan-100 text-cyan-800'
-                                      : 'bg-slate-100 text-slate-600'
-                                  }`}>
-                                    {formatCategory(resolvedCategory)}
+                                  <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${getCategoryBadgeClass(transaction)}`}>
+                                    {formatCategory(transaction)}
                                   </span>
                                 </td>
                                 <td className="p-3 text-slate-500">{transaction.paymentMethod}</td>
                                 <td className="p-3">
                                   <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${getAccountBadgeClass(transaction)}`}>
-                                    {formatAccount(transaction)}
+                                    {formatAccountFlow(transaction)}
                                   </span>
                                 </td>
-                                <td className={`p-3 text-right font-bold ${transaction.type === 'INCOME' ? 'text-green-600' : 'text-red-600'}`}>
-                                  {transaction.type === 'INCOME' ? '+' : '-'} {formatCurrency(transaction.amount)}
+                                <td className={`p-3 text-right font-bold ${getAmountClass(transaction)}`}>
+                                  {transaction.type === 'TRANSFER' && <ArrowLeftRight className="mr-1 inline" size={15} />}
+                                  {formatAmount(transaction)}
                                 </td>
                                 <td className="p-3 text-center">
                                   <button
@@ -279,7 +308,6 @@ const CashflowPage = () => {
 
                     <div className="space-y-3 p-4 md:hidden">
                       {group.items.map((transaction) => {
-                        const resolvedCategory = resolveCategory(transaction);
                         return (
                           <article
                             key={transaction.id}
@@ -294,15 +322,11 @@ const CashflowPage = () => {
                                 <p className="text-sm font-black text-slate-800">{transaction.concept}</p>
                                 <p className="text-xs font-semibold text-slate-500">{format(new Date(transaction.date), 'dd/MM/yyyy')}</p>
                                 <div className="mt-2 flex flex-wrap items-center gap-2">
-                                  <span className={`inline-flex rounded-full px-2 py-1 text-[11px] font-bold ${
-                                    resolvedCategory === BONOS_QR_CATEGORY
-                                      ? 'bg-cyan-100 text-cyan-800'
-                                      : 'bg-slate-200 text-slate-600'
-                                  }`}>
-                                    {formatCategory(resolvedCategory)}
+                                  <span className={`inline-flex rounded-full px-2 py-1 text-[11px] font-bold ${getCategoryBadgeClass(transaction)}`}>
+                                    {formatCategory(transaction)}
                                   </span>
                                   <span className={`inline-flex rounded-full px-2 py-1 text-[11px] font-bold ${getAccountBadgeClass(transaction)}`}>
-                                    {formatAccount(transaction)}
+                                    {formatAccountFlow(transaction)}
                                   </span>
                                   <p className="text-xs text-slate-500">{transaction.paymentMethod}</p>
                                 </div>
@@ -315,8 +339,9 @@ const CashflowPage = () => {
                                 <Trash2 size={18} />
                               </button>
                             </div>
-                            <p className={`mt-3 text-lg font-black ${transaction.type === 'INCOME' ? 'text-green-600' : 'text-red-600'}`}>
-                              {transaction.type === 'INCOME' ? '+' : '-'} {formatCurrency(transaction.amount)}
+                            <p className={`mt-3 text-lg font-black ${getAmountClass(transaction)}`}>
+                              {transaction.type === 'TRANSFER' && <ArrowLeftRight className="mr-1 inline" size={15} />}
+                              {formatAmount(transaction)}
                             </p>
                           </article>
                         );

@@ -210,6 +210,7 @@ model CashFlow {
   concept       String
   paymentMethod String
   account       String      @default("CASH")
+  destinationAccount String?
   appointmentId String?     @unique
   appointment   Appointment? @relation(fields: [appointmentId], references: [id])
   date          DateTime    @default(now())
@@ -218,6 +219,7 @@ model CashFlow {
 enum FlowType {
   INCOME
   EXPENSE
+  TRANSFER
 }
 
 // ---------------------------------------------------------
