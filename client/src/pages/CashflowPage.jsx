@@ -2,21 +2,15 @@ import React, { useState, useEffect, useMemo } from 'react';
 import instance from '../api/axios';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Plus, ArrowUp, ArrowDown, DollarSign, Trash2 } from 'lucide-react'; // Añadí Trash2
+import { Plus, ArrowUp, ArrowDown, DollarSign, Trash2, Wallet, Smartphone } from 'lucide-react';
 import CashflowModal from '../components/cashflow/CashflowModal';
 import { useConfirmModal } from '../components/ConfirmModal';
-
-const BONOS_QR_CATEGORY = 'BONOS_QR';
-const resolveCategory = (transaction) => {
-  if (transaction?.type !== 'INCOME') return 'GENERAL';
-  if (transaction?.category === BONOS_QR_CATEGORY) return BONOS_QR_CATEGORY;
-
-  const paymentMethod = String(transaction?.paymentMethod || '').trim().toUpperCase();
-  const concept = String(transaction?.concept || '').trim().toUpperCase();
-  return paymentMethod === 'QR' && /(IOMA|BONO|BONOS)/.test(concept)
-    ? BONOS_QR_CATEGORY
-    : 'GENERAL';
-};
+import {
+  BONOS_QR_CATEGORY,
+  formatAccount,
+  resolveAccount,
+  resolveCategory,
+} from '../utils/cashflow';
 
 const CashflowPage = () => {
   const { ConfirmModalComponent, openModal: openConfirmModal } = useConfirmModal();
@@ -86,18 +80,40 @@ const CashflowPage = () => {
   };
 
   // --- CÁLCULOS ---
-  const { totalIncome, totalExpense, totalBonosQr, balance } = useMemo(() => {
-    const income = transactions
-      .filter(t => t.type === 'INCOME')
-      .reduce((sum, t) => sum + parseFloat(t.amount), 0);
-    const bonosQr = transactions
-      .filter(t => resolveCategory(t) === BONOS_QR_CATEGORY)
-      .reduce((sum, t) => sum + parseFloat(t.amount), 0);
-    const expense = transactions
-      .filter(t => t.type === 'EXPENSE')
-      .reduce((sum, t) => sum + parseFloat(t.amount), 0);
-    return { totalIncome: income, totalExpense: expense, totalBonosQr: bonosQr, balance: income - expense };
+  const { totalIncome, totalExpense, totalBonosQr, balance, balancesByAccount } = useMemo(() => {
+    return transactions.reduce((summary, transaction) => {
+      const amount = parseFloat(transaction.amount);
+      const resolvedAccount = resolveAccount(transaction);
+
+      if (transaction.type === 'INCOME') {
+        summary.totalIncome += amount;
+        summary.balance += amount;
+        summary.balancesByAccount[resolvedAccount] += amount;
+      } else {
+        summary.totalExpense += amount;
+        summary.balance -= amount;
+        summary.balancesByAccount[resolvedAccount] -= amount;
+      }
+
+      if (resolveCategory(transaction) === BONOS_QR_CATEGORY) {
+        summary.totalBonosQr += amount;
+      }
+
+      return summary;
+    }, {
+      totalIncome: 0,
+      totalExpense: 0,
+      totalBonosQr: 0,
+      balance: 0,
+      balancesByAccount: {
+        CASH: 0,
+        MERCADO_PAGO: 0,
+      },
+    });
   }, [transactions]);
+
+  const cashBalance = balancesByAccount.CASH;
+  const mercadoPagoBalance = balancesByAccount.MERCADO_PAGO;
 
   const monthlyGroups = useMemo(() => {
     const groups = new Map();
@@ -132,35 +148,49 @@ const CashflowPage = () => {
     return 'General';
   };
 
+  const getAccountBadgeClass = (transaction) => {
+    return resolveAccount(transaction) === 'CASH'
+      ? 'bg-amber-100 text-amber-800'
+      : 'bg-sky-100 text-sky-800';
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 p-4 sm:p-6">
       <div className="max-w-7xl mx-auto">
-        {/* Header y Balance Cards (Igual que antes) */}
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-           <h1 className="text-3xl font-bold text-slate-800">Caja Chica</h1>
+          <div>
+            <h1 className="text-3xl font-bold text-slate-800">Caja Chica</h1>
+            <p className="mt-1 text-sm font-medium text-slate-500">
+              Cada movimiento ahora impacta en una cuenta concreta para no mezclar efectivo con Mercado Pago.
+            </p>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
-           {/* Card Ingresos */}
-           <div className="bg-white p-6 rounded-2xl shadow-md flex items-center gap-4">
-             <div className="p-3 bg-green-100 rounded-full"><ArrowUp className="text-green-600" size={24} /></div>
-             <div><p className="text-sm text-slate-500">Ingresos Totales</p><p className="text-2xl font-bold text-slate-800">{formatCurrency(totalIncome)}</p></div>
-           </div>
-           {/* Card Bonos QR */}
-           <div className="bg-white p-6 rounded-2xl shadow-md flex items-center gap-4">
-             <div className="p-3 bg-cyan-100 rounded-full"><DollarSign className="text-cyan-700" size={24} /></div>
-             <div><p className="text-sm text-slate-500">Bonos QR</p><p className="text-2xl font-bold text-cyan-800">{formatCurrency(totalBonosQr)}</p></div>
-           </div>
-           {/* Card Egresos */}
-           <div className="bg-white p-6 rounded-2xl shadow-md flex items-center gap-4">
-             <div className="p-3 bg-red-100 rounded-full"><ArrowDown className="text-red-600" size={24} /></div>
-             <div><p className="text-sm text-slate-500">Egresos Totales</p><p className="text-2xl font-bold text-slate-800">{formatCurrency(totalExpense)}</p></div>
-           </div>
-           {/* Card Balance */}
-           <div className="bg-white p-6 rounded-2xl shadow-md flex items-center gap-4">
-             <div className="p-3 bg-teal-100 rounded-full"><DollarSign className="text-teal-600" size={24} /></div>
-             <div><p className="text-sm text-slate-500">Balance Actual</p><p className={`text-2xl font-bold ${balance >= 0 ? 'text-teal-700' : 'text-red-700'}`}>{formatCurrency(balance)}</p></div>
-           </div>
+        <div className="grid grid-cols-1 gap-6 mb-8 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+          <div className="bg-white p-6 rounded-2xl shadow-md flex items-center gap-4">
+            <div className="p-3 bg-amber-100 rounded-full"><Wallet className="text-amber-700" size={24} /></div>
+            <div><p className="text-sm text-slate-500">Saldo en Efectivo</p><p className={`text-2xl font-bold ${cashBalance >= 0 ? 'text-amber-800' : 'text-red-700'}`}>{formatCurrency(cashBalance)}</p></div>
+          </div>
+          <div className="bg-white p-6 rounded-2xl shadow-md flex items-center gap-4">
+            <div className="p-3 bg-sky-100 rounded-full"><Smartphone className="text-sky-700" size={24} /></div>
+            <div><p className="text-sm text-slate-500">Saldo Mercado Pago</p><p className={`text-2xl font-bold ${mercadoPagoBalance >= 0 ? 'text-sky-800' : 'text-red-700'}`}>{formatCurrency(mercadoPagoBalance)}</p></div>
+          </div>
+          <div className="bg-white p-6 rounded-2xl shadow-md flex items-center gap-4">
+            <div className="p-3 bg-teal-100 rounded-full"><DollarSign className="text-teal-600" size={24} /></div>
+            <div><p className="text-sm text-slate-500">Balance General</p><p className={`text-2xl font-bold ${balance >= 0 ? 'text-teal-700' : 'text-red-700'}`}>{formatCurrency(balance)}</p></div>
+          </div>
+          <div className="bg-white p-6 rounded-2xl shadow-md flex items-center gap-4">
+            <div className="p-3 bg-cyan-100 rounded-full"><DollarSign className="text-cyan-700" size={24} /></div>
+            <div><p className="text-sm text-slate-500">Bonos QR</p><p className="text-2xl font-bold text-cyan-800">{formatCurrency(totalBonosQr)}</p></div>
+          </div>
+          <div className="bg-white p-6 rounded-2xl shadow-md flex items-center gap-4">
+            <div className="p-3 bg-green-100 rounded-full"><ArrowUp className="text-green-600" size={24} /></div>
+            <div><p className="text-sm text-slate-500">Ingresos Totales</p><p className="text-2xl font-bold text-slate-800">{formatCurrency(totalIncome)}</p></div>
+          </div>
+          <div className="bg-white p-6 rounded-2xl shadow-md flex items-center gap-4">
+            <div className="p-3 bg-red-100 rounded-full"><ArrowDown className="text-red-600" size={24} /></div>
+            <div><p className="text-sm text-slate-500">Egresos Totales</p><p className="text-2xl font-bold text-slate-800">{formatCurrency(totalExpense)}</p></div>
+          </div>
         </div>
 
         {/* Transactions by Month */}
@@ -198,6 +228,7 @@ const CashflowPage = () => {
                             <th className="p-3">Concepto</th>
                             <th className="p-3">Categoría</th>
                             <th className="p-3">Método</th>
+                            <th className="p-3">Cuenta</th>
                             <th className="p-3 text-right">Monto</th>
                             <th className="p-3 text-center">Acciones</th>
                           </tr>
@@ -223,6 +254,11 @@ const CashflowPage = () => {
                                   </span>
                                 </td>
                                 <td className="p-3 text-slate-500">{transaction.paymentMethod}</td>
+                                <td className="p-3">
+                                  <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${getAccountBadgeClass(transaction)}`}>
+                                    {formatAccount(transaction)}
+                                  </span>
+                                </td>
                                 <td className={`p-3 text-right font-bold ${transaction.type === 'INCOME' ? 'text-green-600' : 'text-red-600'}`}>
                                   {transaction.type === 'INCOME' ? '+' : '-'} {formatCurrency(transaction.amount)}
                                 </td>
@@ -264,6 +300,9 @@ const CashflowPage = () => {
                                       : 'bg-slate-200 text-slate-600'
                                   }`}>
                                     {formatCategory(resolvedCategory)}
+                                  </span>
+                                  <span className={`inline-flex rounded-full px-2 py-1 text-[11px] font-bold ${getAccountBadgeClass(transaction)}`}>
+                                    {formatAccount(transaction)}
                                   </span>
                                   <p className="text-xs text-slate-500">{transaction.paymentMethod}</p>
                                 </div>

@@ -209,6 +209,7 @@ model CashFlow {
   category      String      @default("GENERAL")
   concept       String
   paymentMethod String
+  account       String      @default("CASH")
   appointmentId String?     @unique
   appointment   Appointment? @relation(fields: [appointmentId], references: [id])
   date          DateTime    @default(now())
