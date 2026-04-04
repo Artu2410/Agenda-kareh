@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import instance from '../api/axios';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Plus, ArrowUp, ArrowDown, ArrowLeftRight, ChevronDown, ChevronRight, DollarSign, Trash2, Wallet, Smartphone } from 'lucide-react';
+import { Plus, ArrowUp, ArrowDown, ArrowLeftRight, ChevronDown, ChevronRight, DollarSign, Printer, Trash2, Wallet, Smartphone } from 'lucide-react';
 import CashflowModal from '../components/cashflow/CashflowModal';
 import { useConfirmModal } from '../components/ConfirmModal';
 import {
@@ -12,6 +12,7 @@ import {
   resolveDestinationAccount,
   resolveCategory,
 } from '../utils/cashflow';
+import { openCashflowReceiptPrintWindow } from '../utils/cashflowReceipt';
 
 const CashflowPage = () => {
   const { ConfirmModalComponent, openModal: openConfirmModal } = useConfirmModal();
@@ -75,6 +76,11 @@ const CashflowPage = () => {
         }
       },
     });
+  };
+
+  const handlePrintReceipt = (e, transaction) => {
+    e.stopPropagation();
+    openCashflowReceiptPrintWindow(transaction);
   };
 
   const openModal = (transaction = null) => {
@@ -366,6 +372,15 @@ const CashflowPage = () => {
                                   {formatAmount(transaction)}
                                 </td>
                                 <td className="p-3 text-center">
+                                  {transaction.type === 'INCOME' && (
+                                    <button
+                                      onClick={(event) => handlePrintReceipt(event, transaction)}
+                                      className="mr-1 rounded-full p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                                      title="Imprimir comprobante"
+                                    >
+                                      <Printer size={18} />
+                                    </button>
+                                  )}
                                   <button
                                     onClick={(event) => handleDeleteTransaction(event, transaction.id)}
                                     className="rounded-full p-2 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600"
@@ -405,13 +420,24 @@ const CashflowPage = () => {
                                   <p className="text-xs text-slate-500">{transaction.paymentMethod}</p>
                                 </div>
                               </button>
-                              <button
-                                type="button"
-                                onClick={(event) => handleDeleteTransaction(event, transaction.id)}
-                                className="rounded-full p-2 text-red-400 hover:bg-red-50 hover:text-red-600"
-                              >
-                                <Trash2 size={18} />
-                              </button>
+                              <div className="flex items-center gap-1">
+                                {transaction.type === 'INCOME' && (
+                                  <button
+                                    type="button"
+                                    onClick={(event) => handlePrintReceipt(event, transaction)}
+                                    className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                                  >
+                                    <Printer size={18} />
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={(event) => handleDeleteTransaction(event, transaction.id)}
+                                  className="rounded-full p-2 text-red-400 hover:bg-red-50 hover:text-red-600"
+                                >
+                                  <Trash2 size={18} />
+                                </button>
+                              </div>
                             </div>
                             <p className={`mt-3 text-lg font-black ${getAmountClass(transaction)}`}>
                               {transaction.type === 'TRANSFER' && <ArrowLeftRight className="mr-1 inline" size={15} />}
