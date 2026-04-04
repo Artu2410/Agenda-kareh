@@ -2,9 +2,15 @@ import { appointmentBaseSelect } from '../prisma/selects.js';
 
 const DEFAULT_CATEGORY = 'GENERAL';
 const BONOS_QR_CATEGORY = 'BONOS_QR';
+const TRANSFER_PAYMENT_METHOD = 'Transferencia interna';
+const FLOW_TYPES = new Set(['INCOME', 'EXPENSE', 'TRANSFER']);
 const CASHFLOW_ACCOUNTS = new Set(['CASH', 'MERCADO_PAGO']);
 
 const normalizeText = (value) => String(value || '').trim().toUpperCase();
+const resolveType = (type) => {
+  const normalizedType = normalizeText(type);
+  return FLOW_TYPES.has(normalizedType) ? normalizedType : null;
+};
 
 const looksLikeBonosQr = ({ type, paymentMethod, concept }) => {
   if (type !== 'INCOME') return false;
@@ -23,6 +29,82 @@ const resolveAccount = ({ account, paymentMethod }) => {
   const normalizedAccount = normalizeText(account);
   if (CASHFLOW_ACCOUNTS.has(normalizedAccount)) return normalizedAccount;
   return normalizeText(paymentMethod) === 'EFECTIVO' ? 'CASH' : 'MERCADO_PAGO';
+};
+
+const resolveExplicitAccount = (account) => {
+  const normalizedAccount = normalizeText(account);
+  return CASHFLOW_ACCOUNTS.has(normalizedAccount) ? normalizedAccount : null;
+};
+
+const resolveDestinationAccount = (destinationAccount) => {
+  const normalizedAccount = normalizeText(destinationAccount);
+  return CASHFLOW_ACCOUNTS.has(normalizedAccount) ? normalizedAccount : null;
+};
+
+const buildTransactionData = ({ amount, category, concept, paymentMethod, date, type, account, destinationAccount }) => {
+  const normalizedType = resolveType(type);
+
+  if (!normalizedType) {
+    return { error: 'Tipo de movimiento inválido' };
+  }
+
+  const parsedAmount = Number.parseFloat(amount);
+  if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+    return { error: 'El monto debe ser mayor a cero' };
+  }
+
+  if (!concept) {
+    return { error: 'El concepto es obligatorio' };
+  }
+
+  if (normalizedType === 'TRANSFER') {
+    const resolvedAccount = resolveExplicitAccount(account);
+    const resolvedDestinationAccount = resolveDestinationAccount(destinationAccount);
+
+    if (!resolvedAccount) {
+      return { error: 'Debes elegir la cuenta origen del traspaso' };
+    }
+
+    if (!resolvedDestinationAccount) {
+      return { error: 'Debes elegir la cuenta destino del traspaso' };
+    }
+
+    if (resolvedDestinationAccount === resolvedAccount) {
+      return { error: 'La cuenta origen y destino deben ser distintas' };
+    }
+
+    return {
+      data: {
+        type: normalizedType,
+        amount: parsedAmount,
+        category: DEFAULT_CATEGORY,
+        concept,
+        paymentMethod: TRANSFER_PAYMENT_METHOD,
+        account: resolvedAccount,
+        destinationAccount: resolvedDestinationAccount,
+        date: date ? new Date(date) : new Date(),
+      },
+    };
+  }
+
+  if (!paymentMethod) {
+    return { error: 'Faltan campos válidos (monto, concepto, método o tipo)' };
+  }
+
+  const resolvedAccount = resolveAccount({ account, paymentMethod });
+
+  return {
+    data: {
+      type: normalizedType,
+      amount: parsedAmount,
+      category: resolveCategory({ type: normalizedType, category, paymentMethod, concept }),
+      concept,
+      paymentMethod,
+      account: resolvedAccount,
+      destinationAccount: null,
+      date: date ? new Date(date) : new Date(),
+    },
+  };
 };
 
 // 1. OBTENER TRANSACCIONES (Con filtros de fecha)
@@ -64,24 +146,15 @@ export const getTransactions = async (req, res, prisma) => {
 
 // 2. FUNCIÓN GENÉRICA PARA CREAR (Base para Income/Expense)
 export const createTransaction = async (req, res, prisma) => {
-  const { amount, category, concept, paymentMethod, date, type, account } = req.body;
-  const parsedAmount = Number.parseFloat(amount);
+  const { error: validationError, data } = buildTransactionData(req.body);
 
-  if (!Number.isFinite(parsedAmount) || parsedAmount <= 0 || !concept || !paymentMethod || !type) {
-    return res.status(400).json({ error: 'Faltan campos válidos (monto, concepto, método o tipo)' });
+  if (validationError) {
+    return res.status(400).json({ error: validationError });
   }
 
   try {
     const transaction = await prisma.cashFlow.create({
-      data: {
-        type, // 'INCOME' o 'EXPENSE'
-        amount: parsedAmount,
-        category: resolveCategory({ type, category, paymentMethod, concept }),
-        concept,
-        paymentMethod,
-        account: resolveAccount({ account, paymentMethod }),
-        date: date ? new Date(date) : new Date(),
-      },
+      data,
     });
     res.status(201).json(transaction);
   } catch (error) {
@@ -104,25 +177,16 @@ export const addExpense = async (req, res, prisma) => {
 // 4. ACTUALIZAR TRANSACCIÓN
 export const updateTransaction = async (req, res, prisma) => {
   const { id } = req.params;
-  const { amount, category, concept, paymentMethod, date, type, account } = req.body;
-  const parsedAmount = amount === undefined ? undefined : Number.parseFloat(amount);
+  const { error: validationError, data } = buildTransactionData(req.body);
 
-  if (amount !== undefined && (!Number.isFinite(parsedAmount) || parsedAmount <= 0)) {
-    return res.status(400).json({ error: 'El monto debe ser mayor a cero' });
+  if (validationError) {
+    return res.status(400).json({ error: validationError });
   }
 
   try {
     const updated = await prisma.cashFlow.update({
       where: { id },
-      data: {
-        amount: parsedAmount,
-        category: resolveCategory({ type, category, paymentMethod, concept }),
-        concept,
-        paymentMethod,
-        account: resolveAccount({ account, paymentMethod }),
-        type,
-        date: date ? new Date(date) : undefined,
-      },
+      data,
     });
     res.status(200).json(updated);
   } catch (error) {

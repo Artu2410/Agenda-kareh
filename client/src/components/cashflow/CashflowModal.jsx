@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { X, ArrowUp, ArrowDown } from 'lucide-react';
+import { X, ArrowUp, ArrowDown, ArrowLeftRight } from 'lucide-react';
 import {
   BONOS_QR_CATEGORY,
   CASHFLOW_ACCOUNTS,
   DEFAULT_CATEGORY,
   resolveAccount,
+  resolveDestinationAccount,
   resolveCategory,
+  TRANSFER_PAYMENT_METHOD,
 } from '../../utils/cashflow';
 
 const CashflowModal = ({ isOpen, onClose, onSave, transaction }) => {
@@ -14,6 +16,7 @@ const CashflowModal = ({ isOpen, onClose, onSave, transaction }) => {
   const [category, setCategory] = useState(DEFAULT_CATEGORY);
   const [concept, setConcept] = useState('');
   const [account, setAccount] = useState('CASH');
+  const [destinationAccount, setDestinationAccount] = useState('MERCADO_PAGO');
   const [paymentMethod, setPaymentMethod] = useState('Efectivo');
 
   useEffect(() => {
@@ -23,6 +26,7 @@ const CashflowModal = ({ isOpen, onClose, onSave, transaction }) => {
       setCategory(resolveCategory(transaction));
       setConcept(transaction.concept || '');
       setAccount(resolveAccount(transaction));
+      setDestinationAccount(resolveDestinationAccount(transaction));
       setPaymentMethod(transaction.paymentMethod || 'Efectivo');
     } else {
       setType('INCOME');
@@ -30,12 +34,13 @@ const CashflowModal = ({ isOpen, onClose, onSave, transaction }) => {
       setCategory(DEFAULT_CATEGORY);
       setConcept('');
       setAccount('CASH');
+      setDestinationAccount('MERCADO_PAGO');
       setPaymentMethod('Efectivo');
     }
   }, [transaction, isOpen]);
 
   useEffect(() => {
-    if (type === 'EXPENSE') {
+    if (type === 'EXPENSE' || type === 'TRANSFER') {
       setCategory(DEFAULT_CATEGORY);
     }
   }, [type]);
@@ -46,6 +51,15 @@ const CashflowModal = ({ isOpen, onClose, onSave, transaction }) => {
       setCategory(BONOS_QR_CATEGORY);
     }
   }, [type, category, paymentMethod, concept]);
+
+  useEffect(() => {
+    if (type !== 'TRANSFER') return;
+
+    setPaymentMethod(TRANSFER_PAYMENT_METHOD);
+    if (destinationAccount === account) {
+      setDestinationAccount(account === 'CASH' ? 'MERCADO_PAGO' : 'CASH');
+    }
+  }, [type, account, destinationAccount]);
 
   const handleCategoryChange = (nextCategory) => {
     setCategory(nextCategory);
@@ -64,7 +78,8 @@ const CashflowModal = ({ isOpen, onClose, onSave, transaction }) => {
       category: type === 'INCOME' ? category : DEFAULT_CATEGORY,
       concept,
       account,
-      paymentMethod,
+      destinationAccount: type === 'TRANSFER' ? destinationAccount : undefined,
+      paymentMethod: type === 'TRANSFER' ? TRANSFER_PAYMENT_METHOD : paymentMethod,
       id: transaction ? transaction.id : undefined,
     });
     onClose();
@@ -113,11 +128,22 @@ const CashflowModal = ({ isOpen, onClose, onSave, transaction }) => {
               >
                 <ArrowDown size={18} /> Egreso
               </button>
+              <button
+                type="button"
+                onClick={() => setType('TRANSFER')}
+                className={`flex-1 py-3 px-4 rounded-xl flex items-center justify-center gap-2 font-bold transition-all border-2 ${
+                  type === 'TRANSFER'
+                  ? 'bg-indigo-50 border-indigo-500 text-indigo-700 shadow-sm'
+                  : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200'
+                }`}
+              >
+                <ArrowLeftRight size={18} /> Traspaso
+              </button>
             </div>
           </div>
 
           {type === 'INCOME' && (
-          <div>
+            <div>
               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Categoría</label>
               <select
                 value={category}
@@ -164,43 +190,82 @@ const CashflowModal = ({ isOpen, onClose, onSave, transaction }) => {
             />
           </div>
 
-          <div>
-            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Cuenta que impacta</label>
-            <select
-              value={account}
-              onChange={(e) => setAccount(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 mt-1 text-slate-700 focus:border-teal-500 focus:bg-white outline-none transition-all appearance-none cursor-pointer"
-            >
-              {CASHFLOW_ACCOUNTS.map((accountOption) => (
-                <option key={accountOption.value} value={accountOption.value}>
-                  {accountOption.label}
-                </option>
-              ))}
-            </select>
-            <p className="mt-2 text-xs font-semibold text-slate-500">
-              Esto define si el saldo sube o baja en efectivo o en Mercado Pago.
-            </p>
-          </div>
+          {type === 'TRANSFER' ? (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Sale de</label>
+                <select
+                  value={account}
+                  onChange={(e) => setAccount(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 mt-1 text-slate-700 focus:border-teal-500 focus:bg-white outline-none transition-all appearance-none cursor-pointer"
+                >
+                  {CASHFLOW_ACCOUNTS.map((accountOption) => (
+                    <option key={accountOption.value} value={accountOption.value}>
+                      {accountOption.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Entra en</label>
+                <select
+                  value={destinationAccount}
+                  onChange={(e) => setDestinationAccount(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 mt-1 text-slate-700 focus:border-teal-500 focus:bg-white outline-none transition-all appearance-none cursor-pointer"
+                >
+                  {CASHFLOW_ACCOUNTS.filter((accountOption) => accountOption.value !== account).map((accountOption) => (
+                    <option key={accountOption.value} value={accountOption.value}>
+                      {accountOption.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <p className="sm:col-span-2 text-xs font-semibold text-slate-500">
+                El traspaso mueve saldo entre cuentas sin afectar el balance general.
+              </p>
+            </div>
+          ) : (
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Cuenta que impacta</label>
+              <select
+                value={account}
+                onChange={(e) => setAccount(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 mt-1 text-slate-700 focus:border-teal-500 focus:bg-white outline-none transition-all appearance-none cursor-pointer"
+              >
+                {CASHFLOW_ACCOUNTS.map((accountOption) => (
+                  <option key={accountOption.value} value={accountOption.value}>
+                    {accountOption.label}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-2 text-xs font-semibold text-slate-500">
+                Esto define si el saldo sube o baja en efectivo o en Mercado Pago.
+              </p>
+            </div>
+          )}
 
           {/* Método de Pago */}
-          <div>
-            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Método de Pago</label>
-            <select
-              value={paymentMethod}
-              onChange={(e) => setPaymentMethod(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 mt-1 text-slate-700 focus:border-teal-500 focus:bg-white outline-none transition-all appearance-none cursor-pointer"
-            >
-              <option value="Efectivo">Efectivo</option>
-              <option value="QR">QR</option>
-              <option value="Transferencia">Transferencia</option>
-              <option value="Tarjeta de Débito">Tarjeta de Débito</option>
-              <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
-              <option value="Otro">Otro</option>
-            </select>
-            <p className="mt-2 text-xs font-semibold text-slate-500">
-              El método explica cómo se cobró o pagó; la cuenta define dónde queda la plata.
-            </p>
-          </div>
+          {type !== 'TRANSFER' && (
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Método de Pago</label>
+              <select
+                value={paymentMethod}
+                onChange={(e) => setPaymentMethod(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 mt-1 text-slate-700 focus:border-teal-500 focus:bg-white outline-none transition-all appearance-none cursor-pointer"
+              >
+                <option value="Efectivo">Efectivo</option>
+                <option value="Mercado Pago">Mercado Pago</option>
+                <option value="QR">QR</option>
+                <option value="Transferencia">Transferencia</option>
+                <option value="Tarjeta de Débito">Tarjeta de Débito</option>
+                <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
+                <option value="Otro">Otro</option>
+              </select>
+              <p className="mt-2 text-xs font-semibold text-slate-500">
+                El método explica cómo se cobró o pagó; la cuenta define dónde queda la plata.
+              </p>
+            </div>
+          )}
 
           {/* Submit */}
           <div className="pt-2">
