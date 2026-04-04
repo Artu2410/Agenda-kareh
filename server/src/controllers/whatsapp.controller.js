@@ -88,13 +88,12 @@ const buildObraSocialSchemeReplyText = (coverageName) => [
   '',
   'Para organizar tu tratamiento de 10 sesiones, elegí el esquema de días que prefieras:',
   '',
-  '🅰️ *Lunes y Viernes* (14:00 a 19:00 hs)',
-  '   _Se puede combinar con Miércoles (17:30 a 19:00 hs)_',
+  '1️⃣ *Lunes y Miércoles* (17:30 a 19:00 hs)',
+  '2️⃣ *Lunes, Miércoles y Viernes* (17:30 a 19:00 hs)',
+  '3️⃣ *Martes y Jueves* (17:30 a 19:00 hs)',
+  '4️⃣ *Martes, Jueves y Sábado* (17:30 a 19:00 hs)',
   '',
-  '🅱️ *Martes y Jueves* (17:30 a 19:00 hs)',
-  '   _Se puede combinar con Sábados (08:00 a 12:00 hs)_',
-  '',
-  'Escribí la letra *A* o *B* para continuar.',
+  'Escribí *1, 2, 3 o 4* para continuar.',
   '0️⃣ Volver al inicio.',
 ].join('\n');
 
@@ -105,11 +104,14 @@ const AUTO_REPLY_PARTICULAR_TEXT = [
   '💰 *Doble zona:* $28.000.',
   '_(Solo efectivo)_',
   '',
-  'Elegí tu esquema de días:',
-  '🅰️ Lunes y Viernes (14 a 19 hs).',
-  '🅱️ Martes y Jueves (17:30 a 19 hs).',
+  'Para organizar tu tratamiento, elegí el esquema de días que prefieras:',
   '',
-  'Escribí *A* o *B* para continuar.',
+  '1️⃣ *Lunes y Miércoles* (17:30 a 19:00 hs)',
+  '2️⃣ *Lunes, Miércoles y Viernes* (17:30 a 19:00 hs)',
+  '3️⃣ *Martes y Jueves* (17:30 a 19:00 hs)',
+  '4️⃣ *Martes, Jueves y Sábado* (17:30 a 19:00 hs)',
+  '',
+  'Escribí *1, 2, 3 o 4* para continuar.',
   '0️⃣ Volver al inicio.',
 ].join('\n');
 
@@ -119,28 +121,30 @@ const AUTO_REPLY_PAMI_TEXT = [
   '💰 Doble tratamiento: $20.000.',
   '(Solo efectivo).',
   '',
-  'Elegí el esquema de días que más te convenga:',
-  '🅰️ Lunes y Viernes (14 a 19 hs).', 'los horarios son cada 30 min','Ej: Lunes y Viernes 16:00',
-  'Podés combinar con los Miércoles en el horario de 17:30 a 19 hs.', 'Ej: Lunes, Miércoles y Viernes 17:30',
+  'Para organizar tu tratamiento, elegí el esquema de días que prefieras:',
   '',
-  '🅱️ Martes y Jueves (17:30 a 19 hs).','los horarios son cada 30 min','Ej: Martes y Jueves 17:30',
-  'Podés combinar con los Sábados en el horario de 8:00 a 12 hs.', 'Ej: Martes, Jueves 18:30 y Sábados 9:00',
+  '1️⃣ *Lunes y Miércoles* (17:30 a 19:00 hs)',
+  '2️⃣ *Lunes, Miércoles y Viernes* (17:30 a 19:00 hs)',
+  '3️⃣ *Martes y Jueves* (17:30 a 19:00 hs)',
+  '4️⃣ *Martes, Jueves y Sábado* (17:30 a 19:00 hs)',
   '',
-  '0️⃣ Volver al Menú Principal.',
+  'Escribí *1, 2, 3 o 4* para continuar.',
+  '0️⃣ Volver al inicio.',
 ].join('\n');
 
 const AUTO_REPLY_RESPIRATORIO_TEXT = [
   '¡Recibido! Información para Kinesiología Respiratoria:',
   '💰 Valor de la sesión: $30.000 (solo efectivo).',
   '',
-  'Elegí el esquema de días que más te convenga:',
-  '🅰️ Lunes y Viernes (14 a 19 hs).', 'los horarios son cada 30 min','Ej: Lunes y Viernes 16:00',
-  'Podés combinar con los Miércoles en el horario de 17:30 a 19 hs.', 'Ej: Lunes, Miércoles y Viernes 17:30',
+  'Para organizar tu tratamiento, elegí el esquema de días que prefieras:',
   '',
-  '🅱️ Martes y Jueves (17:30 a 19 hs).','los horarios son cada 30 min','Ej: Martes y Jueves 17:30',
-  'Podés combinar con los Sábados en el horario de 8:00 a 12 hs.', 'Ej: Martes, Jueves 18:30 y Sábados 9:00',
+  '1️⃣ *Lunes y Miércoles* (17:30 a 19:00 hs)',
+  '2️⃣ *Lunes, Miércoles y Viernes* (17:30 a 19:00 hs)',
+  '3️⃣ *Martes y Jueves* (17:30 a 19:00 hs)',
+  '4️⃣ *Martes, Jueves y Sábado* (17:30 a 19:00 hs)',
   '',
-  '0️⃣ Volver al Menú Principal.',
+  'Escribí *1, 2, 3 o 4* para continuar.',
+  '0️⃣ Volver al inicio.',
 ].join('\n');
 
 const PARTICULAR_TREATMENT_TYPE_TEXT = [
@@ -558,8 +562,10 @@ const GREETING_PREFIXES = ['hola', 'buenas', 'buen dia', 'buenos dias', 'buenas 
 
 const MENU_COMMAND_PATTERNS = [/^(0|menu|menu principal|volver|inicio)(\b.*)?$/];
 const LISTO_COMMAND_PATTERNS = [/^(listo|ya esta|ya envie todo|termine)(\b.*)?$/];
-const SCHEME_A_PATTERNS = [/^(a|opcion a|lunes y viernes|lunes viernes|lun y vie)(\b.*)?$/];
-const SCHEME_B_PATTERNS = [/^(b|opcion b|martes y jueves|martes jueves|mar y jue)(\b.*)?$/];
+const SCHEME_1_PATTERNS = [/^(1|opcion 1|lunes y miercoles|lun y miercoles|lunes miercoles)(\b.*)?$/];
+const SCHEME_2_PATTERNS = [/^(2|opcion 2|lunes miercoles y viernes|lunes y miercoles y viernes|lun mie vie)(\b.*)?$/];
+const SCHEME_3_PATTERNS = [/^(3|opcion 3|martes y jueves|martes jueves|mar y jue)(\b.*)?$/];
+const SCHEME_4_PATTERNS = [/^(4|opcion 4|martes jueves y sabado|martes y jueves y sabado|mar jue sab)(\b.*)?$/];
 const SIMPLE_TREATMENT_PATTERNS = [/^(1|simple|tratamiento simple|una zona|1 zona|sencillo)(\b.*)?$/];
 const DOUBLE_TREATMENT_PATTERNS = [/^(2|doble|tratamiento doble|dos zonas|2 zonas)(\b.*)?$/];
 
@@ -571,8 +577,10 @@ const isGreeting = (normalizedText) => GREETING_PREFIXES.some(
 
 const isMenuCommand = (normalizedText) => matchesAnyPattern(normalizedText, MENU_COMMAND_PATTERNS);
 const isListoCommand = (normalizedText) => matchesAnyPattern(normalizedText, LISTO_COMMAND_PATTERNS);
-const isSchemeASelection = (normalizedText) => matchesAnyPattern(normalizedText, SCHEME_A_PATTERNS);
-const isSchemeBSelection = (normalizedText) => matchesAnyPattern(normalizedText, SCHEME_B_PATTERNS);
+const isScheme1Selection = (normalizedText) => matchesAnyPattern(normalizedText, SCHEME_1_PATTERNS);
+const isScheme2Selection = (normalizedText) => matchesAnyPattern(normalizedText, SCHEME_2_PATTERNS);
+const isScheme3Selection = (normalizedText) => matchesAnyPattern(normalizedText, SCHEME_3_PATTERNS);
+const isScheme4Selection = (normalizedText) => matchesAnyPattern(normalizedText, SCHEME_4_PATTERNS);
 const isSimpleTreatmentSelection = (normalizedText) => matchesAnyPattern(normalizedText, SIMPLE_TREATMENT_PATTERNS);
 const isDoubleTreatmentSelection = (normalizedText) => matchesAnyPattern(normalizedText, DOUBLE_TREATMENT_PATTERNS);
 
@@ -596,11 +604,17 @@ const getCoverageInputLabel = (messageText) => {
 };
 
 const getSelectedSchemeLabel = (normalizedText) => {
-  if (isSchemeASelection(normalizedText)) {
-    return 'A: Lunes y Viernes (con opción de sumar Miércoles)';
+  if (isScheme1Selection(normalizedText)) {
+    return '1: Lunes y Miércoles (17:30 a 19:00 hs)';
   }
-  if (isSchemeBSelection(normalizedText)) {
-    return 'B: Martes y Jueves (con opción de sumar Sábados)';
+  if (isScheme2Selection(normalizedText)) {
+    return '2: Lunes, Miércoles y Viernes (17:30 a 19:00 hs)';
+  }
+  if (isScheme3Selection(normalizedText)) {
+    return '3: Martes y Jueves (17:30 a 19:00 hs)';
+  }
+  if (isScheme4Selection(normalizedText)) {
+    return '4: Martes, Jueves y Sábado (17:30 a 19:00 hs)';
   }
   return null;
 };
