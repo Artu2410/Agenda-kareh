@@ -49,7 +49,8 @@ const CashflowPage = () => {
       setSelectedTransaction(null);
     } catch (error) {
       console.error("Error saving transaction:", error);
-      alert("Error al guardar el movimiento");
+      const backendMessage = error?.response?.data?.error || error?.response?.data?.message;
+      alert(backendMessage || "Error al guardar el movimiento");
     }
   };
 

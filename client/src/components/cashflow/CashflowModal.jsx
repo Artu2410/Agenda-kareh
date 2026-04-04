@@ -56,7 +56,7 @@ const CashflowModal = ({ isOpen, onClose, onSave, transaction }) => {
     if (type !== 'TRANSFER') return;
 
     setPaymentMethod(TRANSFER_PAYMENT_METHOD);
-    if (destinationAccount === account) {
+    if (!destinationAccount || destinationAccount === account) {
       setDestinationAccount(account === 'CASH' ? 'MERCADO_PAGO' : 'CASH');
     }
   }, [type, account, destinationAccount]);
