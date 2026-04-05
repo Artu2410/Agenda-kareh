@@ -182,9 +182,7 @@ const FINAL_DOCUMENTATION_TEXT = [
   '0️⃣ Volver al Menú Principal.',
 ].join('\n');
 
-const buildObraSocialDocumentationReplyText = ({ schemeLabel, coverageName, documentationRequired, isART }) => {
-  const specificDocumentation = documentationRequired || (isART ? 'N° Siniestro + Orden' : 'Orden + Credencial');
-
+const buildObraSocialDocumentationReplyText = ({ schemeLabel }) => {
   return [
     `¡Excelente! Registramos tu esquema de días: *${schemeLabel}*.`,
     '',
@@ -193,9 +191,6 @@ const buildObraSocialDocumentationReplyText = ({ schemeLabel, coverageName, docu
     '✅ *Nombre y Apellido, DNI y Fecha de nacimiento*.',
     '✅ *Foto del DNI* (frente y dorso).',
     '✅ *Foto de la Orden Médica* (debe ser legible y tener menos de 30 días de emitida).',
-    isART
-      ? `✅ *Documentación de ${coverageName || 'tu ART'}:* ${specificDocumentation}.`
-      : `✅ *Documentación de ${coverageName || 'tu cobertura'}:* ${specificDocumentation}.`,
     '✅ *Antecedentes:* Informanos si tenés marcapasos, antecedentes de cáncer u otra condición.',
     '',
     '⚠️ *Aviso sobre copagos:* El valor del coseguro, si tu plan lo requiere, se informará al validar la orden en el sistema.',
@@ -387,10 +382,34 @@ const getTemplateBodyParamNames = (templateName) => {
   return null;
 };
 
+const sanitizePatientName = (patientName) => {
+  const normalized = String(patientName || '')
+    .normalize('NFKC')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!normalized) return '';
+
+  const cleaned = normalized
+    .replace(/[^\p{L}\p{N}' .-]/gu, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!cleaned) return '';
+
+  const shortened = cleaned
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 3)
+    .join(' ');
+
+  return shortened.slice(0, 40).trim();
+};
+
 const getTemplatePatientName = (patientName, fallback = 'Paciente') => {
-  const normalized = String(patientName || '').trim();
+  const normalized = sanitizePatientName(patientName);
   if (!normalized) return fallback;
-  return normalized.length < 30 ? normalized : fallback;
+  return normalized;
 };
 
 const buildTemplateTextParameter = ({ text, parameterName }) => {
@@ -624,13 +643,6 @@ const getCoverageFromConversationState = (state) => {
   return coverageId ? findInMemoryWhatsAppCoverageById(coverageId) : null;
 };
 
-const isArtCoverage = (coverage) => {
-  if (!coverage) return false;
-  const coverageName = String(coverage.name || '').toUpperCase();
-  const documentation = String(coverage.documentationRequired || '').toUpperCase();
-  return coverageName.includes('ART') || documentation.includes('SINIESTRO');
-};
-
 const getDirectIntentReply = (normalizedText) => {
   const matchedRule = DIRECT_INTENT_RULES.find(({ patterns }) => patterns.some((pattern) => pattern.test(normalizedText)));
   if (!matchedRule) return null;
@@ -709,9 +721,6 @@ const getConversationAutoReply = ({
           type: 'text',
           text: buildObraSocialDocumentationReplyText({
             schemeLabel: selectedSchemeLabel,
-            coverageName: selectedCoverage?.name,
-            documentationRequired: selectedCoverage?.documentationRequired,
-            isART: isArtCoverage(selectedCoverage),
           }),
           nextState: buildFlowState(FLOW_STATES.OBRA_SOCIAL_DOCS, selectedCoverage?.id),
         };
@@ -837,6 +846,12 @@ const extractPatientName = (messageText) => {
   return normalized || null;
 };
 
+const getIncomingProfileName = (value, waId) => {
+  const contacts = Array.isArray(value?.contacts) ? value.contacts : [];
+  const matchedContact = contacts.find((contact) => String(contact?.wa_id || '').trim() === String(waId || '').trim());
+  return matchedContact?.profile?.name || contacts[0]?.profile?.name || null;
+};
+
 const storeInboundMedia = async ({ mediaId, mimeType, conversationId }) => {
   if (!mediaId) return null;
   const mediaInfo = await fetchMediaInfo(mediaId);
@@ -878,11 +893,11 @@ export const handleWhatsAppWebhook = async (req, res, prisma) => {
           const existing = await prisma.whatsAppMessage.findUnique({ where: { waMessageId: message.id } });
           if (existing) continue;
 
-          const contact = value.contacts?.[0];
+          const incomingProfileName = getIncomingProfileName(value, message.from);
           const { conversation, isNew } = await ensureConversation({
             prisma,
             waId: message.from,
-            profileName: contact?.profile?.name,
+            profileName: incomingProfileName,
             phone: message.from,
           });
 
@@ -909,7 +924,7 @@ export const handleWhatsAppWebhook = async (req, res, prisma) => {
             hasNonTextMessage: message.type !== 'text',
           });
           const nextConversationState = autoReply?.nextState || effectiveState;
-          const nextProfileName = extractedPatientName || conversation.profileName;
+          const nextProfileName = extractedPatientName || incomingProfileName || conversation.profileName;
           
           const mediaMeta = getMediaInfoFromMessage(message);
           let mediaUrl = null;
