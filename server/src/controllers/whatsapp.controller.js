@@ -22,16 +22,14 @@ const FLOW_STATES = Object.freeze({
   WELCOME: 'welcome',
   OBRA_SOCIAL: 'obra_social',
   OBRA_SOCIAL_UNAVAILABLE: 'obra_social_unavailable',
-  OBRA_SOCIAL_SCHEME: 'obra_social_scheme',
   OBRA_SOCIAL_DOCS: 'obra_social_docs',
   PARTICULAR: 'particular',
   PAMI: 'pami',
   RESPIRATORIO: 'respiratorio',
-  PARTICULAR_TREATMENT_TYPE: 'particular_treatment_type',
-  PAMI_TREATMENT_TYPE: 'pami_treatment_type',
   FINAL_DOCS: 'final_docs',
   LOCATION: 'location',
   WAITING_HUMAN_REVIEW: 'waiting_human_review',
+  HUMAN_HANDOFF: 'human_handoff',
 });
 
 const FLOW_STATE_SEPARATOR = '::';
@@ -54,11 +52,11 @@ const DEFAULT_WELCOME_TEXT = [
   '¡Hola! {{1}} 👋',
   '*Bienvenido/a a Kinesiología Kareh* 🌿',
   '',
-  'Para asesorarte mejor con tu turno, por favor *enviá el número* de tu opción:',
+  'Para asesorarte con tu turno, por favor enviá el número de tu opción:',
   '',
   '1️⃣ Obra Social / Prepaga / ART',
   '2️⃣ Particular',
-  '3️⃣ PAMI',
+  '3️⃣ PAMI Particular',
   '4️⃣ Kinesiología Respiratoria',
   '5️⃣ Ubicación y Horarios 📍',
   '',
@@ -66,167 +64,151 @@ const DEFAULT_WELCOME_TEXT = [
 ].join('\n');
 
 const AUTO_REPLY_OBRA_SOCIAL_TEXT = [
-  '¡Perfecto! Para verificar tu cobertura, por favor escribí el *nombre de tu Obra Social, Prepaga o ART*.',
+  '¡Perfecto! Por favor, decinos el nombre de tu Obra Social, Prepaga o ART.',
   '',
-  '_(Ejemplo: IOMA, Swiss Medical, La Segunda ART)_',
+  'Para verificar cobertura y coordinar el horario, necesitamos:',
+  '',
+  '✅ Nombre, Apellido y DNI',
+  '✅ Fecha de nacimiento',
+  '📸 Foto de la Orden Médica (legible)',
+  '🩺 Antecedentes: Marcapasos, cáncer u otra condición.',
+  '',
+  'Cuando recibamos la documentación, un administrador seguirá la conversación y te ofrecerá los horarios disponibles. ⏳',
   '',
   '0️⃣ Volver al inicio.',
 ].join('\n');
 
 const buildInactiveCoverageReplyText = (coverageName) => [
-  `Lo lamentamos, actualmente no contamos con convenio vigente para atención a través de *${coverageName}*.`,
+  `Por el momento no contamos con convenio vigente para atención a través de *${coverageName}*.`,
   '',
-  'Sin embargo, podés atenderte de forma *Particular* y te entregamos la factura para que gestiones el reintegro si tu plan lo permite.',
-  '💰 Valor: $15.000 por zona.',
+  'Si querés, podés atenderte de forma *Particular*. Te compartimos la información:',
   '',
-  'Si querés continuar como particular, escribí *PARTICULAR*.',
+  '💰 Valor: $15.000 por zona a tratar (solo efectivo).',
+  '',
+  'Para coordinar tu turno, envianos:',
+  '✅ Nombre, Apellido y DNI',
+  '✅ Fecha de nacimiento',
+  '✅ Diagnóstico: qué zona hay que tratar',
+  '📸 Foto de la Orden Médica',
+  '🩺 Antecedentes: Marcapasos, cáncer u otra condición.',
+  '',
+  'Cuando recibamos la documentación, un administrador seguirá la conversación para asignarte un horario. ✨',
+  '',
   '0️⃣ Volver al inicio.',
 ].join('\n');
 
-const buildObraSocialSchemeReplyText = (coverageName) => [
-  `¡Genial! Tenemos convenio con *${coverageName}* ✅`,
+const buildActiveCoverageReplyText = (coverageName) => [
+  `¡Perfecto! Tenemos convenio con *${coverageName}* ✅`,
   '',
-  'Para organizar tu tratamiento de 10 sesiones, elegí el esquema de días que prefieras:',
+  'Continuá enviando la documentación solicitada para revisar la cobertura y coordinar el horario.',
   '',
-  ...[
-    '6️⃣ *Lunes y Miércoles* (17:30 a 19:00 hs)',
-    '7️⃣ *Lunes, Miércoles y Viernes* (17:30 a 19:00 hs)',
-    '8️⃣ *Martes y Jueves* (17:30 a 19:00 hs)',
-    '9️⃣ *Sábados* (08:00 a 12:00 hs)',
-    '',
-    'Ejemplo: turnos de *Lunes y Miércoles 18:30 hs*, duración aprox. *50 min*.',
-    '',
-    'Escribí *6, 7, 8 o 9* para continuar.',
-  ],
+  'Cuando recibamos la documentación, un administrador seguirá la conversación. ⏳',
+  '',
   '0️⃣ Volver al inicio.',
 ].join('\n');
-
-const TREATMENT_SCHEME_OPTIONS_LINES = [
-  '',
-  '6️⃣ *Lunes y Miércoles* (17:30 a 19:00 hs)',
-  '7️⃣ *Lunes, Miércoles y Viernes* (17:30 a 19:00 hs)',
-  '8️⃣ *Martes y Jueves* (17:30 a 19:00 hs)',
-  '9️⃣ *Sábados* (08:00 a 12:00 hs)',
-  '',
-  'Ejemplo: turnos de *Lunes y Miércoles 18:30 hs*, duración aprox. *50 min*.',
-  '',
-  'Escribí *6, 7, 8 o 9* para continuar.',
-];
 
 const AUTO_REPLY_PARTICULAR_TEXT = [
-  '¡Entendido! Información para sesiones *Particulares*:',
+  '¡Excelente! Información para sesiones *Particulares*:',
   '',
-  '💰 *Valor:* $15.000 por zona a tratar.',
-  '💰 *Doble zona:* $28.000.',
-  '_(Solo efectivo)_',
+  '💰 Valor: $15.000 por zona a tratar (solo efectivo).',
   '',
-  'Para organizar tu tratamiento, elegí el esquema de días que prefieras:',
-  ...TREATMENT_SCHEME_OPTIONS_LINES,
+  'Para coordinar tu turno, envianos:',
+  '✅ Nombre, Apellido y DNI',
+  '✅ Fecha de nacimiento',
+  '✅ Diagnóstico: qué zona hay que tratar',
+  '📸 Foto de la Orden Médica',
+  '🩺 Antecedentes: Marcapasos, cáncer u otra condición.',
+  '',
+  'Cuando recibamos la documentación, un administrador seguirá la conversación para asignarte un horario. ✨',
+  '',
   '0️⃣ Volver al inicio.',
 ].join('\n');
 
 const AUTO_REPLY_PAMI_TEXT = [
   '¡Entendido! Para pacientes de PAMI el valor es diferencial:',
-  '💰 Valor (Bonificado): $10.000 por zona a tratar.',
-  '💰 Doble tratamiento: $20.000.',
-  '(Solo efectivo).',
   '',
-  'Para organizar tu tratamiento, elegí el esquema de días que prefieras:',
-  ...TREATMENT_SCHEME_OPTIONS_LINES,
+  '💰 Valor bonificado: $10.000 por zona a tratar (solo efectivo).',
+  '',
+  'Para reservar tu lugar, envianos:',
+  '✅ Nombre, Apellido y DNI',
+  '✅ Número de afiliado',
+  '✅ Fecha de nacimiento',
+  '📸 Foto de la Orden Médica (legible)',
+  '📸 Foto de DNI y Credencial (ambos lados)',
+  '🩺 Antecedentes: Marcapasos, cáncer u otra condición.',
+  '',
+  'Cuando recibamos la documentación, un administrador seguirá la conversación para coordinar el horario. ⏳',
+  '',
   '0️⃣ Volver al inicio.',
 ].join('\n');
 
 const AUTO_REPLY_RESPIRATORIO_TEXT = [
-  '¡Recibido! Información para Kinesiología Respiratoria:',
-  '💰 Valor de la sesión: $30.000 (solo efectivo).',
+  '¡Excelente! Información para sesiones Respiratorias:',
   '',
-  'Para organizar tu tratamiento, elegí el esquema de días que prefieras:',
-  ...TREATMENT_SCHEME_OPTIONS_LINES,
+  '💰 Valor: $30.000 (solo efectivo).',
+  '',
+  'Para coordinar tu turno, envianos:',
+  '✅ Nombre, Apellido y DNI',
+  '✅ Fecha de nacimiento',
+  '✅ Diagnóstico',
+  '📸 Foto de la Orden Médica',
+  '🩺 Antecedentes: Marcapasos, cáncer u otra condición.',
+  '',
+  'Cuando recibamos la documentación, un administrador seguirá la conversación. ✨',
+  '',
   '0️⃣ Volver al inicio.',
 ].join('\n');
 
-const PARTICULAR_TREATMENT_TYPE_TEXT = [
-  '¡Perfecto! Ya registramos tu esquema de días.',
-  '',
-  'Ahora indicanos si el tratamiento es:',
-  '1️⃣ Simple',
-  '2️⃣ Doble',
-  '',
-  'También podés responder *simple* o *doble*.',
-  '0️⃣ Volver al Menú Principal.',
-].join('\n');
-
-const PAMI_TREATMENT_TYPE_TEXT = [
-  '¡Perfecto! Ya registramos tu esquema de días.',
-  '',
-  'Ahora indicanos si el tratamiento es:',
-  '1️⃣ Simple',
-  '2️⃣ Doble',
-  '',
-  'También podés responder *simple* o *doble*.',
-  '0️⃣ Volver al Menú Principal.',
-].join('\n');
-
-const FINAL_DOCUMENTATION_TEXT = [
-  '¡Genial! Ya casi tenemos todo listo para agendarte. Solo necesitamos estos datos finales:',
-  '',
-  '✅ Foto de tu DNI (ambos lados).',
-  '✅ Foto de la Orden Médica (legible).',
-  '✅ Antecedentes: (marcapasos, cáncer o alguna otra condición).',
-  '',
-  
-  'Escribí *LISTO* cuando hayas enviado todo y en breve te enviaremos el comprobante con tu cronograma confirmado. ✨',
-  '',
-  '0️⃣ Volver al Menú Principal.',
-].join('\n');
-
-const buildObraSocialDocumentationReplyText = ({ schemeLabel }) => {
-  return [
-    `¡Excelente! Registramos tu esquema de días: *${schemeLabel}*.`,
-    '',
-    'Para confirmar tu reserva, por favor envianos:',
-    '',
-    '✅ *Nombre y Apellido, DNI y Fecha de nacimiento*.',
-    '✅ *Foto del DNI* (frente y dorso).',
-    '✅ *Foto de la Orden Médica* (debe ser legible y tener menos de 30 días de emitida).',
-    '✅ *Antecedentes:* Informanos si tenés marcapasos, antecedentes de cáncer u otra condición.',
-    '',
-    '⚠️ *Aviso sobre copagos:* El valor del coseguro, si tu plan lo requiere, se informará al validar la orden en el sistema.',
-    '',
-    'Escribí *LISTO* cuando hayas enviado todo.',
-    '0️⃣ Volver al inicio.',
-  ].join('\n');
-};
-
 const UNKNOWN_INPUT_TEXT = 'Perdón, no entendí eso. Por favor, enviá los datos solicitados o escribí *0* para volver al inicio. 🙏';
-const WAITING_HUMAN_REVIEW_TEXT = 'Ya recibimos tu documentación y la estamos revisando. Si necesitás reiniciar el flujo, escribí *0*.';
+const WAITING_HUMAN_REVIEW_TEXT = 'Ya recibimos tu documentación. En breve te responde un administrador. Si necesitás volver al inicio, escribí *0*.';
 
-const FINAL_CONFIRMATION_TEXT = [
-  '¡Gracias! Recibimos todo correctamente.',
-  'En breve revisaremos la documentación y te confirmaremos el cronograma. ✨',
+const DOCUMENTATION_RECEIVED_TEXT = [
+  '¡Gracias! Recibimos tu documentación correctamente.',
+  'En breve te responde un administrador para continuar con el turno. ✨',
 ].join('\n');
 
 const AUTO_REPLY_LOCATION_TEXT = [
-  '📍 *Nuestra Ubicación:*',
+  '📍 *Nuestra ubicación:*',
   'Av. Senador Morón 782, Bella Vista.',
   '🗺️ Google Maps: https://maps.app.goo.gl/ChIJccvYOMO9vJURBOmqm_VIytA',
   '',
   '⏰ *Horarios:*',
-  '• Lun y Vie: 14:00 a 19:00 hs.',
-  '• Mar, Mié y Jue: 17:30 a 19:00 hs.',
+  '• Lunes y viernes: 14:00 a 19:00 hs.',
+  '• Martes, miércoles y jueves: 17:30 a 19:00 hs.',
   '• Sábados: 08:00 a 12:00 hs.',
   '',
   '0️⃣ Volver al inicio.',
 ].join('\n');
 
-const SCHEME_SELECTION_STATES = new Set([
-  FLOW_STATES.OBRA_SOCIAL_SCHEME,
+const DOCUMENT_COLLECTION_STATES = new Set([
+  FLOW_STATES.OBRA_SOCIAL_DOCS,
   FLOW_STATES.PARTICULAR,
   FLOW_STATES.PAMI,
   FLOW_STATES.RESPIRATORIO,
+  FLOW_STATES.FINAL_DOCS,
 ]);
 
 const DIRECT_INTENT_RULES = [
+  {
+    patterns: [/\b(rpg|rehabilitacion postural global|rehabilitación postural global|postural)\b/],
+    text: 'Por el momento no contamos con la especialidad de RPG, pero con gusto podemos orientarte con otras opciones. Saludos.',
+    nextState: FLOW_STATES.WELCOME,
+  },
+  {
+    patterns: [/\b(vestibular|mareos|vertigo|vértigo)\b/],
+    text: 'Por el momento no contamos con rehabilitación vestibular, pero con gusto podemos orientarte con otras opciones. Saludos.',
+    nextState: FLOW_STATES.WELCOME,
+  },
+  {
+    patterns: [/\b(drenaje|linfatico|linfático)\b/],
+    text: 'Por el momento no contamos con drenaje linfático manual, pero con gusto podemos orientarte con otras opciones. Saludos.',
+    nextState: FLOW_STATES.WELCOME,
+  },
+  {
+    patterns: [/\b(domicilio|domiciliario|domiciliaria|en casa|en domicilio)\b/],
+    text: 'Por el momento no realizamos atención a domicilio, pero con gusto podemos ayudarte a coordinar atención en consultorio. Saludos.',
+    nextState: FLOW_STATES.WELCOME,
+  },
   {
     patterns: [/^(1|1 obra social|1 prepaga|1 art)$/],
     text: AUTO_REPLY_OBRA_SOCIAL_TEXT,
@@ -579,12 +561,6 @@ const GREETING_PREFIXES = ['hola', 'buenas', 'buen dia', 'buenos dias', 'buenas 
 
 const MENU_COMMAND_PATTERNS = [/^(0|menu|menu principal|volver|inicio)(\b.*)?$/];
 const LISTO_COMMAND_PATTERNS = [/^(listo|ya esta|ya envie todo|termine)(\b.*)?$/];
-const SCHEME_1_PATTERNS = [/^(1|6|opcion 1|opcion 6|lunes y miercoles|lun y miercoles|lunes miercoles)(\b.*)?$/];
-const SCHEME_2_PATTERNS = [/^(2|7|opcion 2|opcion 7|lunes miercoles y viernes|lunes y miercoles y viernes|lun mie vie)(\b.*)?$/];
-const SCHEME_3_PATTERNS = [/^(3|8|opcion 3|opcion 8|martes y jueves|martes jueves|mar y jue)(\b.*)?$/];
-const SCHEME_4_PATTERNS = [/^(4|9|opcion 4|opcion 9|sabado|sabados|sábado|sábados)(\b.*)?$/];
-const SIMPLE_TREATMENT_PATTERNS = [/^(1|simple|tratamiento simple|una zona|1 zona|sencillo)(\b.*)?$/];
-const DOUBLE_TREATMENT_PATTERNS = [/^(2|doble|tratamiento doble|dos zonas|2 zonas)(\b.*)?$/];
 
 const matchesAnyPattern = (text, patterns) => patterns.some((pattern) => pattern.test(text));
 
@@ -594,51 +570,17 @@ const isGreeting = (normalizedText) => GREETING_PREFIXES.some(
 
 const isMenuCommand = (normalizedText) => matchesAnyPattern(normalizedText, MENU_COMMAND_PATTERNS);
 const isListoCommand = (normalizedText) => matchesAnyPattern(normalizedText, LISTO_COMMAND_PATTERNS);
-const isScheme1Selection = (normalizedText) => matchesAnyPattern(normalizedText, SCHEME_1_PATTERNS);
-const isScheme2Selection = (normalizedText) => matchesAnyPattern(normalizedText, SCHEME_2_PATTERNS);
-const isScheme3Selection = (normalizedText) => matchesAnyPattern(normalizedText, SCHEME_3_PATTERNS);
-const isScheme4Selection = (normalizedText) => matchesAnyPattern(normalizedText, SCHEME_4_PATTERNS);
-const isSimpleTreatmentSelection = (normalizedText) => matchesAnyPattern(normalizedText, SIMPLE_TREATMENT_PATTERNS);
-const isDoubleTreatmentSelection = (normalizedText) => matchesAnyPattern(normalizedText, DOUBLE_TREATMENT_PATTERNS);
 
 const canApplyDirectIntent = (currentStateBase) => !currentStateBase
   || currentStateBase === FLOW_STATES.WELCOME
   || currentStateBase === FLOW_STATES.OBRA_SOCIAL
   || currentStateBase === FLOW_STATES.OBRA_SOCIAL_UNAVAILABLE
   || currentStateBase === FLOW_STATES.LOCATION
-  || currentStateBase === FLOW_STATES.WAITING_HUMAN_REVIEW
-  || SCHEME_SELECTION_STATES.has(currentStateBase);
-
-const buildDocumentationReplyText = (treatmentLabel = '') => (
-  treatmentLabel
-    ? [`¡Perfecto! Quedó registrado como tratamiento *${treatmentLabel}*.`, FINAL_DOCUMENTATION_TEXT].join('\n\n')
-    : FINAL_DOCUMENTATION_TEXT
-);
+  || currentStateBase === FLOW_STATES.WAITING_HUMAN_REVIEW;
 
 const getCoverageInputLabel = (messageText) => {
   const normalized = String(messageText || '').trim();
   return normalized || 'la cobertura indicada';
-};
-
-const getSelectedSchemeLabel = (normalizedText) => {
-  if (isScheme1Selection(normalizedText)) {
-    return '6: Lunes y Miércoles (17:30 a 19:00 hs)';
-  }
-  if (isScheme2Selection(normalizedText)) {
-    return '7: Lunes, Miércoles y Viernes (17:30 a 19:00 hs)';
-  }
-  if (isScheme3Selection(normalizedText)) {
-    return '8: Martes y Jueves (17:30 a 19:00 hs)';
-  }
-  if (isScheme4Selection(normalizedText)) {
-    return '9: Sábados (08:00 a 12:00 hs)';
-  }
-  return null;
-};
-
-const getCoverageFromConversationState = (state) => {
-  const [coverageId] = getFlowStateMeta(state);
-  return coverageId ? findInMemoryWhatsAppCoverageById(coverageId) : null;
 };
 
 const getDirectIntentReply = (normalizedText) => {
@@ -658,10 +600,10 @@ const getConversationAutoReply = ({
   currentState,
   shouldSendWelcome,
   hasNonTextMessage = false,
+  hasMediaAttachment = false,
 }) => {
   const normalized = normalizeText(messageText);
   const currentStateBase = getFlowStateBase(currentState);
-  const selectedCoverage = getCoverageFromConversationState(currentState);
   const matchedActiveCoverage = findInMemoryWhatsAppCoverageByInput(messageText, { includeInactive: false });
   const matchedCoverage = matchedActiveCoverage || findInMemoryWhatsAppCoverageByInput(messageText, { includeInactive: true });
 
@@ -669,12 +611,26 @@ const getConversationAutoReply = ({
     return null;
   }
 
-  if (hasNonTextMessage && (currentStateBase === FLOW_STATES.FINAL_DOCS || currentStateBase === FLOW_STATES.OBRA_SOCIAL_DOCS)) {
+  if (normalized && isMenuCommand(normalized)) {
+    return { type: 'welcome', nextState: FLOW_STATES.WELCOME };
+  }
+
+  if (currentStateBase === FLOW_STATES.HUMAN_HANDOFF) {
     return null;
   }
 
-  if (normalized && isMenuCommand(normalized)) {
-    return { type: 'welcome', nextState: FLOW_STATES.WELCOME };
+  if (
+    DOCUMENT_COLLECTION_STATES.has(currentStateBase)
+    && (
+      hasMediaAttachment
+      || (normalized && isListoCommand(normalized))
+    )
+  ) {
+    return {
+      type: 'text',
+      text: DOCUMENTATION_RECEIVED_TEXT,
+      nextState: FLOW_STATES.HUMAN_HANDOFF,
+    };
   }
 
   if (
@@ -688,8 +644,8 @@ const getConversationAutoReply = ({
   ) {
     return {
       type: 'text',
-      text: buildObraSocialSchemeReplyText(matchedActiveCoverage.name),
-      nextState: buildFlowState(FLOW_STATES.OBRA_SOCIAL_SCHEME, matchedActiveCoverage.id),
+      text: buildActiveCoverageReplyText(matchedActiveCoverage.name),
+      nextState: buildFlowState(FLOW_STATES.OBRA_SOCIAL_DOCS, matchedActiveCoverage.id),
     };
   }
 
@@ -702,98 +658,13 @@ const getConversationAutoReply = ({
     return {
       type: 'text',
       text: buildInactiveCoverageReplyText(matchedCoverage?.name || getCoverageInputLabel(messageText)),
-      nextState: FLOW_STATES.OBRA_SOCIAL_UNAVAILABLE,
+      nextState: FLOW_STATES.PARTICULAR,
     };
   }
 
   if (normalized && (shouldSendWelcome || canApplyDirectIntent(currentStateBase))) {
     const directIntentReply = getDirectIntentReply(normalized);
     if (directIntentReply) return directIntentReply;
-  }
-
-  if (normalized && SCHEME_SELECTION_STATES.has(currentStateBase)) {
-    const selectedSchemeLabel = getSelectedSchemeLabel(normalized);
-    if (selectedSchemeLabel) {
-      if (currentStateBase === FLOW_STATES.OBRA_SOCIAL_SCHEME) {
-        return {
-          type: 'text',
-          text: buildObraSocialDocumentationReplyText({
-            schemeLabel: selectedSchemeLabel,
-          }),
-          nextState: buildFlowState(FLOW_STATES.OBRA_SOCIAL_DOCS, selectedCoverage?.id),
-        };
-      }
-
-      if (currentStateBase === FLOW_STATES.PARTICULAR) {
-        return {
-          type: 'text',
-          text: PARTICULAR_TREATMENT_TYPE_TEXT,
-          nextState: FLOW_STATES.PARTICULAR_TREATMENT_TYPE,
-        };
-      }
-
-      if (currentStateBase === FLOW_STATES.PAMI) {
-        return {
-          type: 'text',
-          text: PAMI_TREATMENT_TYPE_TEXT,
-          nextState: FLOW_STATES.PAMI_TREATMENT_TYPE,
-        };
-      }
-
-      return {
-        type: 'text',
-        text: FINAL_DOCUMENTATION_TEXT,
-        nextState: FLOW_STATES.FINAL_DOCS,
-      };
-    }
-  }
-
-  if (normalized && currentStateBase === FLOW_STATES.PARTICULAR_TREATMENT_TYPE) {
-    if (isSimpleTreatmentSelection(normalized)) {
-      return {
-        type: 'text',
-        text: buildDocumentationReplyText('simple'),
-        nextState: FLOW_STATES.FINAL_DOCS,
-      };
-    }
-
-    if (isDoubleTreatmentSelection(normalized)) {
-      return {
-        type: 'text',
-        text: buildDocumentationReplyText('doble'),
-        nextState: FLOW_STATES.FINAL_DOCS,
-      };
-    }
-  }
-
-  if (normalized && currentStateBase === FLOW_STATES.PAMI_TREATMENT_TYPE) {
-    if (isSimpleTreatmentSelection(normalized)) {
-      return {
-        type: 'text',
-        text: buildDocumentationReplyText('simple'),
-        nextState: FLOW_STATES.FINAL_DOCS,
-      };
-    }
-
-    if (isDoubleTreatmentSelection(normalized)) {
-      return {
-        type: 'text',
-        text: buildDocumentationReplyText('doble'),
-        nextState: FLOW_STATES.FINAL_DOCS,
-      };
-    }
-  }
-
-  if (
-    normalized
-    && (currentStateBase === FLOW_STATES.FINAL_DOCS || currentStateBase === FLOW_STATES.OBRA_SOCIAL_DOCS)
-    && isListoCommand(normalized)
-  ) {
-    return {
-      type: 'text',
-      text: FINAL_CONFIRMATION_TEXT,
-      nextState: FLOW_STATES.WAITING_HUMAN_REVIEW,
-    };
   }
 
   if (shouldSendWelcome && (normalized || hasNonTextMessage)) {
@@ -805,6 +676,10 @@ const getConversationAutoReply = ({
   }
 
   if (!normalized && hasNonTextMessage) {
+    return null;
+  }
+
+  if (DOCUMENT_COLLECTION_STATES.has(currentStateBase)) {
     return null;
   }
 
@@ -909,6 +784,7 @@ export const handleWhatsAppWebhook = async (req, res, prisma) => {
             || !lastInbound
             || (now - new Date(lastInbound.createdAt) > WELCOME_COOLDOWN_MS);
 
+          const mediaMeta = getMediaInfoFromMessage(message);
           const inboundText = message.type === 'text' ? message.text?.body || '' : '';
           const extractedPatientName = extractPatientName(inboundText);
           const effectiveState = shouldResetSession
@@ -920,11 +796,11 @@ export const handleWhatsAppWebhook = async (req, res, prisma) => {
             currentState: effectiveState,
             shouldSendWelcome: shouldResetSession,
             hasNonTextMessage: message.type !== 'text',
+            hasMediaAttachment: Boolean(mediaMeta?.mediaId),
           });
           const nextConversationState = autoReply?.nextState || effectiveState;
           const nextProfileName = extractedPatientName || incomingProfileName || conversation.profileName;
-          
-          const mediaMeta = getMediaInfoFromMessage(message);
+
           let mediaUrl = null;
           if (mediaMeta?.mediaId) {
             mediaUrl = await storeInboundMedia({
@@ -1025,6 +901,38 @@ export const markConversationRead = async (req, res, prisma) => {
   res.json({ success: true });
 };
 
+export const pauseConversationBot = async (req, res, prisma) => {
+  const { id } = req.params;
+
+  try {
+    await prisma.whatsAppConversation.update({
+      where: { id },
+      data: { currentState: FLOW_STATES.HUMAN_HANDOFF },
+    });
+
+    res.json({ success: true, currentState: FLOW_STATES.HUMAN_HANDOFF });
+  } catch (error) {
+    console.error('ERROR PAUSANDO BOT:', error);
+    res.status(500).json({ message: 'No se pudo pausar el bot en esta conversación.' });
+  }
+};
+
+export const resumeConversationBot = async (req, res, prisma) => {
+  const { id } = req.params;
+
+  try {
+    await prisma.whatsAppConversation.update({
+      where: { id },
+      data: { currentState: FLOW_STATES.WELCOME },
+    });
+
+    res.json({ success: true, currentState: FLOW_STATES.WELCOME });
+  } catch (error) {
+    console.error('ERROR REACTIVANDO BOT:', error);
+    res.status(500).json({ message: 'No se pudo reactivar el bot en esta conversación.' });
+  }
+};
+
 export const deleteConversation = async (req, res, prisma) => {
   const { id } = req.params;
   try {
@@ -1114,6 +1022,7 @@ export const sendConversationMessage = async (req, res, prisma) => {
       data: {
         lastMessageAt: new Date(),
         lastMessageText,
+        currentState: FLOW_STATES.HUMAN_HANDOFF,
       },
     });
 
