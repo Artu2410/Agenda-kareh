@@ -5,6 +5,8 @@ import {
   listMessages,
   markConversationRead,
   deleteConversation,
+  pauseConversationBot,
+  resumeConversationBot,
   sendConversationMessage,
   sendWelcomeTemplate,
 } from '../controllers/whatsapp.controller.js';
@@ -47,6 +49,8 @@ export default function createWhatsAppRoutes(prisma) {
   router.put('/coverages/:id', (req, res) => updateWhatsAppCoverage(req, res));
   router.get('/conversations/:id/messages', (req, res) => listMessages(req, res, prisma));
   router.post('/conversations/:id/messages', upload.single('file'), (req, res) => sendConversationMessage(req, res, prisma));
+  router.post('/conversations/:id/pause-bot', (req, res) => pauseConversationBot(req, res, prisma));
+  router.post('/conversations/:id/resume-bot', (req, res) => resumeConversationBot(req, res, prisma));
   router.post('/conversations/:id/send-welcome', (req, res) => sendWelcomeTemplate(req, res, prisma));
   router.post('/conversations/:id/read', (req, res) => markConversationRead(req, res, prisma));
   router.delete('/conversations/:id', (req, res) => deleteConversation(req, res, prisma));

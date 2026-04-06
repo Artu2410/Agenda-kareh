@@ -17,6 +17,14 @@ const ACCEPTED_FILE_TYPES = [
   '.txt',
 ].join(',');
 
+const BOT_PAUSED_STATES = new Set(['human_handoff', 'waiting_human_review']);
+
+const getConversationStateBase = (value) => String(value || 'welcome').split('::')[0] || 'welcome';
+
+const isBotPaused = (conversation) => BOT_PAUSED_STATES.has(getConversationStateBase(conversation?.currentState));
+
+const getBotStatusLabel = (conversation) => (isBotPaused(conversation) ? 'Bot pausado' : 'Bot activo');
+
 const formatTime = (value) => {
   if (!value) return '';
   const date = new Date(value);
@@ -97,6 +105,7 @@ const WhatsAppPage = () => {
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [attachment, setAttachment] = useState(null);
+  const [botActionLoading, setBotActionLoading] = useState(false);
 
   const messagesContainerRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -306,6 +315,34 @@ const WhatsAppPage = () => {
     });
   };
 
+  const handlePauseBot = async () => {
+    if (!selectedConversation) return;
+
+    try {
+      setBotActionLoading(true);
+      await api.post(`/whatsapp/conversations/${selectedConversation.id}/pause-bot`);
+      await loadConversations();
+    } catch (error) {
+      alert(error?.response?.data?.message || 'No se pudo pausar el bot.');
+    } finally {
+      setBotActionLoading(false);
+    }
+  };
+
+  const handleResumeBot = async () => {
+    if (!selectedConversation) return;
+
+    try {
+      setBotActionLoading(true);
+      await api.post(`/whatsapp/conversations/${selectedConversation.id}/resume-bot`);
+      await loadConversations();
+    } catch (error) {
+      alert(error?.response?.data?.message || 'No se pudo reactivar el bot.');
+    } finally {
+      setBotActionLoading(false);
+    }
+  };
+
   return (
     <div className="flex h-dvh min-h-dvh overflow-hidden bg-slate-50">
       <aside className={`${showConversationList ? 'flex' : 'hidden'} min-h-0 w-full flex-col bg-white lg:flex lg:w-80 lg:border-r lg:border-slate-200`}>
@@ -377,20 +414,53 @@ const WhatsAppPage = () => {
                 {selectedConversation ? (selectedConversation.profileName || selectedConversation.phone) : 'Selecciona una conversación'}
               </p>
               {selectedConversation && (
-                <p className="truncate text-xs font-semibold text-slate-400">{selectedConversation.phone}</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="truncate text-xs font-semibold text-slate-400">{selectedConversation.phone}</p>
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] ${
+                    isBotPaused(selectedConversation)
+                      ? 'bg-amber-100 text-amber-700'
+                      : 'bg-teal-100 text-teal-700'
+                  }`}>
+                    {getBotStatusLabel(selectedConversation)}
+                  </span>
+                </div>
               )}
             </div>
           </div>
 
           {selectedConversation && (
-            <button
-              type="button"
-              onClick={handleDeleteConversation}
-              className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-600 transition hover:bg-red-100"
-            >
-              <Trash2 size={14} />
-              <span className="hidden sm:inline">Borrar</span>
-            </button>
+            <div className="flex items-center gap-2">
+              {isBotPaused(selectedConversation) ? (
+                <button
+                  type="button"
+                  onClick={handleResumeBot}
+                  disabled={botActionLoading}
+                  className="inline-flex items-center gap-2 rounded-xl border border-teal-200 bg-teal-50 px-3 py-2 text-xs font-bold text-teal-700 transition hover:bg-teal-100 disabled:opacity-60"
+                >
+                  {botActionLoading ? <Loader2 size={14} className="animate-spin" /> : null}
+                  <span>Reactivar bot</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handlePauseBot}
+                  disabled={botActionLoading}
+                  className="inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700 transition hover:bg-amber-100 disabled:opacity-60"
+                >
+                  {botActionLoading ? <Loader2 size={14} className="animate-spin" /> : null}
+                  <span>Pausar bot</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={handleDeleteConversation}
+                className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-600 transition hover:bg-red-100"
+              >
+                <Trash2 size={14} />
+                <span className="hidden sm:inline">Borrar</span>
+              </button>
+            </div>
           )}
         </header>
 
