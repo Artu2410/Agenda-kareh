@@ -88,14 +88,30 @@ const buildObraSocialSchemeReplyText = (coverageName) => [
   '',
   'Para organizar tu tratamiento de 10 sesiones, elegí el esquema de días que prefieras:',
   '',
-  '1️⃣ *Lunes y Miércoles* (17:30 a 19:00 hs)',
-  '2️⃣ *Lunes, Miércoles y Viernes* (17:30 a 19:00 hs)',
-  '3️⃣ *Martes y Jueves* (17:30 a 19:00 hs)',
-  '4️⃣ *Sábados* (08:00 a 12:00 hs)',
-  '',
-  'Escribí *1, 2, 3 o 4* para continuar.',
+  ...[
+    '6️⃣ *Lunes y Miércoles* (17:30 a 19:00 hs)',
+    '7️⃣ *Lunes, Miércoles y Viernes* (17:30 a 19:00 hs)',
+    '8️⃣ *Martes y Jueves* (17:30 a 19:00 hs)',
+    '9️⃣ *Sábados* (08:00 a 12:00 hs)',
+    '',
+    'Ejemplo: turnos de *Lunes y Miércoles 18:30 hs*, duración aprox. *50 min*.',
+    '',
+    'Escribí *6, 7, 8 o 9* para continuar.',
+  ],
   '0️⃣ Volver al inicio.',
 ].join('\n');
+
+const TREATMENT_SCHEME_OPTIONS_LINES = [
+  '',
+  '6️⃣ *Lunes y Miércoles* (17:30 a 19:00 hs)',
+  '7️⃣ *Lunes, Miércoles y Viernes* (17:30 a 19:00 hs)',
+  '8️⃣ *Martes y Jueves* (17:30 a 19:00 hs)',
+  '9️⃣ *Sábados* (08:00 a 12:00 hs)',
+  '',
+  'Ejemplo: turnos de *Lunes y Miércoles 18:30 hs*, duración aprox. *50 min*.',
+  '',
+  'Escribí *6, 7, 8 o 9* para continuar.',
+];
 
 const AUTO_REPLY_PARTICULAR_TEXT = [
   '¡Entendido! Información para sesiones *Particulares*:',
@@ -105,13 +121,7 @@ const AUTO_REPLY_PARTICULAR_TEXT = [
   '_(Solo efectivo)_',
   '',
   'Para organizar tu tratamiento, elegí el esquema de días que prefieras:',
-  '',
-  '1️⃣ *Lunes y Miércoles* (17:30 a 19:00 hs)',
-  '2️⃣ *Lunes, Miércoles y Viernes* (17:30 a 19:00 hs)',
-  '3️⃣ *Martes y Jueves* (17:30 a 19:00 hs)',
-  '4️⃣ *Sábados* (08:00 a 12:00 hs)',
-  '',
-  'Escribí *1, 2, 3 o 4* para continuar.',
+  ...TREATMENT_SCHEME_OPTIONS_LINES,
   '0️⃣ Volver al inicio.',
 ].join('\n');
 
@@ -122,13 +132,7 @@ const AUTO_REPLY_PAMI_TEXT = [
   '(Solo efectivo).',
   '',
   'Para organizar tu tratamiento, elegí el esquema de días que prefieras:',
-  '',
-  '1️⃣ *Lunes y Miércoles* (17:30 a 19:00 hs)',
-  '2️⃣ *Lunes, Miércoles y Viernes* (17:30 a 19:00 hs)',
-  '3️⃣ *Martes y Jueves* (17:30 a 19:00 hs)',
-  '4️⃣ *Sábados* (08:00 a 12:00 hs)',
-  '',
-  'Escribí *1, 2, 3 o 4* para continuar.',
+  ...TREATMENT_SCHEME_OPTIONS_LINES,
   '0️⃣ Volver al inicio.',
 ].join('\n');
 
@@ -137,13 +141,7 @@ const AUTO_REPLY_RESPIRATORIO_TEXT = [
   '💰 Valor de la sesión: $30.000 (solo efectivo).',
   '',
   'Para organizar tu tratamiento, elegí el esquema de días que prefieras:',
-  '',
-  '1️⃣ *Lunes y Miércoles* (17:30 a 19:00 hs)',
-  '2️⃣ *Lunes, Miércoles y Viernes* (17:30 a 19:00 hs)',
-  '3️⃣ *Martes y Jueves* (17:30 a 19:00 hs)',
-  '4️⃣ *Sábados* (08:00 a 12:00 hs)',
-  '',
-  'Escribí *1, 2, 3 o 4* para continuar.',
+  ...TREATMENT_SCHEME_OPTIONS_LINES,
   '0️⃣ Volver al inicio.',
 ].join('\n');
 
@@ -581,10 +579,10 @@ const GREETING_PREFIXES = ['hola', 'buenas', 'buen dia', 'buenos dias', 'buenas 
 
 const MENU_COMMAND_PATTERNS = [/^(0|menu|menu principal|volver|inicio)(\b.*)?$/];
 const LISTO_COMMAND_PATTERNS = [/^(listo|ya esta|ya envie todo|termine)(\b.*)?$/];
-const SCHEME_1_PATTERNS = [/^(1|opcion 1|lunes y miercoles|lun y miercoles|lunes miercoles)(\b.*)?$/];
-const SCHEME_2_PATTERNS = [/^(2|opcion 2|lunes miercoles y viernes|lunes y miercoles y viernes|lun mie vie)(\b.*)?$/];
-const SCHEME_3_PATTERNS = [/^(3|opcion 3|martes y jueves|martes jueves|mar y jue)(\b.*)?$/];
-const SCHEME_4_PATTERNS = [/^(4|opcion 4|sabado|sabados|sábado|sábados)(\b.*)?$/];
+const SCHEME_1_PATTERNS = [/^(1|6|opcion 1|opcion 6|lunes y miercoles|lun y miercoles|lunes miercoles)(\b.*)?$/];
+const SCHEME_2_PATTERNS = [/^(2|7|opcion 2|opcion 7|lunes miercoles y viernes|lunes y miercoles y viernes|lun mie vie)(\b.*)?$/];
+const SCHEME_3_PATTERNS = [/^(3|8|opcion 3|opcion 8|martes y jueves|martes jueves|mar y jue)(\b.*)?$/];
+const SCHEME_4_PATTERNS = [/^(4|9|opcion 4|opcion 9|sabado|sabados|sábado|sábados)(\b.*)?$/];
 const SIMPLE_TREATMENT_PATTERNS = [/^(1|simple|tratamiento simple|una zona|1 zona|sencillo)(\b.*)?$/];
 const DOUBLE_TREATMENT_PATTERNS = [/^(2|doble|tratamiento doble|dos zonas|2 zonas)(\b.*)?$/];
 
@@ -624,16 +622,16 @@ const getCoverageInputLabel = (messageText) => {
 
 const getSelectedSchemeLabel = (normalizedText) => {
   if (isScheme1Selection(normalizedText)) {
-    return '1: Lunes y Miércoles (17:30 a 19:00 hs)';
+    return '6: Lunes y Miércoles (17:30 a 19:00 hs)';
   }
   if (isScheme2Selection(normalizedText)) {
-    return '2: Lunes, Miércoles y Viernes (17:30 a 19:00 hs)';
+    return '7: Lunes, Miércoles y Viernes (17:30 a 19:00 hs)';
   }
   if (isScheme3Selection(normalizedText)) {
-    return '3: Martes y Jueves (17:30 a 19:00 hs)';
+    return '8: Martes y Jueves (17:30 a 19:00 hs)';
   }
   if (isScheme4Selection(normalizedText)) {
-    return '4: Sábados (08:00 a 12:00 hs)';
+    return '9: Sábados (08:00 a 12:00 hs)';
   }
   return null;
 };
