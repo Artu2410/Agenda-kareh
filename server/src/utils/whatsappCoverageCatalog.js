@@ -22,7 +22,7 @@ const INITIAL_COVERAGES = [
   { name: 'FEDERADA SALUD', aliases: ['Federada'], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
   { name: 'FUTBOLISTAS', aliases: [], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
   { name: 'GLOBAL EMPRESARIA', aliases: ['GLOBAL MPRESARIA'], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
-  { name: 'IOMA', aliases: [], isActive: true, documentationRequired: 'Orden + Planilla Firmas' },
+  { name: 'IOMA', aliases: [], isActive: true, documentationRequired: 'Orden sellada y firmada' },
   { name: 'JERÁRQUICOS SALUD', aliases: ['Jerárquicos'], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
   { name: 'LUIS PASTEUR', aliases: ['Pasteur'], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
   { name: 'MEDICUS', aliases: [], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
