@@ -10,7 +10,6 @@ import {
 } from '../services/whatsapp.js';
 import { normalizePhone } from '../utils/phone.js';
 import {
-  findInMemoryWhatsAppCoverageById,
   findInMemoryWhatsAppCoverageByInput,
 } from '../utils/whatsappCoverageCatalog.js';
 
@@ -54,7 +53,7 @@ const DEFAULT_WELCOME_TEXT = [
   '',
   'Para asesorarte con tu turno, por favor enviá el número de tu opción:',
   '',
-  '1️⃣ Obra Social / Prepaga / ART',
+  '1️⃣ Indicar nombre de Obra Social / Prepaga / ART',
   '2️⃣ Particular',
   '3️⃣ PAMI Particular',
   '4️⃣ Kinesiología Respiratoria',
@@ -64,16 +63,12 @@ const DEFAULT_WELCOME_TEXT = [
 ].join('\n');
 
 const AUTO_REPLY_OBRA_SOCIAL_TEXT = [
-  '¡Perfecto! Por favor, decinos el nombre de tu Obra Social, Prepaga o ART.',
+  '¡Perfecto! Primero indicanos el nombre de tu Obra Social, Prepaga o ART.',
   '',
-  'Para verificar cobertura y coordinar el horario, necesitamos:',
+  'Vamos a revisar si está dentro de las coberturas que atendemos.',
   '',
-  '✅ Nombre, Apellido y DNI',
-  '✅ Fecha de nacimiento',
-  '📸 Foto de la Orden Médica (legible)',
-  '🩺 Antecedentes: Marcapasos, cáncer u otra condición.',
-  '',
-  'Cuando recibamos la documentación, un administrador seguirá la conversación y te ofrecerá los horarios disponibles. ⏳',
+  'Si trabajamos con esa cobertura, te pedimos la documentación para continuar.',
+  'Si no está dentro del listado, te ofrecemos la opción *Particular*.',
   '',
   '0️⃣ Volver al inicio.',
 ].join('\n');
@@ -100,9 +95,14 @@ const buildInactiveCoverageReplyText = (coverageName) => [
 const buildActiveCoverageReplyText = (coverageName) => [
   `¡Perfecto! Tenemos convenio con *${coverageName}* ✅`,
   '',
-  'Continuá enviando la documentación solicitada para revisar la cobertura y coordinar el horario.',
+  'Para verificar cobertura y coordinar el horario, necesitamos:',
   '',
-  'Cuando recibamos la documentación, un administrador seguirá la conversación. ⏳',
+  '✅ Nombre, Apellido y DNI',
+  '✅ Fecha de nacimiento',
+  '📸 Foto de la Orden Médica (legible)',
+  '🩺 Antecedentes: Marcapasos, cáncer u otra condición.',
+  '',
+  'Cuando recibamos la documentación, un administrador seguirá la conversación y te ofrecerá los horarios disponibles. ⏳',
   '',
   '0️⃣ Volver al inicio.',
 ].join('\n');
@@ -134,7 +134,6 @@ const AUTO_REPLY_PAMI_TEXT = [
   '✅ Número de afiliado',
   '✅ Fecha de nacimiento',
   '📸 Foto de la Orden Médica (legible)',
-  '📸 Foto de DNI y Credencial (ambos lados)',
   '🩺 Antecedentes: Marcapasos, cáncer u otra condición.',
   '',
   'Cuando recibamos la documentación, un administrador seguirá la conversación para coordinar el horario. ⏳',
@@ -561,6 +560,9 @@ const GREETING_PREFIXES = ['hola', 'buenas', 'buen dia', 'buenos dias', 'buenas 
 
 const MENU_COMMAND_PATTERNS = [/^(0|menu|menu principal|volver|inicio)(\b.*)?$/];
 const LISTO_COMMAND_PATTERNS = [/^(listo|ya esta|ya envie todo|termine)(\b.*)?$/];
+const GENERIC_COVERAGE_PROMPT_PATTERNS = [
+  /^(obra social|obras sociales|prepaga|prepagas|art|cobertura|coberturas|mutual)(\b.*)?$/,
+];
 
 const matchesAnyPattern = (text, patterns) => patterns.some((pattern) => pattern.test(text));
 
@@ -570,6 +572,7 @@ const isGreeting = (normalizedText) => GREETING_PREFIXES.some(
 
 const isMenuCommand = (normalizedText) => matchesAnyPattern(normalizedText, MENU_COMMAND_PATTERNS);
 const isListoCommand = (normalizedText) => matchesAnyPattern(normalizedText, LISTO_COMMAND_PATTERNS);
+const isGenericCoveragePrompt = (normalizedText) => matchesAnyPattern(normalizedText, GENERIC_COVERAGE_PROMPT_PATTERNS);
 
 const canApplyDirectIntent = (currentStateBase) => !currentStateBase
   || currentStateBase === FLOW_STATES.WELCOME
@@ -617,6 +620,14 @@ const getConversationAutoReply = ({
 
   if (currentStateBase === FLOW_STATES.HUMAN_HANDOFF) {
     return null;
+  }
+
+  if (normalized && currentStateBase === FLOW_STATES.OBRA_SOCIAL && isGenericCoveragePrompt(normalized)) {
+    return {
+      type: 'text',
+      text: AUTO_REPLY_OBRA_SOCIAL_TEXT,
+      nextState: FLOW_STATES.OBRA_SOCIAL,
+    };
   }
 
   if (
