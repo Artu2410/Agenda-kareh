@@ -563,6 +563,10 @@ const LISTO_COMMAND_PATTERNS = [/^(listo|ya esta|ya envie todo|termine)(\b.*)?$/
 const GENERIC_COVERAGE_PROMPT_PATTERNS = [
   /^(obra social|obras sociales|prepaga|prepagas|art|cobertura|coberturas|mutual)(\b.*)?$/,
 ];
+const LOCATION_INTENT_PATTERNS = [
+  /^(5|5 ubicacion|5 ubicacion y horarios)$/,
+  /\b(ubicacion|direccion|donde estan|donde quedan|mapa|horario|horarios)\b/,
+];
 
 const matchesAnyPattern = (text, patterns) => patterns.some((pattern) => pattern.test(text));
 
@@ -573,6 +577,7 @@ const isGreeting = (normalizedText) => GREETING_PREFIXES.some(
 const isMenuCommand = (normalizedText) => matchesAnyPattern(normalizedText, MENU_COMMAND_PATTERNS);
 const isListoCommand = (normalizedText) => matchesAnyPattern(normalizedText, LISTO_COMMAND_PATTERNS);
 const isGenericCoveragePrompt = (normalizedText) => matchesAnyPattern(normalizedText, GENERIC_COVERAGE_PROMPT_PATTERNS);
+const isLocationIntent = (normalizedText) => matchesAnyPattern(normalizedText, LOCATION_INTENT_PATTERNS);
 
 const canApplyDirectIntent = (currentStateBase) => !currentStateBase
   || currentStateBase === FLOW_STATES.WELCOME
@@ -620,6 +625,14 @@ const getConversationAutoReply = ({
 
   if (currentStateBase === FLOW_STATES.HUMAN_HANDOFF) {
     return null;
+  }
+
+  if (normalized && isLocationIntent(normalized)) {
+    return {
+      type: 'text',
+      text: AUTO_REPLY_LOCATION_TEXT,
+      nextState: FLOW_STATES.LOCATION,
+    };
   }
 
   if (normalized && currentStateBase === FLOW_STATES.OBRA_SOCIAL && isGenericCoveragePrompt(normalized)) {
