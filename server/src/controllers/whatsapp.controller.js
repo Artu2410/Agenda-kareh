@@ -12,6 +12,7 @@ import { normalizePhone } from '../utils/phone.js';
 import {
   findInMemoryWhatsAppCoverageByInput,
 } from '../utils/whatsappCoverageCatalog.js';
+import { transcribeAudioBuffer } from '../services/audioTranscription.js';
 
 const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
 const WELCOME_TEMPLATE = process.env.WHATSAPP_WELCOME_TEMPLATE || 'bienvenida_kareh';
@@ -289,6 +290,7 @@ const MIME_EXTENSION = {
 };
 
 const WHATSAPP_OUTBOUND_PLACEHOLDER = '[Archivo adjunto]';
+const WHATSAPP_AUDIO_PLACEHOLDER = '[Audio]';
 
 const getPreviewText = (message) => {
   if (!message) return '';
@@ -298,6 +300,7 @@ const getPreviewText = (message) => {
     return emoji ? `Reaccionó ${emoji}` : '[Reacción]';
   }
   if (message.type === 'sticker') return '[Sticker]';
+  if (message.type === 'audio') return WHATSAPP_AUDIO_PLACEHOLDER;
   const caption = message[message.type]?.caption;
   return caption || `[${message.type || 'archivo'}]`;
 };
@@ -310,9 +313,23 @@ const getMediaInfoFromMessage = (message) => {
     mediaId: payload.id,
     mimeType: payload.mime_type,
     sha256: payload.sha256,
-    filename: payload.filename || (message.type === 'sticker' ? 'sticker.webp' : null),
+    filename: payload.filename
+      || (message.type === 'sticker' ? 'sticker.webp' : null)
+      || (message.type === 'audio' ? `audio${MIME_EXTENSION[payload.mime_type] ? `.${MIME_EXTENSION[payload.mime_type]}` : '.ogg'}` : null),
     caption: payload.caption || null,
   };
+};
+
+const isAudioMessageType = (messageType, mimeType) => messageType === 'audio' || String(mimeType || '').startsWith('audio/');
+
+const buildAudioTranscriptText = (transcription) => `${WHATSAPP_AUDIO_PLACEHOLDER} ${transcription}`;
+
+const buildStoredInboundText = ({ message, transcribedText, mimeType }) => {
+  if (transcribedText && isAudioMessageType(message?.type, mimeType)) {
+    return buildAudioTranscriptText(transcribedText);
+  }
+
+  return getPreviewText(message);
 };
 
 const ensureConversation = async ({ prisma, waId, profileName, phone }) => {
@@ -756,12 +773,18 @@ const storeInboundMedia = async ({ mediaId, mimeType, conversationId }) => {
   const contentType = mimeType || mediaInfo.mime_type || 'application/octet-stream';
   const ext = MIME_EXTENSION[contentType] || 'bin';
   const key = `whatsapp/${conversationId}/${mediaId}.${ext}`;
-  
-  return uploadBufferToStorage({
+
+  const mediaUrl = await uploadBufferToStorage({
     buffer,
     key,
     contentType,
   });
+
+  return {
+    mediaUrl,
+    buffer,
+    contentType,
+  };
 };
 
 export const verifyWhatsAppWebhook = (req, res) => {
@@ -809,7 +832,36 @@ export const handleWhatsAppWebhook = async (req, res, prisma) => {
             || (now - new Date(lastInbound.createdAt) > WELCOME_COOLDOWN_MS);
 
           const mediaMeta = getMediaInfoFromMessage(message);
-          const inboundText = message.type === 'text' ? message.text?.body || '' : '';
+          let mediaUrl = null;
+          let mediaBuffer = null;
+          let mediaMimeType = mediaMeta?.mimeType || null;
+
+          if (mediaMeta?.mediaId) {
+            const storedMedia = await storeInboundMedia({
+              mediaId: mediaMeta.mediaId,
+              mimeType: mediaMeta.mimeType,
+              conversationId: conversation.id,
+            });
+            mediaUrl = storedMedia?.mediaUrl || null;
+            mediaBuffer = storedMedia?.buffer || null;
+            mediaMimeType = storedMedia?.contentType || mediaMimeType;
+          }
+
+          let transcribedAudioText = null;
+          if (isAudioMessageType(message.type, mediaMimeType) && mediaBuffer) {
+            try {
+              transcribedAudioText = await transcribeAudioBuffer({
+                audioBuffer: mediaBuffer,
+                mimeType: mediaMimeType,
+              });
+            } catch (transcriptionError) {
+              console.error('Error transcribiendo audio de WhatsApp:', transcriptionError);
+            }
+          }
+
+          const inboundText = message.type === 'text'
+            ? message.text?.body || ''
+            : (transcribedAudioText || '');
           const extractedPatientName = extractPatientName(inboundText);
           const effectiveState = shouldResetSession
             ? FLOW_STATES.WELCOME
@@ -824,24 +876,20 @@ export const handleWhatsAppWebhook = async (req, res, prisma) => {
           });
           const nextConversationState = autoReply?.nextState || effectiveState;
           const nextProfileName = extractedPatientName || incomingProfileName || conversation.profileName;
-
-          let mediaUrl = null;
-          if (mediaMeta?.mediaId) {
-            mediaUrl = await storeInboundMedia({
-              mediaId: mediaMeta.mediaId,
-              mimeType: mediaMeta.mimeType,
-              conversationId: conversation.id,
-            });
-          }
+          const storedInboundText = buildStoredInboundText({
+            message,
+            transcribedText: transcribedAudioText,
+            mimeType: mediaMimeType,
+          });
 
           await prisma.whatsAppMessage.create({
             data: {
               conversationId: conversation.id,
               direction: 'inbound',
               type: message.type,
-              text: getPreviewText(message),
+              text: storedInboundText,
               mediaUrl,
-              mediaMime: mediaMeta?.mimeType,
+              mediaMime: mediaMimeType,
               mediaSha256: mediaMeta?.sha256,
               mediaName: mediaMeta?.filename,
               waMessageId: message.id,
@@ -853,7 +901,7 @@ export const handleWhatsAppWebhook = async (req, res, prisma) => {
             where: { id: conversation.id },
             data: {
               lastMessageAt: new Date(),
-              lastMessageText: getPreviewText(message),
+              lastMessageText: storedInboundText,
               profileName: nextProfileName || undefined,
               currentState: nextConversationState,
               unreadCount: { increment: 1 },
