@@ -211,6 +211,22 @@ const WhatsAppPage = () => {
     }
   }, []);
 
+  const refreshInbox = useCallback(async ({
+    silentConversations = true,
+    silentMessages = true,
+    forceStickToBottom = false,
+  } = {}) => {
+    await loadConversations({ silent: silentConversations });
+
+    const currentSelectedId = selectedIdRef.current;
+    if (!currentSelectedId) return;
+
+    await loadMessages(currentSelectedId, {
+      silent: silentMessages,
+      forceStickToBottom,
+    });
+  }, [loadConversations, loadMessages]);
+
   useEffect(() => {
     const handleResize = () => {
       const nextMobileViewport = isMobileViewport();
@@ -227,13 +243,34 @@ const WhatsAppPage = () => {
   }, [conversations]);
 
   useEffect(() => {
-    loadConversations({ silent: false });
+    refreshInbox({ silentConversations: false, silentMessages: false, forceStickToBottom: true });
     const interval = setInterval(() => {
-      loadConversations();
-    }, 12000);
+      refreshInbox();
+    }, 8000);
 
     return () => clearInterval(interval);
-  }, [loadConversations]);
+  }, [refreshInbox]);
+
+  useEffect(() => {
+    const handleLiveRefresh = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        return;
+      }
+
+      refreshInbox({ forceStickToBottom: false });
+    };
+
+    handleLiveRefresh();
+    window.addEventListener('focus', handleLiveRefresh);
+    window.addEventListener('pageshow', handleLiveRefresh);
+    document.addEventListener('visibilitychange', handleLiveRefresh);
+
+    return () => {
+      window.removeEventListener('focus', handleLiveRefresh);
+      window.removeEventListener('pageshow', handleLiveRefresh);
+      document.removeEventListener('visibilitychange', handleLiveRefresh);
+    };
+  }, [refreshInbox]);
 
   useEffect(() => {
     if (!selectedId) return undefined;
@@ -244,7 +281,7 @@ const WhatsAppPage = () => {
 
     const interval = setInterval(() => {
       loadMessages(selectedId, { forceStickToBottom: false });
-    }, 6000);
+    }, 4000);
 
     return () => clearInterval(interval);
   }, [loadMessages, selectedId]);
