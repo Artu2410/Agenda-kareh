@@ -103,7 +103,7 @@ app.use(helmet({
             scriptSrc: ["'self'"],
             styleSrc: ["'self'", "'unsafe-inline'"],
             imgSrc: ["'self'", 'data:', 'https:'],
-            connectSrc: ["'self'", 'https:'],
+            connectSrc: ["'self'", 'https://agenda-kareh.vercel.app', 'https://kareh-salud.vercel.app', 'https://kareh-backend.onrender.com', 'https:'],
             fontSrc: ["'self'", 'data:', 'https:'],
             objectSrc: ["'none'"],
             frameAncestors: ["'none'"],
