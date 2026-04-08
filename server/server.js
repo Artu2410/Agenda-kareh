@@ -95,6 +95,7 @@ app.use(cors({
 
 app.use(cookieParser());
 app.use(helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
     contentSecurityPolicy: {
         useDefaults: true,
         directives: {
