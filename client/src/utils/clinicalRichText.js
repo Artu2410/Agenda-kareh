@@ -1,5 +1,5 @@
 const HTML_TAG_PATTERN = /<\/?[a-z][\s\S]*>/i;
-const ALLOWED_TAGS = new Set(['B', 'STRONG', 'U', 'MARK', 'BR', 'DIV', 'P', 'SPAN', 'FONT']);
+const ALLOWED_TAGS = new Set(['B', 'STRONG', 'U', 'MARK', 'BR', 'DIV', 'P', 'SPAN', 'FONT', 'UL', 'OL', 'LI']);
 const ALLOWED_BACKGROUND_COLORS = new Map([
   ['#fde68a', '#fde68a'],
   ['rgb(253,230,138)', '#fde68a'],

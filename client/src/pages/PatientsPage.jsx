@@ -60,10 +60,18 @@ const formatBirthDateForInput = (birthDate) => (
   birthDate && !isUnknownBirthDate(birthDate) ? birthDate.split('T')[0] : ''
 );
 
-const sortByLastName = (items) => [...items].sort((a, b) => {
-  const nameA = String(a.fullName || '').split(' ').pop().toLowerCase();
-  const nameB = String(b.fullName || '').split(' ').pop().toLowerCase();
-  return nameA.localeCompare(nameB, 'es');
+const patientNameCollator = new Intl.Collator('es', {
+  sensitivity: 'base',
+  numeric: true,
+});
+
+const sortPatientsAlphabetically = (items) => [...items].sort((a, b) => {
+  const nameA = String(a.fullName || '').trim();
+  const nameB = String(b.fullName || '').trim();
+  const nameComparison = patientNameCollator.compare(nameA, nameB);
+
+  if (nameComparison !== 0) return nameComparison;
+  return patientNameCollator.compare(String(a.dni || ''), String(b.dni || ''));
 });
 
 const renderPatientBadges = (patient) => (
@@ -91,7 +99,7 @@ export default function PatientsPage() {
     try {
       setLoading(true);
       const response = await api.get('/patients/all');
-      setPatients(sortByLastName(response.data || []));
+      setPatients(sortPatientsAlphabetically(response.data || []));
     } catch (error) {
       console.error('Error cargando pacientes:', error);
     } finally {
@@ -105,9 +113,9 @@ export default function PatientsPage() {
 
   const filteredPatients = useMemo(() => {
     const normalizedTerm = searchTerm.trim().toLowerCase();
-    if (!normalizedTerm) return sortByLastName(patients);
+    if (!normalizedTerm) return sortPatientsAlphabetically(patients);
 
-    return sortByLastName(
+    return sortPatientsAlphabetically(
       patients.filter((patient) => (
         patient.fullName?.toLowerCase().includes(normalizedTerm)
         || patient.dni?.includes(searchTerm)

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Bold, Eraser, Highlighter, Underline } from 'lucide-react';
+import { Bold, Eraser, Highlighter, List, Underline } from 'lucide-react';
 import {
   isClinicalRichTextEmpty,
   normalizeClinicalRichTextHtml,
@@ -94,6 +94,9 @@ export default function RichTextEditor({
         <ToolbarButton title="Subrayado" onClick={() => handleCommand('underline')}>
           <Underline size={16} />
         </ToolbarButton>
+        <ToolbarButton title="Viñetas" onClick={() => handleCommand('insertUnorderedList')}>
+          <List size={16} />
+        </ToolbarButton>
         {HIGHLIGHT_OPTIONS.map((option) => (
           <ToolbarButton
             key={option.color}
@@ -127,7 +130,7 @@ export default function RichTextEditor({
             setIsFocused(false);
             emitChange();
           }}
-          className="min-h-[220px] w-full bg-transparent px-1 text-base leading-8 text-slate-700 outline-none"
+          className="min-h-[220px] w-full bg-transparent px-1 text-base leading-8 text-slate-700 outline-none [&_li]:mb-1 [&_ol]:list-decimal [&_ol]:pl-6 [&_ul]:list-disc [&_ul]:pl-6"
           style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}
         />
       </div>

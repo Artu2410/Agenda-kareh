@@ -331,6 +331,24 @@ const buildClinicalHistoryPrintHtml = ({ patientSummary, entries }) => {
             word-break: break-word;
           }
 
+          .evolution-block ul,
+          .evolution-block ol {
+            margin: 14px 0;
+            padding-left: 24px;
+          }
+
+          .evolution-block ul {
+            list-style: disc;
+          }
+
+          .evolution-block ol {
+            list-style: decimal;
+          }
+
+          .evolution-block li + li {
+            margin-top: 6px;
+          }
+
           .evolution-block mark {
             padding: 0 4px;
             border-radius: 3px;
@@ -1354,7 +1372,7 @@ const ClinicalHistoryPage = () => {
                         'Sin evolución registrada.'
                       ) : (
                         <div
-                          className="space-y-3 break-words [&_mark]:rounded-sm [&_mark]:px-1 [&_span]:break-words [&_strong]:font-black [&_u]:underline"
+                          className="space-y-3 break-words [&_li]:mb-2 [&_mark]:rounded-sm [&_mark]:px-1 [&_ol]:list-decimal [&_ol]:pl-6 [&_span]:break-words [&_strong]:font-black [&_u]:underline [&_ul]:list-disc [&_ul]:pl-6"
                           dangerouslySetInnerHTML={{ __html: normalizeClinicalRichTextHtml(entry.evolution) }}
                         />
                       )}
