@@ -1,4 +1,5 @@
 const DEFAULT_DOCUMENTATION = 'Orden + Credencial';
+const LUIS_PASTEUR_DOCUMENTATION = `${DEFAULT_DOCUMENTATION} + Autoriza el paciente en su obra social por mail a nombre de "colegio de kinesiologos pcia bs as"`;
 const ART_DOCUMENTATION = 'N° Siniestro + Orden';
 const CONSULTAR_DOCUMENTATION = 'Consultar con administración';
 
@@ -24,7 +25,7 @@ const INITIAL_COVERAGES = [
   { name: 'GLOBAL EMPRESARIA', aliases: ['GLOBAL MPRESARIA'], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
   { name: 'IOMA', aliases: [], isActive: true, documentationRequired: 'Orden sellada y firmada' },
   { name: 'JERÁRQUICOS SALUD', aliases: ['Jerárquicos'], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
-  { name: 'LUIS PASTEUR', aliases: ['Pasteur'], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
+  { name: 'LUIS PASTEUR', aliases: ['Pasteur'], isActive: true, documentationRequired: LUIS_PASTEUR_DOCUMENTATION },
   { name: 'MEDICUS', aliases: [], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
   { name: 'MEDIFÉ', aliases: ['Medife'], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
   { name: 'OPDEA', aliases: [], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
