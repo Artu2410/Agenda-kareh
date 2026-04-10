@@ -505,6 +505,9 @@ const ClinicalHistoryPage = () => {
   const [dateSearch, setDateSearch] = useState('');
   
   const timers = useRef({});
+  const historyEntriesRef = useRef([]);
+  const inFlightSaveClientKeysRef = useRef(new Set());
+  const pendingResaveClientKeysRef = useRef(new Set());
   const storedHistoryContext = readClinicalHistoryContext();
   const activePatientId = location.state?.patientId || storedHistoryContext?.patientId || legacyPatientId || null;
 
@@ -516,6 +519,17 @@ const ClinicalHistoryPage = () => {
       });
     }
   }, [location.state]);
+
+  useEffect(() => {
+    historyEntriesRef.current = historyEntries;
+  }, [historyEntries]);
+
+  useEffect(() => () => {
+    Object.values(timers.current).forEach((timerId) => {
+      window.clearTimeout(timerId);
+    });
+    timers.current = {};
+  }, []);
 
   // --- 1. FUNCIONES DE APOYO ---
   
@@ -602,6 +616,46 @@ const ClinicalHistoryPage = () => {
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
+  const createEntryClientKey = () => (
+    globalThis.crypto?.randomUUID?.() || `history-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+  );
+
+  const normalizeEntryState = (entry, fallbackClientKey = null) => ({
+    ...entry,
+    clientKey: entry?.clientKey || fallbackClientKey || String(entry?.id || createEntryClientKey()),
+    attachments: ensureArray(entry?.attachments),
+    date: entry?.date || (entry?.createdAt ? entry.createdAt.split('T')[0] : new Date().toISOString().split('T')[0]),
+    evolution: normalizeClinicalRichTextHtml(entry?.evolution || ''),
+    status: entry?.status || 'saved',
+    isVisible: entry?.isVisible ?? true,
+  });
+
+  const serializeEntrySnapshot = (entry) => JSON.stringify({
+    diagnosis: String(entry?.diagnosis || ''),
+    evolution: normalizeClinicalRichTextHtml(entry?.evolution || ''),
+    date: String(entry?.date || ''),
+    attachments: ensureArray(entry?.attachments),
+  });
+
+  const findEntryByClientKey = (clientKey) => (
+    historyEntriesRef.current.find((entry) => entry.clientKey === clientKey) || null
+  );
+
+  const clearEntryTimer = (clientKey) => {
+    if (timers.current[clientKey]) {
+      window.clearTimeout(timers.current[clientKey]);
+      delete timers.current[clientKey];
+    }
+  };
+
+  const updateEntryByClientKey = (clientKey, updater) => {
+    setHistoryEntries((prev) => prev.map((entry) => (
+      entry.clientKey === clientKey
+        ? normalizeEntryState(updater(entry), clientKey)
+        : entry
+    )));
+  };
+
   // --- 2. CARGA DE DATOS ---
   useEffect(() => {
     if (!activePatientId) {
@@ -623,14 +677,9 @@ const ClinicalHistoryPage = () => {
           patientName: pRes.data.fullName || '',
         });
         
-        const formattedEntries = (Array.isArray(hRes.data) ? hRes.data : []).map(e => ({ 
-          ...e, 
-          attachments: ensureArray(e.attachments),
-          date: e.createdAt ? e.createdAt.split('T')[0] : new Date().toISOString().split('T')[0],
-          evolution: normalizeClinicalRichTextHtml(e.evolution || ''),
-          status: 'saved',
-          isVisible: true 
-        }));
+        const formattedEntries = (Array.isArray(hRes.data) ? hRes.data : []).map((entry) => (
+          normalizeEntryState(entry, String(entry.id))
+        ));
         setHistoryEntries(formattedEntries);
       } catch {
         toast.error('Error al conectar con el servidor');
@@ -661,35 +710,95 @@ const ClinicalHistoryPage = () => {
     }
   };
 
-  const saveEntry = async (entry) => {
-    if (isClinicalRichTextEmpty(entry.evolution) && !entry.diagnosis?.trim() && entry.id.toString().startsWith('temp-')) return;
-    
-    setHistoryEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'saving' } : e));
+  const saveEntry = async (entryInput) => {
+    const entry = normalizeEntryState(entryInput, entryInput?.clientKey);
+    const entryClientKey = entry.clientKey;
+
+    if (isClinicalRichTextEmpty(entry.evolution) && !entry.diagnosis?.trim() && String(entry.id).startsWith('temp-')) {
+      return;
+    }
+
+    if (inFlightSaveClientKeysRef.current.has(entryClientKey)) {
+      pendingResaveClientKeysRef.current.add(entryClientKey);
+      return;
+    }
+
+    const requestSnapshot = serializeEntrySnapshot(entry);
+    inFlightSaveClientKeysRef.current.add(entryClientKey);
+    setHistoryEntries((prev) => prev.map((currentEntry) => (
+      currentEntry.clientKey === entryClientKey
+        ? { ...currentEntry, status: 'saving' }
+        : currentEntry
+    )));
+
     try {
       const payload = {
         patientId: activePatientId,
-        diagnosis: entry.diagnosis || "",
-        evolution: normalizeClinicalRichTextHtml(entry.evolution || ""),
+        diagnosis: entry.diagnosis || '',
+        evolution: normalizeClinicalRichTextHtml(entry.evolution || ''),
         createdAt: entry.date,
-        attachments: JSON.stringify(entry.attachments)
+        attachments: JSON.stringify(entry.attachments),
       };
 
-      let res = entry.id.toString().startsWith('temp-')
+      const response = String(entry.id).startsWith('temp-')
         ? await api.post('/clinical-history', payload)
         : await api.put(`/clinical-history/${entry.id}`, payload);
-      
-      const savedData = { 
-        ...res.data, 
-        attachments: ensureArray(res.data.attachments), 
-        date: res.data.createdAt.split('T')[0],
-        evolution: normalizeClinicalRichTextHtml(res.data.evolution || ''),
+
+      const savedData = normalizeEntryState({
+        ...response.data,
+        clientKey: entryClientKey,
         status: 'saved',
-        isVisible: true
-      };
-      setHistoryEntries(prev => prev.map(e => (e.id === entry.id ? savedData : e)));
+        isVisible: entry.isVisible,
+      }, entryClientKey);
+
+      setHistoryEntries((prev) => prev.map((currentEntry) => {
+        if (currentEntry.clientKey !== entryClientKey) return currentEntry;
+
+        if (serializeEntrySnapshot(currentEntry) !== requestSnapshot) {
+          return {
+            ...currentEntry,
+            id: String(currentEntry.id).startsWith('temp-') ? savedData.id : currentEntry.id,
+            status: 'typing',
+          };
+        }
+
+        return {
+          ...currentEntry,
+          ...savedData,
+          status: 'saved',
+        };
+      }));
     } catch {
-      setHistoryEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'error' } : e));
+      setHistoryEntries((prev) => prev.map((currentEntry) => (
+        currentEntry.clientKey === entryClientKey
+          ? { ...currentEntry, status: 'error' }
+          : currentEntry
+      )));
+    } finally {
+      inFlightSaveClientKeysRef.current.delete(entryClientKey);
+
+      if (pendingResaveClientKeysRef.current.has(entryClientKey)) {
+        pendingResaveClientKeysRef.current.delete(entryClientKey);
+        window.setTimeout(() => {
+          const currentEntry = findEntryByClientKey(entryClientKey);
+          if (!currentEntry) return;
+          void saveEntry(currentEntry);
+        }, 0);
+      }
     }
+  };
+
+  const queueSaveEntry = (clientKey, delayMs = 0) => {
+    clearEntryTimer(clientKey);
+
+    const runSave = () => {
+      delete timers.current[clientKey];
+      const currentEntry = findEntryByClientKey(clientKey);
+      if (!currentEntry) return;
+      void saveEntry(currentEntry);
+    };
+
+    timers.current[clientKey] = window.setTimeout(runSave, Math.max(0, delayMs));
   };
 
   const uploadAttachment = async (file, entryId) => {
@@ -731,7 +840,7 @@ const ClinicalHistoryPage = () => {
     reader.readAsDataURL(file);
   });
 
-  const handleFileUpload = async (entryId, e) => {
+  const handleFileUpload = async (clientKey, e) => {
     const file = e.target.files[0];
     if (!file) return;
 
@@ -745,21 +854,27 @@ const ClinicalHistoryPage = () => {
 
     toast.loading(isPdf ? 'Subiendo PDF...' : (isImage ? 'Procesando imagen...' : 'Subiendo archivo...'), { id: 'uploading' });
     try {
+      const currentEntry = findEntryByClientKey(clientKey);
+      if (!currentEntry) {
+        toast.error('La sesión ya no está disponible.', { id: 'uploading' });
+        return;
+      }
+
       const fileToUpload = isImage ? await compressImage(file) : file;
-      const attachment = await uploadAttachment(fileToUpload, entryId);
-      setHistoryEntries(prev => prev.map(h => {
-        if (h.id === entryId) {
-          const updated = { ...h, attachments: [...(h.attachments || []), attachment] };
-          saveEntry(updated);
-          return updated;
-        }
-        return h;
+      const attachment = await uploadAttachment(fileToUpload, currentEntry.id);
+      updateEntryByClientKey(clientKey, (entry) => ({
+        ...entry,
+        attachments: [...(entry.attachments || []), attachment],
+        status: 'typing',
       }));
+      queueSaveEntry(clientKey);
       toast.success('Archivo guardado', { id: 'uploading' });
     } catch (error) {
       console.error('Error subiendo archivo:', error);
       const message = error?.response?.data?.message || error?.response?.data?.detail || 'No se pudo subir el archivo.';
       toast.error(message, { id: 'uploading' });
+    } finally {
+      e.target.value = '';
     }
   };
 
@@ -998,7 +1113,22 @@ const ClinicalHistoryPage = () => {
                   />
                 </div>
                 <button 
-                  onClick={() => setHistoryEntries([{ id: `temp-${Date.now()}`, date: new Date().toISOString().split('T')[0], diagnosis: '', evolution: '', attachments: [], status: 'typing', isVisible: true }, ...historyEntries])}
+                  onClick={() => {
+                    const clientKey = `temp-${Date.now()}`;
+                    setHistoryEntries((prev) => [
+                      normalizeEntryState({
+                        id: clientKey,
+                        clientKey,
+                        date: new Date().toISOString().split('T')[0],
+                        diagnosis: '',
+                        evolution: '',
+                        attachments: [],
+                        status: 'typing',
+                        isVisible: true,
+                      }, clientKey),
+                      ...prev,
+                    ]);
+                  }}
                   className="flex w-full items-center justify-center gap-2 rounded-xl bg-teal-600 px-6 py-2.5 text-[10px] font-black text-white shadow-lg hover:bg-teal-700 md:w-auto"
                 >
                   <PlusCircle size={16} /> NUEVA EVOLUCIÓN
@@ -1006,20 +1136,27 @@ const ClinicalHistoryPage = () => {
               </div>
 
               {filteredEntries.map((entry) => (
-                <div key={entry.id} className={`session-card border-2 transition-all rounded-[2.5rem] bg-white overflow-hidden ${!entry.isVisible ? 'opacity-40 grayscale is-hidden' : 'border-slate-100 shadow-sm'}`}>
+                <div key={entry.clientKey} className={`session-card border-2 transition-all rounded-[2.5rem] bg-white overflow-hidden ${!entry.isVisible ? 'opacity-40 grayscale is-hidden' : 'border-slate-100 shadow-sm'}`}>
                   <div className="flex flex-col gap-3 border-b bg-slate-50 px-4 py-4 sm:px-8 md:flex-row md:items-center md:justify-between">
                     <input 
                       type="date" 
                       className="bg-white px-3 py-1.5 rounded-xl border border-slate-200 font-black text-teal-700 text-[11px] outline-none" 
                       value={entry.date} 
                       onChange={(e) => {
-                        const newEntries = historyEntries.map(h => h.id === entry.id ? {...h, date: e.target.value} : h);
-                        setHistoryEntries(newEntries);
-                        saveEntry({...entry, date: e.target.value});
+                        updateEntryByClientKey(entry.clientKey, (currentEntry) => ({
+                          ...currentEntry,
+                          date: e.target.value,
+                          status: 'typing',
+                        }));
+                        queueSaveEntry(entry.clientKey);
                       }} 
                     />
                     <div className="flex items-center gap-3 no-print">
-                      <button onClick={() => setHistoryEntries(prev => prev.map(h => h.id === entry.id ? {...h, isVisible: !h.isVisible} : h))} className={`p-2 rounded-xl border ${entry.isVisible ? 'bg-white text-slate-400' : 'bg-amber-100 text-amber-600'}`}>
+                      <button onClick={() => setHistoryEntries((prev) => prev.map((currentEntry) => (
+                        currentEntry.clientKey === entry.clientKey
+                          ? { ...currentEntry, isVisible: !currentEntry.isVisible }
+                          : currentEntry
+                      )))} className={`p-2 rounded-xl border ${entry.isVisible ? 'bg-white text-slate-400' : 'bg-amber-100 text-amber-600'}`}>
                         {entry.isVisible ? <Eye size={16} /> : <EyeOff size={16} />}
                       </button>
                       <button 
@@ -1031,10 +1168,11 @@ const ClinicalHistoryPage = () => {
                             danger: true,
                             icon: Trash2,
                             onConfirm: async () => {
-                              if (!entry.id.toString().startsWith('temp-')) {
+                              clearEntryTimer(entry.clientKey);
+                              if (!String(entry.id).startsWith('temp-')) {
                                 await api.delete(`/clinical-history/${entry.id}`);
                               }
-                              setHistoryEntries((prev) => prev.filter((h) => h.id !== entry.id));
+                              setHistoryEntries((prev) => prev.filter((currentEntry) => currentEntry.clientKey !== entry.clientKey));
                               toast.success("Eliminado");
                             },
                           });
@@ -1056,18 +1194,24 @@ const ClinicalHistoryPage = () => {
                       placeholder="Diagnóstico..." 
                       value={entry.diagnosis} 
                       onChange={(e) => {
-                        setHistoryEntries(prev => prev.map(h => h.id === entry.id ? {...h, diagnosis: e.target.value, status: 'typing'} : h));
-                        if(timers.current[entry.id]) clearTimeout(timers.current[entry.id]);
-                        timers.current[entry.id] = setTimeout(() => saveEntry({...entry, diagnosis: e.target.value}), 2000);
+                        updateEntryByClientKey(entry.clientKey, (currentEntry) => ({
+                          ...currentEntry,
+                          diagnosis: e.target.value,
+                          status: 'typing',
+                        }));
+                        queueSaveEntry(entry.clientKey, 2000);
                       }} 
                     />
                     <RichTextEditor
                       value={entry.evolution}
                       placeholder="Evolución..."
                       onChange={(nextHtml) => {
-                        setHistoryEntries(prev => prev.map(h => h.id === entry.id ? {...h, evolution: nextHtml, status: 'typing'} : h));
-                        if(timers.current[entry.id]) clearTimeout(timers.current[entry.id]);
-                        timers.current[entry.id] = setTimeout(() => saveEntry({...entry, evolution: nextHtml}), 2000);
+                        updateEntryByClientKey(entry.clientKey, (currentEntry) => ({
+                          ...currentEntry,
+                          evolution: nextHtml,
+                          status: 'typing',
+                        }));
+                        queueSaveEntry(entry.clientKey, 2000);
                       }}
                     />
 
@@ -1093,9 +1237,12 @@ const ClinicalHistoryPage = () => {
                             </div>
                             <button 
                               onClick={() => {
-                                const updated = {...entry, attachments: entry.attachments.filter((_, i) => i !== idx)};
-                                setHistoryEntries(prev => prev.map(h => h.id === entry.id ? updated : h));
-                                saveEntry(updated);
+                                updateEntryByClientKey(entry.clientKey, (currentEntry) => ({
+                                  ...currentEntry,
+                                  attachments: currentEntry.attachments.filter((_, fileIndex) => fileIndex !== idx),
+                                  status: 'typing',
+                                }));
+                                queueSaveEntry(entry.clientKey);
                               }} 
                               className="absolute top-2 right-2 p-1.5 bg-red-600 text-white rounded-lg no-print"
                             >
@@ -1109,11 +1256,11 @@ const ClinicalHistoryPage = () => {
                     <div className="no-print flex flex-wrap gap-2 border-t border-slate-50 pt-4">
                       <label className="flex items-center gap-2 text-teal-600 text-[9px] font-black cursor-pointer bg-teal-50 px-4 py-2 rounded-xl border border-teal-100 hover:bg-teal-100">
                         <Camera size={14}/> CAPTURAR
-                        <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleFileUpload(entry.id, e)} />
+                        <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleFileUpload(entry.clientKey, e)} />
                       </label>
                       <label className="flex items-center gap-2 text-slate-500 text-[9px] font-black cursor-pointer bg-slate-50 px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-100">
                         <Upload size={14}/> ADJUNTAR
-                        <input type="file" className="hidden" onChange={(e) => handleFileUpload(entry.id, e)} />
+                        <input type="file" className="hidden" onChange={(e) => handleFileUpload(entry.clientKey, e)} />
                       </label>
                       <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">
                         Max {MAX_UPLOAD_MB}MB
