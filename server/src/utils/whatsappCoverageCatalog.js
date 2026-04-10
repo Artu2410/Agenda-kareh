@@ -43,7 +43,6 @@ const INITIAL_COVERAGES = [
   { name: 'SANCOR SALUD', aliases: ['Sancor'], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
   { name: 'SCIS S.A.', aliases: ['SCIS', 'SCIS SA'], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
   { name: 'SWISS MEDICAL', aliases: ['Swiss'], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
-  { name: 'UNION PERSONAL', aliases: ['UP'], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
   { name: 'LA HOLANDO ART', aliases: ['Holando Art', 'Holando'], isActive: true, documentationRequired: ART_DOCUMENTATION },
   { name: 'LA SEGUNDA ART', aliases: ['La Segunda', 'Segunda Art'], isActive: true, documentationRequired: ART_DOCUMENTATION },
   { name: 'OMINT ART (SERENA)', aliases: ['OMINT ART', 'SERENA'], isActive: true, documentationRequired: ART_DOCUMENTATION },
