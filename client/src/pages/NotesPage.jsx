@@ -124,6 +124,7 @@ export default function NotesPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState('Sincronizando con la clínica...');
+  const notesRef = useRef(initialState.notes);
   const lastSyncedSnapshotRef = useRef('');
   const lastLocalEditAtRef = useRef(0);
 
@@ -135,6 +136,10 @@ export default function NotesPage() {
       setSelectedNoteId(notes[0].id);
     }
   }, [notes, selectedNote]);
+
+  useEffect(() => {
+    notesRef.current = notes;
+  }, [notes]);
 
   useEffect(() => {
     persistNotesLocally(notes, selectedNoteSafeId);
@@ -155,6 +160,8 @@ export default function NotesPage() {
   }, []);
 
   const syncNotesToServer = useCallback(async (nextNotes, { showRefreshing = false } = {}) => {
+    const requestSnapshot = serializeNotesSnapshot(nextNotes);
+
     if (showRefreshing) {
       setIsRefreshing(true);
     } else {
@@ -171,6 +178,12 @@ export default function NotesPage() {
 
       const response = await api.put('/notes/sync', payload);
       const syncedNotes = mapServerNotes(response.data);
+      const currentSnapshot = serializeNotesSnapshot(notesRef.current);
+
+      if (currentSnapshot !== requestSnapshot) {
+        return syncedNotes;
+      }
+
       applyRemoteNotes(syncedNotes);
       setSyncStatus('Sincronizado entre dispositivos');
       return syncedNotes;
@@ -181,11 +194,26 @@ export default function NotesPage() {
   }, [applyRemoteNotes]);
 
   const refreshNotesFromServer = useCallback(async ({ silent = false } = {}) => {
+    const currentNotes = notesRef.current;
+    const currentSnapshot = serializeNotesSnapshot(currentNotes);
+
+    if (isRemoteReady && currentSnapshot !== lastSyncedSnapshotRef.current) {
+      if (!silent) {
+        setSyncStatus('Guardando cambios antes de recargar...');
+      }
+      return syncNotesToServer(currentNotes, { showRefreshing: !silent });
+    }
+
     if (!silent) setIsRefreshing(true);
 
     try {
       const response = await api.get('/notes');
       const remoteNotes = mapServerNotes(response.data);
+      const liveSnapshot = serializeNotesSnapshot(notesRef.current);
+
+      if (liveSnapshot !== lastSyncedSnapshotRef.current) {
+        return notesRef.current;
+      }
 
       if (remoteNotes.length > 0) {
         applyRemoteNotes(remoteNotes);
@@ -204,7 +232,7 @@ export default function NotesPage() {
       setIsRefreshing(false);
       setIsRemoteReady(true);
     }
-  }, [applyRemoteNotes, initialState.notes, syncNotesToServer]);
+  }, [applyRemoteNotes, initialState.notes, isRemoteReady, syncNotesToServer]);
 
   useEffect(() => {
     refreshNotesFromServer();
