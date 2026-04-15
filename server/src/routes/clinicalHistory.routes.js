@@ -27,7 +27,7 @@ export default function createClinicalHistoryRoutes(prisma) {
 
   // POST: Crear entrada y actualizar alertas (Atómico)
   router.post('/', async (req, res) => {
-    const { patientId, diagnosis, evolution, attachments, medicalConditions } = req.body;
+    const { patientId, diagnosis, evolution, attachments, medicalConditions, createdAt } = req.body;
 
     if (!patientId) {
       return res.status(400).json({ message: 'El ID del paciente es requerido' });
@@ -36,12 +36,15 @@ export default function createClinicalHistoryRoutes(prisma) {
     try {
       const result = await prisma.$transaction(async (tx) => {
         // 1. Crear la entrada
+        const requestedDate = createdAt ? new Date(createdAt) : new Date();
         const newEntry = await tx.clinicalHistory.create({
           data: {
             patientId,
             diagnosis: diagnosis || '',
             evolution: evolution || '',
             attachments: attachments ? (typeof attachments === 'string' ? attachments : JSON.stringify(attachments)) : "[]",
+            createdAt: requestedDate,
+            date: requestedDate,
           },
         });
 
@@ -80,6 +83,7 @@ export default function createClinicalHistoryRoutes(prisma) {
           evolution: evolution || '', 
           // Si el frontend envía 'date' o 'createdAt', lo procesamos:
           createdAt: createdAt ? new Date(createdAt) : undefined,
+          date: createdAt ? new Date(createdAt) : undefined,
           // Validamos que los adjuntos se guarden siempre como string
           attachments: attachments ? (typeof attachments === 'string' ? attachments : JSON.stringify(attachments)) : "[]",
         }
