@@ -642,7 +642,7 @@ const ClinicalHistoryPage = () => {
     ...entry,
     clientKey: entry?.clientKey || fallbackClientKey || String(entry?.id || createEntryClientKey()),
     attachments: ensureArray(entry?.attachments),
-    date: entry?.date || (entry?.createdAt ? entry.createdAt.split('T')[0] : new Date().toISOString().split('T')[0]),
+    date: (entry?.date || entry?.createdAt || new Date().toISOString()).split('T')[0],
     evolution: normalizeClinicalRichTextHtml(entry?.evolution || ''),
     status: entry?.status || 'saved',
     isVisible: entry?.isVisible ?? true,
