@@ -111,7 +111,7 @@ const buildActiveCoverageReplyText = (coverageName) => [
 const AUTO_REPLY_PARTICULAR_TEXT = [
   '¡Excelente! Información para sesiones *Particulares*:',
   '',
-  '💰 Valor: $15.000 por zona a tratar (solo efectivo).',
+  '💰 Valor: $15.000 por sesión en cada zona a tratar (solo efectivo).',
   '',
   'Para coordinar tu turno, envianos:',
   '✅ Nombre, Apellido y DNI',
@@ -128,7 +128,7 @@ const AUTO_REPLY_PARTICULAR_TEXT = [
 const AUTO_REPLY_PAMI_TEXT = [
   '¡Entendido! Para pacientes de PAMI el valor es diferencial:',
   '',
-  '💰 Valor bonificado: $10.000 por zona a tratar (solo efectivo).',
+  '💰 Valor bonificado: $10.000 por sesión en cada zona a tratar (solo efectivo).',
   '',
   'Para reservar tu lugar, envianos:',
   '✅ Nombre, Apellido y DNI',
@@ -145,7 +145,7 @@ const AUTO_REPLY_PAMI_TEXT = [
 const AUTO_REPLY_RESPIRATORIO_TEXT = [
   '¡Excelente! Información para sesiones Respiratorias:',
   '',
-  '💰 Valor: $30.000 (solo efectivo).',
+  '💰 Valor: 30.000 por sesión (solo efectivo).',
   '',
   'Para coordinar tu turno, envianos:',
   '✅ Nombre, Apellido y DNI',
