@@ -280,13 +280,24 @@ export const updateEvolution = async (req, res, prisma) => {
         // La info ya es visible en el panel INFORMACIÓN BASE y ALERTAS MÉDICAS
       }
       
-      if (evolutionForHistory.trim() !== '' || diagnosis) {
+      if (evolutionForHistory.trim() !== '') {
         await tx.clinicalHistory.create({
           data: {
             patientId: currentApt.patientId,
             professionalId: currentApt.professionalId,
             diagnosis: diagnosis || currentApt.diagnosis || "EVOLUCIÓN",
             evolution: evolutionForHistory,
+            date: new Date(),
+          },
+        });
+      } else if (diagnosis && diagnosis.toUpperCase() !== (currentApt.diagnosis || '')) {
+        // Si no hay evolución pero el diagnóstico cambió, guardamos el nuevo diagnóstico como evolución en la historia
+        await tx.clinicalHistory.create({
+          data: {
+            patientId: currentApt.patientId,
+            professionalId: currentApt.professionalId,
+            diagnosis: diagnosis.toUpperCase(),
+            evolution: "Actualización de diagnóstico/motivo desde la agenda.",
             date: new Date(),
           },
         });
