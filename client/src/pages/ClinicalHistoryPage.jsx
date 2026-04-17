@@ -880,12 +880,17 @@ const ClinicalHistoryPage = () => {
 
       const fileToUpload = isImage ? await compressImage(file) : file;
       const attachment = await uploadAttachment(fileToUpload, currentEntry.id);
-      updateEntryByClientKey(clientKey, (entry) => ({
-        ...entry,
-        attachments: [...(entry.attachments || []), attachment],
-        status: 'typing',
-      }));
-      queueSaveEntry(clientKey);
+      
+      const freshEntry = findEntryByClientKey(clientKey);
+      if (freshEntry) {
+        const entryToSave = {
+          ...freshEntry,
+          attachments: [...(freshEntry.attachments || []), attachment],
+          status: 'typing',
+        };
+        updateEntryByClientKey(clientKey, () => entryToSave);
+        void saveEntry(entryToSave);
+      }
       toast.success('Archivo guardado', { id: 'uploading' });
     } catch (error) {
       console.error('Error subiendo archivo:', error);
@@ -1161,12 +1166,16 @@ const ClinicalHistoryPage = () => {
                       className="bg-white px-3 py-1.5 rounded-xl border border-slate-200 font-black text-teal-700 text-[11px] outline-none" 
                       value={entry.date} 
                       onChange={(e) => {
-                        updateEntryByClientKey(entry.clientKey, (currentEntry) => ({
-                          ...currentEntry,
-                          date: e.target.value,
-                          status: 'typing',
-                        }));
-                        queueSaveEntry(entry.clientKey);
+                        const freshEntry = findEntryByClientKey(entry.clientKey);
+                        if (freshEntry) {
+                          const entryToSave = {
+                            ...freshEntry,
+                            date: e.target.value,
+                            status: 'typing',
+                          };
+                          updateEntryByClientKey(entry.clientKey, () => entryToSave);
+                          void saveEntry(entryToSave);
+                        }
                       }} 
                     />
                     <div className="flex items-center gap-3 no-print">
@@ -1255,12 +1264,16 @@ const ClinicalHistoryPage = () => {
                             </div>
                             <button 
                               onClick={() => {
-                                updateEntryByClientKey(entry.clientKey, (currentEntry) => ({
-                                  ...currentEntry,
-                                  attachments: currentEntry.attachments.filter((_, fileIndex) => fileIndex !== idx),
-                                  status: 'typing',
-                                }));
-                                queueSaveEntry(entry.clientKey);
+                                const freshEntry = findEntryByClientKey(entry.clientKey);
+                                if (freshEntry) {
+                                  const entryToSave = {
+                                    ...freshEntry,
+                                    attachments: freshEntry.attachments.filter((_, fileIndex) => fileIndex !== idx),
+                                    status: 'typing',
+                                  };
+                                  updateEntryByClientKey(entry.clientKey, () => entryToSave);
+                                  void saveEntry(entryToSave);
+                                }
                               }} 
                               className="absolute top-2 right-2 p-1.5 bg-red-600 text-white rounded-lg no-print"
                             >
