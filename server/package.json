@@ -17,7 +17,6 @@
     "@aws-sdk/client-s3": "^3.1021.0",
     "@google/generative-ai": "^0.24.1",
     "@prisma/client": "^5.22.0",
-    "prisma": "^5.22.0",
     "bcrypt": "^6.0.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
@@ -31,11 +30,12 @@
     "joi": "^18.0.2",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.1.1",
-    "nodemailer": "^8.0.4",
+    "nodemailer": "^8.0.5",
     "p-queue": "^8.1.1",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
     "pdfkit": "^0.15.2",
+    "prisma": "^5.22.0",
     "resend": "^6.9.3"
   },
   "devDependencies": {
