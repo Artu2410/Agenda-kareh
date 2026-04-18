@@ -92,6 +92,26 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
     return sessions;
   }, [selectedDays, sessionCount, selectedSlot, isEditMode]);
 
+  // En edit mode: proyectar las sesiones adicionales a generar basándose en modalDate
+  const projectedEditSessions = useMemo(() => {
+    if (!isEditMode) return [];
+    if (selectedDays.length === 0 || !modalDate) return [];
+    const sessions = [];
+    const [year, month, day] = modalDate.split('-').map(Number);
+    // Arrancar desde el día siguiente al turno actual para no duplicar
+    let currentDate = new Date(year, month - 1, day + 1, 12, 0, 0);
+    const count = parseInt(sessionCount) || 0;
+    let safety = 0;
+    while (sessions.length < count && safety < 200) {
+      safety++;
+      if (selectedDays.includes(currentDate.getDay())) {
+        sessions.push({ date: new Date(currentDate), time: modalTime });
+      }
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+    return sessions;
+  }, [selectedDays, sessionCount, modalDate, modalTime, isEditMode]);
+
   useEffect(() => {
     if (!isOpen) return;
     if (isEditMode && appointment) {
@@ -533,11 +553,23 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
         {/* COLUMNA DERECHA: SESIONES */}
         <div className="w-full md:w-80 bg-slate-50 p-8 flex flex-col">
           <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2 border-b border-slate-200 pb-2">
-             <CalendarIcon size={14} className="text-teal-500" /> 
-             {isEditMode ? `${futureAppointments.length} Sesiones Futuras` : `${projectedSessions.length} Proyectadas`}
+             <CalendarIcon size={14} className="text-teal-500" />
+             {isEditMode
+               ? projectedEditSessions.length > 0
+                 ? `${projectedEditSessions.length} A Programar`
+                 : `${futureAppointments.length} Sesiones Futuras`
+               : `${projectedSessions.length} Proyectadas`}
           </h3>
+          {isEditMode && projectedEditSessions.length > 0 && (
+            <p className="text-[9px] font-bold text-teal-500 uppercase tracking-widest mb-3 -mt-4">
+              Vista previa · Seleccioná días y presioná Generar
+            </p>
+          )}
           <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
-            {(isEditMode ? futureAppointments : projectedSessions).map((apt, idx) => {
+            {(isEditMode
+              ? projectedEditSessions.length > 0 ? projectedEditSessions : futureAppointments
+              : projectedSessions
+            ).map((apt, idx) => {
               const displaySessionNumber = apt.sessionNumber || idx + 1;
 
               return (
