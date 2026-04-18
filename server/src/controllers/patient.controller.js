@@ -266,3 +266,49 @@ export const getFutureAppointments = async (req, res, prisma) => {
     res.status(500).json({ error: 'Error fetching future appointments', message: error.message });
   }
 };
+
+// Devuelve ciclos de sesiones completadas por anio para control de obra social
+export const getSessionCycles = async (req, res, prisma) => {
+  const { patientId } = req.params;
+  try {
+    const completedAppointments = await prisma.appointment.findMany({
+      where: { patientId, status: 'COMPLETED' },
+      orderBy: [{ date: 'asc' }],
+      select: { id: true, date: true, diagnosis: true },
+    });
+
+    const byYear = {};
+    for (const apt of completedAppointments) {
+      const year = new Date(apt.date).getFullYear();
+      if (!byYear[year]) byYear[year] = [];
+      byYear[year].push(apt);
+    }
+
+    const result = Object.entries(byYear)
+      .sort(([a], [b]) => Number(b) - Number(a))
+      .map(([year, apts]) => {
+        const totalCompleted = apts.length;
+        const completedCycles = Math.floor(totalCompleted / 10);
+        const sessionsInCurrentCycle = totalCompleted % 10;
+        return {
+          year: Number(year),
+          totalCompleted,
+          completedCycles,
+          sessionsInCurrentCycle,
+          cycles: Array.from({ length: completedCycles }, (_, i) => ({
+            cycleNumber: i + 1,
+            from: apts[i * 10]?.date,
+            to: apts[i * 10 + 9]?.date,
+          })),
+          currentCycleStart: completedCycles * 10 < totalCompleted
+            ? apts[completedCycles * 10]?.date
+            : null,
+        };
+      });
+
+    res.status(200).json(result);
+  } catch (error) {
+    console.error('Error in getSessionCycles:', error);
+    res.status(500).json({ error: 'Error fetching session cycles', message: error.message });
+  }
+};
