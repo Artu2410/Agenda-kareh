@@ -490,6 +490,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                 </div>
               )}
 
+{(!isEditMode || futureAppointments.length <= 1) && (
               <div className="grid grid-cols-2 gap-6 items-center border border-slate-100 rounded-3xl p-4 bg-slate-50/50">
                 <div className="space-y-2">
                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Días Semanales</label>
@@ -504,9 +505,9 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                   <div className="flex gap-2 items-center">
                     <input type="number" className="w-16 p-2 border rounded-xl bg-white font-black text-teal-700 text-center shadow-sm" value={sessionCount} onChange={e => setSessionCount(e.target.value)} />
                     {isEditMode && (
-                      <button 
-                        type="button" 
-                        onClick={handleGenerateAdditionalSessions} 
+                      <button
+                        type="button"
+                        onClick={handleGenerateAdditionalSessions}
                         disabled={loading}
                         className="px-4 py-2 bg-teal-100 text-teal-700 font-black rounded-xl text-[9px] uppercase hover:bg-teal-200 transition-all"
                       >
@@ -516,6 +517,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                   </div>
                 </div>
               </div>
+              )}
 
               <div className="p-4 bg-slate-50 rounded-[2rem] border border-slate-100 grid grid-cols-3 gap-2">
                 {[{ key: 'hasCancer', label: 'Oncológico', color: 'accent-red-500' }, { key: 'hasMarcapasos', label: 'Marcapasos', color: 'accent-blue-500' }, { key: 'usesEA', label: 'E.A.', color: 'accent-amber-500' }].map((item) => (
