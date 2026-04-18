@@ -221,6 +221,7 @@ export const createAppointment = async (req, res, prisma) => {
         }
         currentDate.setDate(currentDate.getDate() + 1);
       }
+      await resequencePatientAppointments(tx, patient.id);
       return appointmentsCreated;
     });
     res.status(201).json({ success: true, appointments: result });
@@ -232,9 +233,9 @@ export const createAppointment = async (req, res, prisma) => {
 // 3. ACTUALIZAR EVOLUCIÓN, PACIENTE E HISTORIA CLÍNICA (SINCRONIZACIÓN TOTAL)
 export const updateEvolution = async (req, res, prisma) => {
   const { id } = req.params;
-  const { diagnosis, status, patientData, evolution } = req.body;
+  const { diagnosis, status, patientData, evolution, isFirstSession } = req.body;
 
-  if (!diagnosis && !status && !patientData && !evolution) {
+  if (!diagnosis && !status && !patientData && !evolution && isFirstSession === undefined) {
     return res.status(400).json({ message: "No hay datos para actualizar." });
   }
 
@@ -252,9 +253,14 @@ export const updateEvolution = async (req, res, prisma) => {
         data: {
           ...(diagnosis !== undefined && { diagnosis: diagnosis.toUpperCase() }),
           ...(status !== undefined && { status }),
+          ...(isFirstSession !== undefined && { isFirstSession }),
         },
         select: appointmentSelect,
       });
+
+      if (isFirstSession !== undefined) {
+        await resequencePatientAppointments(tx, currentApt.patientId);
+      }
 
       let evolutionForHistory = evolution || '';
 
@@ -430,18 +436,27 @@ const resequencePatientAppointments = async (tx, patientId) => {
       status: { not: 'CANCELLED' },
     },
     orderBy: APPOINTMENT_ORDER,
-    select: { id: true },
+    select: { id: true, isFirstSession: true },
   });
 
+  let currentNumber = 1;
   for (const [index, appointment] of appointments.entries()) {
+    let isFirst = appointment.isFirstSession;
+    if (index === 0) isFirst = true; // La primera sesión histórica siempre es ingreso
+
+    if (isFirst) {
+      currentNumber = 1;
+    }
+
     await tx.appointment.update({
       where: { id: appointment.id },
       data: {
-        sessionNumber: index + 1,
-        isFirstSession: index === 0,
+        sessionNumber: currentNumber,
+        isFirstSession: isFirst,
       },
       select: { id: true },
     });
+    currentNumber++;
   }
 };
 
