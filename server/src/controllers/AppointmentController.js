@@ -446,6 +446,11 @@ const resequencePatientAppointments = async (tx, patientId) => {
     let isFirst = appointment.isFirstSession;
     if (index === 0) isFirst = true; // La primera sesión histórica siempre es ingreso
 
+    // Regla de negocio automática: Los ciclos son de 10 sesiones. Si llegamos a 11, es un nuevo ingreso.
+    if (currentNumber > 10) {
+      isFirst = true;
+    }
+
     if (isFirst) {
       currentNumber = 1;
     }
