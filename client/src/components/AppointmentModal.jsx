@@ -220,6 +220,8 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
       if (isEditMode) {
         await api.patch(`/appointments/${appointment.id}/evolution`, payload);
         await onSave?.();
+        await loadFutureAppointments();
+        await loadSessionCycles();
       } else {
         if (!professional?.id) {
           alert('Selecciona un profesional para agendar.');
@@ -396,7 +398,11 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
           <div className="flex-1 p-8 overflow-y-auto custom-scrollbar">
             <div className="flex justify-between items-center mb-6">
               <div>
-                <h2 className="text-2xl font-black text-slate-800 italic uppercase tracking-tighter">{isEditMode ? 'Editar Turno' : 'Nuevo Turno'}</h2>
+                <h2 className="text-2xl font-black text-slate-800 italic uppercase tracking-tighter">
+                  {isEditMode 
+                    ? `Sesión ${appointment.sessionNumber || ''}${appointment.isFirstSession ? ' (Ingreso)' : ''}` 
+                    : 'Nuevo Turno'}
+                </h2>
                 <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">
                   {modalDate ? format(new Date(`${modalDate}T12:00:00`), "eeee dd 'de' MMMM", { locale: es }) : ''}
                 </p>
@@ -700,7 +706,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                   <>
                     <div className="min-w-0">
                       <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">
-                        Sesión {displaySessionNumber}
+                        Sesión {displaySessionNumber} {apt.isFirstSession && <span className="text-teal-600 ml-1 font-black">(Ingreso)</span>}
                       </p>
                       <span className="text-[11px] font-bold text-slate-700">{format(new Date(apt.date), "dd 'de' MMMM", { locale: es })}</span>
                     </div>
