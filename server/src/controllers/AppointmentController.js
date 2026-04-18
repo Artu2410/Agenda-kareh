@@ -258,9 +258,8 @@ export const updateEvolution = async (req, res, prisma) => {
         select: appointmentSelect,
       });
 
-      if (isFirstSession !== undefined) {
-        await resequencePatientAppointments(tx, currentApt.patientId);
-      }
+      // Siempre re-secuenciamos al actualizar una evolución para mantener la coherencia
+      await resequencePatientAppointments(tx, currentApt.patientId);
 
       let evolutionForHistory = evolution || '';
 
@@ -430,14 +429,17 @@ const APPOINTMENT_ORDER = [
 ];
 
 const resequencePatientAppointments = async (tx, patientId) => {
+  console.log(`[Resequencing] Patient ${patientId}`);
   const appointments = await tx.appointment.findMany({
     where: {
       patientId,
       status: { not: 'CANCELLED' },
     },
     orderBy: APPOINTMENT_ORDER,
-    select: { id: true, isFirstSession: true },
+    select: { id: true, isFirstSession: true, date: true },
   });
+
+  console.log(`[Resequencing] Found ${appointments.length} appointments`);
 
   let currentNumber = 1;
   for (const [index, appointment] of appointments.entries()) {

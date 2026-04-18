@@ -401,7 +401,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
               <div>
                 <h2 className="text-2xl font-black text-slate-800 italic uppercase tracking-tighter">
                   {isEditMode 
-                    ? `Sesión ${appointment.sessionNumber || ''}${appointment.isFirstSession ? ' (Ingreso)' : ''}` 
+                    ? `Sesión ${isFirstSession ? '1' : (appointment.sessionNumber || '')}${isFirstSession ? ' (Ingreso)' : ''}` 
                     : 'Nuevo Turno'}
                 </h2>
                 <div className="flex items-center gap-4 mt-1">
