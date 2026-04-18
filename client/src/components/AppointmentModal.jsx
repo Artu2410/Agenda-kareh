@@ -617,19 +617,19 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
           <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2 border-b border-slate-200 pb-2">
              <CalendarIcon size={14} className="text-teal-500" />
              {isEditMode
-               ? projectedEditSessions.length > 0
+               ? (futureAppointments.length <= 1 && projectedEditSessions.length > 0)
                  ? `${projectedEditSessions.length} A Programar`
                  : `${futureAppointments.length} Sesiones Futuras`
                : `${projectedSessions.length} Proyectadas`}
           </h3>
-          {isEditMode && projectedEditSessions.length > 0 && (
+          {isEditMode && futureAppointments.length <= 1 && projectedEditSessions.length > 0 && (
             <p className="text-[9px] font-bold text-teal-500 uppercase tracking-widest mb-3 -mt-4">
               Vista previa · Seleccioná días y presioná Generar
             </p>
           )}
           <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
             {(isEditMode
-              ? projectedEditSessions.length > 0 ? projectedEditSessions : futureAppointments
+              ? (futureAppointments.length <= 1 && projectedEditSessions.length > 0) ? projectedEditSessions : futureAppointments
               : projectedSessions
             ).map((apt, idx) => {
               const displaySessionNumber = apt.sessionNumber || idx + 1;
