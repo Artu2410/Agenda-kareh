@@ -222,6 +222,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
         await onSave?.();
         await loadFutureAppointments();
         await loadSessionCycles();
+        onRefresh?.(); // Asegurar refresco total de la agenda
       } else {
         if (!professional?.id) {
           alert('Selecciona un profesional para agendar.');
@@ -403,9 +404,25 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                     ? `Sesión ${appointment.sessionNumber || ''}${appointment.isFirstSession ? ' (Ingreso)' : ''}` 
                     : 'Nuevo Turno'}
                 </h2>
-                <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">
-                  {modalDate ? format(new Date(`${modalDate}T12:00:00`), "eeee dd 'de' MMMM", { locale: es }) : ''}
-                </p>
+                <div className="flex items-center gap-4 mt-1">
+                  <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">
+                    {modalDate ? format(new Date(`${modalDate}T12:00:00`), "eeee dd 'de' MMMM", { locale: es }) : ''}
+                  </p>
+                  {isEditMode && !isFirstSession && (
+                    <button 
+                      type="button"
+                      onClick={() => setIsFirstSession(true)}
+                      className="bg-rose-50 text-rose-600 border border-rose-100 rounded-lg px-2 py-0.5 text-[9px] font-black uppercase hover:bg-rose-100 transition-all flex items-center gap-1"
+                    >
+                      <Flag size={9} fill="currentColor" /> Reiniciar Ciclo (Sesión 1)
+                    </button>
+                  )}
+                  {isEditMode && isFirstSession && (
+                    <span className="flex items-center gap-1 bg-teal-50 text-teal-600 border border-teal-100 rounded-lg px-2 py-0.5 text-[9px] font-black uppercase anima-pulse">
+                      <Check size={10} /> Inicio de Ciclo
+                    </span>
+                  )}
+                </div>
                 <p className="text-teal-600 text-[10px] font-black uppercase tracking-widest mt-2">
                   {isEditMode ? appointment?.professional?.fullName : professional?.fullName || 'Profesional no seleccionado'}
                 </p>
