@@ -417,9 +417,44 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                   )}
                 </div>
               </div>
-                  </label>
-                ))}
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Teléfono</label>
+                  <input type="tel" placeholder="+54 9 11 2345-6789" className="w-full p-3 border rounded-2xl bg-slate-50 font-bold focus:ring-2 ring-teal-500 outline-none" value={patientData.phone || ''} onChange={e => setPatientData({...patientData, phone: e.target.value})} />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Fecha de Nacimiento</label>
+                  <input type="date" className="w-full p-3 border rounded-2xl bg-slate-50 font-bold focus:ring-2 ring-teal-500 outline-none" value={patientData.birthDate || ''} onChange={e => setPatientData({...patientData, birthDate: e.target.value})} />
+                </div>
               </div>
+
+              <div className="space-y-1">
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Diagnóstico / Evolución</label>
+                <textarea className="w-full p-4 border rounded-2xl bg-slate-50 h-24 outline-none resize-none font-semibold uppercase focus:ring-2 ring-teal-500" value={diagnosis} onChange={e => setDiagnosis(e.target.value)} />
+              </div>
+
+              {isEditMode && (
+                <div className="space-y-2">
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Estado del Turno</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {APPOINTMENT_STATUSES.map((item) => (
+                      <button
+                        key={item.value}
+                        type="button"
+                        onClick={() => setStatus(item.value)}
+                        className={`rounded-2xl border px-3 py-3 text-[10px] font-black uppercase transition-all ${
+                          status === item.value
+                            ? item.classes
+                            : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300'
+                        }`}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-6 items-center border border-slate-100 rounded-3xl p-4 bg-slate-50/50">
                 <div className="space-y-2">
@@ -446,6 +481,15 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                     )}
                   </div>
                 </div>
+              </div>
+
+              <div className="p-4 bg-slate-50 rounded-[2rem] border border-slate-100 grid grid-cols-3 gap-2">
+                {[{ key: 'hasCancer', label: 'Oncológico', color: 'accent-red-500' }, { key: 'hasMarcapasos', label: 'Marcapasos', color: 'accent-blue-500' }, { key: 'usesEA', label: 'E.A.', color: 'accent-amber-500' }].map((item) => (
+                  <label key={item.key} className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" className={`${item.color} w-4 h-4`} checked={patientData[item.key]} onChange={e => setPatientData({...patientData, [item.key]: e.target.checked})} />
+                    <span className={`text-[10px] font-black uppercase ${patientData[item.key] ? 'text-slate-800' : 'text-slate-400'}`}>{item.label}</span>
+                  </label>
+                ))}
               </div>
 
               {/* HISTORIA CLÍNICA CON SCROLL INDEPENDIENTE */}
