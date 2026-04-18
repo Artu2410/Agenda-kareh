@@ -281,7 +281,7 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
                             {getCoverageLabel(app.patient?.healthInsurance, app.patient?.treatAsParticular)}
                           </span>
                           <span className="text-[8px] sm:text-[9px] font-bold text-slate-400 whitespace-nowrap">
-                            SESIÓN {app.sessionNumber}
+                            SESIÓN {app.isFirstSession ? 1 : app.sessionNumber}
                           </span>
                         </div>
 

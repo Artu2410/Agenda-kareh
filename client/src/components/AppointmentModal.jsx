@@ -723,7 +723,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                   <>
                     <div className="min-w-0">
                       <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">
-                        Sesión {displaySessionNumber} {apt.isFirstSession && <span className="text-teal-600 ml-1 font-black">(Ingreso)</span>}
+                        Sesión {apt.isFirstSession ? 1 : displaySessionNumber} {apt.isFirstSession && <span className="text-teal-600 ml-1 font-black">(Ingreso)</span>}
                       </p>
                       <span className="text-[11px] font-bold text-slate-700">{format(new Date(apt.date), "dd 'de' MMMM", { locale: es })}</span>
                     </div>
