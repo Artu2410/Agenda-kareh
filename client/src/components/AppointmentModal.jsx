@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Calendar as CalendarIcon, Printer, Loader2, Trash2, History, Pencil, Check, X } from 'lucide-react';
+import { Calendar as CalendarIcon, Printer, Loader2, Trash2, History, Pencil, Check, X, Flag } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import api from '@/services/api';
