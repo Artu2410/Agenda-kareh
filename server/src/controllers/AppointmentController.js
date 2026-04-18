@@ -207,8 +207,8 @@ export const createAppointment = async (req, res, prisma) => {
                 time,
                 slotNumber: nextSlot,
                 diagnosis: diagnosis ? diagnosis.toUpperCase() : null,
-                isFirstSession: (sessionsCreated === 0),
-                sessionNumber: sessionsCreated + 1,
+                isFirstSession: false, // Dejamos que resequencePatientAppointments decida basándose en la historia
+                sessionNumber: 0, // Idem
                 patientId: patient.id,
                 professionalId: prof.id,
                 status: 'SCHEDULED'
@@ -446,7 +446,8 @@ const resequencePatientAppointments = async (tx, patientId) => {
     let isFirst = appointment.isFirstSession;
     if (index === 0) isFirst = true; // La primera sesión histórica siempre es ingreso
 
-    // Regla de negocio automática: Los ciclos son de 10 sesiones. Si llegamos a 11, es un nuevo ingreso.
+    // Regla de negocio automática: Los ciclos son de 10 sesiones. 
+    // Si la cuenta superó 10, forzamos un nuevo inicio de ciclo (Ingreso).
     if (currentNumber > 10) {
       isFirst = true;
     }
@@ -463,6 +464,8 @@ const resequencePatientAppointments = async (tx, patientId) => {
       },
       select: { id: true },
     });
+    
+    // Incrementar para la siguiente sesión del loop
     currentNumber++;
   }
 };
