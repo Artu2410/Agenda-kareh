@@ -1144,7 +1144,7 @@ const ClinicalHistoryPage = () => {
                         clientKey,
                         date: new Date().toISOString().split('T')[0],
                         diagnosis: '',
-                        evolution: '',
+                        evolution: '<p><strong>Anamnesis:</strong></p><p><br></p><p><strong>Estado Funcional:</strong></p><p><br></p><p><strong>Tto:</strong></p>',
                         attachments: [],
                         status: 'typing',
                         isVisible: true,
