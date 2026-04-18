@@ -50,6 +50,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [createdAppointments, setCreatedAppointments] = useState([]);
   const [futureAppointments, setFutureAppointments] = useState([]);
+  const [sessionCycles, setSessionCycles] = useState([]);
   const [editingFutureId, setEditingFutureId] = useState(null);
   const [futureDraft, setFutureDraft] = useState({ date: '', time: '' });
   const [savingFutureId, setSavingFutureId] = useState('');
@@ -67,10 +68,22 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
       setFutureAppointments([]);
       return;
     }
-
     try {
       const { data } = await api.get(`/patients/${appointment.patientId}/future-appointments`);
       setFutureAppointments(data || []);
+    } catch (error) {
+      console.error(error);
+    }
+  }, [appointment?.patientId]);
+
+  const loadSessionCycles = useCallback(async () => {
+    if (!appointment?.patientId) {
+      setSessionCycles([]);
+      return;
+    }
+    try {
+      const { data } = await api.get(`/patients/${appointment.patientId}/session-cycles`);
+      setSessionCycles(data || []);
     } catch (error) {
       console.error(error);
     }
@@ -144,6 +157,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
       setSessionCount(9);
 
       loadFutureAppointments();
+      loadSessionCycles();
     } else {
       setPatientData({
         dni: '', lastName: '', firstName: '', phone: '',
@@ -512,23 +526,69 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                 ))}
               </div>
 
-              {/* HISTORIA CLÍNICA CON SCROLL INDEPENDIENTE */}
+              {/* CICLOS DE SESIONES POR AÑO */}
               {isEditMode && (
                 <div className="mt-6 border-t border-slate-100 pt-6">
-                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2"><History size={14} className="text-teal-500" /> Cronología de Sesiones</h3>
-                  <div className="h-[250px] overflow-y-auto pr-2 custom-scrollbar space-y-3 bg-slate-50/50 rounded-[2rem] p-3 border border-slate-100/50">
-                    {appointment?.patient?.clinicalHistory?.length > 0 ? (
-                      appointment.patient.clinicalHistory.map((h) => (
-                        <div key={h.id} className="p-4 border border-slate-100 rounded-[1.8rem] bg-white shadow-sm flex-shrink-0">
-                          <div className="flex justify-between text-[9px] font-black text-slate-400 mb-1">
-                            <span>{format(new Date(h.date), "dd/MM/yyyy HH:mm", { locale: es })}</span>
-                            <span className="text-teal-600 uppercase font-black">{h.professional?.fullName || 'Profesional'}</span>
-                          </div>
-                          <p className="text-[11px] font-black text-slate-700 uppercase leading-tight">{h.diagnosis}</p>
-                          <p className="text-[11px] text-slate-500 italic mt-1 leading-relaxed">"{h.evolution || 'Sin observación'}"</p>
+                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                    <History size={14} className="text-teal-500" /> Ciclos por Año
+                  </h3>
+                  <div className="max-h-[260px] overflow-y-auto pr-1 custom-scrollbar space-y-4">
+                    {sessionCycles.length > 0 ? sessionCycles.map((yearData) => (
+                      <div key={yearData.year} className="rounded-[1.6rem] border border-slate-100 bg-slate-50/60 p-4">
+                        {/* Encabezado año */}
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-[11px] font-black text-slate-700 uppercase tracking-wide">{yearData.year}</span>
+                          <span className="text-[10px] font-black text-teal-600 bg-teal-50 border border-teal-100 px-3 py-1 rounded-xl">
+                            {yearData.totalCompleted} sesiones asistidas
+                          </span>
                         </div>
-                      ))
-                    ) : <p className="text-[10px] text-slate-300 font-bold italic text-center py-10 uppercase">No hay registros</p>}
+                        {/* Ciclos completados */}
+                        {yearData.cycles.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mb-2">
+                            {yearData.cycles.map((cycle) => (
+                              <div key={cycle.cycleNumber} className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-1.5">
+                                <div className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[9px] font-black flex-shrink-0">
+                                  {cycle.cycleNumber}
+                                </div>
+                                <div>
+                                  <p className="text-[9px] font-black text-emerald-700 uppercase leading-none">Ciclo {cycle.cycleNumber}</p>
+                                  <p className="text-[8px] text-emerald-500 font-semibold leading-none mt-0.5">
+                                    {format(new Date(cycle.from), 'dd/MM', { locale: es })} → {format(new Date(cycle.to), 'dd/MM', { locale: es })}
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {/* Ciclo en curso */}
+                        {yearData.sessionsInCurrentCycle > 0 && (
+                          <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mt-1">
+                            <div className="w-5 h-5 rounded-full border-2 border-amber-400 border-dashed flex items-center justify-center text-[9px] font-black text-amber-600 flex-shrink-0">
+                              {yearData.completedCycles + 1}
+                            </div>
+                            <div>
+                              <p className="text-[9px] font-black text-amber-700 uppercase leading-none">Ciclo {yearData.completedCycles + 1} en curso</p>
+                              <p className="text-[8px] text-amber-500 font-semibold leading-none mt-0.5">
+                                {yearData.sessionsInCurrentCycle} / 10 sesiones
+                              </p>
+                            </div>
+                            <div className="ml-auto flex gap-0.5">
+                              {Array.from({ length: 10 }, (_, i) => (
+                                <div key={i} className={`w-2 h-2 rounded-full ${ i < yearData.sessionsInCurrentCycle ? 'bg-amber-400' : 'bg-amber-100'}`} />
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {yearData.totalCompleted === 0 && (
+                          <p className="text-[10px] text-slate-400 font-bold italic">Sin sesiones completadas</p>
+                        )}
+                      </div>
+                    )) : (
+                      <div className="rounded-[1.6rem] border border-dashed border-slate-200 bg-slate-50/40 p-5 text-center">
+                        <p className="text-[10px] text-slate-300 font-black uppercase tracking-widest">Sin ciclos registrados</p>
+                        <p className="text-[9px] text-slate-300 font-semibold mt-1">Los ciclos se contabilizan cuando el turno pasa a "Asistió"</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
