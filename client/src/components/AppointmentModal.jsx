@@ -114,6 +114,15 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
       setStatus(appointment.status || 'SCHEDULED');
       setEditingFutureId(null);
       setFutureDraft({ date: '', time: '' });
+
+      const [y, m, d] = (getInputDateValue(appointment.date) || '').split('-').map(Number);
+      if (y && m && d) {
+        setSelectedDays([new Date(y, m - 1, d, 12, 0, 0).getDay()]);
+      } else {
+        setSelectedDays([]);
+      }
+      setSessionCount(9);
+
       loadFutureAppointments();
     } else {
       setPatientData({
@@ -268,6 +277,32 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
     }
   };
 
+  const handleGenerateAdditionalSessions = async () => {
+    if (!selectedDays.length || sessionCount <= 0) {
+      alert("Selecciona días y la cantidad de sesiones a generar.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const payload = {
+        patientId: appointment.patientId,
+        professionalId: appointment.professionalId || professional?.id,
+        date: modalDate,
+        time: modalTime,
+        sessionCount: parseInt(sessionCount) || 1,
+        selectedDays
+      };
+      await api.post('/appointments', payload);
+      await loadFutureAppointments();
+      onRefresh?.();
+      alert("Sesiones adicionales generadas exitosamente.");
+    } catch (error) {
+      alert(error.response?.data?.message || "Error al generar sesiones adicionales.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleOpenTicket = async () => {
     try {
       setTicketLoading(true);
@@ -382,69 +417,35 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                   )}
                 </div>
               </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Teléfono</label>
-                  <input type="tel" placeholder="+54 9 11 2345-6789" className="w-full p-3 border rounded-2xl bg-slate-50 font-bold focus:ring-2 ring-teal-500 outline-none" value={patientData.phone || ''} onChange={e => setPatientData({...patientData, phone: e.target.value})} />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Fecha de Nacimiento</label>
-                  <input type="date" className="w-full p-3 border rounded-2xl bg-slate-50 font-bold focus:ring-2 ring-teal-500 outline-none" value={patientData.birthDate || ''} onChange={e => setPatientData({...patientData, birthDate: e.target.value})} />
-                </div>
+                  </label>
+                ))}
               </div>
 
-              <div className="space-y-1">
-                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Diagnóstico / Evolución</label>
-                <textarea className="w-full p-4 border rounded-2xl bg-slate-50 h-24 outline-none resize-none font-semibold uppercase focus:ring-2 ring-teal-500" value={diagnosis} onChange={e => setDiagnosis(e.target.value)} />
-              </div>
-
-              {isEditMode && (
+              <div className="grid grid-cols-2 gap-6 items-center border border-slate-100 rounded-3xl p-4 bg-slate-50/50">
                 <div className="space-y-2">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Estado del Turno</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {APPOINTMENT_STATUSES.map((item) => (
-                      <button
-                        key={item.value}
-                        type="button"
-                        onClick={() => setStatus(item.value)}
-                        className={`rounded-2xl border px-3 py-3 text-[10px] font-black uppercase transition-all ${
-                          status === item.value
-                            ? item.classes
-                            : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300'
-                        }`}
-                      >
-                        {item.label}
-                      </button>
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Días Semanales</label>
+                  <div className="flex gap-1">
+                    {WEEK_DAYS.map(day => (
+                      <button key={day.value} type="button" onClick={() => setSelectedDays(prev => prev.includes(day.value) ? prev.filter(d => d !== day.value) : [...prev, day.value])} className={`w-8 h-8 rounded-xl text-[10px] font-black transition-all ${selectedDays.includes(day.value) ? 'bg-teal-600 text-white shadow-md' : 'bg-slate-100 text-slate-400'}`}>{day.label}</button>
                     ))}
                   </div>
                 </div>
-              )}
-
-              {!isEditMode && (
-                <div className="grid grid-cols-2 gap-6 items-center">
-                  <div className="space-y-2">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Días Semanales</label>
-                    <div className="flex gap-1">
-                      {WEEK_DAYS.map(day => (
-                        <button key={day.value} type="button" onClick={() => setSelectedDays(prev => prev.includes(day.value) ? prev.filter(d => d !== day.value) : [...prev, day.value])} className={`w-8 h-8 rounded-xl text-[10px] font-black transition-all ${selectedDays.includes(day.value) ? 'bg-teal-600 text-white shadow-md' : 'bg-slate-100 text-slate-400'}`}>{day.label}</button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Cantidad Sesiones</label>
-                    <input type="number" className="w-full p-2 border rounded-xl bg-slate-50 font-black text-teal-700 text-center" value={sessionCount} onChange={e => setSessionCount(e.target.value)} />
+                <div className="space-y-2 flex flex-col justify-center">
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">{isEditMode ? 'Generar más sesiones' : 'Cantidad Sesiones'}</label>
+                  <div className="flex gap-2 items-center">
+                    <input type="number" className="w-16 p-2 border rounded-xl bg-white font-black text-teal-700 text-center shadow-sm" value={sessionCount} onChange={e => setSessionCount(e.target.value)} />
+                    {isEditMode && (
+                      <button 
+                        type="button" 
+                        onClick={handleGenerateAdditionalSessions} 
+                        disabled={loading}
+                        className="px-4 py-2 bg-teal-100 text-teal-700 font-black rounded-xl text-[9px] uppercase hover:bg-teal-200 transition-all"
+                      >
+                        Generar
+                      </button>
+                    )}
                   </div>
                 </div>
-              )}
-
-              <div className="p-4 bg-slate-50 rounded-[2rem] border border-slate-100 grid grid-cols-3 gap-2">
-                {[{ key: 'hasCancer', label: 'Oncológico', color: 'accent-red-500' }, { key: 'hasMarcapasos', label: 'Marcapasos', color: 'accent-blue-500' }, { key: 'usesEA', label: 'E.A.', color: 'accent-amber-500' }].map((item) => (
-                  <label key={item.key} className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" className={`${item.color} w-4 h-4`} checked={patientData[item.key]} onChange={e => setPatientData({...patientData, [item.key]: e.target.checked})} />
-                    <span className={`text-[10px] font-black uppercase ${patientData[item.key] ? 'text-slate-800' : 'text-slate-400'}`}>{item.label}</span>
-                  </label>
-                ))}
               </div>
 
               {/* HISTORIA CLÍNICA CON SCROLL INDEPENDIENTE */}
