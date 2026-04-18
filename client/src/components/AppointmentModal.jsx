@@ -44,6 +44,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
 
   const [diagnosis, setDiagnosis] = useState('Anamnesis:\n\nEstado Funcional:\n\nTto:');
   const [status, setStatus] = useState('SCHEDULED');
+  const [isFirstSession, setIsFirstSession] = useState(false);
   const [sessionCount, setSessionCount] = useState(10);
   const [selectedDays, setSelectedDays] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -145,6 +146,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
       });
       setDiagnosis(appointment.diagnosis || 'Anamnesis:\n\nEstado Funcional:\n\nTto:');
       setStatus(appointment.status || 'SCHEDULED');
+      setIsFirstSession(appointment.isFirstSession || false);
       setEditingFutureId(null);
       setFutureDraft({ date: '', time: '' });
 
@@ -166,6 +168,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
       });
       setDiagnosis('Anamnesis:\n\nEstado Funcional:\n\nTto:');
       setStatus('SCHEDULED');
+      setIsFirstSession(true);
       setSessionCount(10);
       setFutureAppointments([]);
       setEditingFutureId(null);
@@ -207,6 +210,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
       const payload = { 
         diagnosis, 
         status,
+        isFirstSession,
         patientData: { 
           ...patientData, 
           fullName,
@@ -469,6 +473,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
               </div>
 
               {isEditMode && (
+                <>
                 <div className="space-y-2">
                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Estado del Turno</label>
                   <div className="grid grid-cols-3 gap-2">
@@ -488,6 +493,19 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                     ))}
                   </div>
                 </div>
+                <div className="flex items-center gap-3 p-3 bg-teal-50/50 rounded-2xl border border-teal-100">
+                  <input 
+                    type="checkbox" 
+                    id="isFirstSession"
+                    checked={isFirstSession} 
+                    onChange={e => setIsFirstSession(e.target.checked)} 
+                    className="w-4 h-4 accent-teal-600"
+                  />
+                  <label htmlFor="isFirstSession" className="text-[10px] font-black uppercase text-teal-700 cursor-pointer">
+                    Marcar como Sesión de Ingreso (Reinicia contador)
+                  </label>
+                </div>
+                </>
               )}
 
 {(!isEditMode || futureAppointments.length <= 1) && (
