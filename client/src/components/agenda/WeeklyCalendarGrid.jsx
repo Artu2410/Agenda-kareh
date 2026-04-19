@@ -65,6 +65,7 @@ const getCoverageBadgeClass = (value, treatAsParticular = false) => (
 const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedule = [], selectedProfessional = null, currentTime, capacityPerSlot = 5 }) => {
   const scrollContainerRef = useRef(null);
   const getStatusMeta = (status, usesEA, treatAsParticular, healthInsurance) => {
+    const isPami = healthInsurance?.toUpperCase().includes('PAMI');
     if (status === 'COMPLETED') {
       return {
         cardClass: 'bg-emerald-50 border-emerald-600',
@@ -80,6 +81,15 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
         badgeClass: 'bg-rose-100 text-rose-700',
         label: 'Inasistencia',
         icon: <AlertTriangle size={16} className="text-rose-600 shrink-0" />
+      };
+    }
+
+    if (isPami && status === 'SCHEDULED') {
+      return {
+        cardClass: 'bg-amber-50 border-amber-400',
+        badgeClass: 'bg-amber-100 text-amber-700',
+        label: 'PAMI',
+        icon: null
       };
     }
 
