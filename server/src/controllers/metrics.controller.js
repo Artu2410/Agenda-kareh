@@ -22,11 +22,19 @@ const buildMonthlyRange = (baseDate) => {
 const buildMonthlySnapshot = async (prisma, baseDate) => {
   const { start, nextStart } = buildMonthlyRange(baseDate);
 
-  const [appointmentCount, completedCount, noShowCount, scheduledCount] = await Promise.all([
-    prisma.appointment.count({
+  const [appointments, completedCount, noShowCount, scheduledCount] = await Promise.all([
+    prisma.appointment.findMany({
       where: {
         date: { gte: start, lt: nextStart },
         status: { not: 'CANCELLED' },
+      },
+      include: {
+        patient: {
+          select: {
+            healthInsurance: true,
+            treatAsParticular: true,
+          },
+        },
       },
     }),
     prisma.appointment.count({
@@ -49,6 +57,20 @@ const buildMonthlySnapshot = async (prisma, baseDate) => {
     }),
   ]);
 
+  const appointmentCount = appointments.length;
+
+  const insuranceMap = {};
+  appointments.forEach((apt) => {
+    let insurance = apt.patient.treatAsParticular ? 'PARTICULAR' : (apt.patient.healthInsurance || 'SIN COBERTURA');
+    insurance = insurance.toUpperCase().trim();
+    if (!insurance) insurance = 'SIN COBERTURA';
+    insuranceMap[insurance] = (insuranceMap[insurance] || 0) + 1;
+  });
+
+  const insuranceBreakdown = Object.entries(insuranceMap)
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count);
+
   const resolvedCount = completedCount + noShowCount;
   const attendanceRate = resolvedCount > 0
     ? Number(((completedCount / resolvedCount) * 100).toFixed(1))
@@ -63,6 +85,7 @@ const buildMonthlySnapshot = async (prisma, baseDate) => {
     scheduledCount,
     resolvedCount,
     attendanceRate,
+    insuranceBreakdown,
   };
 };
 
@@ -139,6 +162,7 @@ export const getMetrics = async (req, res, prisma) => {
           scheduledCount: snapshot.scheduledCount,
           resolvedCount: snapshot.resolvedCount,
           attendanceRate: snapshot.attendanceRate,
+          insuranceBreakdown: snapshot.insuranceBreakdown,
         };
       }),
     );
@@ -164,6 +188,7 @@ export const getMetrics = async (req, res, prisma) => {
         change: monthlyChange,
         changeLabel: monthlyChange >= 0 ? `+${monthlyChange}%` : `${monthlyChange}%`,
         label: formatMonthLabel(now),
+        insuranceBreakdown: currentMonthSnapshot.insuranceBreakdown,
       },
       annual: {
         patientCount: uniquePatients.length,
