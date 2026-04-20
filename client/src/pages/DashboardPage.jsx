@@ -60,6 +60,19 @@ const MonthlyTrendTooltip = ({ active, payload }) => {
       <div className="mt-3 rounded-xl bg-slate-50 px-3 py-2 text-xs font-bold uppercase tracking-wide text-slate-500">
         Asistencia real: <span className="text-slate-900">{formatRate(row.attendanceRate)}</span>
       </div>
+      {row.insuranceBreakdown?.length > 0 && (
+        <div className="mt-4 pt-4 border-t border-slate-100">
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2">Coberturas</p>
+          <div className="space-y-1.5">
+            {row.insuranceBreakdown.map((item) => (
+              <div key={item.name} className="flex items-center justify-between gap-3 text-[11px] font-bold">
+                <span className="truncate text-slate-500">{item.name}</span>
+                <span className="text-slate-900">{formatCount(item.count)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -276,6 +289,35 @@ const DashboardPage = () => {
           </section>
         </div>
 
+        <section className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+          <div className="mb-6">
+            <p className="text-[11px] font-black uppercase tracking-[0.28em] text-teal-600">Desglose por Cobertura</p>
+            <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-900">
+              {metrics.monthly?.label} — Obras Sociales y Particulares
+            </h2>
+            <p className="mt-2 text-sm font-medium text-slate-500">
+              Distribución de turnos activos por tipo de cobertura médica en el mes actual.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+            {metrics.monthly?.insuranceBreakdown?.length > 0 ? (
+              metrics.monthly.insuranceBreakdown.map((item) => (
+                <div key={item.name} className="flex flex-col rounded-[1.25rem] border border-slate-100 bg-slate-50/50 p-4 transition-colors hover:border-teal-100 lg:p-5">
+                  <span className="truncate text-[10px] font-black uppercase tracking-[0.15em] text-slate-400" title={item.name}>
+                    {item.name}
+                  </span>
+                  <span className="mt-2 text-3xl font-black text-slate-900">{formatCount(item.count)}</span>
+                  <p className="mt-1 text-[10px] font-bold text-slate-500">turnos</p>
+                </div>
+              ))
+            ) : (
+              <div className="col-span-full py-8 text-center text-sm font-medium text-slate-400">
+                No hay turnos registrados este mes.
+              </div>
+            )}
+          </div>
+        </section>
+
         <section className="min-w-0 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
           <div className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
@@ -397,6 +439,13 @@ const DashboardPage = () => {
                           {index === 0 && (
                             <p className="text-[10px] font-black uppercase tracking-[0.24em] text-teal-600">Mes actual</p>
                           )}
+                          <div className="mt-1.5 flex flex-wrap gap-1">
+                            {row.insuranceBreakdown?.map((ib) => (
+                              <span key={ib.name} className="text-[9px] font-black uppercase tracking-tight text-slate-400 bg-slate-100/80 px-1.5 py-0.5 rounded-md border border-slate-200/50">
+                                {ib.name}: {ib.count}
+                              </span>
+                            ))}
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -433,6 +482,13 @@ const DashboardPage = () => {
                     <p className="mt-1 text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">
                       {index === 0 ? 'Mes actual' : 'Mes cerrado'}
                     </p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {row.insuranceBreakdown?.map((ib) => (
+                        <span key={ib.name} className="text-[9px] font-black uppercase tracking-tight text-slate-500 bg-white px-2 py-1 rounded-lg border border-slate-200/60 shadow-sm">
+                          {ib.name}: {ib.count}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                   <div className={`rounded-xl px-3 py-2 text-xs font-black ${
                     (row.volumeChange ?? 0) >= 0 ? 'bg-green-100 text-green-700' : 'bg-rose-100 text-rose-700'
