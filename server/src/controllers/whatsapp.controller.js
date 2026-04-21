@@ -9,9 +9,6 @@ import {
   uploadMedia,
 } from '../services/whatsapp.js';
 import { normalizePhone } from '../utils/phone.js';
-import {
-  findInMemoryWhatsAppCoverageByInput,
-} from '../utils/whatsappCoverageCatalog.js';
 import { transcribeAudioBuffer } from '../services/audioTranscription.js';
 
 const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
@@ -66,47 +63,27 @@ const DEFAULT_WELCOME_TEXT = [
 const AUTO_REPLY_OBRA_SOCIAL_TEXT = [
   '¡Perfecto! Primero indicanos el nombre de tu Obra Social, Prepaga o ART.',
   '',
-  'Vamos a revisar si está dentro de las coberturas que atendemos.',
-  '',
-  'Si trabajamos con esa cobertura, te pedimos la documentación para continuar.',
-  'Si no está dentro del listado, te ofrecemos la opción *Particular*.',
+  'Vamos a verificar si se encuentra habilitada actualmente en el Colegio de Kinesiólogos para poder atenderte.',
   '',
   '0️⃣ Volver al inicio.',
 ].join('\n');
 
-const buildInactiveCoverageReplyText = (coverageName) => [
-  `Por el momento no contamos con convenio vigente para atención a través de *${coverageName}*.`,
+const OBRA_SOCIAL_VERIFICATION_PENDING_TEXT = [
+  '¡Recibido! Un administrador verificará si tu cobertura está habilitada actualmente.',
   '',
-  'Si querés, podés atenderte de forma *Particular*. Te compartimos la información:',
-  '',
-  '💰 Valor: $15.000 por zona a tratar (solo efectivo).',
-  '',
-  'Para coordinar tu turno, envianos:',
-  '✅ Nombre, Apellido y DNI',
-  '✅ Fecha de nacimiento',
-  '✅ Diagnóstico: qué zona hay que tratar',
-  '📸 Foto de la Orden Médica',
-  '🩺 Antecedentes: Marcapasos, cáncer u otra condición.',
-  '',
-  'Cuando recibamos la documentación, un administrador seguirá la conversación para asignarte un horario. ✨',
-  '',
-  '0️⃣ Volver al inicio.',
-].join('\n');
-
-const buildActiveCoverageReplyText = (coverageName) => [
-  `¡Perfecto! Tenemos convenio con *${coverageName}* ✅`,
-  '',
-  'Para verificar cobertura y coordinar el horario, necesitamos:',
+  'Para agilizar el proceso, por favor envianos la siguiente documentación:',
   '',
   '✅ Nombre, Apellido y DNI',
   '✅ Fecha de nacimiento',
   '📸 Foto de la Orden Médica (legible)',
   '🩺 Antecedentes: Marcapasos, cáncer u otra condición.',
   '',
-  'Cuando recibamos la documentación, un administrador seguirá la conversación y te ofrecerá los horarios disponibles. ⏳',
+  'Cuando recibamos la documentación, un administrador seguirá la conversación para confirmarte la cobertura y asignarte un horario. ⏳',
   '',
   '0️⃣ Volver al inicio.',
 ].join('\n');
+
+
 
 const AUTO_REPLY_PARTICULAR_TEXT = [
   '¡Excelente! Información para sesiones *Particulares*:',
@@ -629,8 +606,6 @@ const getConversationAutoReply = ({
 }) => {
   const normalized = normalizeText(messageText);
   const currentStateBase = getFlowStateBase(currentState);
-  const matchedActiveCoverage = findInMemoryWhatsAppCoverageByInput(messageText, { includeInactive: false });
-  const matchedCoverage = matchedActiveCoverage || findInMemoryWhatsAppCoverageByInput(messageText, { includeInactive: true });
 
   if (messageType === 'reaction') {
     return null;
@@ -675,31 +650,14 @@ const getConversationAutoReply = ({
   }
 
   if (
-    matchedActiveCoverage
-    && (
-      shouldSendWelcome
-      || currentStateBase === FLOW_STATES.WELCOME
-      || currentStateBase === FLOW_STATES.OBRA_SOCIAL
-      || currentStateBase === FLOW_STATES.OBRA_SOCIAL_UNAVAILABLE
-    )
-  ) {
-    return {
-      type: 'text',
-      text: buildActiveCoverageReplyText(matchedActiveCoverage.name),
-      nextState: buildFlowState(FLOW_STATES.OBRA_SOCIAL_DOCS, matchedActiveCoverage.id),
-    };
-  }
-
-  if (
     normalized
-    && !matchedActiveCoverage
     && (currentStateBase === FLOW_STATES.OBRA_SOCIAL || currentStateBase === FLOW_STATES.OBRA_SOCIAL_UNAVAILABLE)
     && !isMenuCommand(normalized)
   ) {
     return {
       type: 'text',
-      text: buildInactiveCoverageReplyText(matchedCoverage?.name || getCoverageInputLabel(messageText)),
-      nextState: FLOW_STATES.PARTICULAR,
+      text: OBRA_SOCIAL_VERIFICATION_PENDING_TEXT,
+      nextState: FLOW_STATES.OBRA_SOCIAL_DOCS,
     };
   }
 
