@@ -42,7 +42,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
     hasCancer: false, hasMarcapasos: false, usesEA: false,
   });
 
-  const [diagnosis, setDiagnosis] = useState('Anamnesis:\n\nEstado Funcional:\n\nTto:');
+  const [diagnosis, setDiagnosis] = useState('');
   const [status, setStatus] = useState('SCHEDULED');
   const [isFirstSession, setIsFirstSession] = useState(false);
   const [sessionCount, setSessionCount] = useState(10);
@@ -144,7 +144,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
         hasMarcapasos: p.hasMarcapasos || false,
         usesEA: p.usesEA || false,
       });
-      setDiagnosis(appointment.diagnosis || 'Anamnesis:\n\nEstado Funcional:\n\nTto:');
+      setDiagnosis(appointment.diagnosis || '');
       setStatus(appointment.status || 'SCHEDULED');
       setIsFirstSession(appointment.isFirstSession || false);
       setEditingFutureId(null);
@@ -166,7 +166,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
         healthInsurance: '', treatAsParticular: false, affiliateNumber: '',
         hasCancer: false, hasMarcapasos: false, usesEA: false,
       });
-      setDiagnosis('Anamnesis:\n\nEstado Funcional:\n\nTto:');
+      setDiagnosis('');
       setStatus('SCHEDULED');
       setIsFirstSession(true);
       setSessionCount(10);
