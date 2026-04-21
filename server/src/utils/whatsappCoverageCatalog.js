@@ -26,7 +26,6 @@ const INITIAL_COVERAGES = [
   { name: 'IOMA', aliases: [], isActive: true, documentationRequired: 'Orden sellada y firmada' },
   { name: 'JERÁRQUICOS SALUD', aliases: ['Jerárquicos'], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
   { name: 'LUIS PASTEUR', aliases: ['Pasteur'], isActive: true, documentationRequired: LUIS_PASTEUR_DOCUMENTATION },
-  { name: 'MEDICUS', aliases: [], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
   { name: 'MEDIFÉ', aliases: ['Medife'], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
   { name: 'OPDEA', aliases: [], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
   { name: 'OSDOP', aliases: ['Docentes particulares'], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
