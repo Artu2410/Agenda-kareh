@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
+import { RotateCcw } from 'lucide-react';
 import api from '@/services/api';
 
 const DEFAULT_CAPACITY_PER_SLOT = 5;
@@ -327,6 +328,33 @@ const SlotTimersPanel = ({ currentTime, appointments = [], agendaConfig = null }
     previousStatusesRef.current = nextStatuses;
   }, [timers]);
 
+  const handleResetTimer = async (slotNumber) => {
+    if (pendingSlots.includes(slotNumber)) return;
+
+    setPendingSlots((prev) => [...prev, slotNumber]);
+
+    try {
+      const defaultDurationSeconds = getDefaultSecondsForSlot(timerDefaultSecondsBySlot, slotNumber);
+      const response = await api.post('/agenda/timers/reset', {
+        timerDate: todayKey,
+        slotTime: currentSlotTime,
+        slotNumber,
+        defaultDurationSeconds,
+      });
+
+      const serverTimer = normalizeTimerRecord(response.data?.timer, defaultDurationSeconds, slotNumber);
+      setTimerRecords((previous) => previous.map((timer) => (
+        timer.slotNumber === slotNumber ? serverTimer : timer
+      )));
+      toast.success(`Cronómetro ${slotNumber} reiniciado`);
+    } catch (error) {
+      console.error('Error resetting timer:', error);
+      toast.error('No se pudo reiniciar el cronómetro');
+    } finally {
+      setPendingSlots((prev) => prev.filter((value) => value !== slotNumber));
+    }
+  };
+
   const handleToggleTimer = async (slotNumber) => {
     if (pendingSlots.includes(slotNumber)) return;
 
@@ -363,29 +391,48 @@ const SlotTimersPanel = ({ currentTime, appointments = [], agendaConfig = null }
             const isPending = pendingSlots.includes(timer.slotNumber);
 
             return (
-              <button
-                type="button"
+              <div
                 key={`${todayKey}-${currentSlotTime}-${timer.slotNumber}`}
-                onClick={() => handleToggleTimer(timer.slotNumber)}
-                disabled={isPending}
-                className={`relative flex h-[92px] w-[84px] shrink-0 flex-col items-center justify-center rounded-[1.1rem] border-[4px] px-1 font-black transition-all ${getTimerBoxClasses(timer.status)} ${isPending ? 'cursor-wait opacity-70' : ''}`}
-                title={timer.status === 'active' ? 'Pausar cronómetro' : (timer.status === 'paused' ? 'Reanudar cronómetro' : 'Iniciar cronómetro')}
+                className="relative"
               >
-                {hasAppointment && (
-                  <span className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-slate-950/80" />
-                )}
-                <span className="text-[28px] leading-none">{timer.slotNumber}</span>
+                <button
+                  type="button"
+                  onClick={() => handleToggleTimer(timer.slotNumber)}
+                  onDoubleClick={() => handleResetTimer(timer.slotNumber)}
+                  disabled={isPending}
+                  className={`relative flex h-[92px] w-[84px] shrink-0 flex-col items-center justify-center rounded-[1.1rem] border-[4px] px-1 font-black transition-all ${getTimerBoxClasses(timer.status)} ${isPending ? 'cursor-wait opacity-70' : ''}`}
+                  title={timer.status === 'active' ? 'Pausar (Doble clic para reiniciar)' : (timer.status === 'paused' ? 'Reanudar (Doble clic para reiniciar)' : 'Iniciar')}
+                >
+                  {hasAppointment && (
+                    <span className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-slate-950/80" />
+                  )}
+                  <span className="text-[28px] leading-none">{timer.slotNumber}</span>
 
-                {timerMeta.label && (
-                  <span className="mt-2 text-[9px] font-black uppercase tracking-[0.16em] opacity-80">
-                    {timerMeta.label}
+                  {timerMeta.label && (
+                    <span className="mt-2 text-[9px] font-black uppercase tracking-[0.16em] opacity-80">
+                      {timerMeta.label}
+                    </span>
+                  )}
+
+                  <span className={`${!timerMeta.label ? 'mt-2' : ''} text-[11px] font-black leading-tight`}>
+                    {timerMeta.value}
                   </span>
-                )}
+                </button>
 
-                <span className={`${!timerMeta.label ? 'mt-2' : ''} text-[11px] font-black leading-tight`}>
-                  {timerMeta.value}
-                </span>
-              </button>
+                {timer.status !== 'idle' && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleResetTimer(timer.slotNumber);
+                    }}
+                    title="Reiniciar cronómetro"
+                    className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-white shadow-lg transition-transform hover:scale-110 active:scale-95"
+                  >
+                    <RotateCcw size={12} strokeWidth={3} />
+                  </button>
+                )}
+              </div>
             );
           })}
         </div>
