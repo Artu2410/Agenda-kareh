@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Calendar as CalendarIcon, Printer, Loader2, Trash2, History, Pencil, Check, X, Flag } from 'lucide-react';
+import { Calendar as CalendarIcon, Printer, Loader2, Trash2, History, Pencil, Check, X, Flag, Plus } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import api from '@/services/api';
@@ -57,6 +57,8 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
   const [savingFutureId, setSavingFutureId] = useState('');
   const [ticketLoading, setTicketLoading] = useState(false);
   const [closeAfterPrintPreview, setCloseAfterPrintPreview] = useState(false);
+  const [isAddingManualSession, setIsAddingManualSession] = useState(false);
+  const [manualDraft, setManualDraft] = useState({ date: '', time: '' });
   
   const lastSearchedRef = useRef('');
   const { ConfirmModalComponent, openModal } = useConfirmModal();
@@ -149,6 +151,8 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
       setIsFirstSession(appointment.isFirstSession || false);
       setEditingFutureId(null);
       setFutureDraft({ date: '', time: '' });
+      setIsAddingManualSession(false);
+      setManualDraft({ date: '', time: '' });
 
       const [y, m, d] = (getInputDateValue(appointment.date) || '').split('-').map(Number);
       if (y && m && d) {
@@ -173,6 +177,8 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
       setFutureAppointments([]);
       setEditingFutureId(null);
       setFutureDraft({ date: '', time: '' });
+      setIsAddingManualSession(false);
+      setManualDraft({ date: '', time: '' });
       if (selectedSlot) {
         const [y, m, d] = selectedSlot.date.split('-').map(Number);
         setSelectedDays([new Date(y, m - 1, d, 12, 0, 0).getDay()]);
@@ -315,6 +321,35 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
       alert(error.friendlyMessage || error.response?.data?.message || 'No se pudo reprogramar la sesión.');
     } finally {
       setSavingFutureId('');
+    }
+  };
+
+  const handleCreateIndividualSession = async () => {
+    if (!manualDraft.date || !manualDraft.time) {
+      alert('Debes completar fecha y horario.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await api.post('/appointments', {
+        patientId: appointment.patientId,
+        professionalId: appointment.professionalId || professional?.id,
+        date: manualDraft.date,
+        time: manualDraft.time,
+        diagnosis,
+        status: 'SCHEDULED',
+        sessionCount: 1,
+        selectedDays: []
+      });
+      await loadFutureAppointments();
+      onRefresh?.();
+      setIsAddingManualSession(false);
+      setManualDraft({ date: '', time: '' });
+    } catch (error) {
+      alert(error.response?.data?.message || 'Error al agendar la sesión individual.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -655,14 +690,66 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
         
         {/* COLUMNA DERECHA: SESIONES */}
         <div className="w-full md:w-80 bg-slate-50 p-8 flex flex-col">
-          <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2 border-b border-slate-200 pb-2">
-             <CalendarIcon size={14} className="text-teal-500" />
-             {isEditMode
-               ? (futureAppointments.length <= 1 && projectedEditSessions.length > 0)
-                 ? `${projectedEditSessions.length} A Programar`
-                 : `${futureAppointments.length} Sesiones Futuras`
-               : `${projectedSessions.length} Proyectadas`}
+          <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center justify-between border-b border-slate-200 pb-2">
+             <div className="flex items-center gap-2">
+               <CalendarIcon size={14} className="text-teal-500" />
+               {isEditMode
+                 ? (futureAppointments.length <= 1 && projectedEditSessions.length > 0)
+                   ? `${projectedEditSessions.length} A Programar`
+                   : `${futureAppointments.length} Sesiones Futuras`
+                 : `${projectedSessions.length} Proyectadas`}
+             </div>
+             {isEditMode && (
+               <button
+                 type="button"
+                 onClick={() => {
+                   setIsAddingManualSession(true);
+                   setManualDraft({ date: modalDate, time: modalTime });
+                 }}
+                 className="p-1 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors"
+                 title="Agregar sesión individual"
+               >
+                 <Plus size={16} />
+               </button>
+             )}
           </h3>
+
+          {isAddingManualSession && (
+            <div className="mb-4 bg-teal-50/50 p-3 rounded-xl border border-teal-100 space-y-3 animate-in fade-in slide-in-from-top-2">
+              <p className="text-[9px] font-black text-teal-600 uppercase tracking-widest">Nueva sesión individual</p>
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="date"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-bold text-slate-700 outline-none focus:ring-2 ring-teal-500"
+                  value={manualDraft.date}
+                  onChange={(e) => setManualDraft(prev => ({ ...prev, date: e.target.value }))}
+                />
+                <input
+                  type="time"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-bold text-slate-700 outline-none focus:ring-2 ring-teal-500"
+                  value={manualDraft.time}
+                  onChange={(e) => setManualDraft(prev => ({ ...prev, time: e.target.value }))}
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddingManualSession(false)}
+                  className="px-3 py-1.5 text-[10px] font-black uppercase text-slate-400 hover:text-slate-600"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreateIndividualSession}
+                  disabled={loading}
+                  className="bg-teal-600 text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase shadow-sm hover:bg-teal-700"
+                >
+                  Agendar
+                </button>
+              </div>
+            </div>
+          )}
           {isEditMode && futureAppointments.length <= 1 && projectedEditSessions.length > 0 && (
             <p className="text-[9px] font-bold text-teal-500 uppercase tracking-widest mb-3 -mt-4">
               Vista previa · Seleccioná días y presioná Generar
