@@ -3,6 +3,7 @@ import {
   getAgendaConfig,
   getAgendaTimers,
   toggleAgendaTimer,
+  resetAgendaTimer,
   updateAgendaConfig,
 } from '../controllers/agendaController.js';
 
@@ -20,6 +21,9 @@ const createRouter = (prisma) => {
 
   // Iniciar / pausar / reanudar cronómetro
   router.post('/timers/toggle', (req, res) => toggleAgendaTimer(req, res, prisma));
+
+  // Reiniciar cronómetro
+  router.post('/timers/reset', (req, res) => resetAgendaTimer(req, res, prisma));
 
   return router;
 };
