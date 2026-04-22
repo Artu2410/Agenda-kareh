@@ -205,16 +205,7 @@ const SlotTimersPanel = ({ currentTime, appointments = [], agendaConfig = null }
 
   const [timerRecords, setTimerRecords] = useState(() => createTimerShell(timerDefaultSecondsBySlot));
 
-  // Sincronizar viewSlotTime con el tiempo del sistema solo si no hay timers activos o si el usuario lo desea
-  useEffect(() => {
-    if (!isAutoSwitchEnabled) return;
 
-    const hasActiveTimer = timers.some(t => t.status === 'active' || t.status === 'paused');
-    
-    if (!hasActiveTimer) {
-      setViewSlotTime(currentSlotTime);
-    }
-  }, [currentSlotTime, isAutoSwitchEnabled, timers]);
 
   useEffect(() => {
     setTimerRecords(createTimerShell(timerDefaultSecondsBySlot));
@@ -282,6 +273,17 @@ const SlotTimersPanel = ({ currentTime, appointments = [], agendaConfig = null }
     )),
     [nowMs, timerDefaultSecondsBySlot, timerRecords],
   );
+
+  // Sincronizar viewSlotTime con el tiempo del sistema solo si no hay timers activos o si el usuario lo desea
+  useEffect(() => {
+    if (!isAutoSwitchEnabled) return;
+
+    const hasActiveTimer = timers.some(t => t.status === 'active' || t.status === 'paused');
+    
+    if (!hasActiveTimer) {
+      setViewSlotTime(currentSlotTime);
+    }
+  }, [currentSlotTime, isAutoSwitchEnabled, timers]);
 
   const playFinishedSound = async () => {
     try {
