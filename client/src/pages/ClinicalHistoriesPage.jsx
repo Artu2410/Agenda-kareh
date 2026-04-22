@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, FileText, ChevronRight, Loader2 } from 'lucide-react';
+import { Search, FileText, ChevronRight, Loader2, RefreshCcw } from 'lucide-react';
+import toast from 'react-hot-toast';
 import api from '../services/api';
 import { buildClinicalHistoryPath, persistClinicalHistoryContext } from '../utils/appRoutes';
 import { getCoverageLabel, isParticularCoverage } from '../utils/coverage';
 
-const formatClinicalRecordNumber = (value) => {
+const formatClinicalRecordNumber = (value, folio) => {
   const numericValue = Number(value);
   if (!Number.isInteger(numericValue) || numericValue <= 0) return 'Pendiente';
-  return `HC ${String(numericValue).padStart(4, '0')}`;
+  const hc = `HC ${String(numericValue).padStart(4, '0')}`;
+  return folio ? `${hc} / Folio ${folio}` : hc;
 };
 
 export default function ClinicalHistoriesPage() {
@@ -64,6 +66,21 @@ export default function ClinicalHistoriesPage() {
     filterPatients();
   }, [filterPatients]);
 
+  const handleRenumber = async () => {
+    if (!window.confirm('¿Estás seguro de que deseas renumerar todos los pacientes secuencialmente? Se asignarán números desde el 0001 según la fecha de creación.')) return;
+    try {
+      setLoading(true);
+      await api.post('/patients/admin/renumber');
+      toast.success('Pacientes renumerados correctamente');
+      fetchPatients();
+    } catch (err) {
+      console.error(err);
+      toast.error('Error al renumerar');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleViewHistory = (patient) => {
     persistClinicalHistoryContext({ patientId: patient.id, patientName: patient.fullName });
     navigate(buildClinicalHistoryPath(patient.fullName), {
@@ -85,8 +102,8 @@ export default function ClinicalHistoriesPage() {
           <p className="text-slate-600">Cada paciente conserva un único número de historia clínica, aunque tenga múltiples evoluciones.</p>
         </div>
 
-        <div className="mb-6">
-          <div className="relative">
+        <div className="mb-6 flex flex-col sm:flex-row gap-4">
+          <div className="relative flex-1">
             <Search className="absolute left-4 top-3 text-slate-400" size={20} />
             <input
               type="text"
@@ -96,6 +113,15 @@ export default function ClinicalHistoriesPage() {
               className="w-full pl-12 pr-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 shadow-sm"
             />
           </div>
+          <button
+            onClick={handleRenumber}
+            disabled={loading}
+            className="flex items-center justify-center gap-2 px-6 py-3 bg-slate-100 text-slate-500 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all border border-slate-200"
+            title="Renumerar todas las HC desde 0001"
+          >
+            <RefreshCcw size={14} className={loading ? 'animate-spin' : ''} />
+            Renumerar Todo
+          </button>
         </div>
 
         {loading ? (
@@ -117,7 +143,7 @@ export default function ClinicalHistoriesPage() {
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex-1">
                     <p className="mb-2 inline-flex rounded-full bg-slate-100 px-3 py-1 text-[11px] font-black uppercase tracking-[0.22em] text-slate-500">
-                      {formatClinicalRecordNumber(patient.clinicalRecordNumber)}
+                      {formatClinicalRecordNumber(patient.clinicalRecordNumber, patient.folio)}
                     </p>
                     <h3 className="text-lg font-bold text-slate-900 group-hover:text-teal-700 uppercase">
                       {patient.fullName}

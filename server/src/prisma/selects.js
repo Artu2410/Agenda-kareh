@@ -3,6 +3,7 @@ export const patientSelect = {
   dni: true,
   fullName: true,
   clinicalRecordNumber: true,
+  folio: true,
   email: true,
   birthDate: true,
   healthInsurance: true,
