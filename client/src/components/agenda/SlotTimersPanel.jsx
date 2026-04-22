@@ -1,7 +1,7 @@
 // Deployment trigger: 2026-04-21T18:31
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { RotateCcw } from 'lucide-react';
+import { RotateCcw, ChevronLeft, ChevronRight } from 'lucide-react';
 import api from '@/services/api';
 
 const DEFAULT_CAPACITY_PER_SLOT = 5;
@@ -164,6 +164,8 @@ const SlotTimersPanel = ({ currentTime, appointments = [], agendaConfig = null }
   const currentSlotTime = formatMinutesToTime(Math.floor(currentMinutes / slotDurationMinutes) * slotDurationMinutes);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [pendingSlots, setPendingSlots] = useState([]);
+  const [viewSlotTime, setViewSlotTime] = useState(currentSlotTime);
+  const [isAutoSwitchEnabled, setIsAutoSwitchEnabled] = useState(true);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -203,11 +205,22 @@ const SlotTimersPanel = ({ currentTime, appointments = [], agendaConfig = null }
 
   const [timerRecords, setTimerRecords] = useState(() => createTimerShell(timerDefaultSecondsBySlot));
 
+  // Sincronizar viewSlotTime con el tiempo del sistema solo si no hay timers activos o si el usuario lo desea
+  useEffect(() => {
+    if (!isAutoSwitchEnabled) return;
+
+    const hasActiveTimer = timers.some(t => t.status === 'active' || t.status === 'paused');
+    
+    if (!hasActiveTimer) {
+      setViewSlotTime(currentSlotTime);
+    }
+  }, [currentSlotTime, isAutoSwitchEnabled, timers]);
+
   useEffect(() => {
     setTimerRecords(createTimerShell(timerDefaultSecondsBySlot));
     previousStatusesRef.current = new Map();
     hasHydratedTimersRef.current = false;
-  }, [timerDefaultSecondsBySlot, todayKey, currentSlotTime]);
+  }, [timerDefaultSecondsBySlot, todayKey, viewSlotTime]);
 
   const applyServerSnapshot = useCallback((serverTimers = []) => {
     const recordsBySlot = new Map(serverTimers.map((timer) => [Number(timer.slotNumber), timer]));
@@ -226,7 +239,7 @@ const SlotTimersPanel = ({ currentTime, appointments = [], agendaConfig = null }
       const response = await api.get('/agenda/timers', {
         params: {
           timerDate: todayKey,
-          slotTime: currentSlotTime,
+          slotTime: viewSlotTime,
         },
       });
 
@@ -237,7 +250,7 @@ const SlotTimersPanel = ({ currentTime, appointments = [], agendaConfig = null }
         console.error('Error fetching timers:', error);
       }
     }
-  }, [applyServerSnapshot, currentSlotTime, todayKey]);
+  }, [applyServerSnapshot, viewSlotTime, todayKey]);
 
   useEffect(() => {
     void fetchTimerSnapshot();
@@ -338,7 +351,7 @@ const SlotTimersPanel = ({ currentTime, appointments = [], agendaConfig = null }
       const defaultDurationSeconds = getDefaultSecondsForSlot(timerDefaultSecondsBySlot, slotNumber);
       const response = await api.post('/agenda/timers/reset', {
         timerDate: todayKey,
-        slotTime: currentSlotTime,
+        slotTime: viewSlotTime,
         slotNumber,
         defaultDurationSeconds,
       });
@@ -365,7 +378,7 @@ const SlotTimersPanel = ({ currentTime, appointments = [], agendaConfig = null }
       const defaultDurationSeconds = getDefaultSecondsForSlot(timerDefaultSecondsBySlot, slotNumber);
       const response = await api.post('/agenda/timers/toggle', {
         timerDate: todayKey,
-        slotTime: currentSlotTime,
+        slotTime: viewSlotTime,
         slotNumber,
         defaultDurationSeconds,
       });
@@ -382,8 +395,56 @@ const SlotTimersPanel = ({ currentTime, appointments = [], agendaConfig = null }
     }
   };
 
+  const shiftSlot = (direction) => {
+    const [h, m] = viewSlotTime.split(':').map(Number);
+    const totalMinutes = h * 60 + m + (direction * slotDurationMinutes);
+    const safeMinutes = Math.max(0, Math.min(24 * 60 - 1, totalMinutes));
+    setViewSlotTime(formatMinutesToTime(safeMinutes));
+    setIsAutoSwitchEnabled(false);
+  };
+
   return (
-    <section className="mb-4 overflow-x-auto px-3 py-2 sm:px-4">
+    <section className="mb-4 flex flex-col gap-2 px-3 py-2 sm:px-4">
+      <div className="flex items-center justify-between gap-4 max-w-fit">
+        <div className="flex items-center gap-1 rounded-2xl border border-slate-200 bg-white/90 p-1 shadow-sm">
+          <button
+            type="button"
+            onClick={() => shiftSlot(-1)}
+            className="p-2 text-slate-400 hover:text-teal-600 hover:bg-slate-50 rounded-xl transition-all"
+            title="Bloque anterior"
+          >
+            <ChevronLeft size={18} />
+          </button>
+          
+          <div className="flex flex-col items-center px-4 min-w-[80px]">
+            <span className="text-[14px] font-black text-slate-800 leading-none">{viewSlotTime}</span>
+            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 mt-1">Horario</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => shiftSlot(1)}
+            className="p-2 text-slate-400 hover:text-teal-600 hover:bg-slate-50 rounded-xl transition-all"
+            title="Siguiente bloque"
+          >
+            <ChevronRight size={18} />
+          </button>
+        </div>
+
+        {!isAutoSwitchEnabled && (
+          <button
+            type="button"
+            onClick={() => {
+              setIsAutoSwitchEnabled(true);
+              setViewSlotTime(currentSlotTime);
+            }}
+            className="bg-teal-50 text-teal-600 border border-teal-100 rounded-2xl px-4 py-2 text-[10px] font-black uppercase tracking-widest hover:bg-teal-100 transition-all"
+          >
+            Volver al presente
+          </button>
+        )}
+      </div>
+
       <div className="inline-flex min-w-max rounded-[1.4rem] border border-slate-200 bg-white/90 px-3 py-3 shadow-sm">
         <div className="flex min-w-max gap-3 pb-1">
           {timers.map((timer) => {
@@ -393,7 +454,7 @@ const SlotTimersPanel = ({ currentTime, appointments = [], agendaConfig = null }
 
             return (
               <div
-                key={`${todayKey}-${currentSlotTime}-${timer.slotNumber}`}
+                key={`${todayKey}-${viewSlotTime}-${timer.slotNumber}`}
                 className="relative"
               >
                 <button
