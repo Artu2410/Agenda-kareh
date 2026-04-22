@@ -103,11 +103,24 @@ export const createPatient = async (req, res, prisma) => {
     });
     if (existingPatient) return res.status(400).json({ message: 'El DNI ya existe' });
 
+    // Calcular el número de HC secuencial
+    const lastPatient = await prisma.patient.findFirst({
+      orderBy: { clinicalRecordNumber: 'desc' },
+      select: { clinicalRecordNumber: true }
+    });
+    const nextHC = (lastPatient?.clinicalRecordNumber || 0) + 1;
+
+    // Calcular folio (2026=1, 2027=2, etc)
+    const currentYear = new Date().getFullYear();
+    const folio = Math.max(1, currentYear - 2025);
+
     const patient = await prisma.patient.create({
       data: {
         fullName, dni, phone, email, address,
         birthDate: normalizeBirthDateOrUnknown(birthDate),
         healthInsurance,
+        clinicalRecordNumber: nextHC,
+        folio,
         treatAsParticular: !!treatAsParticular,
         affiliateNumber,
         emergencyPhone,
@@ -312,3 +325,42 @@ export const getSessionCycles = async (req, res, prisma) => {
     res.status(500).json({ error: 'Error fetching session cycles', message: error.message });
   }
 };
+
+// Re-numerar todos los pacientes secuencialmente (Reparación)
+export const renumberAllPatients = async (req, res, prisma) => {
+  try {
+    const patients = await prisma.patient.findMany({
+      orderBy: { createdAt: 'asc' },
+      select: { id: true, createdAt: true }
+    });
+
+    await prisma.$transaction(async (tx) => {
+      // 1. Numeración temporal negativa para evitar colisiones unique
+      for (let i = 0; i < patients.length; i++) {
+        await tx.patient.update({
+          where: { id: patients[i].id },
+          data: { clinicalRecordNumber: -(i + 1) }
+        });
+      }
+
+      // 2. Numeración final y folios
+      for (let i = 0; i < patients.length; i++) {
+        const year = new Date(patients[i].createdAt).getFullYear();
+        const folio = Math.max(1, year - 2025);
+        await tx.patient.update({
+          where: { id: patients[i].id },
+          data: { 
+            clinicalRecordNumber: i + 1,
+            folio: folio
+          }
+        });
+      }
+    });
+
+    res.status(200).json({ message: `Re-numerados ${patients.length} pacientes correctamente` });
+  } catch (error) {
+    console.error('Error en renumberAllPatients:', error);
+    res.status(500).json({ error: 'Error al re-numerar', message: error.message });
+  }
+};
+

@@ -8,7 +8,8 @@ import {
   getPatientById,
   getPatientHistoryByDni,
   getFutureAppointments,
-  getSessionCycles
+  getSessionCycles,
+  renumberAllPatients
 } from '../controllers/patient.controller.js';
 import { validateBody } from '../middlewares/validate.js';
 import { createPatientSchema } from '../schemas/patient.schema.js';
@@ -29,6 +30,7 @@ export default function createPatientRoutes(prisma) {
   router.delete('/:id', (req, res) => deletePatient(req, res, prisma));
   router.put('/:id', (req, res) => updatePatient(req, res, prisma));
   router.patch('/:id', (req, res) => updatePatient(req, res, prisma));
+  router.post('/admin/renumber', (req, res) => renumberAllPatients(req, res, prisma));
 
   return router;
 }
