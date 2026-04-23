@@ -12,6 +12,7 @@ import {
 const DEFAULT_ACCEPT = '.jpg,.jpeg,.png,.webp,.gif,.pdf';
 
 const isImageUrl = (url = '') => /\.(png|jpe?g|gif|webp|bmp|svg)(\?.*)?$/i.test(url);
+const isPdfUrl = (url = '') => /\.pdf(\?.*)?$/i.test(url);
 
 const ActionLabel = ({ children, disabled = false, tone = 'primary' }) => {
   const toneClass = disabled
@@ -113,13 +114,28 @@ const DocumentUploadField = ({
           <img
             src={value}
             alt={label}
-            className="h-44 w-full rounded-3xl border border-slate-200 object-cover"
+            className="h-44 w-full rounded-3xl border border-slate-200 object-cover shadow-sm"
           />
+        ) : isPdfUrl(value) ? (
+          <div className="relative h-44 w-full overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+            <iframe
+              src={`${value}#toolbar=0&navpanes=0&scrollbar=0`}
+              className="h-[500px] w-full origin-top scale-[0.5] border-none"
+              title={label}
+              style={{ pointerEvents: 'none' }}
+            />
+            <div className="absolute inset-0 flex items-center justify-center bg-slate-900/5 transition-all hover:bg-transparent">
+              <div className="flex flex-col items-center gap-2 rounded-2xl bg-white/90 p-4 shadow-xl border border-white/20 backdrop-blur-sm">
+                <FileText size={24} className="text-rose-500" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">Vista Previa PDF</span>
+              </div>
+            </div>
+          </div>
         ) : (
-          <div className="flex h-28 items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-white">
+          <div className="flex h-28 items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-white shadow-sm">
             <div className="flex items-center gap-3 text-slate-500">
               <FileText size={22} />
-              <span className="text-sm font-bold">Documento listo para abrir o descargar</span>
+              <span className="text-sm font-bold">Documento cargado (PDF u otro)</span>
             </div>
           </div>
         )
