@@ -172,9 +172,23 @@ const CashflowPage = () => {
       if (t.type === 'EXPENSE') stat.expense += amount;
     });
 
-    return Array.from(weeks.values())
-      .sort((a, b) => b.mondayDate - a.mondayDate)
-      .slice(0, 4); 
+    const sortedWeeks = Array.from(weeks.values())
+      .sort((a, b) => b.mondayDate - a.mondayDate);
+
+    return sortedWeeks.map((week, index) => {
+      const previousWeek = sortedWeeks[index + 1];
+      let diffNet = 0;
+      if (previousWeek) {
+        const currentNet = week.income - week.expense;
+        const prevNet = previousWeek.income - previousWeek.expense;
+        diffNet = currentNet - prevNet;
+      }
+
+      return {
+        ...week,
+        diffNet
+      };
+    }).slice(0, 4); 
   }, [transactions]);
 
   const summaryCards = [
@@ -358,10 +372,19 @@ const CashflowPage = () => {
                       <span className="text-sm font-black text-slate-800">{formatCurrency(week.expense)}</span>
                     </div>
                     <div className="mt-1 border-t border-slate-100 pt-2 flex items-center justify-between">
-                      <span className="text-[9px] font-black uppercase text-slate-400">Neto</span>
-                      <span className={`text-xs font-black ${week.income - week.expense >= 0 ? 'text-teal-600' : 'text-red-600'}`}>
-                        {formatCurrency(week.income - week.expense)}
-                      </span>
+                      <div className="flex flex-col">
+                        <span className="text-[9px] font-black uppercase text-slate-400">Neto</span>
+                        <span className={`text-xs font-black ${week.income - week.expense >= 0 ? 'text-teal-600' : 'text-red-600'}`}>
+                          {formatCurrency(week.income - week.expense)}
+                        </span>
+                      </div>
+                      
+                      {week.diffNet !== 0 && (
+                        <div className={`flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[9px] font-black ${week.diffNet > 0 ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
+                          {week.diffNet > 0 ? <ArrowUp size={10} /> : <ArrowDown size={10} />}
+                          {formatCurrency(Math.abs(week.diffNet))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
