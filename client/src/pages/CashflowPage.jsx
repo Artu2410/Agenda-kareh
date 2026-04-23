@@ -155,10 +155,13 @@ const CashflowPage = () => {
       
       const weekKey = format(monday, 'yyyy-MM-dd');
       if (!weeks.has(weekKey)) {
+        const sunday = new Date(monday);
+        sunday.setDate(monday.getDate() + 6);
+        
         weeks.set(weekKey, { 
           income: 0, 
           expense: 0, 
-          label: `Semana del ${format(monday, 'dd/MM')}`,
+          label: `Semana del ${format(monday, 'dd/MM')} al ${format(sunday, 'dd/MM')}`,
           mondayDate: monday
         });
       }
