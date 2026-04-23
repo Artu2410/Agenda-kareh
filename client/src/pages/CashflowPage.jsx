@@ -142,6 +142,38 @@ const CashflowPage = () => {
     new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(value)
   );
 
+  const weeklyStats = useMemo(() => {
+    const weeks = new Map();
+    
+    transactions.forEach(t => {
+      const d = new Date(t.date);
+      // Obtener el lunes de esa semana
+      const day = d.getDay() || 7; 
+      const monday = new Date(d);
+      monday.setHours(0, 0, 0, 0);
+      monday.setDate(d.getDate() - day + 1);
+      
+      const weekKey = format(monday, 'yyyy-MM-dd');
+      if (!weeks.has(weekKey)) {
+        weeks.set(weekKey, { 
+          income: 0, 
+          expense: 0, 
+          label: `Semana del ${format(monday, 'dd/MM')}`,
+          mondayDate: monday
+        });
+      }
+      
+      const stat = weeks.get(weekKey);
+      const amount = parseFloat(t.amount);
+      if (t.type === 'INCOME') stat.income += amount;
+      if (t.type === 'EXPENSE') stat.expense += amount;
+    });
+
+    return Array.from(weeks.values())
+      .sort((a, b) => b.mondayDate - a.mondayDate)
+      .slice(0, 4); 
+  }, [transactions]);
+
   const summaryCards = [
     {
       key: 'cash-balance',
@@ -300,6 +332,40 @@ const CashflowPage = () => {
             );
           })}
         </div>
+
+        {/* Weekly Stats Section */}
+        {weeklyStats.length > 0 && (
+          <div className="mb-8">
+            <h2 className="mb-4 text-xs font-black uppercase tracking-[0.3em] text-slate-400">Resumen Semanal (Últimas 4 semanas)</h2>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {weeklyStats.map((week) => (
+                <div key={week.label} className="rounded-2xl border border-slate-200 bg-white/60 p-4 backdrop-blur-sm">
+                  <p className="text-[10px] font-black uppercase tracking-wider text-teal-600 mb-3">{week.label}</p>
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between">
+                      <span className="flex items-center gap-1 text-[11px] font-bold text-slate-500">
+                        <ArrowUp size={12} className="text-green-500" /> Entra
+                      </span>
+                      <span className="text-sm font-black text-slate-800">{formatCurrency(week.income)}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="flex items-center gap-1 text-[11px] font-bold text-slate-500">
+                        <ArrowDown size={12} className="text-red-500" /> Sale
+                      </span>
+                      <span className="text-sm font-black text-slate-800">{formatCurrency(week.expense)}</span>
+                    </div>
+                    <div className="mt-1 border-t border-slate-100 pt-2 flex items-center justify-between">
+                      <span className="text-[9px] font-black uppercase text-slate-400">Neto</span>
+                      <span className={`text-xs font-black ${week.income - week.expense >= 0 ? 'text-teal-600' : 'text-red-600'}`}>
+                        {formatCurrency(week.income - week.expense)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Transactions by Month */}
         <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-md">
