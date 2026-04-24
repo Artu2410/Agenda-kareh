@@ -192,10 +192,16 @@ const DashboardPage = () => {
                 <p className="text-lg">{formatCount(metrics.weekly?.completed)}</p>
                 <span className="text-emerald-500">Asistieron</span>
               </div>
-              <div className="rounded-2xl bg-rose-50 px-3 py-4 text-rose-700">
-                <p className="text-lg">{formatCount(metrics.weekly?.noShow)}</p>
                 <span className="text-rose-500">Inasist.</span>
               </div>
+            </div>
+
+            <div className="mt-4 p-4 bg-purple-50 rounded-2xl border border-purple-200 flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-purple-700">Respiratorios 🫁</p>
+                <p className="text-sm font-bold text-slate-600 mt-0.5">Semana actual</p>
+              </div>
+              <span className="text-2xl font-black text-purple-900">{formatCount(metrics.weekly?.respiratory)}</span>
             </div>
           </section>
 
@@ -301,15 +307,26 @@ const DashboardPage = () => {
           </div>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
             {metrics.monthly?.insuranceBreakdown?.length > 0 ? (
-              metrics.monthly.insuranceBreakdown.map((item) => (
-                <div key={item.name} className="flex flex-col rounded-[1.25rem] border border-slate-100 bg-slate-50/50 p-4 transition-colors hover:border-teal-100 lg:p-5">
-                  <span className="truncate text-[10px] font-black uppercase tracking-[0.15em] text-slate-400" title={item.name}>
-                    {item.name}
-                  </span>
-                  <span className="mt-2 text-3xl font-black text-slate-900">{formatCount(item.count)}</span>
-                  <p className="mt-1 text-[10px] font-bold text-slate-500">turnos</p>
-                </div>
-              ))
+              metrics.monthly.insuranceBreakdown.map((item) => {
+                const isRespiratory = item.name === 'PARTICULAR RESPIRATORIO';
+                return (
+                  <div key={item.name} className={`flex flex-col rounded-[1.25rem] border p-4 transition-colors lg:p-5 ${
+                    isRespiratory 
+                      ? 'border-purple-200 bg-purple-50 hover:border-purple-300' 
+                      : 'border-slate-100 bg-slate-50/50 hover:border-teal-100'
+                  }`}>
+                    <span className={`truncate text-[10px] font-black uppercase tracking-[0.15em] ${
+                      isRespiratory ? 'text-purple-600' : 'text-slate-400'
+                    }`} title={item.name}>
+                      {item.name}
+                    </span>
+                    <span className={`mt-2 text-3xl font-black ${
+                      isRespiratory ? 'text-purple-900' : 'text-slate-900'
+                    }`}>{formatCount(item.count)}</span>
+                    <p className="mt-1 text-[10px] font-bold text-slate-500">turnos</p>
+                  </div>
+                );
+              })
             ) : (
               <div className="col-span-full py-8 text-center text-sm font-medium text-slate-400">
                 No hay turnos registrados este mes.

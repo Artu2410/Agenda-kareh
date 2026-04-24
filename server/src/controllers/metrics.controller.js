@@ -33,6 +33,7 @@ const buildMonthlySnapshot = async (prisma, baseDate) => {
           select: {
             healthInsurance: true,
             treatAsParticular: true,
+            isRespiratory: true,
           },
         },
       },
@@ -61,7 +62,16 @@ const buildMonthlySnapshot = async (prisma, baseDate) => {
 
   const insuranceMap = {};
   appointments.forEach((apt) => {
-    let insurance = apt.patient.treatAsParticular ? 'PARTICULAR' : (apt.patient.healthInsurance || 'SIN COBERTURA');
+    let insurance = '';
+    
+    if (apt.patient.isRespiratory) {
+      insurance = 'PARTICULAR RESPIRATORIO';
+    } else if (apt.patient.treatAsParticular) {
+      insurance = 'PARTICULAR FKT';
+    } else {
+      insurance = apt.patient.healthInsurance || 'SIN COBERTURA';
+    }
+
     insurance = insurance.toUpperCase().trim();
     if (!insurance) insurance = 'SIN COBERTURA';
     insuranceMap[insurance] = (insuranceMap[insurance] || 0) + 1;
@@ -86,6 +96,7 @@ const buildMonthlySnapshot = async (prisma, baseDate) => {
     resolvedCount,
     attendanceRate,
     insuranceBreakdown,
+    respiratoryCount: appointments.filter(a => a.patient.isRespiratory).length,
   };
 };
 
@@ -108,6 +119,13 @@ export const getMetrics = async (req, res, prisma) => {
     const weeklyCompleted = weeklyAppointments.filter((appointment) => appointment.status === 'COMPLETED').length;
     const weeklyNoShow = weeklyAppointments.filter((appointment) => appointment.status === 'NO_SHOW').length;
     const weeklyTotal = weeklyAppointments.length;
+    const weeklyRespiratory = await prisma.appointment.count({
+      where: {
+        date: { gte: weekStart, lte: weekEnd },
+        status: { not: 'CANCELLED' },
+        patient: { isRespiratory: true },
+      },
+    });
     const weeklyResolved = weeklyCompleted + weeklyNoShow;
 
     const currentMonthSnapshot = await buildMonthlySnapshot(prisma, now);
@@ -174,6 +192,7 @@ export const getMetrics = async (req, res, prisma) => {
         completed: weeklyCompleted,
         noShow: weeklyNoShow,
         resolved: weeklyResolved,
+        respiratory: weeklyRespiratory,
         percentage: weeklyTotal > 0 ? Number(((weeklyCompleted / weeklyTotal) * 100).toFixed(1)) : 0,
         attendanceRate: weeklyResolved > 0 ? Number(((weeklyCompleted / weeklyResolved) * 100).toFixed(1)) : 0,
       },
@@ -188,7 +207,9 @@ export const getMetrics = async (req, res, prisma) => {
         change: monthlyChange,
         changeLabel: monthlyChange >= 0 ? `+${monthlyChange}%` : `${monthlyChange}%`,
         label: formatMonthLabel(now),
+        label: formatMonthLabel(now),
         insuranceBreakdown: currentMonthSnapshot.insuranceBreakdown,
+        respiratory: currentMonthSnapshot.respiratoryCount,
       },
       annual: {
         patientCount: uniquePatients.length,
