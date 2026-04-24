@@ -20,6 +20,8 @@ export const patientSelect = {
   hasCancer: true,
   hasMarcapasos: true,
   usesEA: true,
+  usesWheelchair: true,
+  isRespiratory: true,
   medicalNotes: true,
   createdAt: true,
   updatedAt: true,

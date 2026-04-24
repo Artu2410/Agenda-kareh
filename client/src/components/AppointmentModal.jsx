@@ -40,6 +40,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
     dni: '', lastName: '', firstName: '', phone: '', birthDate: '',
     healthInsurance: '', treatAsParticular: false, affiliateNumber: '',
     hasCancer: false, hasMarcapasos: false, usesEA: false,
+    usesWheelchair: false, isRespiratory: false,
   });
 
   const [diagnosis, setDiagnosis] = useState('');
@@ -145,6 +146,8 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
         hasCancer: p.hasCancer || false,
         hasMarcapasos: p.hasMarcapasos || false,
         usesEA: p.usesEA || false,
+        usesWheelchair: p.usesWheelchair || false,
+        isRespiratory: p.isRespiratory || false,
       });
       setDiagnosis(appointment.diagnosis || '');
       setStatus(appointment.status || 'SCHEDULED');
@@ -169,6 +172,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
         dni: '', lastName: '', firstName: '', phone: '',
         healthInsurance: '', treatAsParticular: false, affiliateNumber: '',
         hasCancer: false, hasMarcapasos: false, usesEA: false,
+        usesWheelchair: false, isRespiratory: false,
       });
       setDiagnosis('');
       setStatus('SCHEDULED');
@@ -201,7 +205,11 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
           healthInsurance: data.healthInsurance || '',
           treatAsParticular: data.treatAsParticular || false,
           affiliateNumber: data.affiliateNumber || '',
-          hasCancer: data.hasCancer || false, hasMarcapasos: data.hasMarcapasos || false, usesEA: data.usesEA || false,
+          hasCancer: data.hasCancer || false, 
+          hasMarcapasos: data.hasMarcapasos || false, 
+          usesEA: data.usesEA || false,
+          usesWheelchair: data.usesWheelchair || false,
+          isRespiratory: data.isRespiratory || false,
         }));
       }
     } catch {
@@ -596,7 +604,13 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
               )}
 
               <div className="p-4 bg-slate-50 rounded-[2rem] border border-slate-100 grid grid-cols-3 gap-2">
-                {[{ key: 'hasCancer', label: 'Oncológico', color: 'accent-red-500' }, { key: 'hasMarcapasos', label: 'Marcapasos', color: 'accent-blue-500' }, { key: 'usesEA', label: 'E.A.', color: 'accent-amber-500' }].map((item) => (
+                {[
+                  { key: 'hasCancer', label: 'Oncológico', color: 'accent-red-500' },
+                  { key: 'hasMarcapasos', label: 'Marcapasos', color: 'accent-blue-500' },
+                  { key: 'usesEA', label: 'E.A.', color: 'accent-amber-500' },
+                  { key: 'usesWheelchair', label: 'Silla Ruedas 👩🦽', color: 'accent-slate-600' },
+                  { key: 'isRespiratory', label: 'Respiratorio 🫁', color: 'accent-rose-500' }
+                ].map((item) => (
                   <label key={item.key} className="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" className={`${item.color} w-4 h-4`} checked={patientData[item.key]} onChange={e => setPatientData({...patientData, [item.key]: e.target.checked})} />
                     <span className={`text-[10px] font-black uppercase ${patientData[item.key] ? 'text-slate-800' : 'text-slate-400'}`}>{item.label}</span>

@@ -64,7 +64,7 @@ const getCoverageBadgeClass = (value, treatAsParticular = false) => (
 
 const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedule = [], selectedProfessional = null, currentTime, capacityPerSlot = 5 }) => {
   const scrollContainerRef = useRef(null);
-  const getStatusMeta = (status, usesEA, treatAsParticular, healthInsurance) => {
+  const getStatusMeta = (status, usesEA, treatAsParticular, healthInsurance, isRespiratory) => {
     const isPami = healthInsurance?.toUpperCase().includes('PAMI');
     if (status === 'COMPLETED') {
       return {
@@ -81,6 +81,15 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
         badgeClass: 'bg-rose-100 text-rose-700',
         label: 'Inasistencia',
         icon: <AlertTriangle size={16} className="text-rose-600 shrink-0" />
+      };
+    }
+
+    if (isRespiratory && status === 'SCHEDULED') {
+      return {
+        cardClass: 'bg-rose-50 border-rose-400',
+        badgeClass: 'bg-rose-100 text-rose-700',
+        label: 'Respiratorio',
+        icon: <span className="text-lg">🫁</span>
       };
     }
 
@@ -262,7 +271,8 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
                         app.status,
                         app.patient?.usesEA,
                         app.patient?.treatAsParticular,
-                        app.patient?.healthInsurance
+                        app.patient?.healthInsurance,
+                        app.patient?.isRespiratory
                       );
 
                       return (
@@ -311,6 +321,7 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
                           {app.patient?.hasCancer && <AlertTriangle size={12} className="text-rose-500" title="Oncológico" />}
                           {app.patient?.hasMarcapasos && <Activity size={12} className="text-blue-600 stroke-[3px]" />}
                           {app.patient?.usesEA && <Zap size={12} className="text-amber-500 fill-amber-500" />}
+                          {app.patient?.usesWheelchair && <span className="text-[14px]" title="Silla de Ruedas">👩🦽</span>}
                         </div>
                       </div>
                     );
