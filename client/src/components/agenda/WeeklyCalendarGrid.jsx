@@ -216,7 +216,7 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
             <p className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-widest">
               {format(day.date, 'EEEE', { locale: es })}
             </p>
-            <p className="text-xl sm:text-2xl font-black text-slate-800">{format(day.date, 'd')}</p>
+            <p className="text-lg sm:text-xl font-black text-slate-800">{format(day.date, 'd')}</p>
             {day.hasConfiguredSchedule && (
               <p className="mt-1 text-[10px] font-black uppercase tracking-wider text-teal-600">
                 {day.startTime} - {day.endTime}
@@ -279,7 +279,7 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
                       <div
                         key={app.id}
                         onClick={() => onSlotClick(app)}
-                        className={`group relative flex flex-col p-4 rounded-xl border-l-[8px] shadow-sm transition-all hover:shadow-md hover:scale-[1.02] cursor-pointer ${
+                        className={`group relative flex flex-col p-3 rounded-xl border-l-[6px] shadow-sm transition-all hover:shadow-md hover:scale-[1.01] cursor-pointer ${
                           statusMeta.cardClass
                         }`}
                       >
@@ -289,8 +289,8 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
                           </div>
                         )}
 
-                        <div className="flex justify-between items-start mb-1">
-                          <span className="text-[12px] sm:text-[14px] font-black text-slate-900 uppercase leading-tight truncate pr-4">
+                        <div className="flex justify-between items-start mb-0.5">
+                          <span className="text-[11px] sm:text-[12px] font-black text-slate-900 uppercase leading-tight truncate pr-2">
                             {app.patient?.fullName}
                           </span>
                           {statusMeta.icon}
@@ -311,8 +311,8 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
                           </span>
                         </div>
 
-                        <div className="mt-2 sm:mt-3 p-2 bg-white/80 rounded-lg border border-slate-200/50 shadow-inner">
-                          <p className="text-[11px] sm:text-[13px] font-bold text-slate-700 leading-snug line-clamp-3 uppercase">
+                        <div className="mt-1.5 sm:mt-2 p-1.5 bg-white/80 rounded-lg border border-slate-200/50 shadow-inner">
+                          <p className="text-[10px] sm:text-[11px] font-bold text-slate-700 leading-snug line-clamp-2 uppercase">
                             {app.diagnosis || 'SIN ESPECIFICAR'}
                           </p>
                         </div>

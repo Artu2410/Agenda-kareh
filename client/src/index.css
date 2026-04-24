@@ -93,8 +93,8 @@
 }
 
 .calendar-grid {
-  --calendar-time-column: 85px;
-  --calendar-day-min-width: 180px;
+  --calendar-time-column: 65px;
+  --calendar-day-min-width: 125px;
 }
 
 /* --- ESTILOS STICKY (CABECERAS FIJAS) --- */
@@ -124,8 +124,8 @@
 
 @media (max-width: 1023px) {
   .calendar-grid {
-    --calendar-time-column: 72px;
-    --calendar-day-min-width: 148px;
+    --calendar-time-column: 65px;
+    --calendar-day-min-width: 130px;
   }
 
   .sticky-day-header {
@@ -144,8 +144,8 @@
 /* --- GRILLA DEL CALENDARIO (SIN DOMINGO) --- */
 [class*="grid-cols-8"] {
   display: grid !important;
-  /* 85px para la hora, y 6 columnas iguales para Lunes-Sábado */
-  grid-template-columns: 85px repeat(6, minmax(150px, 1fr)) !important;
+  /* 65px para la hora, y 6 columnas iguales para Lunes-Sábado */
+  grid-template-columns: 65px repeat(6, minmax(120px, 1fr)) !important;
 }
 
 /* Ocultar la octava columna (Domingo) y cualquier rastro */
