@@ -239,7 +239,7 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
                 }`}
               >
                 <span
-                  className={`text-[10px] sm:text-base font-black italic ${
+                  className={`text-[10px] sm:text-sm font-black italic ${
                     isCurrentTimeSlot ? 'text-emerald-700' : 'text-slate-600'
                   }`}
                 >
@@ -279,7 +279,7 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
                       <div
                         key={app.id}
                         onClick={() => onSlotClick(app)}
-                        className={`group relative flex flex-col p-3 rounded-xl border-l-[6px] shadow-sm transition-all hover:shadow-md hover:scale-[1.01] cursor-pointer ${
+                        className={`group relative flex flex-col p-2 rounded-lg border-l-[4px] shadow-sm transition-all hover:shadow-md hover:scale-[1.01] cursor-pointer ${
                           statusMeta.cardClass
                         }`}
                       >
@@ -290,7 +290,7 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
                         )}
 
                         <div className="flex justify-between items-start mb-0.5">
-                          <span className="text-[11px] sm:text-[12px] font-black text-slate-900 uppercase leading-tight truncate pr-2">
+                          <span className="text-[10px] sm:text-[11px] font-black text-slate-900 uppercase leading-tight truncate pr-1">
                             {app.patient?.fullName}
                           </span>
                           {statusMeta.icon}
@@ -311,8 +311,8 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
                           </span>
                         </div>
 
-                        <div className="mt-1.5 sm:mt-2 p-1.5 bg-white/80 rounded-lg border border-slate-200/50 shadow-inner">
-                          <p className="text-[10px] sm:text-[11px] font-bold text-slate-700 leading-snug line-clamp-2 uppercase">
+                        <div className="mt-1 p-1 bg-white/80 rounded border border-slate-200/50 shadow-inner">
+                          <p className="text-[9px] sm:text-[10px] font-bold text-slate-700 leading-tight line-clamp-2 uppercase">
                             {app.diagnosis || 'SIN ESPECIFICAR'}
                           </p>
                         </div>
