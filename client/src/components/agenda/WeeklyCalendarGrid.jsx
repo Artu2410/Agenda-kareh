@@ -86,8 +86,8 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
 
     if (isRespiratory && status === 'SCHEDULED') {
       return {
-        cardClass: 'bg-rose-50 border-rose-400',
-        badgeClass: 'bg-rose-100 text-rose-700',
+        cardClass: 'bg-purple-50 border-purple-400',
+        badgeClass: 'bg-purple-100 text-purple-700',
         label: 'Respiratorio',
         icon: <span className="text-lg">🫁</span>
       };
@@ -180,7 +180,7 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
       const now = currentTime || new Date();
       const currentMinutes = now.getHours() * 60 + now.getMinutes();
       const targetIndex = findClosestTimeSlotIndex(timeSlots, currentMinutes);
-      const slotHeight = 160; // min-h-[160px]
+      const slotHeight = 180; // Antes 160, aumentado para mejor visibilidad
       const scrollTop = targetIndex * slotHeight;
       scrollContainerRef.current.scrollTop = scrollTop;
     }
@@ -232,7 +232,7 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
           return (
             <React.Fragment key={slotTime}>
               <div
-                className={`sticky-time-column flex min-h-[160px] items-center justify-center border-b border-r p-2 text-center transition-colors sm:p-4 ${
+                className={`sticky-time-column flex min-h-[180px] items-center justify-center border-b border-r p-2 text-center transition-colors sm:p-4 ${
                   isCurrentTimeSlot
                     ? 'bg-emerald-100 border-emerald-200 shadow-inner'
                     : 'bg-slate-50'
@@ -290,7 +290,7 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
                         )}
 
                         <div className="flex justify-between items-start mb-1">
-                          <span className="text-[11px] sm:text-[13px] font-black text-slate-900 uppercase leading-tight truncate pr-4">
+                          <span className="text-[12px] sm:text-[14px] font-black text-slate-900 uppercase leading-tight truncate pr-4">
                             {app.patient?.fullName}
                           </span>
                           {statusMeta.icon}
@@ -312,7 +312,7 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
                         </div>
 
                         <div className="mt-2 sm:mt-3 p-2 bg-white/80 rounded-lg border border-slate-200/50 shadow-inner">
-                          <p className="text-[10px] sm:text-[12px] font-bold text-slate-700 leading-snug line-clamp-3 uppercase">
+                          <p className="text-[11px] sm:text-[13px] font-bold text-slate-700 leading-snug line-clamp-3 uppercase">
                             {app.diagnosis || 'SIN ESPECIFICAR'}
                           </p>
                         </div>
