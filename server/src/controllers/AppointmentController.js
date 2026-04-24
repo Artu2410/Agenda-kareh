@@ -112,7 +112,9 @@ export const createAppointment = async (req, res, prisma) => {
             birthDate: birthDateToUse ? normalizeBirthDateOrUnknown(birthDateToUse) : undefined,
             hasMarcapasos: patientData.hasMarcapasos ?? false, 
             usesEA: patientData.usesEA ?? false,
-            hasCancer: patientData.hasCancer ?? false
+            hasCancer: patientData.hasCancer ?? false,
+            usesWheelchair: patientData.usesWheelchair ?? false,
+            isRespiratory: patientData.isRespiratory ?? false,
           },
           create: { 
             dni: String(patientData.dni), 
@@ -124,7 +126,9 @@ export const createAppointment = async (req, res, prisma) => {
             birthDate: normalizeBirthDateOrUnknown(birthDateToUse),
             hasMarcapasos: patientData.hasMarcapasos ?? false, 
             usesEA: patientData.usesEA ?? false,
-            hasCancer: patientData.hasCancer ?? false
+            hasCancer: patientData.hasCancer ?? false,
+            usesWheelchair: patientData.usesWheelchair ?? false,
+            isRespiratory: patientData.isRespiratory ?? false,
           },
           select: patientSelect,
         });
@@ -277,6 +281,8 @@ export const updateEvolution = async (req, res, prisma) => {
             hasCancer: patientData.hasCancer ?? undefined,
             hasMarcapasos: patientData.hasMarcapasos ?? undefined,
             usesEA: patientData.usesEA ?? undefined,
+            usesWheelchair: patientData.usesWheelchair ?? undefined,
+            isRespiratory: patientData.isRespiratory ?? undefined,
           },
           select: patientIdSelect,
         });
