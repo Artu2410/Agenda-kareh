@@ -67,7 +67,7 @@ const buildMonthlySnapshot = async (prisma, baseDate) => {
     if (apt.patient.isRespiratory) {
       insurance = 'PARTICULAR RESPIRATORIO';
     } else if (apt.patient.treatAsParticular) {
-      insurance = 'PARTICULAR FKT';
+      insurance = 'PARTICULAR';
     } else {
       insurance = apt.patient.healthInsurance || 'SIN COBERTURA';
     }
