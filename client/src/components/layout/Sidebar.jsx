@@ -236,7 +236,7 @@ const Sidebar = ({ onToggle, onLogout, onNavigate, isMobile = false }) => {
         <aside className={`${
           isMobile
             ? 'fixed inset-y-0 left-0 z-[80] flex w-[82vw] max-w-xs flex-col bg-slate-900 text-white shadow-2xl'
-            : 'flex h-screen w-64 flex-col bg-slate-900 text-white shadow-xl'
+            : 'flex h-screen w-56 flex-col bg-slate-900 text-white shadow-xl'
         }`}>
         <div className="relative p-5 text-center border-b border-slate-800 sm:p-6">
           <h1 className="text-2xl font-bold text-teal-400 tracking-tight uppercase">Agenda Kareh</h1>
