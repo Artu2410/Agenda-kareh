@@ -82,6 +82,8 @@ model Patient {
   hasCancer                  Boolean           @default(false)
   hasMarcapasos              Boolean           @default(false)
   usesEA                     Boolean           @default(false)
+  usesWheelchair             Boolean           @default(false)
+  isRespiratory              Boolean           @default(false)
   medicalNotes               String?           @db.Text
   createdAt                  DateTime          @default(now())
   updatedAt                  DateTime          @updatedAt
