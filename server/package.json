@@ -16,8 +16,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1021.0",
     "@google/generative-ai": "^0.24.1",
-    "@prisma/adapter-pg": "^7.8.0",
-    "@prisma/client": "^7.8.0",
+    "@prisma/client": "^5.22.0",
     "bcrypt": "^6.0.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
@@ -36,13 +35,11 @@
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
     "pdfkit": "^0.15.2",
-    "pg": "^8.20.0",
     "resend": "^6.9.3"
   },
   "devDependencies": {
-    "@types/pg": "^8.20.0",
     "nodemon": "^3.1.0",
-    "prisma": "^7.8.0"
+    "prisma": "^5.22.0"
   },
   "overrides": {
     "brace-expansion": "^1.1.13",
