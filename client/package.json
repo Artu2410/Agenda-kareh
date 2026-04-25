@@ -43,6 +43,7 @@
     "flatted": "^3.4.2",
     "minimatch": "^3.1.4",
     "picomatch": "^4.0.4",
-    "rollup": "^4.59.0"
+    "rollup": "^4.59.0",
+    "postcss": "^8.5.6"
   }
 }
