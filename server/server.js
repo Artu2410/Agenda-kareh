@@ -4,6 +4,8 @@ import dotenv from 'dotenv';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+import pg from 'pg';
 import dns from 'node:dns';
 
 dns.setDefaultResultOrder('ipv4first');
@@ -14,7 +16,10 @@ if (!process.env.JWT_SECRET) {
     process.exit(1);
 }
 
-const prisma = new PrismaClient();
+const connectionString = process.env.DATABASE_URL;
+const pool = new pg.Pool({ connectionString });
+const adapter = new PrismaPg(pool);
+const prisma = new PrismaClient({ adapter });
 const app = express();
 
 import createAuthRoutes from './src/routes/auth.routes.js';
