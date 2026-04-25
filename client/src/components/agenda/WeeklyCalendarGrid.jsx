@@ -232,16 +232,14 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
           return (
             <React.Fragment key={slotTime}>
               <div
-                className={`sticky-time-column flex min-h-[180px] items-center justify-center border-b border-r p-2 text-center transition-colors sm:p-4 ${
-                  isCurrentTimeSlot
+                className={`sticky-time-column flex min-h-[180px] items-center justify-center border-b border-r p-2 text-center transition-colors sm:p-4 ${isCurrentTimeSlot
                     ? 'bg-emerald-100 border-emerald-200 shadow-inner'
                     : 'bg-slate-50'
-                }`}
+                  }`}
               >
                 <span
-                  className={`text-[10px] sm:text-sm font-black italic ${
-                    isCurrentTimeSlot ? 'text-emerald-700' : 'text-slate-600'
-                  }`}
+                  className={`text-[10px] sm:text-sm font-black italic ${isCurrentTimeSlot ? 'text-emerald-700' : 'text-slate-600'
+                    }`}
                 >
                   {slotTime}
                 </span>
@@ -258,13 +256,12 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
                 return (
                   <div
                     key={formattedDate + slotTime}
-                    className={`border-b border-r p-3 flex flex-col gap-2 relative ${
-                      isCellDisabled
+                    className={`border-b border-r p-3 flex flex-col gap-2 relative ${isCellDisabled
                         ? 'bg-slate-50'
                         : isCurrentTimeSlot
                           ? 'bg-emerald-50/70 group'
                           : 'bg-white group'
-                    }`}
+                      }`}
                   >
                     {appsInSlot.map((app) => {
                       const statusMeta = getStatusMeta(
@@ -276,55 +273,54 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
                       );
 
                       return (
-                      <div
-                        key={app.id}
-                        onClick={() => onSlotClick(app)}
-                        className={`group relative flex flex-col p-2 rounded-lg border-l-[4px] shadow-sm transition-all hover:shadow-md hover:scale-[1.01] cursor-pointer ${
-                          statusMeta.cardClass
-                        }`}
-                      >
-                        {app.isFirstSession && (
-                          <div className="absolute -top-2 -right-1 bg-rose-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full shadow-lg flex items-center gap-1 animate-pulse z-10">
-                            <Flag size={8} fill="currentColor" /> INGRESO
+                        <div
+                          key={app.id}
+                          onClick={() => onSlotClick(app)}
+                          className={`group relative flex flex-col p-2 rounded-lg border-l-[4px] shadow-sm transition-all hover:shadow-md hover:scale-[1.01] cursor-pointer ${statusMeta.cardClass
+                            }`}
+                        >
+                          {app.isFirstSession && (
+                            <div className="absolute -top-2 -right-1 bg-rose-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full shadow-lg flex items-center gap-1 animate-pulse z-10">
+                              <Flag size={8} fill="currentColor" /> INGRESO
+                            </div>
+                          )}
+
+                          <div className="flex justify-between items-start mb-0.5">
+                            <span className="text-[10px] sm:text-[11px] font-black text-slate-900 uppercase leading-tight truncate pr-1">
+                              {app.patient?.fullName}
+                            </span>
+                            {statusMeta.icon}
                           </div>
-                        )}
 
-                        <div className="flex justify-between items-start mb-0.5">
-                          <span className="text-[10px] sm:text-[11px] font-black text-slate-900 uppercase leading-tight truncate pr-1">
-                            {app.patient?.fullName}
-                          </span>
-                          {statusMeta.icon}
-                        </div>
+                          <div className="flex items-center justify-between gap-1">
+                            <span className={`text-[9px] sm:text-[10px] font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider ${getCoverageBadgeClass(app.patient?.healthInsurance, app.patient?.treatAsParticular)}`}>
+                              {getCoverageLabel(app.patient?.healthInsurance, app.patient?.treatAsParticular)}
+                            </span>
+                            <span className="text-[8px] sm:text-[9px] font-bold text-slate-400 whitespace-nowrap">
+                              SESIÓN {app.isFirstSession ? 1 : app.sessionNumber}
+                            </span>
+                          </div>
 
-                        <div className="flex items-center justify-between gap-1">
-                          <span className={`text-[9px] sm:text-[10px] font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider ${getCoverageBadgeClass(app.patient?.healthInsurance, app.patient?.treatAsParticular)}`}>
-                            {getCoverageLabel(app.patient?.healthInsurance, app.patient?.treatAsParticular)}
-                          </span>
-                          <span className="text-[8px] sm:text-[9px] font-bold text-slate-400 whitespace-nowrap">
-                            SESIÓN {app.isFirstSession ? 1 : app.sessionNumber}
-                          </span>
-                        </div>
+                          <div className="mt-2 flex justify-end">
+                            <span className={`rounded-full px-2 py-1 text-[8px] font-black uppercase tracking-wider ${statusMeta.badgeClass}`}>
+                              {statusMeta.label}
+                            </span>
+                          </div>
 
-                        <div className="mt-2 flex justify-end">
-                          <span className={`rounded-full px-2 py-1 text-[8px] font-black uppercase tracking-wider ${statusMeta.badgeClass}`}>
-                            {statusMeta.label}
-                          </span>
-                        </div>
+                          <div className="mt-1 p-1 bg-white/80 rounded border border-slate-200/50 shadow-inner">
+                            <p className="text-[9px] sm:text-[10px] font-bold text-slate-700 leading-tight line-clamp-2 uppercase">
+                              {app.diagnosis || 'SIN ESPECIFICAR'}
+                            </p>
+                          </div>
 
-                        <div className="mt-1 p-1 bg-white/80 rounded border border-slate-200/50 shadow-inner">
-                          <p className="text-[9px] sm:text-[10px] font-bold text-slate-700 leading-tight line-clamp-2 uppercase">
-                            {app.diagnosis || 'SIN ESPECIFICAR'}
-                          </p>
+                          <div className="flex gap-2 mt-3 items-center">
+                            {app.patient?.hasCancer && <AlertTriangle size={12} className="text-rose-500" title="Oncológico" />}
+                            {app.patient?.hasMarcapasos && <Activity size={12} className="text-blue-600 stroke-[3px]" />}
+                            {app.patient?.usesEA && <Zap size={12} className="text-amber-500 fill-amber-500" />}
+                            {app.patient?.usesWheelchair && <span className="text-[14px]" title="Silla de Ruedas">🦽</span>}
+                          </div>
                         </div>
-
-                        <div className="flex gap-2 mt-3 items-center">
-                          {app.patient?.hasCancer && <AlertTriangle size={12} className="text-rose-500" title="Oncológico" />}
-                          {app.patient?.hasMarcapasos && <Activity size={12} className="text-blue-600 stroke-[3px]" />}
-                          {app.patient?.usesEA && <Zap size={12} className="text-amber-500 fill-amber-500" />}
-                          {app.patient?.usesWheelchair && <span className="text-[14px]" title="Silla de Ruedas">👩🦽</span>}
-                        </div>
-                      </div>
-                    );
+                      );
                     })}
 
                     {isWithinConfiguredSchedule && appsInSlot.length < capacityPerSlot && (
