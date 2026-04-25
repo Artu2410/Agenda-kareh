@@ -192,6 +192,8 @@ const DashboardPage = () => {
                 <p className="text-lg">{formatCount(metrics.weekly?.completed)}</p>
                 <span className="text-emerald-500">Asistieron</span>
               </div>
+              <div className="rounded-2xl bg-rose-50 px-3 py-4 text-rose-700">
+                <p className="text-lg">{formatCount(metrics.weekly?.noShow)}</p>
                 <span className="text-rose-500">Inasist.</span>
               </div>
             </div>
