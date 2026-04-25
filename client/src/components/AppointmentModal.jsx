@@ -60,7 +60,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
   const [closeAfterPrintPreview, setCloseAfterPrintPreview] = useState(false);
   const [isAddingManualSession, setIsAddingManualSession] = useState(false);
   const [manualDraft, setManualDraft] = useState({ date: '', time: '' });
-  
+
   const lastSearchedRef = useRef('');
   const { ConfirmModalComponent, openModal } = useConfirmModal();
   const isEditMode = !!appointment?.id;
@@ -205,8 +205,8 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
           healthInsurance: data.healthInsurance || '',
           treatAsParticular: data.treatAsParticular || false,
           affiliateNumber: data.affiliateNumber || '',
-          hasCancer: data.hasCancer || false, 
-          hasMarcapasos: data.hasMarcapasos || false, 
+          hasCancer: data.hasCancer || false,
+          hasMarcapasos: data.hasMarcapasos || false,
           usesEA: data.usesEA || false,
           usesWheelchair: data.usesWheelchair || false,
           isRespiratory: data.isRespiratory || false,
@@ -221,15 +221,15 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
     setLoading(true);
     const fullName = `${patientData.lastName} ${patientData.firstName}`.trim();
     try {
-      const payload = { 
-        diagnosis, 
+      const payload = {
+        diagnosis,
         status,
         isFirstSession,
-        patientData: { 
-          ...patientData, 
+        patientData: {
+          ...patientData,
           fullName,
           birthDate: patientData.birthDate ? new Date(patientData.birthDate).toISOString() : null
-        } 
+        }
       };
       if (isEditMode) {
         await api.patch(`/appointments/${appointment.id}/evolution`, payload);
@@ -436,15 +436,15 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
   return (
     <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm flex justify-center items-center z-[999] p-4">
       <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-5xl h-[90vh] overflow-hidden flex flex-col md:flex-row border border-white/20">
-        
+
         {/* COLUMNA IZQUIERDA: FORMULARIO + HISTORIA */}
         <div className="flex-1 flex flex-col bg-white border-r border-slate-100 overflow-hidden">
           <div className="flex-1 p-8 overflow-y-auto custom-scrollbar">
             <div className="flex justify-between items-center mb-6">
               <div>
                 <h2 className="text-2xl font-black text-slate-800 italic uppercase tracking-tighter">
-                  {isEditMode 
-                    ? `Sesión ${isFirstSession ? '1' : (appointment.sessionNumber || '')}${isFirstSession ? ' (Ingreso)' : ''}` 
+                  {isEditMode
+                    ? `Sesión ${isFirstSession ? '1' : (appointment.sessionNumber || '')}${isFirstSession ? ' (Ingreso)' : ''}`
                     : 'Nuevo Turno'}
                 </h2>
                 <div className="flex items-center gap-4 mt-1">
@@ -452,7 +452,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                     {modalDate ? format(new Date(`${modalDate}T12:00:00`), "eeee dd 'de' MMMM", { locale: es }) : ''}
                   </p>
                   {isEditMode && !isFirstSession && (
-                    <button 
+                    <button
                       type="button"
                       onClick={() => setIsFirstSession(true)}
                       className="bg-rose-50 text-rose-600 border border-rose-100 rounded-lg px-2 py-0.5 text-[9px] font-black uppercase hover:bg-rose-100 transition-all flex items-center gap-1"
@@ -480,17 +480,17 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">DNI del Paciente</label>
-                  <input className="w-full p-3 border rounded-2xl bg-slate-50 font-bold focus:ring-2 ring-teal-500 outline-none" value={patientData.dni} onChange={e => {setPatientData({...patientData, dni: e.target.value}); searchPatient('dni', e.target.value);}} />
+                  <input className="w-full p-3 border rounded-2xl bg-slate-50 font-bold focus:ring-2 ring-teal-500 outline-none" value={patientData.dni} onChange={e => { setPatientData({ ...patientData, dni: e.target.value }); searchPatient('dni', e.target.value); }} />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Obra Social</label>
-                  <input className="w-full p-3 border rounded-2xl bg-slate-50 font-bold focus:ring-2 ring-teal-500 outline-none" value={patientData.healthInsurance} onChange={e => setPatientData({...patientData, healthInsurance: e.target.value})} />
+                  <input className="w-full p-3 border rounded-2xl bg-slate-50 font-bold focus:ring-2 ring-teal-500 outline-none" value={patientData.healthInsurance} onChange={e => setPatientData({ ...patientData, healthInsurance: e.target.value })} />
                 </div>
-                <input placeholder="Apellido" className="p-3 border rounded-2xl bg-slate-50 font-bold" value={patientData.lastName} onChange={e => setPatientData({...patientData, lastName: e.target.value})} />
-                <input placeholder="Nombre" className="p-3 border rounded-2xl bg-slate-50 font-bold" value={patientData.firstName} onChange={e => setPatientData({...patientData, firstName: e.target.value})} />
+                <input placeholder="Apellido" className="p-3 border rounded-2xl bg-slate-50 font-bold" value={patientData.lastName} onChange={e => setPatientData({ ...patientData, lastName: e.target.value })} />
+                <input placeholder="Nombre" className="p-3 border rounded-2xl bg-slate-50 font-bold" value={patientData.firstName} onChange={e => setPatientData({ ...patientData, firstName: e.target.value })} />
                 <div className="space-y-1 col-span-2">
                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">N° Afiliado</label>
-                  <input className="w-full p-3 border rounded-2xl bg-slate-50 font-bold focus:ring-2 ring-teal-500 outline-none" value={patientData.affiliateNumber || ''} onChange={e => setPatientData({...patientData, affiliateNumber: e.target.value})} />
+                  <input className="w-full p-3 border rounded-2xl bg-slate-50 font-bold focus:ring-2 ring-teal-500 outline-none" value={patientData.affiliateNumber || ''} onChange={e => setPatientData({ ...patientData, affiliateNumber: e.target.value })} />
                 </div>
                 <div className="col-span-2 rounded-[1.6rem] border border-slate-200 bg-slate-50 px-4 py-3">
                   <div className="flex items-center justify-between gap-3">
@@ -505,11 +505,10 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                     <button
                       type="button"
                       onClick={() => setPatientData((prev) => ({ ...prev, treatAsParticular: !prev.treatAsParticular }))}
-                      className={`rounded-2xl px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all ${
-                        patientData.treatAsParticular
+                      className={`rounded-2xl px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all ${patientData.treatAsParticular
                           ? 'bg-blue-600 text-white shadow-md hover:bg-blue-700'
                           : 'bg-white text-slate-500 border border-slate-200 hover:border-blue-300 hover:text-blue-700'
-                      }`}
+                        }`}
                     >
                       {patientData.treatAsParticular ? 'Activo' : 'Desactivado'}
                     </button>
@@ -525,11 +524,11 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Teléfono</label>
-                  <input type="tel" placeholder="+54 9 11 2345-6789" className="w-full p-3 border rounded-2xl bg-slate-50 font-bold focus:ring-2 ring-teal-500 outline-none" value={patientData.phone || ''} onChange={e => setPatientData({...patientData, phone: e.target.value})} />
+                  <input type="tel" placeholder="+54 9 11 2345-6789" className="w-full p-3 border rounded-2xl bg-slate-50 font-bold focus:ring-2 ring-teal-500 outline-none" value={patientData.phone || ''} onChange={e => setPatientData({ ...patientData, phone: e.target.value })} />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Fecha de Nacimiento</label>
-                  <input type="date" className="w-full p-3 border rounded-2xl bg-slate-50 font-bold focus:ring-2 ring-teal-500 outline-none" value={patientData.birthDate || ''} onChange={e => setPatientData({...patientData, birthDate: e.target.value})} />
+                  <input type="date" className="w-full p-3 border rounded-2xl bg-slate-50 font-bold focus:ring-2 ring-teal-500 outline-none" value={patientData.birthDate || ''} onChange={e => setPatientData({ ...patientData, birthDate: e.target.value })} />
                 </div>
               </div>
 
@@ -540,67 +539,66 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
 
               {isEditMode && (
                 <>
-                <div className="space-y-2">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Estado del Turno</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {APPOINTMENT_STATUSES.map((item) => (
-                      <button
-                        key={item.value}
-                        type="button"
-                        onClick={() => setStatus(item.value)}
-                        className={`rounded-2xl border px-3 py-3 text-[10px] font-black uppercase transition-all ${
-                          status === item.value
-                            ? item.classes
-                            : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300'
-                        }`}
-                      >
-                        {item.label}
-                      </button>
-                    ))}
+                  <div className="space-y-2">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Estado del Turno</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {APPOINTMENT_STATUSES.map((item) => (
+                        <button
+                          key={item.value}
+                          type="button"
+                          onClick={() => setStatus(item.value)}
+                          className={`rounded-2xl border px-3 py-3 text-[10px] font-black uppercase transition-all ${status === item.value
+                              ? item.classes
+                              : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300'
+                            }`}
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-3 p-3 bg-teal-50/50 rounded-2xl border border-teal-100">
-                  <input 
-                    type="checkbox" 
-                    id="isFirstSession"
-                    checked={isFirstSession} 
-                    onChange={e => setIsFirstSession(e.target.checked)} 
-                    className="w-4 h-4 accent-teal-600"
-                  />
-                  <label htmlFor="isFirstSession" className="text-[10px] font-black uppercase text-teal-700 cursor-pointer">
-                    Marcar como Sesión de Ingreso (Reinicia contador)
-                  </label>
-                </div>
+                  <div className="flex items-center gap-3 p-3 bg-teal-50/50 rounded-2xl border border-teal-100">
+                    <input
+                      type="checkbox"
+                      id="isFirstSession"
+                      checked={isFirstSession}
+                      onChange={e => setIsFirstSession(e.target.checked)}
+                      className="w-4 h-4 accent-teal-600"
+                    />
+                    <label htmlFor="isFirstSession" className="text-[10px] font-black uppercase text-teal-700 cursor-pointer">
+                      Marcar como Sesión de Ingreso (Reinicia contador)
+                    </label>
+                  </div>
                 </>
               )}
 
-{(!isEditMode || futureAppointments.length <= 1) && (
-              <div className="grid grid-cols-2 gap-6 items-center border border-slate-100 rounded-3xl p-4 bg-slate-50/50">
-                <div className="space-y-2">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Días Semanales</label>
-                  <div className="flex gap-1">
-                    {WEEK_DAYS.map(day => (
-                      <button key={day.value} type="button" onClick={() => setSelectedDays(prev => prev.includes(day.value) ? prev.filter(d => d !== day.value) : [...prev, day.value])} className={`w-8 h-8 rounded-xl text-[10px] font-black transition-all ${selectedDays.includes(day.value) ? 'bg-teal-600 text-white shadow-md' : 'bg-slate-100 text-slate-400'}`}>{day.label}</button>
-                    ))}
+              {(!isEditMode || futureAppointments.length <= 1) && (
+                <div className="grid grid-cols-2 gap-6 items-center border border-slate-100 rounded-3xl p-4 bg-slate-50/50">
+                  <div className="space-y-2">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Días Semanales</label>
+                    <div className="flex gap-1">
+                      {WEEK_DAYS.map(day => (
+                        <button key={day.value} type="button" onClick={() => setSelectedDays(prev => prev.includes(day.value) ? prev.filter(d => d !== day.value) : [...prev, day.value])} className={`w-8 h-8 rounded-xl text-[10px] font-black transition-all ${selectedDays.includes(day.value) ? 'bg-teal-600 text-white shadow-md' : 'bg-slate-100 text-slate-400'}`}>{day.label}</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="space-y-2 flex flex-col justify-center">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">{isEditMode ? 'Generar más sesiones' : 'Cantidad Sesiones'}</label>
+                    <div className="flex gap-2 items-center">
+                      <input type="number" className="w-16 p-2 border rounded-xl bg-white font-black text-teal-700 text-center shadow-sm" value={sessionCount} onChange={e => setSessionCount(e.target.value)} />
+                      {isEditMode && (
+                        <button
+                          type="button"
+                          onClick={handleGenerateAdditionalSessions}
+                          disabled={loading}
+                          className="px-4 py-2 bg-teal-100 text-teal-700 font-black rounded-xl text-[9px] uppercase hover:bg-teal-200 transition-all"
+                        >
+                          Generar
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
-                <div className="space-y-2 flex flex-col justify-center">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">{isEditMode ? 'Generar más sesiones' : 'Cantidad Sesiones'}</label>
-                  <div className="flex gap-2 items-center">
-                    <input type="number" className="w-16 p-2 border rounded-xl bg-white font-black text-teal-700 text-center shadow-sm" value={sessionCount} onChange={e => setSessionCount(e.target.value)} />
-                    {isEditMode && (
-                      <button
-                        type="button"
-                        onClick={handleGenerateAdditionalSessions}
-                        disabled={loading}
-                        className="px-4 py-2 bg-teal-100 text-teal-700 font-black rounded-xl text-[9px] uppercase hover:bg-teal-200 transition-all"
-                      >
-                        Generar
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
               )}
 
               <div className="p-4 bg-slate-50 rounded-[2rem] border border-slate-100 grid grid-cols-3 gap-2">
@@ -608,11 +606,11 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                   { key: 'hasCancer', label: 'Oncológico', color: 'accent-red-500' },
                   { key: 'hasMarcapasos', label: 'Marcapasos', color: 'accent-blue-500' },
                   { key: 'usesEA', label: 'E.A.', color: 'accent-amber-500' },
-                  { key: 'usesWheelchair', label: 'Silla Ruedas 👩🦽', color: 'accent-slate-600' },
+                  { key: 'usesWheelchair', label: 'Silla Ruedas 🦽', color: 'accent-slate-600' },
                   { key: 'isRespiratory', label: 'Respiratorio 🫁', color: 'accent-rose-500' }
                 ].map((item) => (
                   <label key={item.key} className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" className={`${item.color} w-4 h-4`} checked={patientData[item.key]} onChange={e => setPatientData({...patientData, [item.key]: e.target.checked})} />
+                    <input type="checkbox" className={`${item.color} w-4 h-4`} checked={patientData[item.key]} onChange={e => setPatientData({ ...patientData, [item.key]: e.target.checked })} />
                     <span className={`text-[10px] font-black uppercase ${patientData[item.key] ? 'text-slate-800' : 'text-slate-400'}`}>{item.label}</span>
                   </label>
                 ))}
@@ -666,7 +664,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                             </div>
                             <div className="ml-auto flex gap-0.5">
                               {Array.from({ length: 10 }, (_, i) => (
-                                <div key={i} className={`w-2 h-2 rounded-full ${ i < yearData.sessionsInCurrentCycle ? 'bg-amber-400' : 'bg-amber-100'}`} />
+                                <div key={i} className={`w-2 h-2 rounded-full ${i < yearData.sessionsInCurrentCycle ? 'bg-amber-400' : 'bg-amber-100'}`} />
                               ))}
                             </div>
                           </div>
@@ -701,31 +699,31 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
             )}
           </div>
         </div>
-        
+
         {/* COLUMNA DERECHA: SESIONES */}
         <div className="w-full md:w-80 bg-slate-50 p-8 flex flex-col">
           <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center justify-between border-b border-slate-200 pb-2">
-             <div className="flex items-center gap-2">
-               <CalendarIcon size={14} className="text-teal-500" />
-               {isEditMode
-                 ? (futureAppointments.length <= 1 && projectedEditSessions.length > 0)
-                   ? `${projectedEditSessions.length} A Programar`
-                   : `${futureAppointments.length} Sesiones Futuras`
-                 : `${projectedSessions.length} Proyectadas`}
-             </div>
-             {isEditMode && (
-               <button
-                 type="button"
-                 onClick={() => {
-                   setIsAddingManualSession(true);
-                   setManualDraft({ date: modalDate, time: modalTime });
-                 }}
-                 className="p-1 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors"
-                 title="Agregar sesión individual"
-               >
-                 <Plus size={16} />
-               </button>
-             )}
+            <div className="flex items-center gap-2">
+              <CalendarIcon size={14} className="text-teal-500" />
+              {isEditMode
+                ? (futureAppointments.length <= 1 && projectedEditSessions.length > 0)
+                  ? `${projectedEditSessions.length} A Programar`
+                  : `${futureAppointments.length} Sesiones Futuras`
+                : `${projectedSessions.length} Proyectadas`}
+            </div>
+            {isEditMode && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAddingManualSession(true);
+                  setManualDraft({ date: modalDate, time: modalTime });
+                }}
+                className="p-1 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors"
+                title="Agregar sesión individual"
+              >
+                <Plus size={16} />
+              </button>
+            )}
           </h3>
 
           {isAddingManualSession && (
@@ -777,77 +775,76 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
               const displaySessionNumber = apt.sessionNumber || idx + 1;
 
               return (
-              <div
-                key={apt.id || idx}
-                className={`bg-white p-3 rounded-xl border border-slate-200 shadow-sm transition-all hover:border-teal-300 ${
-                  editingFutureId === apt.id ? 'space-y-3' : 'flex justify-between items-center'
-                }`}
-              >
-                {editingFutureId === apt.id ? (
-                  <>
-                    <div className="grid grid-cols-2 gap-2">
-                      <input
-                        type="date"
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-bold text-slate-700 outline-none focus:ring-2 ring-teal-500"
-                        value={futureDraft.date}
-                        onChange={(e) => handleFutureAppointmentChange('date', e.target.value)}
-                      />
-                      <input
-                        type="time"
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-bold text-slate-700 outline-none focus:ring-2 ring-teal-500"
-                        value={futureDraft.time}
-                        onChange={(e) => handleFutureAppointmentChange('time', e.target.value)}
-                      />
-                    </div>
-                    <div className="flex justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={cancelEditingFutureAppointment}
-                        disabled={savingFutureId === apt.id}
-                        className="inline-flex items-center gap-1 rounded-xl border border-slate-200 px-3 py-2 text-[10px] font-black uppercase text-slate-400 transition-all hover:border-slate-300"
-                      >
-                        <X size={12} />
-                        Cancelar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleFutureAppointmentSave(apt)}
-                        disabled={savingFutureId === apt.id}
-                        className="inline-flex items-center gap-1 rounded-xl bg-teal-600 px-3 py-2 text-[10px] font-black uppercase text-white transition-all hover:bg-teal-700"
-                      >
-                        {savingFutureId === apt.id ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
-                        Guardar
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="min-w-0">
-                      <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">
-                        Sesión {apt.isFirstSession ? 1 : displaySessionNumber} {apt.isFirstSession && <span className="text-teal-600 ml-1 font-black">(Ingreso)</span>}
-                      </p>
-                      <span className="text-[11px] font-bold text-slate-700">{format(new Date(apt.date), "dd 'de' MMMM", { locale: es })}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-black text-teal-600 bg-teal-50 px-2 py-1 rounded-lg">{apt.time} hs</span>
-                      {isEditMode && apt.id && (
+                <div
+                  key={apt.id || idx}
+                  className={`bg-white p-3 rounded-xl border border-slate-200 shadow-sm transition-all hover:border-teal-300 ${editingFutureId === apt.id ? 'space-y-3' : 'flex justify-between items-center'
+                    }`}
+                >
+                  {editingFutureId === apt.id ? (
+                    <>
+                      <div className="grid grid-cols-2 gap-2">
+                        <input
+                          type="date"
+                          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-bold text-slate-700 outline-none focus:ring-2 ring-teal-500"
+                          value={futureDraft.date}
+                          onChange={(e) => handleFutureAppointmentChange('date', e.target.value)}
+                        />
+                        <input
+                          type="time"
+                          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-bold text-slate-700 outline-none focus:ring-2 ring-teal-500"
+                          value={futureDraft.time}
+                          onChange={(e) => handleFutureAppointmentChange('time', e.target.value)}
+                        />
+                      </div>
+                      <div className="flex justify-end gap-2">
                         <button
                           type="button"
-                          onClick={() => startEditingFutureAppointment(apt)}
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition-all hover:border-teal-400 hover:text-teal-600"
-                          aria-label="Editar sesión futura"
+                          onClick={cancelEditingFutureAppointment}
+                          disabled={savingFutureId === apt.id}
+                          className="inline-flex items-center gap-1 rounded-xl border border-slate-200 px-3 py-2 text-[10px] font-black uppercase text-slate-400 transition-all hover:border-slate-300"
                         >
-                          <Pencil size={13} />
+                          <X size={12} />
+                          Cancelar
                         </button>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
+                        <button
+                          type="button"
+                          onClick={() => handleFutureAppointmentSave(apt)}
+                          disabled={savingFutureId === apt.id}
+                          className="inline-flex items-center gap-1 rounded-xl bg-teal-600 px-3 py-2 text-[10px] font-black uppercase text-white transition-all hover:bg-teal-700"
+                        >
+                          {savingFutureId === apt.id ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+                          Guardar
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="min-w-0">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+                          Sesión {apt.isFirstSession ? 1 : displaySessionNumber} {apt.isFirstSession && <span className="text-teal-600 ml-1 font-black">(Ingreso)</span>}
+                        </p>
+                        <span className="text-[11px] font-bold text-slate-700">{format(new Date(apt.date), "dd 'de' MMMM", { locale: es })}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-black text-teal-600 bg-teal-50 px-2 py-1 rounded-lg">{apt.time} hs</span>
+                        {isEditMode && apt.id && (
+                          <button
+                            type="button"
+                            onClick={() => startEditingFutureAppointment(apt)}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition-all hover:border-teal-400 hover:text-teal-600"
+                            aria-label="Editar sesión futura"
+                          >
+                            <Pencil size={13} />
+                          </button>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
               );
             })}
           </div>
-          <button 
+          <button
             onClick={handleOpenTicket}
             disabled={ticketLoading}
             className="mt-6 w-full py-4 bg-white border-2 border-slate-200 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 hover:border-teal-500 hover:text-teal-600 transition-all shadow-sm"
@@ -859,14 +856,14 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
       </div>
 
       {showPrintModal && (
-        <PrintSessions 
-          isOpen={showPrintModal} 
+        <PrintSessions
+          isOpen={showPrintModal}
           onClose={handlePrintModalClose}
-          appointments={createdAppointments} 
+          appointments={createdAppointments}
           patientData={{
             ...patientData,
             fullName: `${patientData.lastName} ${patientData.firstName}`.trim(),
-          }} 
+          }}
           diagnosis={diagnosis}
           appointmentId={appointment?.id || createdAppointments?.[0]?.id}
         />
