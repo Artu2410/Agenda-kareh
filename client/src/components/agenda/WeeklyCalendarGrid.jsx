@@ -276,7 +276,7 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
                         <div
                           key={app.id}
                           onClick={() => onSlotClick(app)}
-                          className={`group relative flex flex-col p-2 rounded-lg border-l-[4px] shadow-sm transition-all hover:shadow-md hover:scale-[1.01] cursor-pointer ${statusMeta.cardClass
+                          className={`group relative flex flex-col p-2 rounded-lg border-l-4 shadow-sm transition-all hover:shadow-md hover:scale-[1.01] cursor-pointer ${statusMeta.cardClass
                             }`}
                         >
                           {app.isFirstSession && (

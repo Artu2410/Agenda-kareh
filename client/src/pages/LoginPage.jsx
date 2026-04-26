@@ -116,7 +116,7 @@ export default function LoginPage({ onLoginSuccess }) {
   const timeRemaining = getTimeRemaining();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-teal-50 via-blue-50 to-slate-100 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-linear-to-br from-teal-50 via-blue-50 to-slate-100 flex items-center justify-center p-4">
       <div className="absolute top-0 left-0 w-96 h-96 bg-teal-200/20 rounded-full blur-3xl"></div>
       <div className="absolute bottom-0 right-0 w-96 h-96 bg-blue-200/20 rounded-full blur-3xl"></div>
 
@@ -127,7 +127,7 @@ export default function LoginPage({ onLoginSuccess }) {
       >
         <div className="backdrop-blur-xl bg-white/95 rounded-2xl shadow-2xl p-8 border border-white/20">
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-teal-500 to-teal-600 mb-4 shadow-lg">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-linear-to-br from-teal-500 to-teal-600 mb-4 shadow-lg">
               <span className="text-2xl">🏥</span>
             </div>
             <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Kareh Salud</h1>

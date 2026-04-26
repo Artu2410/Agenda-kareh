@@ -418,7 +418,7 @@ const SlotTimersPanel = ({ currentTime, appointments = [], agendaConfig = null }
                   onClick={() => handleToggleTimer(timer.slotNumber)}
                   onDoubleClick={() => handleResetTimer(timer.slotNumber)}
                   disabled={isPending}
-                  className={`relative flex h-[92px] w-[84px] shrink-0 flex-col items-center justify-center rounded-[1.1rem] border-[4px] px-1 font-black transition-all ${getTimerBoxClasses(timer.status)} ${isPending ? 'cursor-wait opacity-70' : ''}`}
+                  className={`relative flex h-[92px] w-[84px] shrink-0 flex-col items-center justify-center rounded-[1.1rem] border-4 px-1 font-black transition-all ${getTimerBoxClasses(timer.status)} ${isPending ? 'cursor-wait opacity-70' : ''}`}
                   title={timer.status === 'active' ? 'Pausar (Doble clic para reiniciar)' : (timer.status === 'paused' ? 'Reanudar (Doble clic para reiniciar)' : 'Iniciar')}
                 >
                   {hasAppointment && (

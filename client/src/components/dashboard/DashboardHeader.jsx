@@ -1,5 +1,5 @@
 const DashboardHeader = () => (
-  <header className="rounded-[2rem] border border-slate-200 bg-white px-6 py-6 shadow-sm sm:px-8">
+  <header className="rounded-4xl border border-slate-200 bg-white px-6 py-6 shadow-sm sm:px-8">
     <p className="text-[11px] font-black uppercase tracking-[0.28em] text-teal-600">Panel de Control</p>
     <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-900 sm:text-4xl">
       Cómo viene el consultorio

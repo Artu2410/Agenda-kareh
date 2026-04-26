@@ -4,7 +4,7 @@ const InsuranceBreakdownSection = ({ monthly }) => {
   const items = Array.isArray(monthly?.insuranceBreakdown) ? monthly.insuranceBreakdown : [];
 
   return (
-    <section className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+    <section className="rounded-4xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
       <div className="mb-6">
         <p className="text-[11px] font-black uppercase tracking-[0.28em] text-teal-600">Desglose por Cobertura</p>
         <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-900">

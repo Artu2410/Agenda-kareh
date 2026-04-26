@@ -62,7 +62,7 @@ const DashboardPage = () => {
   if (loading) {
     return (
       <div className="flex min-h-full items-center justify-center bg-slate-50 p-8">
-        <div className="rounded-[2rem] border border-slate-200 bg-white px-8 py-10 text-center shadow-sm">
+        <div className="rounded-4xl border border-slate-200 bg-white px-8 py-10 text-center shadow-sm">
           <p className="text-[11px] font-black uppercase tracking-[0.28em] text-teal-600">Panel</p>
           <h1 className="mt-3 text-2xl font-black text-slate-900">Cargando métricas</h1>
           <p className="mt-2 text-sm font-medium text-slate-500">
