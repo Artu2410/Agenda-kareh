@@ -72,6 +72,152 @@ export const getAllPatients = async (req, res, prisma) => {
   }
 };
 
+const buildDayRange = (inputDate) => {
+  const parsed = parseDateAvoidTZ(inputDate) || new Date();
+  const year = parsed.getFullYear();
+  const month = parsed.getMonth();
+  const day = parsed.getDate();
+
+  return {
+    selectedDate: `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
+    start: new Date(year, month, day, 0, 0, 0, 0),
+    end: new Date(year, month, day, 23, 59, 59, 999),
+  };
+};
+
+const serializeClinicalHistoryPatient = (patient, dayAppointments = []) => ({
+  ...patient,
+  appointmentCount: dayAppointments.length,
+  firstAppointmentTime: dayAppointments[0]?.time || null,
+  dayAppointments,
+});
+
+export const getClinicalHistoryPatients = async (req, res, prisma) => {
+  const search = String(req.query.search || '').trim();
+  const { selectedDate, start, end } = buildDayRange(req.query.date);
+
+  try {
+    const appointments = await prisma.appointment.findMany({
+      where: {
+        date: { gte: start, lte: end },
+        status: { not: 'CANCELLED' },
+      },
+      orderBy: [
+        { time: 'asc' },
+        { slotNumber: 'asc' },
+      ],
+      select: {
+        id: true,
+        patientId: true,
+        time: true,
+        slotNumber: true,
+        status: true,
+        professional: {
+          select: {
+            id: true,
+            fullName: true,
+          },
+        },
+        patient: {
+          select: patientSelect,
+        },
+      },
+    });
+
+    const scheduledByPatient = new Map();
+
+    for (const appointment of appointments) {
+      const dayAppointment = {
+        id: appointment.id,
+        time: appointment.time,
+        slotNumber: appointment.slotNumber,
+        status: appointment.status,
+        professionalId: appointment.professional?.id || null,
+        professionalName: appointment.professional?.fullName || '',
+      };
+
+      const existing = scheduledByPatient.get(appointment.patientId);
+
+      if (!existing) {
+        scheduledByPatient.set(
+          appointment.patientId,
+          serializeClinicalHistoryPatient(appointment.patient, [dayAppointment]),
+        );
+        continue;
+      }
+
+      existing.dayAppointments.push(dayAppointment);
+      existing.appointmentCount = existing.dayAppointments.length;
+      existing.firstAppointmentTime = existing.dayAppointments[0]?.time || null;
+    }
+
+    const sortPatients = (a, b) => {
+      const timeComparison = String(a.firstAppointmentTime || '').localeCompare(String(b.firstAppointmentTime || ''));
+      if (timeComparison !== 0) return timeComparison;
+      return String(a.fullName || '').localeCompare(String(b.fullName || ''), 'es', { sensitivity: 'base' });
+    };
+
+    const scheduledPatients = Array.from(scheduledByPatient.values()).sort(sortPatients);
+
+    let searchResults = [];
+
+    if (search) {
+      const clinicalRecordNumber = Number.parseInt(search, 10);
+      const orFilters = [
+        {
+          fullName: {
+            contains: search,
+            mode: 'insensitive',
+          },
+        },
+        {
+          dni: {
+            contains: search,
+          },
+        },
+      ];
+
+      if (Number.isInteger(clinicalRecordNumber)) {
+        orFilters.push({
+          clinicalRecordNumber,
+        });
+      }
+
+      const matchedPatients = await prisma.patient.findMany({
+        where: {
+          OR: orFilters,
+        },
+        orderBy: { fullName: 'asc' },
+        take: 50,
+        select: patientSelect,
+      });
+
+      searchResults = matchedPatients.map((patient) => {
+        const scheduledPatient = scheduledByPatient.get(patient.id);
+        if (scheduledPatient) {
+          return {
+            ...scheduledPatient,
+            ...patient,
+          };
+        }
+        return serializeClinicalHistoryPatient(patient, []);
+      });
+    }
+
+    res.status(200).json({
+      selectedDate,
+      scheduledPatients,
+      searchResults,
+    });
+  } catch (error) {
+    console.error('❌ Error en getClinicalHistoryPatients:', error);
+    res.status(500).json({
+      error: 'Error al obtener pacientes para historias clínicas',
+      message: error.message,
+    });
+  }
+};
+
 export const createPatient = async (req, res, prisma) => {
   const {
     fullName,
