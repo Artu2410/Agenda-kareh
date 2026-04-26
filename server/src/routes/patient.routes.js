@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { 
   searchPatientByDni, 
   getAllPatients, 
+  getClinicalHistoryPatients,
   createPatient, 
   updatePatient, 
   deletePatient, 
@@ -19,6 +20,7 @@ export default function createPatientRoutes(prisma) {
   
   // Rutas GET
   router.get('/all', (req, res) => getAllPatients(req, res, prisma));
+  router.get('/clinical-histories', (req, res) => getClinicalHistoryPatients(req, res, prisma));
   router.get('/search', (req, res) => searchPatientByDni(req, res, prisma));
   router.get('/:dni/history', (req, res) => getPatientHistoryByDni(req, res, prisma));
   router.get('/:patientId/future-appointments', (req, res) => getFutureAppointments(req, res, prisma));
