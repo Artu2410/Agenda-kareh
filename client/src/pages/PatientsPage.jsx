@@ -397,7 +397,7 @@ export default function PatientsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
           <form
             onSubmit={savePatient}
-            className="max-h-[94vh] w-full max-w-6xl overflow-y-auto rounded-[2rem] bg-white p-5 shadow-xl sm:p-7"
+            className="max-h-[94vh] w-full max-w-6xl overflow-y-auto rounded-4xl bg-white p-5 shadow-xl sm:p-7"
           >
             <div className="mb-6 flex flex-col gap-3 border-b border-slate-100 pb-5 sm:flex-row sm:items-end sm:justify-between">
               <div className="min-w-0">

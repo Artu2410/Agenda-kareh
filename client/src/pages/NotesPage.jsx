@@ -335,10 +335,10 @@ export default function NotesPage() {
   };
 
   return (
-    <div className="flex-1 overflow-auto bg-[radial-gradient(circle_at_top,_rgba(13,148,136,0.14),_transparent_40%),linear-gradient(180deg,#fffdf7_0%,#f8fafc_100%)] px-4 py-4 sm:px-6 sm:py-8">
+    <div className="flex-1 overflow-auto bg-[radial-gradient(circle_at_top,rgba(13,148,136,0.14),transparent_40%),linear-gradient(180deg,#fffdf7_0%,#f8fafc_100%)] px-4 py-4 sm:px-6 sm:py-8">
       <div className="mx-auto max-w-7xl">
         <div className="grid gap-6 xl:grid-cols-[0.92fr_1.08fr]">
-          <section className="rounded-[2rem] border border-[#eadfcb] bg-[#fff7e9] p-5 shadow-[0_24px_60px_-36px_rgba(15,23,42,0.35)] sm:p-8">
+          <section className="rounded-4xl border border-[#eadfcb] bg-[#fff7e9] p-5 shadow-[0_24px_60px_-36px_rgba(15,23,42,0.35)] sm:p-8">
             <div className="inline-flex items-center gap-3 rounded-full bg-white px-4 py-2 text-[#8a5a00] shadow-sm">
               <NotebookPen size={18} />
               <span className="text-xs font-black uppercase tracking-[0.24em]">Panel de notas</span>
@@ -401,13 +401,13 @@ export default function NotesPage() {
             </div>
 
             <div className="mt-8 grid gap-4 sm:grid-cols-2">
-              <div className="rounded-[1.5rem] bg-white/80 p-5 shadow-sm">
+              <div className="rounded-3xl bg-white/80 p-5 shadow-sm">
                 <p className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">Notas guardadas</p>
                 <p className="mt-2 text-3xl font-black text-slate-900">{notes.length}</p>
                 <p className="mt-1 text-sm font-semibold text-slate-500">Se ven igual en cualquier dispositivo logueado.</p>
               </div>
 
-              <div className="rounded-[1.5rem] bg-white/80 p-5 shadow-sm">
+              <div className="rounded-3xl bg-white/80 p-5 shadow-sm">
                 <div className="flex items-center gap-3 text-slate-700">
                   <Save size={16} className="text-teal-600" />
                   <p className="text-sm font-bold">Última actualización</p>
@@ -453,7 +453,7 @@ export default function NotesPage() {
             </div>
           </section>
 
-          <section className="rounded-[2rem] border border-slate-200 bg-white p-4 shadow-[0_24px_60px_-36px_rgba(15,23,42,0.35)] sm:p-6">
+          <section className="rounded-4xl border border-slate-200 bg-white p-4 shadow-[0_24px_60px_-36px_rgba(15,23,42,0.35)] sm:p-6">
             {selectedNote ? (
               <>
                 <div className="flex flex-col gap-4 border-b border-slate-100 pb-5">

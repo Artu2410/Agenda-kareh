@@ -224,18 +224,18 @@ const Sidebar = ({ onToggle, onLogout, onNavigate, isMobile = false }) => {
 
   return (
     <>
-      <div className={isMobile ? 'fixed inset-0 z-[70]' : 'relative z-20'}>
+      <div className={isMobile ? 'fixed inset-0 z-70' : 'relative z-20'}>
         {isMobile && (
           <button
             type="button"
             aria-label="Cerrar menú"
-            className="absolute inset-0 z-[70] bg-slate-950/55 backdrop-blur-[2px]"
+            className="absolute inset-0 z-70 bg-slate-950/55 backdrop-blur-[2px]"
             onClick={onToggle}
           />
         )}
         <aside className={`${
           isMobile
-            ? 'fixed inset-y-0 left-0 z-[80] flex w-[82vw] max-w-xs flex-col bg-slate-900 text-white shadow-2xl'
+            ? 'fixed inset-y-0 left-0 z-80 flex w-[82vw] max-w-xs flex-col bg-slate-900 text-white shadow-2xl'
             : 'flex h-screen w-48 flex-col bg-slate-900 text-white shadow-xl'
         }`}>
         <div className="relative p-5 text-center border-b border-slate-800 sm:p-6">
@@ -287,7 +287,7 @@ const Sidebar = ({ onToggle, onLogout, onNavigate, isMobile = false }) => {
             </button>
           )}
           <div className="bg-slate-800/50 p-3 rounded-xl flex items-center gap-3">
-            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-teal-400 to-emerald-500 flex items-center justify-center font-black text-sm text-slate-950 shadow-lg shadow-emerald-950/20 shrink-0">
+            <div className="w-14 h-14 rounded-full bg-linear-to-br from-teal-400 to-emerald-500 flex items-center justify-center font-black text-sm text-slate-950 shadow-lg shadow-emerald-950/20 shrink-0">
               {temperatureBubble === null ? '--°' : `${temperatureBubble}°`}
             </div>
             <div className="overflow-hidden flex-1">

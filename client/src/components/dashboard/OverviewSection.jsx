@@ -9,7 +9,7 @@ import {
 import { formatCount, formatRate } from './dashboardFormatters';
 
 const OverviewCard = ({ eyebrow, title, description, icon, iconClassName, children }) => (
-  <section className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+  <section className="rounded-4xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
     <div className="flex items-start justify-between gap-4">
       <div>
         <p className="text-[11px] font-black uppercase tracking-[0.28em] text-slate-400">{eyebrow}</p>

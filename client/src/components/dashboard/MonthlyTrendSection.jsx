@@ -81,7 +81,7 @@ const ChartToggle = ({ selected, value, children, onChange }) => (
 );
 
 const MonthlyTrendSection = ({ chartData, chartType, currentMonthRow, onChartTypeChange }) => (
-  <section className="min-w-0 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+  <section className="min-w-0 rounded-4xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
     <div className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
       <div>
         <p className="text-[11px] font-black uppercase tracking-[0.28em] text-slate-400">Últimos 12 meses</p>

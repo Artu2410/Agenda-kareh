@@ -50,12 +50,12 @@ export const CustomToaster = () => {
         <ToastBar toast={t}>
           {({ icon, message }) => (
             <div className="flex items-center gap-3 w-full">
-              <div className="flex-shrink-0">{icon}</div>
+              <div className="shrink-0">{icon}</div>
               <div className="flex-1">{message}</div>
               {t.type !== 'loading' && (
                 <button
                   onClick={() => toast.dismiss(t.id)}
-                  className="flex-shrink-0 p-1 hover:bg-slate-100 rounded-lg transition-colors"
+                  className="shrink-0 p-1 hover:bg-slate-100 rounded-lg transition-colors"
                 >
                   <X size={16} />
                 </button>

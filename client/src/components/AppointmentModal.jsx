@@ -434,8 +434,8 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm flex justify-center items-center z-[999] p-4">
-      <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-5xl h-[90vh] overflow-hidden flex flex-col md:flex-row border border-white/20">
+    <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm flex justify-center items-center z-999 p-4">
+      <div className="bg-white rounded-4xl shadow-2xl w-full max-w-5xl h-[90vh] overflow-hidden flex flex-col md:flex-row border border-white/20">
 
         {/* COLUMNA IZQUIERDA: FORMULARIO + HISTORIA */}
         <div className="flex-1 flex flex-col bg-white border-r border-slate-100 overflow-hidden">
@@ -601,7 +601,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                 </div>
               )}
 
-              <div className="p-4 bg-slate-50 rounded-[2rem] border border-slate-100 grid grid-cols-3 gap-2">
+              <div className="p-4 bg-slate-50 rounded-4xl border border-slate-100 grid grid-cols-3 gap-2">
                 {[
                   { key: 'hasCancer', label: 'Oncológico', color: 'accent-red-500' },
                   { key: 'hasMarcapasos', label: 'Marcapasos', color: 'accent-blue-500' },
@@ -637,7 +637,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                           <div className="flex flex-wrap gap-2 mb-2">
                             {yearData.cycles.map((cycle) => (
                               <div key={cycle.cycleNumber} className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-1.5">
-                                <div className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[9px] font-black flex-shrink-0">
+                                <div className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[9px] font-black shrink-0">
                                   {cycle.cycleNumber}
                                 </div>
                                 <div>
@@ -653,7 +653,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                         {/* Ciclo en curso */}
                         {yearData.sessionsInCurrentCycle > 0 && (
                           <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mt-1">
-                            <div className="w-5 h-5 rounded-full border-2 border-amber-400 border-dashed flex items-center justify-center text-[9px] font-black text-amber-600 flex-shrink-0">
+                            <div className="w-5 h-5 rounded-full border-2 border-amber-400 border-dashed flex items-center justify-center text-[9px] font-black text-amber-600 shrink-0">
                               {yearData.completedCycles + 1}
                             </div>
                             <div>
@@ -686,7 +686,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
 
             <div className="flex gap-4 mt-8 pb-4">
               <button onClick={onClose} className="flex-1 py-4 font-black text-slate-400 uppercase text-xs tracking-widest">Cancelar</button>
-              <button onClick={handleAction} disabled={loading} className="flex-[2] bg-teal-600 text-white font-black py-4 rounded-3xl shadow-xl hover:bg-teal-700 transition-all flex items-center justify-center gap-2 uppercase text-xs tracking-widest">
+              <button onClick={handleAction} disabled={loading} className="flex-2 bg-teal-600 text-white font-black py-4 rounded-3xl shadow-xl hover:bg-teal-700 transition-all flex items-center justify-center gap-2 uppercase text-xs tracking-widest">
                 {loading ? <Loader2 className="animate-spin" size={18} /> : (isEditMode ? 'Guardar Cambios' : 'Confirmar y Agendar')}
               </button>
             </div>

@@ -502,7 +502,7 @@ const WhatsAppPage = () => {
         </header>
 
         <div className="relative min-h-0 flex-1 overflow-hidden bg-[linear-gradient(180deg,rgba(240,253,250,0.9),rgba(248,250,252,1))]">
-          <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-12 bg-gradient-to-b from-slate-50 via-slate-50/90 to-transparent" />
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-12 bg-linear-to-b from-slate-50 via-slate-50/90 to-transparent" />
           <div
             ref={messagesContainerRef}
             className="min-h-0 h-full overflow-y-auto overscroll-contain px-3 pb-3 pt-6 [scrollbar-gutter:stable] sm:px-6 sm:pb-6 sm:pt-8"
@@ -551,7 +551,7 @@ const WhatsAppPage = () => {
                         )}
 
                         {shouldRenderTextBlock(message) && (
-                          <p className={`whitespace-pre-wrap break-words text-sm font-semibold ${renderAsReaction ? 'text-base' : ''}`}>{message.text}</p>
+                          <p className={`whitespace-pre-wrap wrap-break-word text-sm font-semibold ${renderAsReaction ? 'text-base' : ''}`}>{message.text}</p>
                         )}
 
                         <div className="mt-2 text-right text-[10px] opacity-70">

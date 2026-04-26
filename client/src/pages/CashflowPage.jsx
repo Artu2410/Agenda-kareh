@@ -341,7 +341,7 @@ const CashflowPage = () => {
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm leading-snug text-slate-500">{card.label}</p>
-                  <p className={`mt-2 break-words text-xl font-bold leading-tight sm:text-2xl ${card.valueClassName}`}>
+                  <p className={`mt-2 wrap-break-word text-xl font-bold leading-tight sm:text-2xl ${card.valueClassName}`}>
                     {card.value}
                   </p>
                 </div>

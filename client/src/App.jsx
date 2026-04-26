@@ -36,8 +36,8 @@ function DocumentTitleSync() {
 
 function AppBootSplash() {
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(45,212,191,0.18),_transparent_45%),linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)] px-6">
-      <div className="w-full max-w-sm rounded-[2rem] border border-white/70 bg-white/85 p-8 text-center shadow-[0_30px_80px_-40px_rgba(15,23,42,0.45)] backdrop-blur">
+    <div className="flex min-h-dvh items-center justify-center bg-[radial-gradient(circle_at_top,rgba(45,212,191,0.18),transparent_45%),linear-gradient(180deg,#f8fafc_0%,#eef2ff_100%)] px-6">
+      <div className="w-full max-w-sm rounded-4xl border border-white/70 bg-white/85 p-8 text-center shadow-[0_30px_80px_-40px_rgba(15,23,42,0.45)] backdrop-blur">
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-lg">
           <div className="h-6 w-6 animate-spin rounded-full border-2 border-white/35 border-t-white" />
         </div>
@@ -194,7 +194,7 @@ function App() {
               type="button"
               onClick={toggleSidebar}
               aria-label="Ocultar menú lateral"
-              className="fixed right-4 top-4 z-[90] flex h-11 w-11 items-center justify-center rounded-2xl bg-white/95 text-slate-900 shadow-lg ring-1 ring-slate-200 transition hover:bg-white"
+              className="fixed right-4 top-4 z-90 flex h-11 w-11 items-center justify-center rounded-2xl bg-white/95 text-slate-900 shadow-lg ring-1 ring-slate-200 transition hover:bg-white"
             >
               <ChevronLeft size={18} />
             </button>

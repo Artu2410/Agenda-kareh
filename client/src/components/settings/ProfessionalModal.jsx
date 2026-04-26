@@ -175,8 +175,8 @@ const ProfessionalModal = ({ isOpen, onClose, onSave, onDeleted, professional })
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/60 p-4 text-slate-900 backdrop-blur-sm">
-      <div className="flex max-h-[94vh] w-full max-w-6xl flex-col overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-2xl">
+    <div className="fixed inset-0 z-70 flex items-center justify-center bg-slate-900/60 p-4 text-slate-900 backdrop-blur-sm">
+      <div className="flex max-h-[94vh] w-full max-w-6xl flex-col overflow-hidden rounded-4xl border border-slate-200 bg-white shadow-2xl">
         <div className="flex flex-col gap-4 border-b border-slate-100 bg-slate-50 px-5 py-5 sm:flex-row sm:items-end sm:justify-between sm:px-7">
           <div className="flex items-start gap-4">
             <div className="rounded-2xl bg-teal-100 p-3 text-teal-700">
@@ -500,7 +500,7 @@ const ProfessionalModal = ({ isOpen, onClose, onSave, onDeleted, professional })
         </form>
 
         {showDeleteConfirm && (
-          <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
+          <div className="fixed inset-0 z-80 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
             <div className="w-full max-w-md rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-2xl">
               <h3 className="text-xl font-black text-slate-800">¿Eliminar profesional?</h3>
               <p className="mt-3 text-sm font-semibold leading-6 text-slate-600">

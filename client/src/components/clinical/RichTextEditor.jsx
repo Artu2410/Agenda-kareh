@@ -86,7 +86,7 @@ export default function RichTextEditor({
   };
 
   return (
-    <div className="rounded-[2rem] border border-[#efe4d2] bg-[#fffdf8] p-4 shadow-sm sm:p-5">
+    <div className="rounded-4xl border border-[#efe4d2] bg-[#fffdf8] p-4 shadow-sm sm:p-5">
       <div className="mb-4 flex flex-wrap gap-2">
         <ToolbarButton title="Negrita" onClick={() => handleCommand('bold')}>
           <Bold size={16} />

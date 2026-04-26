@@ -54,7 +54,7 @@ export const ConfirmModal = ({
     <AnimatePresence>
       {isOpen && (
         <MotionDiv
-          className="fixed inset-0 z-[120] flex items-center justify-center p-4"
+          className="fixed inset-0 z-120 flex items-center justify-center p-4"
           variants={backdropVariants}
           initial="hidden"
           animate="visible"
@@ -82,8 +82,8 @@ export const ConfirmModal = ({
             <div
               className={`px-6 py-4 flex items-center gap-3 border-b ${
                 danger
-                  ? 'bg-gradient-to-r from-red-100/80 to-red-50/50 border-red-200'
-                  : 'bg-gradient-to-r from-slate-100/80 to-slate-50/50 border-slate-200'
+                  ? 'bg-linear-to-r from-red-100/80 to-red-50/50 border-red-200'
+                  : 'bg-linear-to-r from-slate-100/80 to-slate-50/50 border-slate-200'
               }`}
             >
               <div
@@ -127,8 +127,8 @@ export const ConfirmModal = ({
                 whileTap={{ scale: isLoading ? 1 : 0.98 }}
                 className={`px-6 py-2 rounded-lg font-semibold transition-all duration-200 flex items-center gap-2 text-white ${
                   danger
-                    ? 'bg-gradient-to-r from-red-500 to-red-600 hover:shadow-lg hover:shadow-red-500/30'
-                    : 'bg-gradient-to-r from-teal-500 to-teal-600 hover:shadow-lg hover:shadow-teal-500/30'
+                    ? 'bg-linear-to-r from-red-500 to-red-600 hover:shadow-lg hover:shadow-red-500/30'
+                    : 'bg-linear-to-r from-teal-500 to-teal-600 hover:shadow-lg hover:shadow-teal-500/30'
                 } ${isLoading ? 'opacity-75 cursor-not-allowed' : 'active:scale-95'}`}
               >
                 {isLoading && (
