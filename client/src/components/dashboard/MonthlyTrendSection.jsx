@@ -1,14 +1,14 @@
 import {
-  BarChart,
   Bar,
-  LineChart,
+  BarChart,
+  CartesianGrid,
+  Legend,
   Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip as RechartsTooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip as RechartsTooltip,
-  ResponsiveContainer,
-  Legend,
 } from 'recharts';
 import { formatCount, formatRate, formatVolumeChange } from './dashboardFormatters';
 
@@ -62,9 +62,7 @@ const SummaryCard = ({ title, value, description, className }) => (
   <div className={className}>
     <p className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-500">{title}</p>
     <p className="mt-2 text-lg font-black text-slate-900">{value}</p>
-    {description && (
-      <p className="mt-1 text-sm font-semibold text-slate-500">{description}</p>
-    )}
+    {description && <p className="mt-1 text-sm font-semibold text-slate-500">{description}</p>}
   </div>
 );
 

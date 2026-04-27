@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import api from '../services/api';
 import toast from 'react-hot-toast';
 import DashboardHeader from '../components/dashboard/DashboardHeader';
-import OverviewSection from '../components/dashboard/OverviewSection';
 import InsuranceBreakdownSection from '../components/dashboard/InsuranceBreakdownSection';
-import MonthlyTrendSection from '../components/dashboard/MonthlyTrendSection';
 import MonthlyRecordsSection from '../components/dashboard/MonthlyRecordsSection';
+import MonthlyTrendSection from '../components/dashboard/MonthlyTrendSection';
+import OverviewSection from '../components/dashboard/OverviewSection';
+import api from '../services/api';
 
 const DashboardPage = () => {
   const [metrics, setMetrics] = useState(null);
@@ -41,19 +41,19 @@ const DashboardPage = () => {
   const monthlyRows = useMemo(() => {
     const trend = Array.isArray(metrics?.monthlyTrend) ? metrics.monthlyTrend : [];
 
-    const rows = trend.map((row, index) => {
-      const previousRow = index > 0 ? trend[index - 1] : null;
-      const volumeChange = previousRow && previousRow.appointmentCount > 0
-        ? Number((((row.appointmentCount - previousRow.appointmentCount) / previousRow.appointmentCount) * 100).toFixed(1))
-        : null;
+    return trend
+      .map((row, index) => {
+        const previousRow = index > 0 ? trend[index - 1] : null;
+        const volumeChange = previousRow && previousRow.appointmentCount > 0
+          ? Number((((row.appointmentCount - previousRow.appointmentCount) / previousRow.appointmentCount) * 100).toFixed(1))
+          : null;
 
-      return {
-        ...row,
-        volumeChange,
-      };
-    });
-
-    return rows.reverse();
+        return {
+          ...row,
+          volumeChange,
+        };
+      })
+      .reverse();
   }, [metrics]);
 
   const currentMonthRow = monthlyRows[0] || null;

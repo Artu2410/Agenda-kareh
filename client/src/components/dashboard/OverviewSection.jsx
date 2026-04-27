@@ -1,10 +1,10 @@
 import {
-  TrendingUp,
-  Users,
-  Calendar,
   AlertTriangle,
+  Calendar,
   CheckCircle2,
   Clock3,
+  TrendingUp,
+  Users,
 } from 'lucide-react';
 import { formatCount, formatRate } from './dashboardFormatters';
 
