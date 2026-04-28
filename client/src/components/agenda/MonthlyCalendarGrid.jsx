@@ -13,8 +13,9 @@ import { es } from 'date-fns/locale';
 import { Activity, AlertTriangle, CalendarClock, CheckCircle2, ChevronRight, Clock3, Zap } from 'lucide-react';
 import { getCoverageLabel, isParticularCoverage } from '@/utils/coverage';
 
-const WEEKDAY_HEADERS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+const WEEKDAY_HEADERS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 const VISIBLE_APPOINTMENTS_PER_DAY = 4;
+const isVisibleWeekday = (date) => date.getDay() !== 0;
 
 const getAppointmentDateKey = (value) => String(value || '').split('T')[0];
 
@@ -68,7 +69,7 @@ const MonthlyCalendarGrid = ({
     const gridStart = startOfWeek(monthStart, { weekStartsOn: 1 });
     const gridEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
 
-    return eachDayOfInterval({ start: gridStart, end: gridEnd });
+    return eachDayOfInterval({ start: gridStart, end: gridEnd }).filter(isVisibleWeekday);
   }, [currentDate]);
 
   const appointmentsByDay = useMemo(() => (
@@ -145,7 +146,7 @@ const MonthlyCalendarGrid = ({
       </div>
 
       <div className="overflow-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="grid min-w-[980px] grid-cols-7">
+        <div className="grid min-w-[860px] grid-cols-6">
           {WEEKDAY_HEADERS.map((header) => (
             <div
               key={header}
