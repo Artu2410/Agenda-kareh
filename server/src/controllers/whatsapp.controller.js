@@ -10,6 +10,7 @@ import {
 } from '../services/whatsapp.js';
 import { normalizePhone } from '../utils/phone.js';
 import { transcribeAudioBuffer } from '../services/audioTranscription.js';
+import { sendNotificationToAll } from './notifications.controller.js';
 
 const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
 const WELCOME_TEMPLATE = process.env.WHATSAPP_WELCOME_TEMPLATE || 'bienvenida_kareh';
@@ -865,6 +866,26 @@ export const handleWhatsAppWebhook = async (req, res, prisma) => {
               unreadCount: { increment: 1 },
             },
           });
+
+          // Enviar notificación Push a los administradores
+          try {
+            const totalUnread = await prisma.whatsAppConversation.aggregate({
+              _sum: { unreadCount: true }
+            });
+            
+            await sendNotificationToAll(prisma, {
+              title: `Mensaje de ${nextProfileName || conversation.phone}`,
+              body: storedInboundText,
+              icon: '/icon-192x192.png',
+              unreadCount: totalUnread._sum.unreadCount || 0,
+              data: {
+                url: `/whatsapp/${conversation.id}`,
+                conversationId: conversation.id
+              }
+            });
+          } catch (pushError) {
+            console.error('Error enviando notificación push:', pushError);
+          }
 
           if (autoReply) {
             try {

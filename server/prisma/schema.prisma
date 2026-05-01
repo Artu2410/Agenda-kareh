@@ -265,3 +265,13 @@ model WhatsAppMessage {
   @@index([conversationId])
   @@index([status])
 }
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  email     String?
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
