@@ -16,6 +16,7 @@ import Sidebar from './components/layout/Sidebar';
 import api from './services/api';
 import { initializeCsrf } from './services/csrf';
 import { clearClientSession } from './services/session';
+import { registerServiceWorker, subscribeToPushNotifications, playNotificationSound } from './services/notifications';
 import { APP_ROUTES, getDocumentTitle } from './utils/appRoutes';
 import { ChevronLeft, ChevronRight, Menu } from 'lucide-react';
 
@@ -125,6 +126,29 @@ function App() {
     }, 10 * 60 * 1000); // refrescar cada 10 minutos
 
     return () => clearInterval(intervalId);
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    // Registrar Service Worker y Suscribirse a Notificaciones Push
+    void (async () => {
+      await registerServiceWorker();
+      await subscribeToPushNotifications();
+    })();
+
+    // Escuchar mensajes del Service Worker
+    const handleMessage = (event) => {
+      if (event.data && event.data.type === 'PUSH_NOTIFICATION') {
+        playNotificationSound();
+      }
+    };
+
+    navigator.serviceWorker.addEventListener('message', handleMessage);
+
+    return () => {
+      navigator.serviceWorker.removeEventListener('message', handleMessage);
+    };
   }, [isAuthenticated]);
 
   useEffect(() => {

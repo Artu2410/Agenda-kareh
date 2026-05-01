@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, FileText, Loader2, Paperclip, Search, Send, Trash2, X } from 'lucide-react';
 import api from '../services/api';
 import { useConfirmModal } from '../hooks/useConfirmModal';
+import { updateAppBadge } from '../services/notifications';
 
 const ACCEPTED_FILE_TYPES = [
   '.jpg',
@@ -277,7 +278,10 @@ const WhatsAppPage = () => {
 
     shouldStickToBottomRef.current = true;
     loadMessages(selectedId, { silent: false, forceStickToBottom: true });
-    api.post(`/whatsapp/conversations/${selectedId}/read`).catch(() => {});
+    api.post(`/whatsapp/conversations/${selectedId}/read`).then(() => {
+      // Al marcar como leída, intentamos limpiar el badge o actualizarlo
+      updateAppBadge(0); 
+    }).catch(() => {});
 
     const interval = setInterval(() => {
       loadMessages(selectedId, { forceStickToBottom: false });
