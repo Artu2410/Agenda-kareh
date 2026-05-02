@@ -10,6 +10,7 @@ import ClinicalHistoryPage from './pages/ClinicalHistoryPage';
 import DashboardPage from './pages/DashboardPage';
 import LoginPage from './pages/LoginPage';
 import WhatsAppPage from './pages/WhatsAppPage';
+import ObrasSocialesPage from './pages/ObrasSocialesPage';
 import NotesPage from './pages/NotesPage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import Sidebar from './components/layout/Sidebar';
@@ -246,6 +247,7 @@ function App() {
                 <Route path={APP_ROUTES.notes} element={<NotesPage />} />
                 <Route path={APP_ROUTES.whatsapp} element={<WhatsAppPage />} />
                 <Route path={APP_ROUTES.settings} element={<SettingsPage />} />
+                <Route path={APP_ROUTES.obrasSociales} element={<ObrasSocialesPage />} />
 
                 <Route path="/dashboard" element={<Navigate to={APP_ROUTES.dashboard} replace />} />
                 <Route path="/appointments" element={<Navigate to={APP_ROUTES.appointments} replace />} />
@@ -255,6 +257,7 @@ function App() {
                 <Route path="/cashflow" element={<Navigate to={APP_ROUTES.cashflow} replace />} />
                 <Route path="/notes" element={<Navigate to={APP_ROUTES.notes} replace />} />
                 <Route path="/whatsapp" element={<Navigate to={APP_ROUTES.whatsapp} replace />} />
+                <Route path="/obras-sociales" element={<Navigate to={APP_ROUTES.obrasSociales} replace />} />
                 <Route path="/settings" element={<Navigate to={APP_ROUTES.settings} replace />} />
                 <Route path="*" element={<Navigate to={APP_ROUTES.dashboard} replace />} />
               </>
