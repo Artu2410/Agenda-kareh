@@ -1,4 +1,4 @@
-import axios from 'axios';
+import api from './api';
 
 const VAPID_PUBLIC_KEY = 'BDRoSfKk6Oq8Dca1MhyMSoO5WkWMl87cyKzY05CEdvE2MzkQl-RvZ5RMJKosr6d9YTly85ZMHLa3hb_Ca_zGBqg';
 
@@ -51,7 +51,7 @@ export async function subscribeToPushNotifications() {
     });
 
     // Enviar al servidor
-    await axios.post('/api/notifications/subscribe', {
+    await api.post('/notifications/subscribe', {
       subscription,
       email: localStorage.getItem('userEmail') // Opcional
     });

@@ -191,9 +191,13 @@ function parsearDatos(rawRows) {
 
     if (!nombre || nombre.length < 2) continue;
 
-    const esAtendibleSanMiguel = WHITELIST_SAN_MIGUEL.some(
-      (ws) => nombre.toUpperCase().includes(ws.toUpperCase())
-    );
+    // Buscar zona en toda la fila o en el nombre
+    const textoFila = row.join(' ').toUpperCase();
+    const esAtendibleSanMiguel = 
+      textoFila.includes('PROVINCIA DE BUENOS AIRES') ||
+      textoFila.includes('SAN MIGUEL') ||
+      textoFila.includes('BELLA VISTA') ||
+      WHITELIST_SAN_MIGUEL.some((ws) => nombre.toUpperCase().includes(ws.toUpperCase()));
 
     obrasSociales.push({
       codigo_cokiba: codigo || generarCodigo(nombre),
