@@ -8,7 +8,8 @@
     "start": "node scripts/bootstrap-production.js",
     "dev": "nodemon server.js",
     "check-whatsapp": "node check-whatsapp-config.js",
-    "whatsapp-reminders": "node scripts/whatsapp-reminders.js"
+    "whatsapp-reminders": "node scripts/whatsapp-reminders.js",
+    "cokiba-sync": "node scripts/cokiba-sync.js"
   },
   "engines": {
     "node": "22.x"
@@ -39,7 +40,8 @@
     "passport-google-oauth20": "^2.0.0",
     "pdfkit": "^0.15.2",
     "resend": "^6.9.3",
-    "web-push": "^3.6.7"
+    "web-push": "^3.6.7",
+    "puppeteer": "^24.9.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.0",

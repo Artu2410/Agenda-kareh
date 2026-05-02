@@ -275,3 +275,24 @@ model PushSubscription {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+// ---------------------------------------------------------
+// 8. OBRAS SOCIALES (COKIBA)
+// ---------------------------------------------------------
+model ObraSocial {
+  id              String   @id @default(cuid())
+  codigoCokiba    String   @unique          // Código interno de COKIBA
+  nombreOs        String                     // Nombre de la entidad
+  coseguroValor   Decimal  @db.Decimal(10, 2) // Monto a cobrar en mostrador
+  honorarioEstimado Decimal @db.Decimal(10, 2) // Lo que COKIBA liquida
+  plazoPago       Int      @default(60)       // Días default 60
+  estado          String   @default("Activa") // Activa / Baja / Suspendida
+  atendibleSanMiguel Boolean @default(false)  // Zona San Miguel / Bella Vista
+  rawCategoria    String?                     // Categoría original scrapeada
+  ultimaSync      DateTime @default(now())    // Última sincronización
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([estado])
+  @@index([nombreOs])
+}
