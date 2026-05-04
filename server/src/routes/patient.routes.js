@@ -14,6 +14,7 @@ import {
 } from '../controllers/patient.controller.js';
 import { validateBody } from '../middlewares/validate.js';
 import { createPatientSchema } from '../schemas/patient.schema.js';
+import { checkRole } from '../middlewares/authMiddleware.js';
 
 export default function createPatientRoutes(prisma) {
   const router = Router();
@@ -32,7 +33,7 @@ export default function createPatientRoutes(prisma) {
   router.delete('/:id', (req, res) => deletePatient(req, res, prisma));
   router.put('/:id', (req, res) => updatePatient(req, res, prisma));
   router.patch('/:id', (req, res) => updatePatient(req, res, prisma));
-  router.post('/admin/renumber', (req, res) => renumberAllPatients(req, res, prisma));
+  router.post('/admin/renumber', checkRole('ADMIN'), (req, res) => renumberAllPatients(req, res, prisma));
 
   return router;
 }

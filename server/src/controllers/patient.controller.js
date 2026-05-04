@@ -6,6 +6,7 @@ import {
   patientWithAppointmentCountSelect,
   professionalSelect,
 } from '../prisma/selects.js';
+import { auditActions, safeWriteAuditLog } from '../utils/audit.js';
 
 const parseDateAvoidTZ = (d) => {
   if (!d) return null;
@@ -23,6 +24,11 @@ const parseDateAvoidTZ = (d) => {
 };
 
 const UNKNOWN_BIRTHDATE = new Date(1900, 0, 1, 12, 0, 0);
+const maskIdentifier = (value) => {
+  const normalized = String(value || '').trim();
+  if (!normalized) return '';
+  return normalized.length <= 4 ? normalized : `***${normalized.slice(-4)}`;
+};
 
 const normalizeBirthDateOrUnknown = (d) => {
   if (!d) return UNKNOWN_BIRTHDATE;
@@ -51,6 +57,16 @@ export const searchPatientByDni = async (req, res, prisma) => {
         },
       },
     });
+    await safeWriteAuditLog(prisma, req, {
+      action: auditActions.patientRead,
+      resource: 'PATIENT',
+      resourceId: patient?.id || null,
+      details: {
+        lookup: 'DNI',
+        query: maskIdentifier(dni),
+        found: Boolean(patient),
+      },
+    });
     if (!patient) return res.status(200).json(null);
     res.status(200).json(patient);
   } catch (error) {
@@ -64,6 +80,13 @@ export const getAllPatients = async (req, res, prisma) => {
     const patients = await prisma.patient.findMany({
       select: patientWithAppointmentCountSelect,
       orderBy: { fullName: 'asc' }
+    });
+    await safeWriteAuditLog(prisma, req, {
+      action: auditActions.patientListed,
+      resource: 'PATIENT',
+      details: {
+        total: patients.length,
+      },
     });
     res.status(200).json(patients);
   } catch (error) {
@@ -209,6 +232,16 @@ export const getClinicalHistoryPatients = async (req, res, prisma) => {
       scheduledPatients,
       searchResults,
     });
+    await safeWriteAuditLog(prisma, req, {
+      action: auditActions.patientListed,
+      resource: 'PATIENT',
+      details: {
+        selectedDate,
+        scheduledCount: scheduledPatients.length,
+        searchTerm: search ? '[provided]' : null,
+        searchResults: searchResults.length,
+      },
+    });
   } catch (error) {
     console.error('❌ Error en getClinicalHistoryPatients:', error);
     res.status(500).json({
@@ -286,6 +319,15 @@ export const createPatient = async (req, res, prisma) => {
       },
       select: patientWithAppointmentCountSelect,
     });
+    await safeWriteAuditLog(prisma, req, {
+      action: auditActions.patientCreated,
+      resource: 'PATIENT',
+      resourceId: patient.id,
+      details: {
+        dni: maskIdentifier(dni),
+        fullName,
+      },
+    });
     res.status(201).json(patient);
   } catch (error) {
     res.status(500).json({ error: 'Error al crear paciente', message: error.message });
@@ -334,6 +376,14 @@ export const updatePatient = async (req, res, prisma) => {
       },
       select: patientWithAppointmentCountSelect,
     });
+    await safeWriteAuditLog(prisma, req, {
+      action: auditActions.patientUpdated,
+      resource: 'PATIENT',
+      resourceId: patient.id,
+      details: {
+        updatedFields: Object.keys(req.body || {}).sort(),
+      },
+    });
     res.status(200).json(patient);
   } catch (error) {
     res.status(500).json({ error: 'Error al actualizar', message: error.message });
@@ -348,6 +398,14 @@ export const deletePatient = async (req, res, prisma) => {
       return res.status(400).json({ message: `No se puede eliminar: tiene ${appointmentCount} cita(s)` });
     }
     await prisma.patient.delete({ where: { id } });
+    await safeWriteAuditLog(prisma, req, {
+      action: auditActions.patientDeleted,
+      resource: 'PATIENT',
+      resourceId: id,
+      details: {
+        appointmentCount,
+      },
+    });
     res.status(200).json({ message: 'Eliminado exitosamente' });
   } catch (error) {
     res.status(500).json({ error: 'Error al eliminar', message: error.message });
@@ -373,6 +431,14 @@ export const getPatientById = async (req, res, prisma) => {
       },
     });
     if (!patient) return res.status(404).json({ message: 'No encontrado' });
+    await safeWriteAuditLog(prisma, req, {
+      action: auditActions.patientRead,
+      resource: 'PATIENT',
+      resourceId: patient.id,
+      details: {
+        lookup: 'ID',
+      },
+    });
     res.status(200).json(patient);
   } catch (error) {
     res.status(500).json({ error: 'Error al obtener', message: error.message });
@@ -399,6 +465,15 @@ export const getPatientHistoryByDni = async (req, res, prisma) => {
       },
     });
     if (!patient) return res.status(404).json({ message: 'Historial no encontrado' });
+    await safeWriteAuditLog(prisma, req, {
+      action: auditActions.patientRead,
+      resource: 'PATIENT',
+      resourceId: patient.id,
+      details: {
+        lookup: 'DNI_HISTORY',
+        query: maskIdentifier(dni),
+      },
+    });
     res.status(200).json(patient);
   } catch (error) {
     console.error('❌ Error en getPatientHistoryByDni:', error);
@@ -425,6 +500,15 @@ export const getFutureAppointments = async (req, res, prisma) => {
         { time: 'asc' },
         { slotNumber: 'asc' },
       ],
+    });
+    await safeWriteAuditLog(prisma, req, {
+      action: auditActions.appointmentRead,
+      resource: 'APPOINTMENT',
+      resourceId: patientId,
+      details: {
+        scope: 'FUTURE_BY_PATIENT',
+        total: appointments.length,
+      },
     });
     res.status(200).json(appointments);
   } catch (error) {
@@ -472,6 +556,15 @@ export const getSessionCycles = async (req, res, prisma) => {
         };
       });
 
+    await safeWriteAuditLog(prisma, req, {
+      action: auditActions.appointmentRead,
+      resource: 'APPOINTMENT',
+      resourceId: patientId,
+      details: {
+        scope: 'SESSION_CYCLES_BY_PATIENT',
+        years: result.length,
+      },
+    });
     res.status(200).json(result);
   } catch (error) {
     console.error('Error in getSessionCycles:', error);
@@ -510,6 +603,14 @@ export const renumberAllPatients = async (req, res, prisma) => {
       }
     });
 
+    await safeWriteAuditLog(prisma, req, {
+      action: auditActions.patientUpdated,
+      resource: 'PATIENT',
+      details: {
+        operation: 'RENUMBER_ALL',
+        total: patients.length,
+      },
+    });
     res.status(200).json({ message: `Re-numerados ${patients.length} pacientes correctamente` });
   } catch (error) {
     console.error('Error en renumberAllPatients:', error);

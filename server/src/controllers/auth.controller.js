@@ -1,246 +1,665 @@
 import jwt from 'jsonwebtoken';
 import { Resend } from 'resend';
+import {
+  allowHeaderFallback,
+  clearAuthCookies,
+  extractBearerToken,
+  extractRefreshToken,
+  generateOtpCode,
+  generateTokenId,
+  getAccessTokenConfig,
+  getAccountLockDurationMs,
+  getBootstrapUserByEmail,
+  getJwtSecret,
+  getMaxOtpAttempts,
+  getOtpTtlMs,
+  getRefreshSecret,
+  getRefreshTokenConfig,
+  getRequestIp,
+  getRequestUserAgent,
+  hashOtpCode,
+  hashToken,
+  isProduction,
+  normalizeEmail,
+  serializeUser,
+  setAuthCookies,
+  wantsFallbackToken,
+} from '../utils/auth.js';
+import { auditActions, safeWriteAuditLog } from '../utils/audit.js';
 
-// 1. Configuración de Variables de Entorno
-const OTP_TTL_MS = 15 * 60 * 1000;
-const DEFAULT_AUTHORIZED_EMAIL = 'centrokareh@gmail.com';
-const PLACEHOLDER_AUTHORIZED_EMAILS = new Set([
-  'tu_email@gmail.com',
-  'tu_correo@gmail.com',
-  'your_email@gmail.com',
-  'your_email@example.com'
-]);
-
-// DURACIÓN DE SESIÓN: 30 DÍAS
-const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000; 
-const SESSION_DURATION_STR = '30d';
-
-const getJwtSecret = () => {
-  const secret = process.env.JWT_SECRET;
-  if (!secret) {
-    throw new Error('JWT_SECRET no configurado');
-  }
-  return secret;
-};
-
-const getRefreshSecret = () => process.env.REFRESH_TOKEN_SECRET || getJwtSecret();
-const getAuthorizedEmail = () => {
-  const configuredEmail = (process.env.AUTHORIZED_EMAIL || DEFAULT_AUTHORIZED_EMAIL).trim().toLowerCase();
-  return PLACEHOLDER_AUTHORIZED_EMAILS.has(configuredEmail) ? DEFAULT_AUTHORIZED_EMAIL : configuredEmail;
-};
-const isProduction = () => process.env.NODE_ENV === 'production';
 const getResendClient = () => {
   const apiKey = process.env.RESEND_API_KEY;
   return apiKey ? new Resend(apiKey) : null;
 };
 
-const allowHeaderFallback = () => process.env.ALLOW_AUTH_HEADER_FALLBACK !== 'false';
-const wantsFallbackToken = (req) => String(req.headers['x-auth-fallback'] || '').toLowerCase() === '1';
+const getPrismaFromRequest = (req) => req.prisma || null;
 
-const buildCookieOptions = (maxAgeMs) => ({
-  httpOnly: true,
-  secure: isProduction(),
-  sameSite: isProduction() ? 'None' : 'Lax',
-  maxAge: maxAgeMs,
-  path: '/',
+const getActiveChallenge = (prisma, email) => prisma.authOtpChallenge.findFirst({
+  where: {
+    email,
+    consumedAt: null,
+    expiresAt: {
+      gt: new Date(),
+    },
+  },
+  orderBy: {
+    createdAt: 'desc',
+  },
 });
 
-const setAuthCookies = (res, accessToken, refreshToken) => {
-  // Ahora ambas cookies duran 30 días para evitar cierres inesperados
-  res.cookie('accessToken', accessToken, buildCookieOptions(SESSION_DURATION_MS));
-  res.cookie('refreshToken', refreshToken, buildCookieOptions(SESSION_DURATION_MS));
-};
+const isUserLocked = (user) => Boolean(user?.lockedUntil && new Date(user.lockedUntil) > new Date());
 
-const getCookieClearVariants = () => ([
-  { path: '/' },
-  { path: '/', httpOnly: true, sameSite: 'Lax' },
-  { path: '/', httpOnly: true, sameSite: 'None', secure: true },
-  { ...buildCookieOptions(0), expires: new Date(0) },
-]);
+const ensureAuthorizedUser = async (prisma, email) => {
+  const normalizedEmail = normalizeEmail(email);
+  const existingUser = await prisma.user.findUnique({
+    where: { email: normalizedEmail },
+  });
 
-const clearAuthCookies = (res) => {
-  const cookieNames = ['accessToken', 'refreshToken', 'auth_token'];
-  const clearVariants = getCookieClearVariants();
+  if (existingUser) {
+    return existingUser;
+  }
 
-  cookieNames.forEach((cookieName) => {
-    clearVariants.forEach((options) => {
-      res.clearCookie(cookieName, options);
-    });
-    res.cookie(cookieName, '', {
-      ...buildCookieOptions(0),
-      expires: new Date(0),
-    });
+  const bootstrapUser = getBootstrapUserByEmail(normalizedEmail);
+  if (!bootstrapUser) {
+    return null;
+  }
+
+  return prisma.user.upsert({
+    where: { email: bootstrapUser.email },
+    update: {},
+    create: {
+      email: bootstrapUser.email,
+      fullName: bootstrapUser.fullName,
+      role: bootstrapUser.role,
+    },
   });
 };
 
-const otpStorage = new Map();
+const lockUser = async (prisma, userId, attempts) => {
+  const lockedUntil = new Date(Date.now() + getAccountLockDurationMs());
+  return prisma.user.update({
+    where: { id: userId },
+    data: {
+      failedLoginAttempts: attempts,
+      lockedUntil,
+    },
+  });
+};
+
+const buildLoginTokens = (user, sessionId) => {
+  const accessTokenId = generateTokenId();
+  const refreshTokenId = generateTokenId();
+  const accessConfig = getAccessTokenConfig();
+  const refreshConfig = getRefreshTokenConfig();
+
+  const accessToken = jwt.sign(
+    {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      sid: sessionId,
+      type: 'access',
+    },
+    getJwtSecret(),
+    {
+      expiresIn: accessConfig.raw,
+      jwtid: accessTokenId,
+    },
+  );
+
+  const refreshToken = jwt.sign(
+    {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      sid: sessionId,
+      type: 'refresh',
+    },
+    getRefreshSecret(),
+    {
+      expiresIn: refreshConfig.raw,
+      jwtid: refreshTokenId,
+    },
+  );
+
+  return {
+    accessToken,
+    refreshToken,
+    accessTokenId,
+    refreshExpiresAt: new Date(Date.now() + refreshConfig.ttlMs),
+  };
+};
+
+const buildAuthSuccessPayload = (req, user, accessToken) => {
+  const payload = {
+    success: true,
+    user: serializeUser(user),
+  };
+
+  if (allowHeaderFallback() && wantsFallbackToken(req)) {
+    payload.accessToken = accessToken;
+  }
+
+  return payload;
+};
+
+const sendOtpEmail = async (email, otp) => {
+  const resend = getResendClient();
+  const otpValidityMinutes = Math.max(1, Math.ceil(getOtpTtlMs() / 60000));
+  if (!resend) {
+    if (isProduction()) {
+      throw new Error('Servicio de correo no configurado');
+    }
+
+    console.warn(`⚠️ [DEV] OTP local para ${email}: ${otp}`);
+    return { delivered: false, devOtp: otp };
+  }
+
+  const { error } = await resend.emails.send({
+    from: 'Kareh Salud <onboarding@resend.dev>',
+    to: email,
+    subject: 'Tu código de acceso a Kareh Salud',
+    html: `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #eee; border-radius: 10px; padding: 20px;">
+        <h2 style="color: #0d9488;">Kareh Salud</h2>
+        <p>Usa el siguiente código para iniciar sesión:</p>
+        <div style="background: #f1f5f9; padding: 20px; text-align: center; border-radius: 8px;">
+          <span style="font-size: 32px; font-weight: bold; color: #0d9488;">${otp}</span>
+        </div>
+        <p style="font-size: 12px; color: #64748b;">Válido por ${otpValidityMinutes} minutos.</p>
+      </div>
+    `,
+  });
+
+  if (error) {
+    throw new Error('No se pudo enviar el correo');
+  }
+
+  return { delivered: true };
+};
+
+const validateAccessSession = async (prisma, decodedToken) => {
+  if (decodedToken?.type !== 'access' || !decodedToken?.sid || !decodedToken?.sub || !decodedToken?.jti) {
+    return { ok: false, status: 401, message: 'Token no válido' };
+  }
+
+  const session = await prisma.authSession.findUnique({
+    where: { id: decodedToken.sid },
+    include: { user: true },
+  });
+
+  if (!session || session.userId !== decodedToken.sub) {
+    return { ok: false, status: 401, message: 'Sesión no encontrada' };
+  }
+
+  if (session.revokedAt) {
+    return { ok: false, status: 401, message: 'Sesión revocada' };
+  }
+
+  if (session.expiresAt <= new Date()) {
+    return { ok: false, status: 401, message: 'Sesión expirada' };
+  }
+
+  if (session.accessTokenJti !== decodedToken.jti) {
+    return { ok: false, status: 401, message: 'Token rotado' };
+  }
+
+  if (!session.user?.isActive) {
+    return { ok: false, status: 403, message: 'Usuario deshabilitado' };
+  }
+
+  if (isUserLocked(session.user)) {
+    return { ok: false, status: 423, message: 'Cuenta temporalmente bloqueada' };
+  }
+
+  return { ok: true, session };
+};
 
 export const requestOTP = async (req, res) => {
-  try {
-    const { email } = req.body;
-    const authorizedEmail = getAuthorizedEmail();
+  const prisma = getPrismaFromRequest(req);
+  if (!prisma) {
+    return res.status(500).json({ message: 'Base de datos no disponible para autenticación' });
+  }
 
-    if (!email || !email.includes('@')) {
+  try {
+    const normalizedEmail = normalizeEmail(req.body?.email);
+    if (!normalizedEmail || !normalizedEmail.includes('@')) {
       return res.status(400).json({ message: 'Email inválido' });
     }
 
-    const normalizedEmail = email.toLowerCase();
-
-    if (normalizedEmail !== authorizedEmail) {
+    const user = await ensureAuthorizedUser(prisma, normalizedEmail);
+    if (!user) {
+      await safeWriteAuditLog(prisma, req, {
+        action: auditActions.authOtpRequestDenied,
+        resource: 'AUTH',
+        details: { email: normalizedEmail, reason: 'UNKNOWN_USER' },
+      });
       return res.status(403).json({
-        message: 'Acceso Denegado',
-        detail: `Solo ${authorizedEmail} puede acceder.`
+        message: 'Acceso denegado',
+        detail: 'El correo no está habilitado para ingresar.',
       });
     }
 
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = Date.now() + OTP_TTL_MS;
-
-    otpStorage.set(normalizedEmail, { otp, expiresAt, attempts: 0 });
-    const resend = getResendClient();
-
-    if (!resend) {
-      if (isProduction()) {
-        return res.status(500).json({ message: 'Servicio de correo no configurado' });
-      }
-      console.warn(`⚠️ [DEV] OTP local para ${normalizedEmail}: ${otp}`);
-      return res.json({
-        success: true,
-        message: 'Código OTP generado en modo desarrollo',
-        devOtp: otp
+    if (!user.isActive) {
+      await safeWriteAuditLog(prisma, req, {
+        userId: user.id,
+        action: auditActions.authOtpRequestDenied,
+        resource: 'AUTH',
+        resourceId: user.id,
+        details: { email: normalizedEmail, reason: 'INACTIVE_USER' },
       });
+      return res.status(403).json({ message: 'Usuario deshabilitado' });
     }
+
+    if (isUserLocked(user)) {
+      await safeWriteAuditLog(prisma, req, {
+        userId: user.id,
+        action: auditActions.authOtpRequestDenied,
+        resource: 'AUTH',
+        resourceId: user.id,
+        details: { email: normalizedEmail, reason: 'ACCOUNT_LOCKED' },
+      });
+      return res.status(423).json({ message: 'Cuenta temporalmente bloqueada. Intenta nuevamente más tarde.' });
+    }
+
+    const otp = generateOtpCode();
+    const expiresAt = new Date(Date.now() + getOtpTtlMs());
+
+    await prisma.$transaction([
+      prisma.authOtpChallenge.deleteMany({
+        where: {
+          email: normalizedEmail,
+          consumedAt: null,
+        },
+      }),
+      prisma.authOtpChallenge.create({
+        data: {
+          userId: user.id,
+          email: normalizedEmail,
+          codeHash: hashOtpCode(otp),
+          expiresAt,
+        },
+      }),
+    ]);
+
+    let emailResult;
 
     try {
-      const { error } = await resend.emails.send({
-        from: 'Kareh Salud <onboarding@resend.dev>',
-        to: normalizedEmail,
-        subject: '🔐 Tu código de acceso a Kareh Salud',
-        html: `
-          <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #eee; border-radius: 10px; padding: 20px;">
-            <h2 style="color: #0d9488;">🏥 Kareh Salud</h2>
-            <p>Usa el siguiente código para iniciar sesión:</p>
-            <div style="background: #f1f5f9; padding: 20px; text-align: center; border-radius: 8px;">
-              <span style="font-size: 32px; font-weight: bold; color: #0d9488;">${otp}</span>
-            </div>
-            <p style="font-size: 12px; color: #64748b;">Válido por 15 minutos.</p>
-          </div>
-        `
+      emailResult = await sendOtpEmail(normalizedEmail, otp);
+    } catch (error) {
+      await prisma.authOtpChallenge.deleteMany({
+        where: {
+          email: normalizedEmail,
+          consumedAt: null,
+        },
       });
-
-      if (error) return res.status(500).json({ message: 'Error de Resend', error });
-      res.json({ success: true, message: 'Código OTP enviado' });
-    } catch (resendErr) {
-      res.status(500).json({ message: 'No se pudo enviar el correo' });
+      throw error;
     }
+
+    await safeWriteAuditLog(prisma, req, {
+      userId: user.id,
+      action: auditActions.authOtpRequested,
+      resource: 'AUTH',
+      resourceId: user.id,
+      details: { email: normalizedEmail, expiresAt: expiresAt.toISOString() },
+    });
+
+    return res.json({
+      success: true,
+      message: emailResult.delivered ? 'Código OTP enviado' : 'Código OTP generado en modo desarrollo',
+      devOtp: emailResult.devOtp,
+    });
   } catch (error) {
-    res.status(500).json({ message: 'Error interno' });
+    console.error('❌ Error en requestOTP:', error);
+    return res.status(500).json({ message: error.message || 'Error interno' });
   }
 };
 
 export const verifyOTP = async (req, res) => {
+  const prisma = getPrismaFromRequest(req);
+  if (!prisma) {
+    return res.status(500).json({ message: 'Base de datos no disponible para autenticación' });
+  }
+
   try {
-    const { email, otp } = req.body;
-    const normalizedEmail = email?.toLowerCase();
-    const storedData = otpStorage.get(normalizedEmail);
+    const normalizedEmail = normalizeEmail(req.body?.email);
+    const otp = String(req.body?.otp || '').trim();
+    const user = await ensureAuthorizedUser(prisma, normalizedEmail);
 
-    if (!storedData) return res.status(400).json({ message: 'No hay código pendiente.' });
-    if (Date.now() > storedData.expiresAt) return res.status(400).json({ message: 'Código expirado.' });
+    if (!user || !user.isActive) {
+      await safeWriteAuditLog(prisma, req, {
+        action: auditActions.authLoginFailed,
+        resource: 'AUTH',
+        details: { email: normalizedEmail, reason: 'UNKNOWN_OR_DISABLED_USER' },
+      });
+      return res.status(401).json({ message: 'Credenciales inválidas' });
+    }
 
-    if (otp !== storedData.otp) {
-      storedData.attempts += 1;
+    if (isUserLocked(user)) {
+      await safeWriteAuditLog(prisma, req, {
+        userId: user.id,
+        action: auditActions.authLoginFailed,
+        resource: 'AUTH',
+        resourceId: user.id,
+        details: { email: normalizedEmail, reason: 'ACCOUNT_LOCKED' },
+      });
+      return res.status(423).json({ message: 'Cuenta temporalmente bloqueada. Solicita un nuevo código más tarde.' });
+    }
+
+    const challenge = await getActiveChallenge(prisma, normalizedEmail);
+    if (!challenge) {
+      await safeWriteAuditLog(prisma, req, {
+        userId: user.id,
+        action: auditActions.authLoginFailed,
+        resource: 'AUTH',
+        resourceId: user.id,
+        details: { email: normalizedEmail, reason: 'MISSING_OR_EXPIRED_OTP' },
+      });
+      return res.status(400).json({ message: 'No hay un código vigente para verificar.' });
+    }
+
+    const otpMatches = hashOtpCode(otp) === challenge.codeHash;
+    if (!otpMatches) {
+      const nextAttempts = Math.max(user.failedLoginAttempts + 1, challenge.attemptCount + 1);
+      const shouldLock = nextAttempts >= getMaxOtpAttempts();
+
+      await prisma.$transaction(async (tx) => {
+        await tx.authOtpChallenge.update({
+          where: { id: challenge.id },
+          data: {
+            attemptCount: challenge.attemptCount + 1,
+            lastAttemptAt: new Date(),
+          },
+        });
+
+        if (shouldLock) {
+          await tx.authOtpChallenge.deleteMany({
+            where: {
+              userId: user.id,
+              consumedAt: null,
+            },
+          });
+          await lockUser(tx, user.id, nextAttempts);
+          return;
+        }
+
+        await tx.user.update({
+          where: { id: user.id },
+          data: {
+            failedLoginAttempts: nextAttempts,
+          },
+        });
+      });
+
+      await safeWriteAuditLog(prisma, req, {
+        userId: user.id,
+        action: auditActions.authLoginFailed,
+        resource: 'AUTH',
+        resourceId: user.id,
+        details: {
+          email: normalizedEmail,
+          reason: shouldLock ? 'OTP_ATTEMPTS_LOCKED' : 'INVALID_OTP',
+          attemptCount: challenge.attemptCount + 1,
+        },
+      });
+
+      if (shouldLock) {
+        return res.status(423).json({ message: 'Cuenta bloqueada por demasiados intentos fallidos.' });
+      }
+
       return res.status(401).json({ message: 'Código incorrecto' });
     }
 
-    otpStorage.delete(normalizedEmail);
+    const sessionId = generateTokenId();
+    const { accessToken, refreshToken, accessTokenId, refreshExpiresAt } = buildLoginTokens(user, sessionId);
+    const now = new Date();
 
-    // CORRECCIÓN: Seteamos la expiración a 30 días (SESSION_DURATION_STR)
-    const accessToken = jwt.sign(
-      { email: normalizedEmail, role: 'admin' },
-      getJwtSecret(),
-      { expiresIn: SESSION_DURATION_STR } 
-    );
-    const refreshToken = jwt.sign(
-      { email: normalizedEmail, role: 'admin' },
-      getRefreshSecret(),
-      { expiresIn: SESSION_DURATION_STR }
-    );
+    await prisma.$transaction(async (tx) => {
+      await tx.authOtpChallenge.update({
+        where: { id: challenge.id },
+        data: {
+          consumedAt: now,
+          lastAttemptAt: now,
+        },
+      });
+
+      await tx.authOtpChallenge.deleteMany({
+        where: {
+          userId: user.id,
+          id: { not: challenge.id },
+        },
+      });
+
+      await tx.user.update({
+        where: { id: user.id },
+        data: {
+          failedLoginAttempts: 0,
+          lockedUntil: null,
+          lastLoginAt: now,
+        },
+      });
+
+      await tx.authSession.create({
+        data: {
+          id: sessionId,
+          userId: user.id,
+          refreshTokenHash: hashToken(refreshToken),
+          accessTokenJti: accessTokenId,
+          ipAddress: getRequestIp(req),
+          userAgent: getRequestUserAgent(req),
+          expiresAt: refreshExpiresAt,
+          lastUsedAt: now,
+        },
+      });
+    });
 
     setAuthCookies(res, accessToken, refreshToken);
 
-    const payload = {
-      success: true,
-      user: { email: normalizedEmail, name: 'Administrador' }
+    const freshUser = {
+      ...user,
+      failedLoginAttempts: 0,
+      lockedUntil: null,
+      lastLoginAt: now,
     };
-    if (allowHeaderFallback() && wantsFallbackToken(req)) {
-      payload.accessToken = accessToken;
-    }
-    res.json(payload);
+
+    await safeWriteAuditLog(prisma, req, {
+      userId: user.id,
+      action: auditActions.authLoginSucceeded,
+      resource: 'AUTH',
+      resourceId: user.id,
+      details: {
+        email: normalizedEmail,
+        role: user.role,
+        sessionId,
+      },
+    });
+
+    return res.json(buildAuthSuccessPayload(req, freshUser, accessToken));
   } catch (error) {
-    res.status(500).json({ message: 'Error en la verificación' });
+    console.error('❌ Error en verifyOTP:', error);
+    return res.status(500).json({ message: 'Error en la verificación' });
   }
 };
 
 export const verifyToken = async (req, res) => {
-  try {
-    const authHeader = req.headers.authorization;
-    const token = req.cookies?.accessToken
-      || (authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null);
+  const prisma = getPrismaFromRequest(req);
+  const token = extractBearerToken(req);
 
-    if (!token) {
-      return res.status(401).json({ valid: false, message: "Token no proporcionado" });
+  if (!token) {
+    return res.status(401).json({ valid: false, message: 'Token no proporcionado' });
+  }
+
+  if (!prisma) {
+    return res.status(500).json({ valid: false, message: 'Base de datos no disponible para autenticación' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, getJwtSecret());
+    const validation = await validateAccessSession(prisma, decoded);
+
+    if (!validation.ok) {
+      return res.status(validation.status).json({ valid: false, message: validation.message });
     }
 
-    const decoded = jwt.verify(token, getJwtSecret());
-
-    return res.status(200).json({ 
-      valid: true, 
-      user: {
-        email: decoded.email,
-        role: decoded.role,
-        name: 'Administrador'
-      } 
+    return res.status(200).json({
+      valid: true,
+      user: serializeUser(validation.session.user),
     });
-
   } catch (error) {
-    return res.status(401).json({ valid: false, message: "Token inválido o expirado" });
+    return res.status(401).json({ valid: false, message: 'Token inválido o expirado' });
   }
 };
 
-export const logout = (req, res) => {
+export const logout = async (req, res) => {
+  const prisma = getPrismaFromRequest(req);
+  const refreshToken = extractRefreshToken(req);
+  const accessToken = extractBearerToken(req);
+
+  try {
+    if (prisma && refreshToken) {
+      const decoded = jwt.verify(refreshToken, getRefreshSecret());
+      if (decoded?.sid) {
+        await prisma.authSession.updateMany({
+          where: {
+            id: decoded.sid,
+            revokedAt: null,
+          },
+          data: {
+            revokedAt: new Date(),
+            revokedReason: 'LOGOUT',
+          },
+        });
+
+        await safeWriteAuditLog(prisma, req, {
+          userId: decoded.sub || null,
+          action: auditActions.authLogout,
+          resource: 'AUTH',
+          resourceId: decoded.sid,
+          details: { reason: 'REFRESH_TOKEN' },
+        });
+      }
+    } else if (prisma && accessToken) {
+      const decoded = jwt.verify(accessToken, getJwtSecret());
+      if (decoded?.sid) {
+        await prisma.authSession.updateMany({
+          where: {
+            id: decoded.sid,
+            revokedAt: null,
+          },
+          data: {
+            revokedAt: new Date(),
+            revokedReason: 'LOGOUT',
+          },
+        });
+      }
+    }
+  } catch {
+    // Aunque falle la revocación, igualmente limpiamos cookies.
+  }
+
   res.set('Cache-Control', 'no-store');
   clearAuthCookies(res);
-  res.json({ success: true, message: 'Sesión cerrada' });
+  return res.json({ success: true, message: 'Sesión cerrada' });
 };
 
-export const refreshToken = (req, res) => {
+export const refreshToken = async (req, res) => {
+  const prisma = getPrismaFromRequest(req);
+  const token = extractRefreshToken(req);
+
+  if (!token) {
+    return res.status(401).json({ message: 'Refresh token no proporcionado' });
+  }
+
+  if (!prisma) {
+    return res.status(500).json({ message: 'Base de datos no disponible para autenticación' });
+  }
+
   try {
-    const token = req.cookies?.refreshToken;
-    if (!token) {
-      return res.status(401).json({ message: 'Refresh token no proporcionado' });
+    const decoded = jwt.verify(token, getRefreshSecret());
+    if (decoded?.type !== 'refresh' || !decoded?.sid || !decoded?.sub) {
+      return res.status(401).json({ message: 'Refresh token inválido' });
     }
 
-    const decoded = jwt.verify(token, getRefreshSecret());
-    
-    // CORRECCIÓN: También aquí extendemos a 30 días
-    const accessToken = jwt.sign(
-      { email: decoded.email, role: decoded.role || 'admin' },
-      getJwtSecret(),
-      { expiresIn: SESSION_DURATION_STR }
-    );
-    const newRefreshToken = jwt.sign(
-      { email: decoded.email, role: decoded.role || 'admin' },
-      getRefreshSecret(),
-      { expiresIn: SESSION_DURATION_STR }
-    );
+    const session = await prisma.authSession.findUnique({
+      where: { id: decoded.sid },
+      include: { user: true },
+    });
+
+    if (!session || session.userId !== decoded.sub) {
+      return res.status(401).json({ message: 'Sesión no encontrada' });
+    }
+
+    if (session.revokedAt || session.expiresAt <= new Date()) {
+      return res.status(401).json({ message: 'Refresh token expirado o revocado' });
+    }
+
+    if (session.refreshTokenHash !== hashToken(token)) {
+      await prisma.authSession.updateMany({
+        where: {
+          id: session.id,
+          revokedAt: null,
+        },
+        data: {
+          revokedAt: new Date(),
+          revokedReason: 'REFRESH_TOKEN_REUSE_DETECTED',
+        },
+      });
+
+      await safeWriteAuditLog(prisma, req, {
+        userId: session.userId,
+        action: auditActions.authRefreshFailed,
+        resource: 'AUTH',
+        resourceId: session.id,
+        details: { reason: 'REFRESH_TOKEN_REUSE_DETECTED' },
+      });
+
+      clearAuthCookies(res);
+      return res.status(401).json({ message: 'Refresh token inválido' });
+    }
+
+    if (!session.user?.isActive) {
+      return res.status(403).json({ message: 'Usuario deshabilitado' });
+    }
+
+    if (isUserLocked(session.user)) {
+      return res.status(423).json({ message: 'Cuenta temporalmente bloqueada' });
+    }
+
+    const { accessToken, refreshToken: newRefreshToken, accessTokenId, refreshExpiresAt } = buildLoginTokens(session.user, session.id);
+
+    await prisma.authSession.update({
+      where: { id: session.id },
+      data: {
+        refreshTokenHash: hashToken(newRefreshToken),
+        accessTokenJti: accessTokenId,
+        expiresAt: refreshExpiresAt,
+        lastUsedAt: new Date(),
+      },
+    });
 
     setAuthCookies(res, accessToken, newRefreshToken);
+
+    await safeWriteAuditLog(prisma, req, {
+      userId: session.userId,
+      action: auditActions.authRefreshSucceeded,
+      resource: 'AUTH',
+      resourceId: session.id,
+      details: { role: session.user.role },
+    });
+
     const payload = { success: true };
     if (allowHeaderFallback() && wantsFallbackToken(req)) {
       payload.accessToken = accessToken;
     }
+
     return res.json(payload);
   } catch (error) {
+    await safeWriteAuditLog(prisma, req, {
+      action: auditActions.authRefreshFailed,
+      resource: 'AUTH',
+      details: { reason: 'INVALID_REFRESH_TOKEN' },
+    });
+    clearAuthCookies(res);
     return res.status(401).json({ message: 'Refresh token inválido o expirado' });
   }
 };
