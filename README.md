@@ -35,13 +35,15 @@ cd kareh-pro
 ```bash
 cd server
 npm install
-cp .env.example .env
+copy .env.example .env
 # Update the .env file with your database credentials and other settings.
 npx prisma migrate dev
 npm run dev
 ```
 
 The backend will be running on `http://localhost:5000`.
+
+Before logging in, configure at least one bootstrap user with `AUTHORIZED_EMAIL` or `AUTH_BOOTSTRAP_USERS` in `server/.env`.
 
 ### 3. Setup the Frontend
 
@@ -59,6 +61,11 @@ The frontend will be running on `http://localhost:5173`.
 
 -   `npm run dev`: Starts the server in development mode.
 -   `npm start`: Starts the server in production mode.
+-   `npm run prisma:generate`: Regenerates the Prisma client.
+-   `npm run prisma:migrate:deploy`: Applies pending Prisma migrations.
+-   `npm run check:auth`: Validates auth and OTP environment settings.
+-   `npm run check:db`: Verifies database connectivity and core tables.
+-   `npm run check:whatsapp`: Verifies WhatsApp integration environment variables.
 
 ### Client (`/client`)
 

@@ -16,7 +16,7 @@ import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import Sidebar from './components/layout/Sidebar';
 import api from './services/api';
 import { initializeCsrf } from './services/csrf';
-import { clearClientSession } from './services/session';
+import { clearClientSession, storeAuthenticatedUser } from './services/session';
 import { registerServiceWorker, subscribeToPushNotifications, playNotificationSound } from './services/notifications';
 import { APP_ROUTES, getDocumentTitle } from './utils/appRoutes';
 import { ChevronLeft, ChevronRight, Menu } from 'lucide-react';
@@ -75,6 +75,9 @@ function App() {
         try {
           const response = await api.get('/auth/verify');
           validSession = Boolean(response.data?.valid);
+          if (validSession && response.data?.user) {
+            storeAuthenticatedUser(response.data.user);
+          }
         } catch {
           // Si el token expira, el interceptor de axios intentará refrescarlo.
           // Si aún así falla, no será válido.

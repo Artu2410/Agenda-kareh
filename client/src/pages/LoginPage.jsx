@@ -83,8 +83,10 @@ export default function LoginPage({ onLoginSuccess }) {
 
       if (response.data.success) {
         storeAuthenticatedUser({
+          id: response.data.user?.id || '',
           email: response.data.user?.email || email.trim(),
           name: response.data.user?.name || 'Administrador',
+          role: response.data.user?.role || '',
         });
         if (response.data.accessToken) {
           localStorage.setItem('auth_fallback_token', response.data.accessToken);

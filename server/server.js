@@ -33,9 +33,9 @@ import createAgendaRoutes from './src/routes/agenda.routes.js';
 import createNotificationsRoutes from './src/routes/notifications.routes.js';
 import createObrasSocialesRoutes from './src/routes/obrasSociales.routes.js';
 import { verifyWhatsAppWebhook, handleWhatsAppWebhook } from './src/controllers/whatsapp.controller.js';
-import { verifyToken } from './src/controllers/auth.controller.js';
 import { authMiddleware } from './src/middlewares/authMiddleware.js';
 import { csrfProtection, getCsrfToken } from './src/middlewares/csrfMiddleware.js';
+import { getBootstrapUsers } from './src/utils/auth.js';
 
 const isProduction = process.env.NODE_ENV === 'production';
 
@@ -77,6 +77,32 @@ const isAllowedOrigin = (origin) => {
     } catch {
         return false;
     }
+};
+
+const syncBootstrapUsers = async () => {
+    const bootstrapUsers = getBootstrapUsers();
+
+    if (bootstrapUsers.length === 0) {
+        console.warn('⚠️ No hay usuarios bootstrap configurados');
+        return;
+    }
+
+    await Promise.all(
+        bootstrapUsers.map((user) =>
+            prisma.user.upsert({
+                where: { email: user.email },
+                update: {
+                    fullName: user.fullName,
+                    role: user.role,
+                },
+                create: {
+                    email: user.email,
+                    fullName: user.fullName,
+                    role: user.role,
+                },
+            })
+        )
+    );
 };
 
 app.set('trust proxy', 1);
@@ -141,7 +167,10 @@ app.use('/api/webhooks/whatsapp', (req, res, next) => {
 });
 
 prisma.$connect()
-  .then(() => console.log('✅ DB conectada'))
+  .then(async () => {
+    console.log('✅ DB conectada');
+    await syncBootstrapUsers();
+  })
   .catch((error) => {
     console.error('❌ Error de conexión DB:', error.message);
   });
@@ -186,7 +215,6 @@ app.use((req, res, next) => {
 
 // Auth Pública y Verificación
 app.use('/api/auth', createAuthRoutes(prisma));
-app.get('/api/auth/verify', verifyToken);
 
 // Diagnóstico WhatsApp temporal (público)
 app.get('/api/whatsapp-config', (req, res) => {
