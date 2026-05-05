@@ -1,6 +1,9 @@
 // ---------------------------------------------------------
 // Obras Sociales Controller (COKIBA)
 // ---------------------------------------------------------
+import { getCokibaSyncStatus, runCokibaSync } from '../services/cokibaSync.js';
+
+let activeCokibaSync = null;
 
 // 1. LISTAR TODAS LAS OBRAS SOCIALES
 export const getObrasSociales = async (req, res, prisma) => {
@@ -35,7 +38,55 @@ export const getObrasSociales = async (req, res, prisma) => {
   }
 };
 
-// 2. OBTENER UNA OBRA SOCIAL POR ID
+// 2. ESTADO DE SINCRONIZACIÓN COKIBA
+export const getObrasSocialesStatus = async (req, res, prisma) => {
+  try {
+    const status = await getCokibaSyncStatus(prisma);
+
+    res.status(200).json({
+      ...status,
+      syncing: Boolean(activeCokibaSync),
+    });
+  } catch (error) {
+    console.error('❌ Error fetching COKIBA status:', error);
+    res.status(500).json({
+      error: 'Error al obtener el estado de sincronización',
+      message: error.message,
+    });
+  }
+};
+
+// 3. EJECUTAR SINCRONIZACIÓN COKIBA
+export const syncObrasSociales = async (req, res, prisma) => {
+  if (activeCokibaSync) {
+    return res.status(409).json({
+      error: 'Ya hay una sincronización COKIBA en curso',
+    });
+  }
+
+  try {
+    activeCokibaSync = runCokibaSync({ prisma });
+    const result = await activeCokibaSync;
+
+    res.status(200).json({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    console.error('❌ Error syncing obras sociales:', error);
+    const status =
+      /credenciales|placeholder/i.test(String(error.message || '')) ? 400 : 500;
+
+    res.status(status).json({
+      error: 'No se pudo sincronizar con COKIBA',
+      message: error.message,
+    });
+  } finally {
+    activeCokibaSync = null;
+  }
+};
+
+// 4. OBTENER UNA OBRA SOCIAL POR ID
 export const getObraSocial = async (req, res, prisma) => {
   const { id } = req.params;
 
@@ -58,7 +109,7 @@ export const getObraSocial = async (req, res, prisma) => {
   }
 };
 
-// 3. CREAR OBRA SOCIAL MANUALMENTE
+// 5. CREAR OBRA SOCIAL MANUALMENTE
 export const createObraSocial = async (req, res, prisma) => {
   const {
     codigoCokiba,
@@ -103,7 +154,7 @@ export const createObraSocial = async (req, res, prisma) => {
   }
 };
 
-// 4. ACTUALIZAR OBRA SOCIAL
+// 6. ACTUALIZAR OBRA SOCIAL
 export const updateObraSocial = async (req, res, prisma) => {
   const { id } = req.params;
   const {
@@ -144,7 +195,7 @@ export const updateObraSocial = async (req, res, prisma) => {
   }
 };
 
-// 5. ELIMINAR OBRA SOCIAL
+// 7. ELIMINAR OBRA SOCIAL
 export const deleteObraSocial = async (req, res, prisma) => {
   const { id } = req.params;
 
@@ -166,7 +217,7 @@ export const deleteObraSocial = async (req, res, prisma) => {
   }
 };
 
-// 6. ESTADÍSTICAS RÁPIDAS
+// 8. ESTADÍSTICAS RÁPIDAS
 export const getObrasSocialesStats = async (req, res, prisma) => {
   try {
     const [total, activas, sanMiguel] = await Promise.all([
