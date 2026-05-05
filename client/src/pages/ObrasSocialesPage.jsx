@@ -18,6 +18,7 @@ import {
   Edit3,
   Save,
   X,
+  AlertTriangle,
 } from 'lucide-react';
 import { showErrorToast, showSuccessToast } from '../components/toastHelpers';
 
@@ -26,13 +27,33 @@ const formatCurrency = (value) =>
     parseFloat(value) || 0
   );
 
+const formatDateTime = (value) => {
+  if (!value) return 'Nunca';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return 'Nunca';
+  return parsed.toLocaleString('es-AR');
+};
+
 const ObrasSocialesPage = () => {
   const [obrasSociales, setObrasSociales] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [search, setSearch] = useState('');
   const [filtroEstado, setFiltroEstado] = useState('Activa');
   const [filtroZona, setFiltroZona] = useState('');
   const [stats, setStats] = useState({ total: 0, activas: 0, sanMiguel: 0 });
+  const [syncStatus, setSyncStatus] = useState({
+    total: 0,
+    activas: 0,
+    lastSyncAt: null,
+    syncing: false,
+    config: {
+      configured: false,
+      canSync: false,
+      missingFields: [],
+      placeholderFields: [],
+    },
+  });
   const [expandedId, setExpandedId] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({});
@@ -47,13 +68,15 @@ const ObrasSocialesPage = () => {
       if (filtroEstado) params.estado = filtroEstado;
       if (filtroZona === 'san-miguel') params.zona = 'san-miguel';
 
-      const [osRes, statsRes] = await Promise.all([
+      const [osRes, statsRes, syncStatusRes] = await Promise.all([
         instance.get('/obras-sociales', { params }),
         instance.get('/obras-sociales/stats'),
+        instance.get('/obras-sociales/status'),
       ]);
 
       setObrasSociales(osRes.data);
       setStats(statsRes.data);
+      setSyncStatus(syncStatusRes.data);
     } catch (error) {
       console.error('Error fetching obras sociales:', error);
       showErrorToast('No se pudieron cargar las obras sociales.');
@@ -147,6 +170,26 @@ const ObrasSocialesPage = () => {
     }
   };
 
+  const handleSync = async () => {
+    try {
+      setSyncing(true);
+      const response = await instance.post('/obras-sociales/sync');
+      await fetchObrasSociales();
+      showSuccessToast(
+        `Sincronización completada: ${response.data.total} registros, ${response.data.created} nuevas y ${response.data.updated} actualizadas.`
+      );
+    } catch (error) {
+      console.error('Error syncing obras sociales:', error);
+      const message =
+        error?.response?.data?.message ||
+        error?.friendlyMessage ||
+        'No se pudo sincronizar con COKIBA.';
+      showErrorToast(message);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const summaryCards = [
     {
       key: 'total',
@@ -177,6 +220,13 @@ const ObrasSocialesPage = () => {
     },
   ];
 
+  const missingCredentialFields = syncStatus.config?.missingFields || [];
+  const placeholderCredentialFields = syncStatus.config?.placeholderFields || [];
+  const canSync = Boolean(syncStatus.config?.canSync);
+  const hasSyncConfigurationIssue =
+    missingCredentialFields.length > 0 || placeholderCredentialFields.length > 0;
+  const syncInProgress = syncing || Boolean(syncStatus.syncing);
+
   return (
     <div className="min-h-screen bg-slate-50 p-4 sm:p-6">
       <div className="max-w-7xl mx-auto">
@@ -188,15 +238,70 @@ const ObrasSocialesPage = () => {
               Prestadoras sincronizadas desde COKIBA · Honorarios y coseguros de Categoría Básica
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => fetchObrasSociales()}
-            disabled={loading}
-            className="flex items-center justify-center gap-2 rounded-lg bg-teal-600 px-4 py-2 font-bold text-white transition-all hover:bg-teal-700 disabled:opacity-50 sm:w-auto"
-          >
-            <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
-            Actualizar
-          </button>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              onClick={handleSync}
+              disabled={syncInProgress || !canSync}
+              className="flex items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2 font-bold text-white transition-all hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+              title={
+                !canSync
+                  ? 'Configurá las credenciales COKIBA en server/.env antes de sincronizar.'
+                  : 'Sincronizar ahora con COKIBA'
+              }
+            >
+              <RefreshCw size={18} className={syncInProgress ? 'animate-spin' : ''} />
+              {syncInProgress ? 'Sincronizando...' : 'Sincronizar COKIBA'}
+            </button>
+            <button
+              type="button"
+              onClick={() => fetchObrasSociales()}
+              disabled={loading}
+              className="flex items-center justify-center gap-2 rounded-lg bg-teal-600 px-4 py-2 font-bold text-white transition-all hover:bg-teal-700 disabled:opacity-50 sm:w-auto"
+            >
+              <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+              Recargar
+            </button>
+          </div>
+        </div>
+
+        <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="space-y-1">
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">
+                Estado de Sincronización
+              </p>
+              <p className="text-sm font-semibold text-slate-700">
+                Última sincronización: {formatDateTime(syncStatus.lastSyncAt)}
+              </p>
+              <p className="text-sm text-slate-500">
+                Registros disponibles: {syncStatus.total || 0}
+                {syncStatus.lastSyncedRecord ? ` · Última OS detectada: ${syncStatus.lastSyncedRecord}` : ''}
+              </p>
+            </div>
+            <div
+              className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-bold ${
+                hasSyncConfigurationIssue
+                  ? 'bg-amber-100 text-amber-800'
+                  : 'bg-emerald-100 text-emerald-800'
+              }`}
+            >
+              <AlertTriangle size={14} />
+              {hasSyncConfigurationIssue ? 'Configuración pendiente' : 'COKIBA listo para sincronizar'}
+            </div>
+          </div>
+
+          {missingCredentialFields.length > 0 && (
+            <p className="mt-3 text-sm text-amber-700">
+              Faltan variables en `server/.env`: {missingCredentialFields.join(', ')}.
+            </p>
+          )}
+
+          {placeholderCredentialFields.length > 0 && (
+            <p className="mt-2 text-sm text-amber-700">
+              Hay variables con valores de ejemplo: {placeholderCredentialFields.join(', ')}.
+            </p>
+          )}
         </div>
 
         {/* Summary Cards */}
@@ -276,7 +381,9 @@ const ObrasSocialesPage = () => {
               </p>
               <p className="mt-1 text-sm text-slate-400">
                 {obrasSociales.length === 0
-                  ? 'Ejecutá el scraper COKIBA para sincronizar: npm run cokiba-sync'
+                  ? hasSyncConfigurationIssue
+                    ? 'Configurá COKIBA_DNI y COKIBA_CLAVE en server/.env para poder sincronizar desde COKIBA.'
+                    : 'Todavía no hay datos sincronizados. Usá el botón "Sincronizar COKIBA".'
                   : 'Probá cambiando los filtros o la búsqueda.'}
               </p>
             </div>
