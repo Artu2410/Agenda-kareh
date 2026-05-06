@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import {
   Bar,
   BarChart,
@@ -11,6 +12,49 @@ import {
   YAxis,
 } from 'recharts';
 import { formatCount, formatRate, formatVolumeChange } from './dashboardFormatters';
+
+const ChartSurface = ({ children }) => {
+  const containerRef = useRef(null);
+  const [canRenderChart, setCanRenderChart] = useState(false);
+
+  useEffect(() => {
+    const node = containerRef.current;
+    if (!node) {
+      return undefined;
+    }
+
+    const updateAvailability = () => {
+      const { width, height } = node.getBoundingClientRect();
+      setCanRenderChart(width > 0 && height > 0);
+    };
+
+    updateAvailability();
+
+    if (typeof ResizeObserver === 'undefined') {
+      return undefined;
+    }
+
+    const observer = new ResizeObserver(() => {
+      updateAvailability();
+    });
+
+    observer.observe(node);
+
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div ref={containerRef} className="h-[340px] min-h-[340px] w-full min-w-0">
+      {canRenderChart ? (
+        <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={340}>
+          {children}
+        </ResponsiveContainer>
+      ) : (
+        <div className="h-full w-full animate-pulse rounded-[1.75rem] bg-slate-100" />
+      )}
+    </div>
+  );
+};
 
 const MonthlyTrendTooltip = ({ active, payload }) => {
   if (!active || !payload?.length) return null;
@@ -116,33 +160,31 @@ const MonthlyTrendSection = ({ chartData, chartType, currentMonthRow, onChartTyp
       </div>
     </div>
 
-    <div className="h-[340px] min-h-[340px] w-full min-w-0">
-      <ResponsiveContainer width="100%" height="100%" minWidth={280}>
-        {chartType === 'bar' ? (
-          <BarChart data={chartData} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-            <XAxis dataKey="month" tick={{ fontSize: 12, fontWeight: 700 }} tickLine={false} axisLine={false} minTickGap={12} />
-            <YAxis allowDecimals={false} tickLine={false} axisLine={false} width={36} />
-            <RechartsTooltip content={<MonthlyTrendTooltip />} />
-            <Legend wrapperStyle={{ paddingTop: 12 }} />
-            <Bar dataKey="completedCount" name="Asistencias" stackId="turnos" fill="#14b8a6" radius={[6, 6, 0, 0]} />
-            <Bar dataKey="noShowCount" name="Inasistencias" stackId="turnos" fill="#fb7185" />
-            <Bar dataKey="scheduledCount" name="Pendientes" stackId="turnos" fill="#f59e0b" radius={[6, 6, 0, 0]} />
-          </BarChart>
-        ) : (
-          <LineChart data={chartData} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-            <XAxis dataKey="month" tick={{ fontSize: 12, fontWeight: 700 }} tickLine={false} axisLine={false} minTickGap={12} />
-            <YAxis allowDecimals={false} tickLine={false} axisLine={false} width={36} />
-            <RechartsTooltip content={<MonthlyTrendTooltip />} />
-            <Legend wrapperStyle={{ paddingTop: 12 }} />
-            <Line type="monotone" dataKey="appointmentCount" name="Turnos" stroke="#0f172a" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 6 }} />
-            <Line type="monotone" dataKey="completedCount" name="Asistencias" stroke="#14b8a6" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-            <Line type="monotone" dataKey="noShowCount" name="Inasistencias" stroke="#fb7185" strokeWidth={2.5} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-          </LineChart>
-        )}
-      </ResponsiveContainer>
-    </div>
+    <ChartSurface>
+      {chartType === 'bar' ? (
+        <BarChart data={chartData} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+          <XAxis dataKey="month" tick={{ fontSize: 12, fontWeight: 700 }} tickLine={false} axisLine={false} minTickGap={12} />
+          <YAxis allowDecimals={false} tickLine={false} axisLine={false} width={36} />
+          <RechartsTooltip content={<MonthlyTrendTooltip />} />
+          <Legend wrapperStyle={{ paddingTop: 12 }} />
+          <Bar dataKey="completedCount" name="Asistencias" stackId="turnos" fill="#14b8a6" radius={[6, 6, 0, 0]} />
+          <Bar dataKey="noShowCount" name="Inasistencias" stackId="turnos" fill="#fb7185" />
+          <Bar dataKey="scheduledCount" name="Pendientes" stackId="turnos" fill="#f59e0b" radius={[6, 6, 0, 0]} />
+        </BarChart>
+      ) : (
+        <LineChart data={chartData} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+          <XAxis dataKey="month" tick={{ fontSize: 12, fontWeight: 700 }} tickLine={false} axisLine={false} minTickGap={12} />
+          <YAxis allowDecimals={false} tickLine={false} axisLine={false} width={36} />
+          <RechartsTooltip content={<MonthlyTrendTooltip />} />
+          <Legend wrapperStyle={{ paddingTop: 12 }} />
+          <Line type="monotone" dataKey="appointmentCount" name="Turnos" stroke="#0f172a" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 6 }} />
+          <Line type="monotone" dataKey="completedCount" name="Asistencias" stroke="#14b8a6" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+          <Line type="monotone" dataKey="noShowCount" name="Inasistencias" stroke="#fb7185" strokeWidth={2.5} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+        </LineChart>
+      )}
+    </ChartSurface>
   </section>
 );
 

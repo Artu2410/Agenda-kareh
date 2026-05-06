@@ -11,9 +11,20 @@ if (publicKey && privateKey) {
   );
 }
 
+export const getConfig = async (req, res) => {
+  res.json({
+    enabled: Boolean(publicKey && privateKey),
+    publicKey: publicKey || null,
+  });
+};
+
 export const subscribe = async (req, res, prisma) => {
   try {
     const { subscription, email } = req.body;
+
+    if (!subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) {
+      return res.status(400).json({ error: 'Suscripción push inválida' });
+    }
     
     await prisma.pushSubscription.upsert({
       where: { endpoint: subscription.endpoint },
