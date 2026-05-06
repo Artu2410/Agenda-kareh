@@ -96,11 +96,13 @@ const syncBootstrapUsers = async () => {
                 update: {
                     fullName: user.fullName,
                     role: user.role,
+                    isActive: true,
                 },
                 create: {
                     email: user.email,
                     fullName: user.fullName,
                     role: user.role,
+                    isActive: true,
                 },
             })
         )
