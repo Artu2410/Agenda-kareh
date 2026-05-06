@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { BarChart3, Calendar, Users, DollarSign, Settings, FileText, LogOut, MessageCircle, ChevronLeft, NotebookPen, Building2 } from 'lucide-react';
+import { BarChart3, Calendar, Users, DollarSign, Settings, FileText, LogOut, MessageCircle, ChevronLeft, NotebookPen, Building2, ShieldCheck, ClipboardCheck } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import toast, { showSuccessToast } from '../toastHelpers';
 import { useConfirmModal } from '../../hooks/useConfirmModal';
 import { APP_ROUTES } from '../../utils/appRoutes';
 import api from '../../services/api';
 import { clearClientSession, getStoredUser } from '../../services/session';
+import { hasAnyRole } from '../../utils/roles';
 
 const SIDEBAR_WEATHER = {
   latitude: -34.5644444444,
@@ -46,17 +47,20 @@ const Sidebar = ({ onToggle, onLogout, onNavigate, isMobile = false }) => {
     return whatsappUnread > 99 ? '99+' : String(whatsappUnread);
   }, [whatsappUnread]);
 
+  const { name: userName, email: userEmail, role: userRole } = getStoredUser();
   const menuItems = [
-    { icon: BarChart3, label: 'Panel', path: APP_ROUTES.dashboard },
-    { icon: Calendar, label: 'Agenda', path: APP_ROUTES.appointments },
-    { icon: Users, label: 'Pacientes', path: APP_ROUTES.patients },
-    { icon: NotebookPen, label: 'Notas', path: APP_ROUTES.notes },
-    { icon: FileText, label: 'Historias Clínicas', path: APP_ROUTES.clinicalHistories },
-    { icon: MessageCircle, label: 'WhatsApp', path: APP_ROUTES.whatsapp },
-    { icon: DollarSign, label: 'Caja', path: APP_ROUTES.cashflow },
-    { icon: Building2, label: 'Obras Sociales', path: APP_ROUTES.obrasSociales },
-    { icon: Settings, label: 'Configuración', path: APP_ROUTES.settings },
-  ];
+    { icon: BarChart3, label: 'Panel', path: APP_ROUTES.dashboard, roles: ['SUPER_USER', 'ADMIN', 'PROFESSIONAL'] },
+    { icon: Calendar, label: 'Agenda', path: APP_ROUTES.appointments, roles: ['SUPER_USER', 'ADMIN', 'PROFESSIONAL'] },
+    { icon: Users, label: 'Pacientes', path: APP_ROUTES.patients, roles: ['SUPER_USER', 'ADMIN', 'PROFESSIONAL'] },
+    { icon: FileText, label: 'Historias Clínicas', path: APP_ROUTES.clinicalHistories, roles: ['SUPER_USER', 'ADMIN', 'PROFESSIONAL'] },
+    { icon: ClipboardCheck, label: 'Autorizaciones', path: APP_ROUTES.authorizations, roles: ['SUPER_USER', 'ADMIN'] },
+    { icon: ShieldCheck, label: 'Auditoría', path: APP_ROUTES.audit, roles: ['SUPER_USER', 'ADMIN'] },
+    { icon: NotebookPen, label: 'Notas', path: APP_ROUTES.notes, roles: ['SUPER_USER', 'ADMIN'] },
+    { icon: MessageCircle, label: 'WhatsApp', path: APP_ROUTES.whatsapp, roles: ['SUPER_USER', 'ADMIN'] },
+    { icon: DollarSign, label: 'Caja', path: APP_ROUTES.cashflow, roles: ['SUPER_USER', 'ADMIN'] },
+    { icon: Building2, label: 'Obras Sociales', path: APP_ROUTES.obrasSociales, roles: ['SUPER_USER', 'ADMIN'] },
+    { icon: Settings, label: 'Configuración', path: APP_ROUTES.settings, roles: ['SUPER_USER', 'ADMIN'] },
+  ].filter((item) => hasAnyRole(userRole, item.roles));
 
   const handleLogout = () => {
     openModal({
@@ -78,7 +82,6 @@ const Sidebar = ({ onToggle, onLogout, onNavigate, isMobile = false }) => {
     });
   };
 
-  const { name: userName, email: userEmail } = getStoredUser();
   const firstName = useMemo(() => getFirstName(userName), [userName]);
   const greetingMessage = useMemo(() => getGreeting(now, firstName), [now, firstName]);
   const temperatureBubble = weather.currentTemp ?? weather.maxTemp;

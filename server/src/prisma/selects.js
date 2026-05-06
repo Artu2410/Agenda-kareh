@@ -1,3 +1,23 @@
+export const obraSocialSelect = {
+  id: true,
+  codigoCokiba: true,
+  nombreOs: true,
+  coseguroValor: true,
+  honorarioEstimado: true,
+  percentageCoinsurance: true,
+  fixedCopay: true,
+  plazoPago: true,
+  estado: true,
+  isActive: true,
+  requiresAuthorization: true,
+  atendibleSanMiguel: true,
+  rawCategoria: true,
+  requiredDocuments: true,
+  ultimaSync: true,
+  createdAt: true,
+  updatedAt: true,
+};
+
 export const patientSelect = {
   id: true,
   dni: true,
@@ -7,6 +27,10 @@ export const patientSelect = {
   email: true,
   birthDate: true,
   healthInsurance: true,
+  obraSocialId: true,
+  obraSocial: {
+    select: obraSocialSelect,
+  },
   treatAsParticular: true,
   affiliateNumber: true,
   dniImageUrl: true,
@@ -93,10 +117,20 @@ export const appointmentBaseSelect = {
   diagnosis: true,
   patientId: true,
   professionalId: true,
+  obraSocialId: true,
   cycleId: true,
   sessionNumber: true,
   isFirstSession: true,
   status: true,
+  authorizationStatus: true,
+  authorizationNumber: true,
+  authorizationFileUrl: true,
+  authorizationReviewedAt: true,
+  authorizationReviewedById: true,
+  documentsChecklist: true,
+  coinsuranceAmount: true,
+  patientChargeAmount: true,
+  coinsuranceDetails: true,
   whatsappTicketSentAt: true,
   whatsappReminderSentAt: true,
 };
@@ -108,6 +142,9 @@ export const appointmentSelect = {
   },
   professional: {
     select: professionalSelect,
+  },
+  obraSocial: {
+    select: obraSocialSelect,
   },
 };
 

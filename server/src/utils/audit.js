@@ -9,32 +9,73 @@ export const auditActions = {
   authRefreshSucceeded: 'AUTH_REFRESH_SUCCEEDED',
   authRefreshFailed: 'AUTH_REFRESH_FAILED',
   authLogout: 'AUTH_LOGOUT',
+  userCreated: 'USER_CREATED',
+  userUpdated: 'USER_UPDATED',
+  userRoleChanged: 'USER_ROLE_CHANGED',
+  userDeleted: 'USER_DELETED',
   patientCreated: 'PATIENT_CREATED',
   patientUpdated: 'PATIENT_UPDATED',
   patientDeleted: 'PATIENT_DELETED',
   patientRead: 'PATIENT_READ',
   patientListed: 'PATIENT_LISTED',
+  professionalCreated: 'PROFESSIONAL_CREATED',
+  professionalUpdated: 'PROFESSIONAL_UPDATED',
+  professionalDeleted: 'PROFESSIONAL_DELETED',
+  appointmentCreated: 'APPOINTMENT_CREATED',
+  appointmentUpdated: 'APPOINTMENT_UPDATED',
+  appointmentDeleted: 'APPOINTMENT_DELETED',
   appointmentRead: 'APPOINTMENT_READ',
+  clinicalHistoryCreated: 'CLINICAL_HISTORY_CREATED',
+  clinicalHistoryUpdated: 'CLINICAL_HISTORY_UPDATED',
+  clinicalHistoryDeleted: 'CLINICAL_HISTORY_DELETED',
+  obraSocialCreated: 'OBRA_SOCIAL_CREATED',
+  obraSocialUpdated: 'OBRA_SOCIAL_UPDATED',
+  obraSocialDeleted: 'OBRA_SOCIAL_DELETED',
+  obraSocialAuthorized: 'OBRA_SOCIAL_AUTHORIZED',
+  obraSocialAuthorizationRejected: 'OBRA_SOCIAL_AUTHORIZATION_REJECTED',
+  auditCleanup: 'AUDIT_CLEANUP',
 };
 
-const sanitizeDetails = (details) => {
-  if (!details || typeof details !== 'object' || Array.isArray(details)) {
-    return details ?? null;
+const SENSITIVE_KEYS = new Set([
+  'otp',
+  'refreshToken',
+  'accessToken',
+  'medicalHistory',
+  'medicalNotes',
+  'attachments',
+  'authorizationFileUrl',
+]);
+
+const sanitizePayload = (payload) => {
+  if (payload === undefined) return null;
+  if (payload === null) return null;
+
+  if (Array.isArray(payload)) {
+    return payload.map((item) => sanitizePayload(item));
   }
 
-  const sanitized = { ...details };
-  delete sanitized.otp;
-  delete sanitized.refreshToken;
-  delete sanitized.accessToken;
-  delete sanitized.medicalHistory;
-  delete sanitized.medicalNotes;
-  delete sanitized.attachments;
+  if (typeof payload !== 'object') {
+    return payload;
+  }
+
+  const sanitized = {};
+
+  Object.entries(payload).forEach(([key, value]) => {
+    if (SENSITIVE_KEYS.has(key)) {
+      return;
+    }
+
+    sanitized[key] = sanitizePayload(value);
+  });
 
   return sanitized;
 };
 
 export const writeAuditLog = async (prisma, req, entry = {}) => {
-  if (!prisma?.auditLog || !entry.action || !entry.resource) {
+  const entityType = entry.entityType || entry.resource;
+  const entityId = entry.entityId || entry.resourceId || null;
+
+  if (!prisma?.auditLog || !entry.action || !entityType) {
     return null;
   }
 
@@ -42,9 +83,11 @@ export const writeAuditLog = async (prisma, req, entry = {}) => {
     data: {
       userId: entry.userId || req.user?.userId || null,
       action: entry.action,
-      resource: entry.resource,
-      resourceId: entry.resourceId || null,
-      details: sanitizeDetails(entry.details),
+      entityType,
+      entityId,
+      oldValues: sanitizePayload(entry.oldValues),
+      newValues: sanitizePayload(entry.newValues),
+      details: sanitizePayload(entry.details),
       ipAddress: getRequestIp(req),
       userAgent: getRequestUserAgent(req),
     },

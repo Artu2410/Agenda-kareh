@@ -11,10 +11,9 @@ generator client {
 }
 
 enum UserRole {
+  SUPER_USER
   ADMIN
-  DOCTOR
-  RECEPTIONIST
-  PATIENT
+  PROFESSIONAL
 }
 
 // ---------------------------------------------------------
@@ -25,6 +24,7 @@ model User {
   email               String    @unique
   fullName            String
   role                UserRole  @default(ADMIN)
+  professionalId      String?   @unique
   isActive            Boolean   @default(true)
   failedLoginAttempts Int       @default(0)
   lockedUntil         DateTime?
@@ -32,9 +32,11 @@ model User {
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
-  sessions      AuthSession[]
-  otpChallenges AuthOtpChallenge[]
-  auditLogs     AuditLog[]
+  professional         Professional? @relation(fields: [professionalId], references: [id], onDelete: SetNull)
+  sessions             AuthSession[]
+  otpChallenges        AuthOtpChallenge[]
+  auditLogs            AuditLog[]
+  authorizedAppointments Appointment[] @relation("AppointmentAuthorizationReviewer")
 }
 
 model AuthSession {
@@ -78,8 +80,10 @@ model AuditLog {
   id         String   @id @default(cuid())
   userId     String?
   action     String
-  resource   String
-  resourceId String?
+  entityType String
+  entityId   String?
+  oldValues  Json?
+  newValues  Json?
   details    Json?
   ipAddress  String?
   userAgent  String?
@@ -88,7 +92,7 @@ model AuditLog {
   user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([userId])
-  @@index([resource, resourceId])
+  @@index([entityType, entityId])
   @@index([createdAt])
 }
 
@@ -148,6 +152,7 @@ model Patient {
   email                     String?
   birthDate                 DateTime
   healthInsurance           String?
+  obraSocialId              String?
   treatAsParticular         Boolean  @default(false)
   affiliateNumber           String?
   dniImageUrl               String?
@@ -170,8 +175,10 @@ model Patient {
   appointments    Appointment[]
   clinicalHistory ClinicalHistory[]
   treatmentCycles TreatmentCycle[]
+  obraSocial      ObraSocial?       @relation(fields: [obraSocialId], references: [id], onDelete: SetNull)
 
   @@index([phone])
+  @@index([obraSocialId])
 }
 
 // ---------------------------------------------------------
@@ -213,6 +220,7 @@ model Professional {
   appointments      Appointment[]
   clinicalHistories ClinicalHistory[]
   workSchedule      WorkSchedule[]
+  user              User?
 }
 
 model WorkSchedule {
@@ -250,11 +258,23 @@ model Appointment {
   patient                Patient         @relation(fields: [patientId], references: [id])
   professionalId         String
   professional           Professional    @relation(fields: [professionalId], references: [id])
+  obraSocialId           String?
+  obraSocial             ObraSocial?     @relation(fields: [obraSocialId], references: [id], onDelete: SetNull)
   cycleId                String?
   treatmentCycle         TreatmentCycle? @relation(fields: [cycleId], references: [id])
   sessionNumber          Int?
   isFirstSession         Boolean         @default(false)
   status                 String          @default("SCHEDULED")
+  authorizationStatus    String          @default("NOT_REQUIRED")
+  authorizationNumber    String?
+  authorizationFileUrl   String?
+  authorizationReviewedAt DateTime?
+  authorizationReviewedById String?
+  authorizationReviewedBy User?          @relation("AppointmentAuthorizationReviewer", fields: [authorizationReviewedById], references: [id], onDelete: SetNull)
+  documentsChecklist     Json?
+  coinsuranceAmount      Decimal?        @db.Decimal(10, 2)
+  patientChargeAmount    Decimal?        @db.Decimal(10, 2)
+  coinsuranceDetails     Json?
   payment                CashFlow?
   whatsappTicketSentAt   DateTime?
   whatsappReminderSentAt DateTime?
@@ -263,6 +283,8 @@ model Appointment {
   @@index([date])
   @@index([professionalId, date])
   @@index([patientId])
+  @@index([obraSocialId])
+  @@index([authorizationStatus, date])
 }
 
 // ---------------------------------------------------------
@@ -364,14 +386,24 @@ model ObraSocial {
   nombreOs        String                     // Nombre de la entidad
   coseguroValor   Decimal  @db.Decimal(10, 2) // Monto a cobrar en mostrador
   honorarioEstimado Decimal @db.Decimal(10, 2) // Lo que COKIBA liquida
+  percentageCoinsurance Decimal @default(0) @db.Decimal(5, 2)
+  fixedCopay      Decimal  @default(0) @db.Decimal(10, 2)
   plazoPago       Int      @default(60)       // Días default 60
   estado          String   @default("Activa") // Activa / Baja / Suspendida
+  isActive        Boolean  @default(true)
+  requiresAuthorization Boolean @default(false)
   atendibleSanMiguel Boolean @default(false)  // Zona San Miguel / Bella Vista
+  requiredDocuments Json?
   rawCategoria    String?                     // Categoría original scrapeada
   ultimaSync      DateTime @default(now())    // Última sincronización
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  patients        Patient[]
+  appointments    Appointment[]
+
   @@index([estado])
+  @@index([isActive])
+  @@index([requiresAuthorization])
   @@index([nombreOs])
 }

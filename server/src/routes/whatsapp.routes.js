@@ -15,6 +15,7 @@ import {
   listWhatsAppCoverages,
   updateWhatsAppCoverage,
 } from '../controllers/whatsappCoverageMemory.controller.js';
+import { checkRole } from '../middlewares/authMiddleware.js';
 
 export default function createWhatsAppRoutes(prisma) {
   const router = Router();
@@ -43,17 +44,17 @@ export default function createWhatsAppRoutes(prisma) {
     },
   });
 
-  router.get('/conversations', (req, res) => listConversations(req, res, prisma));
-  router.get('/coverages', (req, res) => listWhatsAppCoverages(req, res));
-  router.post('/coverages', (req, res) => createWhatsAppCoverage(req, res));
-  router.put('/coverages/:id', (req, res) => updateWhatsAppCoverage(req, res));
-  router.get('/conversations/:id/messages', (req, res) => listMessages(req, res, prisma));
-  router.post('/conversations/:id/messages', upload.single('file'), (req, res) => sendConversationMessage(req, res, prisma));
-  router.post('/conversations/:id/pause-bot', (req, res) => pauseConversationBot(req, res, prisma));
-  router.post('/conversations/:id/resume-bot', (req, res) => resumeConversationBot(req, res, prisma));
-  router.post('/conversations/:id/send-welcome', (req, res) => sendWelcomeTemplate(req, res, prisma));
-  router.post('/conversations/:id/read', (req, res) => markConversationRead(req, res, prisma));
-  router.delete('/conversations/:id', (req, res) => deleteConversation(req, res, prisma));
+  router.get('/conversations', checkRole('SUPER_USER', 'ADMIN'), (req, res) => listConversations(req, res, prisma));
+  router.get('/coverages', checkRole('SUPER_USER', 'ADMIN'), (req, res) => listWhatsAppCoverages(req, res));
+  router.post('/coverages', checkRole('SUPER_USER', 'ADMIN'), (req, res) => createWhatsAppCoverage(req, res));
+  router.put('/coverages/:id', checkRole('SUPER_USER', 'ADMIN'), (req, res) => updateWhatsAppCoverage(req, res));
+  router.get('/conversations/:id/messages', checkRole('SUPER_USER', 'ADMIN'), (req, res) => listMessages(req, res, prisma));
+  router.post('/conversations/:id/messages', checkRole('SUPER_USER', 'ADMIN'), upload.single('file'), (req, res) => sendConversationMessage(req, res, prisma));
+  router.post('/conversations/:id/pause-bot', checkRole('SUPER_USER', 'ADMIN'), (req, res) => pauseConversationBot(req, res, prisma));
+  router.post('/conversations/:id/resume-bot', checkRole('SUPER_USER', 'ADMIN'), (req, res) => resumeConversationBot(req, res, prisma));
+  router.post('/conversations/:id/send-welcome', checkRole('SUPER_USER', 'ADMIN'), (req, res) => sendWelcomeTemplate(req, res, prisma));
+  router.post('/conversations/:id/read', checkRole('SUPER_USER', 'ADMIN'), (req, res) => markConversationRead(req, res, prisma));
+  router.delete('/conversations/:id', checkRole('SUPER_USER', 'ADMIN'), (req, res) => deleteConversation(req, res, prisma));
 
   router.use((err, req, res, next) => {
     if (err?.code === 'LIMIT_FILE_SIZE') {

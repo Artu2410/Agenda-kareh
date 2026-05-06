@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import { withProfessionalScope, assertScopedProfessionalId } from '../utils/accessScope.js';
+import { auditActions, safeWriteAuditLog } from '../utils/audit.js';
 
 export default function createClinicalHistoryRoutes(prisma) {
   const router = Router();
@@ -6,8 +8,15 @@ export default function createClinicalHistoryRoutes(prisma) {
   // GET: Obtener historial
   router.get('/:patientId', async (req, res) => {
     try {
+      if (String(req.user?.role || '').toUpperCase() === 'PROFESSIONAL') {
+        assertScopedProfessionalId(req.user);
+      }
+      const professionalScope = withProfessionalScope(req.user);
       const history = await prisma.clinicalHistory.findMany({
-        where: { patientId: req.params.patientId },
+        where: {
+          patientId: req.params.patientId,
+          ...professionalScope,
+        },
         include: {
           professional: {
             select: {
@@ -34,12 +43,17 @@ export default function createClinicalHistoryRoutes(prisma) {
     }
 
     try {
+      const professionalId = String(req.user?.role || '').toUpperCase() === 'PROFESSIONAL'
+        ? assertScopedProfessionalId(req.user)
+        : (req.body.professionalId || null);
+
       const result = await prisma.$transaction(async (tx) => {
         // 1. Crear la entrada
         const requestedDate = createdAt ? new Date(createdAt) : new Date();
         const newEntry = await tx.clinicalHistory.create({
           data: {
             patientId,
+            professionalId,
             diagnosis: diagnosis || '',
             evolution: evolution || '',
             attachments: attachments ? (typeof attachments === 'string' ? attachments : JSON.stringify(attachments)) : "[]",
@@ -63,6 +77,13 @@ export default function createClinicalHistoryRoutes(prisma) {
         return newEntry;
       });
 
+      await safeWriteAuditLog(prisma, req, {
+        action: auditActions.clinicalHistoryCreated,
+        resource: 'CLINICAL_HISTORY',
+        resourceId: result.id,
+        newValues: result,
+      });
+
       res.status(201).json(result);
     } catch (error) {
       console.error("ERROR EN POST HISTORIAL:", error);
@@ -76,6 +97,18 @@ export default function createClinicalHistoryRoutes(prisma) {
     const { diagnosis, evolution, createdAt, attachments } = req.body;
 
     try {
+      const existingEntry = await prisma.clinicalHistory.findUnique({
+        where: { id },
+      });
+
+      if (!existingEntry) {
+        return res.status(404).json({ message: 'La entrada no existe' });
+      }
+
+      if (String(req.user?.role || '').toUpperCase() === 'PROFESSIONAL' && existingEntry.professionalId !== assertScopedProfessionalId(req.user)) {
+        return res.status(403).json({ message: 'No autorizado para editar esta evolución' });
+      }
+
       const updated = await prisma.clinicalHistory.update({
         where: { id: id },
         data: { 
@@ -87,6 +120,14 @@ export default function createClinicalHistoryRoutes(prisma) {
           // Validamos que los adjuntos se guarden siempre como string
           attachments: attachments ? (typeof attachments === 'string' ? attachments : JSON.stringify(attachments)) : "[]",
         }
+      });
+
+      await safeWriteAuditLog(prisma, req, {
+        action: auditActions.clinicalHistoryUpdated,
+        resource: 'CLINICAL_HISTORY',
+        resourceId: updated.id,
+        oldValues: existingEntry,
+        newValues: updated,
       });
       res.json(updated);
     } catch (error) {
@@ -102,8 +143,27 @@ export default function createClinicalHistoryRoutes(prisma) {
   router.delete('/:id', async (req, res) => {
     const { id } = req.params;
     try {
+      const existingEntry = await prisma.clinicalHistory.findUnique({
+        where: { id },
+      });
+
+      if (!existingEntry) {
+        return res.status(404).json({ message: 'La entrada ya no existe' });
+      }
+
+      if (String(req.user?.role || '').toUpperCase() === 'PROFESSIONAL' && existingEntry.professionalId !== assertScopedProfessionalId(req.user)) {
+        return res.status(403).json({ message: 'No autorizado para eliminar esta evolución' });
+      }
+
       await prisma.clinicalHistory.delete({
         where: { id: id }
+      });
+
+      await safeWriteAuditLog(prisma, req, {
+        action: auditActions.clinicalHistoryDeleted,
+        resource: 'CLINICAL_HISTORY',
+        resourceId: id,
+        oldValues: existingEntry,
       });
       res.json({ message: 'Sesión eliminada correctamente' });
     } catch (error) {

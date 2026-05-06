@@ -6,6 +6,7 @@ import {
   patientWithAppointmentCountSelect,
   professionalSelect,
 } from '../prisma/selects.js';
+import { buildProfessionalPatientWhere, assertScopedProfessionalId, withProfessionalScope } from '../utils/accessScope.js';
 import { auditActions, safeWriteAuditLog } from '../utils/audit.js';
 
 const parseDateAvoidTZ = (d) => {
@@ -36,16 +37,137 @@ const normalizeBirthDateOrUnknown = (d) => {
   return parsed || UNKNOWN_BIRTHDATE;
 };
 
+const mergeWhereClauses = (...clauses) => {
+  const filtered = clauses.filter((clause) => clause && Object.keys(clause).length > 0);
+
+  if (filtered.length === 0) return {};
+  if (filtered.length === 1) return filtered[0];
+
+  return { AND: filtered };
+};
+
+const getPatientScopeWhere = (user) => {
+  if (String(user?.role || '').toUpperCase() === 'PROFESSIONAL') {
+    assertScopedProfessionalId(user);
+  }
+
+  return buildProfessionalPatientWhere(user);
+};
+
+const buildPatientAccessWhere = (req, additionalWhere = {}) => (
+  mergeWhereClauses(getPatientScopeWhere(req.user), additionalWhere)
+);
+
+const getDocumentHistoryForPatient = async (prisma, patientId, user) => {
+  const appointments = await prisma.appointment.findMany({
+    where: mergeWhereClauses(withProfessionalScope(user), {
+      patientId,
+      documentsChecklist: { not: null },
+      status: { not: 'CANCELLED' },
+    }),
+    orderBy: [
+      { date: 'desc' },
+      { time: 'desc' },
+    ],
+    select: {
+      id: true,
+      date: true,
+      documentsChecklist: true,
+      obraSocial: {
+        select: {
+          id: true,
+          nombreOs: true,
+        },
+      },
+    },
+    take: 20,
+  });
+
+  const documents = [];
+
+  appointments.forEach((appointment) => {
+    const checklist = appointment.documentsChecklist;
+    const items = Array.isArray(checklist?.documents) ? checklist.documents : [];
+
+    items
+      .filter((item) => item?.presented && item?.fileUrl)
+      .forEach((item) => {
+        documents.push({
+          appointmentId: appointment.id,
+          appointmentDate: appointment.date,
+          obraSocialId: appointment.obraSocial?.id || null,
+          obraSocialName: appointment.obraSocial?.nombreOs || null,
+          name: item.name,
+          mandatory: Boolean(item.mandatory),
+          fileUrl: item.fileUrl,
+          fileName: item.fileName || null,
+          presentedAt: item.presentedAt || appointment.date,
+          validityDays: item.validityDays ?? null,
+        });
+      });
+  });
+
+  return documents;
+};
+
+const attachPatientDocumentHistory = async (prisma, patient, user) => {
+  if (!patient?.id) return patient;
+
+  return {
+    ...patient,
+    documentHistory: await getDocumentHistoryForPatient(prisma, patient.id, user),
+  };
+};
+
+const resolvePatientInsurancePayload = async (prisma, payload = {}) => {
+  const normalizedObraSocialId = payload.obraSocialId === '' ? null : payload.obraSocialId;
+  const treatAsParticular = payload.treatAsParticular === undefined ? undefined : Boolean(payload.treatAsParticular);
+
+  if (normalizedObraSocialId === undefined) {
+    return {
+      obraSocialId: undefined,
+      healthInsurance: payload.healthInsurance,
+      treatAsParticular,
+    };
+  }
+
+  if (!normalizedObraSocialId) {
+    return {
+      obraSocialId: null,
+      healthInsurance: payload.healthInsurance || null,
+      treatAsParticular,
+    };
+  }
+
+  const obraSocial = await prisma.obraSocial.findUnique({
+    where: { id: normalizedObraSocialId },
+    select: { id: true, nombreOs: true },
+  });
+
+  if (!obraSocial) {
+    const error = new Error('La obra social seleccionada no existe');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return {
+    obraSocialId: obraSocial.id,
+    healthInsurance: obraSocial.nombreOs,
+    treatAsParticular,
+  };
+};
+
 export const searchPatientByDni = async (req, res, prisma) => {
   const { dni } = req.query;
   if (!dni) return res.status(400).json({ error: 'DNI es requerido' });
 
   try {
-    const patient = await prisma.patient.findUnique({
-      where: { dni: dni.toString() },
+    const patient = await prisma.patient.findFirst({
+      where: buildPatientAccessWhere(req, { dni: dni.toString() }),
       select: {
         ...patientSelect,
         appointments: {
+          where: withProfessionalScope(req.user),
           orderBy: { date: 'desc' },
           take: 5,
           select: {
@@ -78,6 +200,7 @@ export const searchPatientByDni = async (req, res, prisma) => {
 export const getAllPatients = async (req, res, prisma) => {
   try {
     const patients = await prisma.patient.findMany({
+      where: getPatientScopeWhere(req.user),
       select: patientWithAppointmentCountSelect,
       orderBy: { fullName: 'asc' }
     });
@@ -118,13 +241,14 @@ const serializeClinicalHistoryPatient = (patient, dayAppointments = []) => ({
 export const getClinicalHistoryPatients = async (req, res, prisma) => {
   const search = String(req.query.search || '').trim();
   const { selectedDate, start, end } = buildDayRange(req.query.date);
+  const scopedProfessionalWhere = withProfessionalScope(req.user);
 
   try {
     const appointments = await prisma.appointment.findMany({
-      where: {
+      where: mergeWhereClauses(scopedProfessionalWhere, {
         date: { gte: start, lte: end },
         status: { not: 'CANCELLED' },
-      },
+      }),
       orderBy: [
         { time: 'asc' },
         { slotNumber: 'asc' },
@@ -207,9 +331,9 @@ export const getClinicalHistoryPatients = async (req, res, prisma) => {
       }
 
       const matchedPatients = await prisma.patient.findMany({
-        where: {
+        where: mergeWhereClauses(getPatientScopeWhere(req.user), {
           OR: orFilters,
-        },
+        }),
         orderBy: { fullName: 'asc' },
         take: 50,
         select: patientSelect,
@@ -284,6 +408,8 @@ export const createPatient = async (req, res, prisma) => {
     });
     if (existingPatient) return res.status(400).json({ message: 'El DNI ya existe' });
 
+    const insuranceData = await resolvePatientInsurancePayload(prisma, req.body);
+
     // Calcular el número de HC secuencial
     const lastPatient = await prisma.patient.findFirst({
       orderBy: { clinicalRecordNumber: 'desc' },
@@ -299,10 +425,11 @@ export const createPatient = async (req, res, prisma) => {
       data: {
         fullName, dni, phone, email, address,
         birthDate: normalizeBirthDateOrUnknown(birthDate),
-        healthInsurance,
+        healthInsurance: insuranceData.healthInsurance,
+        obraSocialId: insuranceData.obraSocialId,
         clinicalRecordNumber: nextHC,
         folio,
-        treatAsParticular: !!treatAsParticular,
+        treatAsParticular: insuranceData.treatAsParticular ?? !!treatAsParticular,
         affiliateNumber,
         emergencyPhone,
         medicalHistory,
@@ -323,6 +450,7 @@ export const createPatient = async (req, res, prisma) => {
       action: auditActions.patientCreated,
       resource: 'PATIENT',
       resourceId: patient.id,
+      newValues: patient,
       details: {
         dni: maskIdentifier(dni),
         fullName,
@@ -345,6 +473,18 @@ export const updatePatient = async (req, res, prisma) => {
   } = req.body;
 
   try {
+    const scopeWhere = buildPatientAccessWhere(req, { id });
+    const existingPatient = await prisma.patient.findFirst({
+      where: scopeWhere,
+      select: {
+        ...patientSelect,
+      },
+    });
+
+    if (!existingPatient) {
+      return res.status(404).json({ message: 'Paciente no encontrado' });
+    }
+
     if (dni) {
       const existing = await prisma.patient.findUnique({
         where: { dni },
@@ -352,13 +492,16 @@ export const updatePatient = async (req, res, prisma) => {
       });
       if (existing && existing.id !== id) return res.status(400).json({ message: 'DNI ya en uso' });
     }
+
+    const insuranceData = await resolvePatientInsurancePayload(prisma, req.body);
     const patient = await prisma.patient.update({
       where: { id },
       data: {
         fullName, dni, phone, email, address,
         birthDate: birthDate ? normalizeBirthDateOrUnknown(birthDate) : undefined,
-        healthInsurance,
-        treatAsParticular,
+        healthInsurance: insuranceData.healthInsurance,
+        obraSocialId: insuranceData.obraSocialId,
+        treatAsParticular: insuranceData.treatAsParticular,
         affiliateNumber,
         emergencyPhone,
         medicalHistory,
@@ -380,19 +523,30 @@ export const updatePatient = async (req, res, prisma) => {
       action: auditActions.patientUpdated,
       resource: 'PATIENT',
       resourceId: patient.id,
+      oldValues: existingPatient,
+      newValues: patient,
       details: {
         updatedFields: Object.keys(req.body || {}).sort(),
       },
     });
     res.status(200).json(patient);
   } catch (error) {
-    res.status(500).json({ error: 'Error al actualizar', message: error.message });
+    res.status(error.statusCode || 500).json({ error: 'Error al actualizar', message: error.message });
   }
 };
 
 export const deletePatient = async (req, res, prisma) => {
   const { id } = req.params;
   try {
+    const existingPatient = await prisma.patient.findFirst({
+      where: buildPatientAccessWhere(req, { id }),
+      select: patientSelect,
+    });
+
+    if (!existingPatient) {
+      return res.status(404).json({ message: 'Paciente no encontrado' });
+    }
+
     const appointmentCount = await prisma.appointment.count({ where: { patientId: id } });
     if (appointmentCount > 0) {
       return res.status(400).json({ message: `No se puede eliminar: tiene ${appointmentCount} cita(s)` });
@@ -402,6 +556,7 @@ export const deletePatient = async (req, res, prisma) => {
       action: auditActions.patientDeleted,
       resource: 'PATIENT',
       resourceId: id,
+      oldValues: existingPatient,
       details: {
         appointmentCount,
       },
@@ -415,11 +570,12 @@ export const deletePatient = async (req, res, prisma) => {
 export const getPatientById = async (req, res, prisma) => {
   const { id } = req.params;
   try {
-    const patient = await prisma.patient.findUnique({
-      where: { id },
+    const patient = await prisma.patient.findFirst({
+      where: buildPatientAccessWhere(req, { id }),
       select: {
         ...patientSelect,
         appointments: {
+          where: withProfessionalScope(req.user),
           orderBy: { date: 'desc' },
           select: {
             ...appointmentBaseSelect,
@@ -431,6 +587,7 @@ export const getPatientById = async (req, res, prisma) => {
       },
     });
     if (!patient) return res.status(404).json({ message: 'No encontrado' });
+    const patientWithDocuments = await attachPatientDocumentHistory(prisma, patient, req.user);
     await safeWriteAuditLog(prisma, req, {
       action: auditActions.patientRead,
       resource: 'PATIENT',
@@ -439,7 +596,7 @@ export const getPatientById = async (req, res, prisma) => {
         lookup: 'ID',
       },
     });
-    res.status(200).json(patient);
+    res.status(200).json(patientWithDocuments);
   } catch (error) {
     res.status(500).json({ error: 'Error al obtener', message: error.message });
   }
@@ -449,11 +606,12 @@ export const getPatientById = async (req, res, prisma) => {
 export const getPatientHistoryByDni = async (req, res, prisma) => {
   const { dni } = req.params;
   try {
-    const patient = await prisma.patient.findUnique({
-      where: { dni: dni.toString() },
+    const patient = await prisma.patient.findFirst({
+      where: buildPatientAccessWhere(req, { dni: dni.toString() }),
       select: {
         ...patientSelect,
         appointments: {
+          where: withProfessionalScope(req.user),
           orderBy: { date: 'desc' },
           select: {
             ...appointmentBaseSelect,
@@ -465,6 +623,7 @@ export const getPatientHistoryByDni = async (req, res, prisma) => {
       },
     });
     if (!patient) return res.status(404).json({ message: 'Historial no encontrado' });
+    const patientWithDocuments = await attachPatientDocumentHistory(prisma, patient, req.user);
     await safeWriteAuditLog(prisma, req, {
       action: auditActions.patientRead,
       resource: 'PATIENT',
@@ -474,7 +633,7 @@ export const getPatientHistoryByDni = async (req, res, prisma) => {
         query: maskIdentifier(dni),
       },
     });
-    res.status(200).json(patient);
+    res.status(200).json(patientWithDocuments);
   } catch (error) {
     console.error('❌ Error en getPatientHistoryByDni:', error);
     res.status(500).json({ error: 'Error al obtener historial', message: error.message });
@@ -488,12 +647,12 @@ export const getFutureAppointments = async (req, res, prisma) => {
     today.setHours(0, 0, 0, 0);
 
     const appointments = await prisma.appointment.findMany({
-      where: {
+      where: mergeWhereClauses(withProfessionalScope(req.user), {
         patientId: patientId,
         date: {
           gte: today,
         },
-      },
+      }),
       select: appointmentBaseSelect,
       orderBy: [
         { date: 'asc' },
@@ -522,7 +681,7 @@ export const getSessionCycles = async (req, res, prisma) => {
   const { patientId } = req.params;
   try {
     const completedAppointments = await prisma.appointment.findMany({
-      where: { patientId, status: 'COMPLETED' },
+      where: mergeWhereClauses(withProfessionalScope(req.user), { patientId, status: 'COMPLETED' }),
       orderBy: [{ date: 'asc' }],
       select: { id: true, date: true, diagnosis: true },
     });
