@@ -906,6 +906,7 @@ const ClinicalHistoryPage = () => {
   const filteredEntries = historyEntries.filter(e => e.date.includes(dateSearch));
   const printableEntries = filteredEntries.filter(entry => entry.isVisible !== false);
   const coverageLabel = getCoverageLabel(patient?.healthInsurance, patient?.treatAsParticular);
+  const insuranceDocumentHistory = patient?.documentHistory || [];
   const coverageTextClass = isParticularCoverage(patient?.healthInsurance, patient?.treatAsParticular)
     ? 'text-blue-700'
     : 'text-teal-600';
@@ -1120,6 +1121,37 @@ const ClinicalHistoryPage = () => {
                       </label>
                     ))}
                   </div>
+                </section>
+
+                <section className="bg-teal-50/50 p-6 rounded-4xl border border-teal-100 shadow-sm">
+                  <h3 className="text-[10px] font-black text-teal-600 uppercase mb-4 tracking-widest">Documentación presentada</h3>
+                  {insuranceDocumentHistory.length === 0 ? (
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                      No hay documentación registrada desde turnos previos.
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {insuranceDocumentHistory.map((document, index) => (
+                        <a
+                          key={`${document.appointmentId}-${document.name}-${index}`}
+                          href={document.fileUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="block rounded-3xl border border-white/80 bg-white px-4 py-4 shadow-sm transition hover:border-teal-200"
+                        >
+                          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-teal-600">
+                            {document.name}
+                          </p>
+                          <p className="mt-1 text-sm font-bold text-slate-700">
+                            {document.obraSocialName || 'Sin obra social'}
+                          </p>
+                          <p className="mt-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                            Presentado: {formatDisplayDate(document.presentedAt || document.appointmentDate)}
+                          </p>
+                        </a>
+                      ))}
+                    </div>
+                  )}
                 </section>
               </div>
 

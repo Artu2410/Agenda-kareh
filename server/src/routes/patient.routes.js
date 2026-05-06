@@ -33,7 +33,7 @@ export default function createPatientRoutes(prisma) {
   router.delete('/:id', (req, res) => deletePatient(req, res, prisma));
   router.put('/:id', (req, res) => updatePatient(req, res, prisma));
   router.patch('/:id', (req, res) => updatePatient(req, res, prisma));
-  router.post('/admin/renumber', checkRole('ADMIN'), (req, res) => renumberAllPatients(req, res, prisma));
+  router.post('/admin/renumber', checkRole('SUPER_USER', 'ADMIN'), (req, res) => renumberAllPatients(req, res, prisma));
 
   return router;
 }

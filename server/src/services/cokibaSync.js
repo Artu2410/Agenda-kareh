@@ -412,7 +412,7 @@ const synchronizeRows = async (prisma, obrasSociales, logger) => {
   for (const obraSocial of obrasSociales) {
     const existing = await prisma.obraSocial.findUnique({
       where: { codigoCokiba: obraSocial.codigoCokiba },
-      select: { id: true },
+      select: { id: true, isActive: true },
     });
 
     await prisma.obraSocial.upsert({
@@ -425,10 +425,12 @@ const synchronizeRows = async (prisma, obrasSociales, logger) => {
         estado: obraSocial.estado,
         atendibleSanMiguel: obraSocial.atendibleSanMiguel,
         rawCategoria: obraSocial.rawCategoria,
+        ...(obraSocial.estado?.toLowerCase() !== 'activa' ? { isActive: false } : {}),
         ultimaSync: new Date(),
       },
       create: {
         ...obraSocial,
+        isActive: obraSocial.estado?.toLowerCase() === 'activa',
         ultimaSync: new Date(),
       },
     });
@@ -454,7 +456,7 @@ export const getCokibaSyncStatus = async (prisma) => {
   const config = buildConfigStatus();
   const [total, activas, latest] = await Promise.all([
     prisma.obraSocial.count(),
-    prisma.obraSocial.count({ where: { estado: 'Activa' } }),
+    prisma.obraSocial.count({ where: { isActive: true } }),
     prisma.obraSocial.findFirst({
       orderBy: { ultimaSync: 'desc' },
       select: {

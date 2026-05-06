@@ -8,8 +8,8 @@ const PLACEHOLDER_AUTHORIZED_EMAILS = new Set([
   'your_email@example.com',
 ]);
 
-const DEFAULT_ACCESS_TOKEN_TTL = '15m';
-const DEFAULT_REFRESH_TOKEN_TTL = '30d';
+const DEFAULT_ACCESS_TOKEN_TTL = '8h';
+const DEFAULT_REFRESH_TOKEN_TTL = '7d';
 const DEFAULT_OTP_TTL_MS = 15 * 60 * 1000;
 const DEFAULT_MAX_OTP_ATTEMPTS = 5;
 const DEFAULT_ACCOUNT_LOCK_MINUTES = 30;
@@ -22,7 +22,17 @@ const DURATION_UNITS_MS = {
   d: 24 * 60 * 60 * 1000,
 };
 
-export const USER_ROLES = ['ADMIN', 'DOCTOR', 'RECEPTIONIST', 'PATIENT'];
+export const USER_ROLES = ['SUPER_USER', 'ADMIN', 'PROFESSIONAL'];
+
+const normalizeBootstrapRole = (value = '') => {
+  const normalizedRole = String(value || '').trim().toUpperCase();
+
+  if (normalizedRole === 'DOCTOR') return 'PROFESSIONAL';
+  if (normalizedRole === 'RECEPTIONIST' || normalizedRole === 'PATIENT') return 'ADMIN';
+  if (normalizedRole === 'SUPERUSER') return 'SUPER_USER';
+
+  return normalizedRole;
+};
 
 export const isProduction = () => process.env.NODE_ENV === 'production';
 
@@ -179,7 +189,7 @@ const parseBootstrapUsersFromJson = (rawValue) => {
       .map((entry) => ({
         email: normalizeEmail(entry?.email),
         fullName: String(entry?.fullName || entry?.name || '').trim(),
-        role: String(entry?.role || '').trim().toUpperCase(),
+        role: normalizeBootstrapRole(entry?.role),
       }))
       .filter((entry) => entry.email && entry.fullName && USER_ROLES.includes(entry.role));
   } catch {
@@ -195,7 +205,7 @@ const parseBootstrapUsersFromLegacyEnv = () => {
   return [{
     email,
     fullName: String(process.env.AUTHORIZED_USER_NAME || 'Administrador').trim() || 'Administrador',
-    role: 'ADMIN',
+    role: 'SUPER_USER',
   }];
 };
 
@@ -218,4 +228,5 @@ export const serializeUser = (user) => ({
   email: user.email,
   name: user.fullName,
   role: user.role,
+  professionalId: user.professionalId || null,
 });

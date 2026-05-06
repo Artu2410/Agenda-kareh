@@ -6,6 +6,7 @@ import {
   resetAgendaTimer,
   updateAgendaConfig,
 } from '../controllers/agendaController.js';
+import { checkRole } from '../middlewares/authMiddleware.js';
 
 const createRouter = (prisma) => {
   const router = Router();
@@ -14,7 +15,7 @@ const createRouter = (prisma) => {
   router.get('/config', (req, res) => getAgendaConfig(req, res, prisma));
 
   // Actualizar configuración de agenda
-  router.put('/config', (req, res) => updateAgendaConfig(req, res, prisma));
+  router.put('/config', checkRole('SUPER_USER', 'ADMIN'), (req, res) => updateAgendaConfig(req, res, prisma));
 
   // Obtener cronómetros del bloque horario activo
   router.get('/timers', (req, res) => getAgendaTimers(req, res, prisma));

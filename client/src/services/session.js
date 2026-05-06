@@ -3,6 +3,7 @@ const SESSION_STORAGE_KEYS = [
   'userEmail',
   'userName',
   'userRole',
+  'userProfessionalId',
   'user_email',
   'user_name',
   'auth_fallback',
@@ -21,6 +22,7 @@ export const storeAuthenticatedUser = (user = {}) => {
   const email = String(user.email || '').trim();
   const name = String(user.name || '').trim();
   const role = String(user.role || '').trim();
+  const professionalId = String(user.professionalId || '').trim();
 
   if (id) {
     localStorage.setItem('userId', id);
@@ -37,6 +39,10 @@ export const storeAuthenticatedUser = (user = {}) => {
   if (role) {
     localStorage.setItem('userRole', role);
   }
+
+  if (professionalId) {
+    localStorage.setItem('userProfessionalId', professionalId);
+  }
 };
 
 export const getStoredUser = () => ({
@@ -44,4 +50,5 @@ export const getStoredUser = () => ({
   name: localStorage.getItem('userName') || localStorage.getItem('user_name') || '',
   email: localStorage.getItem('userEmail') || localStorage.getItem('user_email') || '',
   role: localStorage.getItem('userRole') || '',
+  professionalId: localStorage.getItem('userProfessionalId') || '',
 });

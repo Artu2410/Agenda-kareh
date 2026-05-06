@@ -12,7 +12,11 @@ import {
   patientSelect,
   professionalSelect,
 } from '../prisma/selects.js';
+import { sendNotificationToEmails } from '../services/pushNotifications.js';
+import { withProfessionalScope, assertScopedProfessionalId } from '../utils/accessScope.js';
+import { calculatePatientCharge, buildDocumentChecklist, isInactiveInsurance } from '../utils/insurance.js';
 import { normalizePhone } from '../utils/phone.js';
+import { auditActions, safeWriteAuditLog } from '../utils/audit.js';
 
 // Helper para evitar corrimientos de fecha por zona horaria.
 // Si la fecha viene en formato 'YYYY-MM-DD' la dejamos a mediodía local (12:00)
@@ -56,6 +60,237 @@ const normalizeBirthDateOrUnknown = (d) => {
   return parsed || UNKNOWN_BIRTHDATE;
 };
 
+const mergeWhereClauses = (...clauses) => {
+  const filtered = clauses.filter((clause) => clause && Object.keys(clause).length > 0);
+
+  if (filtered.length === 0) return {};
+  if (filtered.length === 1) return filtered[0];
+
+  return { AND: filtered };
+};
+
+const ensureAppointmentScope = (req, professionalId) => {
+  if (String(req.user?.role || '').toUpperCase() !== 'PROFESSIONAL') {
+    return professionalId;
+  }
+
+  const scopedProfessionalId = assertScopedProfessionalId(req.user);
+  if (professionalId && professionalId !== scopedProfessionalId) {
+    const error = new Error('No puedes operar turnos de otro profesional');
+    error.statusCode = 403;
+    throw error;
+  }
+
+  return scopedProfessionalId;
+};
+
+const resolvePatientInsurancePayload = async (tx, payload = {}) => {
+  const normalizedObraSocialId = payload.obraSocialId === '' ? null : payload.obraSocialId;
+  const treatAsParticular = payload.treatAsParticular === undefined ? false : Boolean(payload.treatAsParticular);
+
+  if (!normalizedObraSocialId) {
+    return {
+      obraSocialId: null,
+      healthInsurance: payload.healthInsurance || null,
+      treatAsParticular,
+    };
+  }
+
+  const obraSocial = await tx.obraSocial.findUnique({
+    where: { id: normalizedObraSocialId },
+    select: {
+      id: true,
+      nombreOs: true,
+      isActive: true,
+      requiresAuthorization: true,
+      requiredDocuments: true,
+      coseguroValor: true,
+      honorarioEstimado: true,
+      percentageCoinsurance: true,
+      fixedCopay: true,
+    },
+  });
+
+  if (!obraSocial) {
+    const error = new Error('La obra social seleccionada no existe');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return {
+    obraSocialId: obraSocial.id,
+    obraSocial,
+    healthInsurance: obraSocial.nombreOs,
+    treatAsParticular,
+  };
+};
+
+const getAppointmentInsuranceContext = async (tx, patient, payload = {}) => {
+  const treatAsParticular = Boolean(payload.treatAsParticular ?? patient?.treatAsParticular);
+  const requestedObraSocialId = payload.obraSocialId === undefined ? patient?.obraSocialId : payload.obraSocialId;
+  const explicitAuthorizationStatus = String(payload.authorizationStatus || '').trim().toUpperCase();
+
+  if (treatAsParticular || !requestedObraSocialId) {
+    return {
+      obraSocial: null,
+      obraSocialId: null,
+      charge: calculatePatientCharge(null),
+      status: payload.status || 'SCHEDULED',
+      authorizationStatus: 'NOT_REQUIRED',
+      documentsChecklist: { documents: [], additionalInfo: '' },
+    };
+  }
+
+  const obraSocial = await tx.obraSocial.findUnique({
+    where: { id: requestedObraSocialId },
+  });
+
+  if (!obraSocial) {
+    const error = new Error('La obra social seleccionada no existe');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (isInactiveInsurance(obraSocial)) {
+    const error = new Error('La obra social asignada al paciente está inactiva. Contacta al administrador.');
+    error.statusCode = 409;
+    throw error;
+  }
+
+  const documentsChecklist = buildDocumentChecklist({
+    obraSocial,
+    existingChecklist: payload.documentsChecklist,
+  });
+
+  return {
+    obraSocial,
+    obraSocialId: obraSocial.id,
+    charge: calculatePatientCharge(obraSocial),
+    status: obraSocial.requiresAuthorization
+      ? (
+        payload.status
+        || (explicitAuthorizationStatus === 'AUTHORIZED'
+          ? 'AUTHORIZED'
+          : explicitAuthorizationStatus === 'REJECTED'
+            ? 'REJECTED'
+            : 'PENDING_AUTHORIZATION')
+      )
+      : (payload.status || 'SCHEDULED'),
+    authorizationStatus: obraSocial.requiresAuthorization
+      ? (['AUTHORIZED', 'REJECTED', 'PENDING'].includes(explicitAuthorizationStatus) ? explicitAuthorizationStatus : 'PENDING')
+      : 'NOT_REQUIRED',
+    documentsChecklist,
+  };
+};
+
+const cloneChecklist = (checklist) => JSON.parse(JSON.stringify(checklist || { documents: [], additionalInfo: '' }));
+
+const prepareReusedDocuments = async (tx, patientId, checklist = null) => {
+  if (!patientId || !Array.isArray(checklist?.documents) || checklist.documents.length === 0) {
+    return checklist;
+  }
+
+  const appointments = await tx.appointment.findMany({
+    where: {
+      patientId,
+      documentsChecklist: { not: null },
+      status: { not: 'CANCELLED' },
+    },
+    orderBy: [
+      { date: 'desc' },
+      { time: 'desc' },
+    ],
+    select: {
+      id: true,
+      date: true,
+      documentsChecklist: true,
+    },
+    take: 20,
+  });
+
+  const latestByName = new Map();
+
+  appointments.forEach((appointment) => {
+    const documents = Array.isArray(appointment.documentsChecklist?.documents)
+      ? appointment.documentsChecklist.documents
+      : [];
+
+    documents
+      .filter((document) => document?.presented && document?.fileUrl && !latestByName.has(document.name))
+      .forEach((document) => {
+        latestByName.set(document.name, {
+          appointmentId: appointment.id,
+          appointmentDate: appointment.date,
+          fileUrl: document.fileUrl,
+          fileName: document.fileName || null,
+          presentedAt: document.presentedAt || appointment.date,
+        });
+      });
+  });
+
+  const nextChecklist = cloneChecklist(checklist);
+
+  nextChecklist.documents = nextChecklist.documents.map((document) => {
+    const previous = latestByName.get(document.name);
+    if (!previous) return document;
+
+    return {
+      ...document,
+      presented: Boolean(document.presented || previous.fileUrl),
+      fileUrl: document.fileUrl || previous.fileUrl,
+      fileName: document.fileName || previous.fileName,
+      presentedAt: document.presentedAt || previous.presentedAt,
+      reusedFromAppointmentId: previous.appointmentId,
+    };
+  });
+
+  return nextChecklist;
+};
+
+const buildAppointmentWritePayload = async (tx, patient, payload = {}) => {
+  const insuranceContext = await getAppointmentInsuranceContext(tx, patient, payload);
+  const hydratedChecklist = await prepareReusedDocuments(tx, patient.id, insuranceContext.documentsChecklist);
+
+  return {
+    obraSocialId: insuranceContext.obraSocialId,
+    status: insuranceContext.status,
+    authorizationStatus: insuranceContext.authorizationStatus,
+    authorizationNumber: payload.authorizationNumber || null,
+    authorizationFileUrl: payload.authorizationFileUrl || null,
+    documentsChecklist: hydratedChecklist,
+    coinsuranceAmount: insuranceContext.charge.total,
+    patientChargeAmount: insuranceContext.charge.total,
+    coinsuranceDetails: insuranceContext.charge,
+  };
+};
+
+const notifyProfessionalAuthorizationUpdate = async (prisma, appointment, authorizationStatus) => {
+  if (!appointment?.professionalId) return;
+
+  const professionalUser = await prisma.user.findFirst({
+    where: {
+      professionalId: appointment.professionalId,
+      isActive: true,
+    },
+    select: {
+      email: true,
+      fullName: true,
+    },
+  });
+
+  if (!professionalUser?.email) return;
+
+  const patientName = appointment.patient?.fullName || 'Paciente';
+  const statusLabel = authorizationStatus === 'AUTHORIZED' ? 'autorizado' : 'rechazado';
+
+  await sendNotificationToEmails(prisma, [professionalUser.email], {
+    title: `Turno ${statusLabel}`,
+    body: `${patientName}: ${statusLabel} por administración.`,
+    url: '/autorizaciones',
+    kind: 'appointment-authorization',
+  });
+};
+
 // 1. OBTENER TURNOS DE LA SEMANA
 export const getWeekAppointments = async (req, res, prisma) => {
   try {
@@ -64,11 +299,11 @@ export const getWeekAppointments = async (req, res, prisma) => {
     
     const start = new Date(startDate + 'T00:00:00Z');
     const end = new Date(endDate + 'T23:59:59Z');
-    const where = { date: { gte: start, lte: end } };
-
-    if (professionalId) {
-      where.professionalId = professionalId;
-    }
+    const scopedProfessionalId = ensureAppointmentScope(req, professionalId || null);
+    const where = mergeWhereClauses(
+      { date: { gte: start, lte: end } },
+      scopedProfessionalId ? { professionalId: scopedProfessionalId } : {},
+    );
     
     const appointments = await prisma.appointment.findMany({
       where,
@@ -83,7 +318,22 @@ export const getWeekAppointments = async (req, res, prisma) => {
 
 // 2. CREAR CITA (CON LÓGICA DE INGRESO Y SLOTS)
 export const createAppointment = async (req, res, prisma) => {
-  const { patientData, patientId, professionalId, date, time, diagnosis, sessionCount, selectedDays, phone, birthDate } = req.body;
+  const {
+    patientData,
+    patientId,
+    professionalId,
+    date,
+    time,
+    diagnosis,
+    sessionCount,
+    selectedDays,
+    phone,
+    birthDate,
+    status,
+    documentsChecklist,
+    authorizationNumber,
+    authorizationFileUrl,
+  } = req.body;
 
   // Fallback: si phone o birthDate no están al nivel raíz, buscar en patientData
   const phoneToUse = phone !== undefined ? phone : (patientData?.phone || null);
@@ -98,15 +348,18 @@ export const createAppointment = async (req, res, prisma) => {
 
     const result = await prisma.$transaction(async (tx) => {
       let patient;
+      const scopedProfessionalId = ensureAppointmentScope(req, professionalId || null);
       
       // Caso 1: Si viene patientData (crear nuevo paciente)
       if (patientData) {
+        const insuranceData = await resolvePatientInsurancePayload(tx, patientData);
         patient = await tx.patient.upsert({
           where: { dni: String(patientData.dni) },
             update: { 
             fullName: patientData.fullName, 
-            healthInsurance: patientData.healthInsurance, 
-            treatAsParticular: patientData.treatAsParticular ?? false,
+            healthInsurance: insuranceData.healthInsurance,
+            obraSocialId: insuranceData.obraSocialId,
+            treatAsParticular: insuranceData.treatAsParticular,
             affiliateNumber: patientData.affiliateNumber || undefined,
             phone: phoneToUse || undefined,
             birthDate: birthDateToUse ? normalizeBirthDateOrUnknown(birthDateToUse) : undefined,
@@ -119,8 +372,9 @@ export const createAppointment = async (req, res, prisma) => {
           create: { 
             dni: String(patientData.dni), 
             fullName: patientData.fullName, 
-            healthInsurance: patientData.healthInsurance || null, 
-            treatAsParticular: patientData.treatAsParticular ?? false,
+            healthInsurance: insuranceData.healthInsurance,
+            obraSocialId: insuranceData.obraSocialId,
+            treatAsParticular: insuranceData.treatAsParticular,
             affiliateNumber: patientData.affiliateNumber || null,
             phone: phoneToUse || null,
             birthDate: normalizeBirthDateOrUnknown(birthDateToUse),
@@ -147,13 +401,17 @@ export const createAppointment = async (req, res, prisma) => {
           where: { id: patientId },
           select: patientSelect,
         });
+
+        if (!patient) {
+          throw new Error('Paciente no encontrado');
+        }
       }
 
       let prof = null;
 
-      if (professionalId) {
+      if (scopedProfessionalId) {
         prof = await tx.professional.findUnique({
-          where: { id: professionalId },
+          where: { id: scopedProfessionalId },
           select: professionalSelect,
         });
 
@@ -180,6 +438,15 @@ export const createAppointment = async (req, res, prisma) => {
           select: professionalSelect,
         });
       }
+
+      const baseAppointmentPayload = await buildAppointmentWritePayload(tx, patient, {
+        ...patientData,
+        ...(req.body || {}),
+        status,
+        documentsChecklist,
+        authorizationNumber,
+        authorizationFileUrl,
+      });
 
       const appointmentsCreated = [];
       const numSessions = Math.max(1, parseInt(sessionCount) || 1);
@@ -215,7 +482,7 @@ export const createAppointment = async (req, res, prisma) => {
                 sessionNumber: 0, // Idem
                 patientId: patient.id,
                 professionalId: prof.id,
-                status: 'SCHEDULED'
+                ...baseAppointmentPayload,
               },
               select: appointmentSelect,
             });
@@ -226,18 +493,51 @@ export const createAppointment = async (req, res, prisma) => {
         currentDate.setDate(currentDate.getDate() + 1);
       }
       await resequencePatientAppointments(tx, patient.id);
-      return appointmentsCreated;
+      return {
+        patient,
+        professional: prof,
+        appointments: appointmentsCreated,
+      };
     });
-    res.status(201).json({ success: true, appointments: result });
+
+    await Promise.all(
+      result.appointments.map((appointment) => safeWriteAuditLog(prisma, req, {
+        action: auditActions.appointmentCreated,
+        resource: 'APPOINTMENT',
+        resourceId: appointment.id,
+        newValues: {
+          id: appointment.id,
+          patientId: appointment.patientId,
+          professionalId: appointment.professionalId,
+          date: appointment.date,
+          time: appointment.time,
+          status: appointment.status,
+          authorizationStatus: appointment.authorizationStatus,
+          obraSocialId: appointment.obraSocialId,
+          patientChargeAmount: appointment.patientChargeAmount,
+        },
+      })),
+    );
+
+    res.status(201).json({ success: true, appointments: result.appointments });
   } catch (error) {
-    res.status(500).json({ message: "Error al crear", error: error.message });
+    res.status(error.statusCode || 500).json({ message: "Error al crear", error: error.message });
   }
 };
 
 // 3. ACTUALIZAR EVOLUCIÓN, PACIENTE E HISTORIA CLÍNICA (SINCRONIZACIÓN TOTAL)
 export const updateEvolution = async (req, res, prisma) => {
   const { id } = req.params;
-  const { diagnosis, status, patientData, evolution, isFirstSession } = req.body;
+  const {
+    diagnosis,
+    status,
+    patientData,
+    evolution,
+    isFirstSession,
+    documentsChecklist,
+    authorizationNumber,
+    authorizationFileUrl,
+  } = req.body;
 
   if (!diagnosis && !status && !patientData && !evolution && isFirstSession === undefined) {
     return res.status(400).json({ message: "No hay datos para actualizar." });
@@ -247,17 +547,45 @@ export const updateEvolution = async (req, res, prisma) => {
     const result = await prisma.$transaction(async (tx) => {
       const currentApt = await tx.appointment.findUnique({
         where: { id },
-        select: { patientId: true, professionalId: true, diagnosis: true },
+        select: {
+          ...appointmentBaseSelect,
+          patient: {
+            select: patientSelect,
+          },
+        },
       });
 
       if (!currentApt) throw new Error("Cita no encontrada");
+      ensureAppointmentScope(req, currentApt.professionalId);
 
-      await tx.appointment.update({
+      const nextPatientInsurance = patientData
+        ? await resolvePatientInsurancePayload(tx, patientData)
+        : null;
+
+      const appointmentWritePayload = await buildAppointmentWritePayload(tx, currentApt.patient, {
+        ...currentApt.patient,
+        ...patientData,
+        status,
+        authorizationStatus: req.body.authorizationStatus || currentApt.authorizationStatus,
+        documentsChecklist,
+        authorizationNumber,
+        authorizationFileUrl,
+      });
+
+      const updatedAppointment = await tx.appointment.update({
         where: { id },
         data: {
           ...(diagnosis !== undefined && { diagnosis: diagnosis.toUpperCase() }),
-          ...(status !== undefined && { status }),
           ...(isFirstSession !== undefined && { isFirstSession }),
+          ...(status !== undefined && { status: appointmentWritePayload.status }),
+          authorizationStatus: appointmentWritePayload.authorizationStatus,
+          authorizationNumber: appointmentWritePayload.authorizationNumber,
+          authorizationFileUrl: appointmentWritePayload.authorizationFileUrl,
+          documentsChecklist: appointmentWritePayload.documentsChecklist,
+          obraSocialId: appointmentWritePayload.obraSocialId,
+          coinsuranceAmount: appointmentWritePayload.coinsuranceAmount,
+          patientChargeAmount: appointmentWritePayload.patientChargeAmount,
+          coinsuranceDetails: appointmentWritePayload.coinsuranceDetails,
         },
         select: appointmentSelect,
       });
@@ -273,8 +601,9 @@ export const updateEvolution = async (req, res, prisma) => {
           where: { id: currentApt.patientId },
           data: {
             fullName: patientData.fullName || undefined,
-            healthInsurance: patientData.healthInsurance || undefined,
-            treatAsParticular: patientData.treatAsParticular ?? undefined,
+            healthInsurance: nextPatientInsurance?.healthInsurance,
+            obraSocialId: nextPatientInsurance?.obraSocialId,
+            treatAsParticular: nextPatientInsurance?.treatAsParticular,
             affiliateNumber: patientData.affiliateNumber || undefined,
             phone: patientData.phone || undefined,
             birthDate: patientData.birthDate ? normalizeBirthDateOrUnknown(patientData.birthDate) : undefined,
@@ -314,23 +643,41 @@ export const updateEvolution = async (req, res, prisma) => {
         });
       }
 
-      return tx.appointment.findUnique({
-        where: { id },
-        select: appointmentSelect,
-      });
+      return {
+        previousAppointment: currentApt,
+        appointment: updatedAppointment,
+      };
     });
 
-    res.json({ success: true, appointment: result });
+    await safeWriteAuditLog(prisma, req, {
+      action: auditActions.appointmentUpdated,
+      resource: 'APPOINTMENT',
+      resourceId: id,
+      oldValues: result.previousAppointment,
+      newValues: result.appointment,
+    });
+
+    res.json({ success: true, appointment: result.appointment });
   } catch (error) {
     console.error("❌ Error en sincronización:", error);
-    res.status(500).json({ message: "Error al guardar cambios", error: error.message });
+    res.status(error.statusCode || 500).json({ message: "Error al guardar cambios", error: error.message });
   }
 };
 
 // 4. ACTUALIZAR CITA Y DATOS DEL PACIENTE
 export const updateAppointment = async (req, res, prisma) => {
   const { id } = req.params;
-  const { patientId, phone, birthDate, affiliateNumber, date, time } = req.body;
+  const {
+    patientId,
+    phone,
+    birthDate,
+    affiliateNumber,
+    date,
+    time,
+    documentsChecklist,
+    authorizationNumber,
+    authorizationFileUrl,
+  } = req.body;
 
   if (!patientId) {
     return res.status(400).json({ message: "patientId requerido" });
@@ -345,10 +692,14 @@ export const updateAppointment = async (req, res, prisma) => {
       const currentAppointment = await tx.appointment.findUnique({
         where: { id },
         select: {
+          ...appointmentBaseSelect,
           date: true,
           time: true,
           slotNumber: true,
           professionalId: true,
+          patient: {
+            select: patientSelect,
+          },
         }
       });
 
@@ -357,6 +708,16 @@ export const updateAppointment = async (req, res, prisma) => {
         error.statusCode = 404;
         throw error;
       }
+      ensureAppointmentScope(req, currentAppointment.professionalId);
+
+      const appointmentWritePayload = await buildAppointmentWritePayload(tx, currentAppointment.patient, {
+        ...currentAppointment.patient,
+        ...req.body,
+        authorizationStatus: req.body.authorizationStatus || currentAppointment.authorizationStatus,
+        documentsChecklist,
+        authorizationNumber,
+        authorizationFileUrl,
+      });
 
       // Actualizar datos del paciente
       if (phone || birthDate || affiliateNumber) {
@@ -380,6 +741,15 @@ export const updateAppointment = async (req, res, prisma) => {
 
       if (date) updateData.date = nextDate;
       if (time) updateData.time = nextTime;
+      updateData.authorizationNumber = appointmentWritePayload.authorizationNumber;
+      updateData.authorizationFileUrl = appointmentWritePayload.authorizationFileUrl;
+      updateData.documentsChecklist = appointmentWritePayload.documentsChecklist;
+      updateData.obraSocialId = appointmentWritePayload.obraSocialId;
+      updateData.status = appointmentWritePayload.status;
+      updateData.authorizationStatus = appointmentWritePayload.authorizationStatus;
+      updateData.coinsuranceAmount = appointmentWritePayload.coinsuranceAmount;
+      updateData.patientChargeAmount = appointmentWritePayload.patientChargeAmount;
+      updateData.coinsuranceDetails = appointmentWritePayload.coinsuranceDetails;
 
       if (hasScheduleChange) {
         const occupiedSlots = await tx.appointment.findMany({
@@ -415,13 +785,24 @@ export const updateAppointment = async (req, res, prisma) => {
         await resequencePatientAppointments(tx, patientId);
       }
 
-      return tx.appointment.findUnique({
-        where: { id },
-        select: appointmentSelect,
-      });
+      return {
+        previousAppointment: currentAppointment,
+        appointment: await tx.appointment.findUnique({
+          where: { id },
+          select: appointmentSelect,
+        }),
+      };
     });
 
-    res.json({ success: true, appointment: result });
+    await safeWriteAuditLog(prisma, req, {
+      action: auditActions.appointmentUpdated,
+      resource: 'APPOINTMENT',
+      resourceId: id,
+      oldValues: result.previousAppointment,
+      newValues: result.appointment,
+    });
+
+    res.json({ success: true, appointment: result.appointment });
   } catch (error) {
     console.error("Error al actualizar cita:", error);
     res.status(error.statusCode || 500).json({ message: error.message || "Error al actualizar", error: error.message });
@@ -680,6 +1061,7 @@ export const deleteAppointment = async (req, res, prisma) => {
       const referenceAppointment = await tx.appointment.findUnique({
         where: { id },
         select: {
+          ...appointmentBaseSelect,
           patientId: true,
           date: true,
           time: true,
@@ -691,15 +1073,17 @@ export const deleteAppointment = async (req, res, prisma) => {
         error.statusCode = 404;
         throw error;
       }
+      ensureAppointmentScope(req, referenceAppointment.professionalId);
 
       if (!deleteFuture) {
         await tx.appointment.delete({ where: { id } });
         await resequencePatientAppointments(tx, referenceAppointment.patientId);
-        return { count: 1 };
+        return { count: 1, deletedAppointments: [referenceAppointment] };
       }
 
-      const deleteResult = await tx.appointment.deleteMany({
+      const appointmentsToDelete = await tx.appointment.findMany({
         where: {
+          professionalId: referenceAppointment.professionalId,
           patientId: referenceAppointment.patientId,
           OR: [
             { date: { gt: referenceAppointment.date } },
@@ -708,12 +1092,28 @@ export const deleteAppointment = async (req, res, prisma) => {
               time: { gt: referenceAppointment.time }
             }
           ]
-        }
+        },
+        select: appointmentBaseSelect,
+      });
+
+      const deleteResult = await tx.appointment.deleteMany({
+        where: {
+          id: { in: appointmentsToDelete.map((appointment) => appointment.id) },
+        },
       });
 
       await resequencePatientAppointments(tx, referenceAppointment.patientId);
-      return { count: deleteResult.count };
+      return { count: deleteResult.count, deletedAppointments: appointmentsToDelete };
     });
+
+    await Promise.all(
+      result.deletedAppointments.map((appointment) => safeWriteAuditLog(prisma, req, {
+        action: auditActions.appointmentDeleted,
+        resource: 'APPOINTMENT',
+        resourceId: appointment.id,
+        oldValues: appointment,
+      })),
+    );
 
     res.status(200).json({ success: true, count: result.count });
   } catch (error) {
@@ -727,11 +1127,11 @@ export const cancelFutureAppointments = async (req, res, prisma) => {
     const { patientId } = req.params;
     const { fromDate } = req.body;
     const result = await prisma.appointment.deleteMany({
-      where: {
+      where: mergeWhereClauses(withProfessionalScope(req.user), {
         patientId,
         date: { gt: new Date(fromDate) },
         status: { not: 'COMPLETED' }
-      }
+      }),
     });
     res.json({ success: true, count: result.count });
   } catch (error) {
@@ -745,16 +1145,17 @@ export const getAppointmentBatch = async (req, res, prisma) => {
   try {
     const ref = await prisma.appointment.findUnique({
       where: { id },
-      select: { id: true, patientId: true, date: true },
+      select: { id: true, patientId: true, date: true, professionalId: true },
     });
     if (!ref) return res.status(404).json({ message: "Turno no encontrado" });
+    ensureAppointmentScope(req, ref.professionalId);
 
     const batch = await prisma.appointment.findMany({
-      where: {
+      where: mergeWhereClauses(withProfessionalScope(req.user), {
         patientId: ref.patientId,
         date: { gte: ref.date },
         status: { not: 'CANCELLED' }
-      },
+      }),
       orderBy: APPOINTMENT_ORDER,
       take: 10,
       select: appointmentBaseSelect,
@@ -762,6 +1163,102 @@ export const getAppointmentBatch = async (req, res, prisma) => {
     res.json(batch);
   } catch (error) {
     res.status(500).json({ message: "Error al obtener sesiones para ticket" });
+  }
+};
+
+export const getAppointmentAuthorizations = async (req, res, prisma) => {
+  try {
+    const { status = 'PENDING', dateFrom, dateTo, search = '' } = req.query;
+    const where = {
+      authorizationStatus: status === 'ALL' ? { in: ['PENDING', 'AUTHORIZED', 'REJECTED'] } : String(status).toUpperCase(),
+    };
+
+    if (dateFrom || dateTo) {
+      where.date = {};
+      if (dateFrom) where.date.gte = parseDateAvoidTZ(dateFrom);
+      if (dateTo) where.date.lte = parseDateAvoidTZ(dateTo);
+    }
+
+    if (String(search).trim()) {
+      where.OR = [
+        { patient: { is: { fullName: { contains: String(search).trim(), mode: 'insensitive' } } } },
+        { patient: { is: { dni: { contains: String(search).trim() } } } },
+        { obraSocial: { is: { nombreOs: { contains: String(search).trim(), mode: 'insensitive' } } } },
+      ];
+    }
+
+    const appointments = await prisma.appointment.findMany({
+      where,
+      orderBy: [
+        { date: 'asc' },
+        { time: 'asc' },
+      ],
+      select: appointmentSelect,
+      take: 200,
+    });
+
+    res.json(appointments);
+  } catch (error) {
+    res.status(500).json({ message: 'Error al obtener autorizaciones', error: error.message });
+  }
+};
+
+export const reviewAppointmentAuthorization = async (req, res, prisma) => {
+  const { id } = req.params;
+  const { decision, authorizationNumber, authorizationFileUrl } = req.body;
+  const normalizedDecision = String(decision || '').trim().toUpperCase();
+
+  if (!['AUTHORIZED', 'REJECTED'].includes(normalizedDecision)) {
+    return res.status(400).json({ message: 'Decisión inválida' });
+  }
+
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      const currentAppointment = await tx.appointment.findUnique({
+        where: { id },
+        select: appointmentSelect,
+      });
+
+      if (!currentAppointment) {
+        const error = new Error('Turno no encontrado');
+        error.statusCode = 404;
+        throw error;
+      }
+
+      const updatedAppointment = await tx.appointment.update({
+        where: { id },
+        data: {
+          authorizationStatus: normalizedDecision,
+          authorizationNumber: authorizationNumber || currentAppointment.authorizationNumber || null,
+          authorizationFileUrl: authorizationFileUrl || currentAppointment.authorizationFileUrl || null,
+          authorizationReviewedAt: new Date(),
+          authorizationReviewedById: req.user?.userId || null,
+          status: normalizedDecision === 'AUTHORIZED' ? 'AUTHORIZED' : 'REJECTED',
+        },
+        select: appointmentSelect,
+      });
+
+      return {
+        previousAppointment: currentAppointment,
+        appointment: updatedAppointment,
+      };
+    });
+
+    await safeWriteAuditLog(prisma, req, {
+      action: normalizedDecision === 'AUTHORIZED'
+        ? auditActions.obraSocialAuthorized
+        : auditActions.obraSocialAuthorizationRejected,
+      resource: 'APPOINTMENT',
+      resourceId: id,
+      oldValues: result.previousAppointment,
+      newValues: result.appointment,
+    });
+
+    await notifyProfessionalAuthorizationUpdate(prisma, result.appointment, normalizedDecision);
+
+    res.json({ success: true, appointment: result.appointment });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({ message: 'Error al revisar autorización', error: error.message });
   }
 };
 // 7. ENVIAR TICKET COMO IMAGEN POR WHATSAPP (CAPTURADO CON HTML2CANVAS)

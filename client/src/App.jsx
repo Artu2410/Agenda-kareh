@@ -12,13 +12,16 @@ import LoginPage from './pages/LoginPage';
 import WhatsAppPage from './pages/WhatsAppPage';
 import ObrasSocialesPage from './pages/ObrasSocialesPage';
 import NotesPage from './pages/NotesPage';
+import AuditoriaPage from './pages/AuditoriaPage';
+import AutorizacionesPage from './pages/AutorizacionesPage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import Sidebar from './components/layout/Sidebar';
 import api from './services/api';
 import { initializeCsrf } from './services/csrf';
-import { clearClientSession, storeAuthenticatedUser } from './services/session';
+import { clearClientSession, getStoredUser, storeAuthenticatedUser } from './services/session';
 import { registerServiceWorker, subscribeToPushNotifications, playNotificationSound } from './services/notifications';
 import { APP_ROUTES, getDocumentTitle } from './utils/appRoutes';
+import { hasAnyRole } from './utils/roles';
 import { ChevronLeft, ChevronRight, Menu } from 'lucide-react';
 
 const isMobileViewport = () => {
@@ -59,6 +62,7 @@ function AppBootSplash() {
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [currentUser, setCurrentUser] = useState(() => getStoredUser());
   const [loading, setLoading] = useState(true);
   const [mobileViewport, setMobileViewport] = useState(isMobileViewport);
   const [sidebarOpen, setSidebarOpen] = useState(() => !isMobileViewport());
@@ -77,6 +81,7 @@ function App() {
           validSession = Boolean(response.data?.valid);
           if (validSession && response.data?.user) {
             storeAuthenticatedUser(response.data.user);
+            setCurrentUser(response.data.user);
           }
         } catch {
           // Si el token expira, el interceptor de axios intentará refrescarlo.
@@ -89,6 +94,7 @@ function App() {
           setIsAuthenticated(true);
         } else {
           clearClientSession();
+          setCurrentUser(getStoredUser());
           setIsAuthenticated(false);
         }
 
@@ -127,7 +133,7 @@ function App() {
       api.post('/auth/refresh', null, { headers: { 'X-Auth-Fallback': '1' } }).catch(() => {
         // Ignorar errores, se manejarán al intentar usar la app.
       });
-    }, 10 * 60 * 1000); // refrescar cada 10 minutos
+    }, 6 * 60 * 60 * 1000); // refrescar cada 6 horas
 
     return () => clearInterval(intervalId);
   }, [isAuthenticated]);
@@ -177,6 +183,14 @@ function App() {
     setSidebarOpen((prev) => !prev);
   }, []);
 
+  const renderRoleRoute = useCallback((element, allowedRoles = null) => {
+    if (!allowedRoles || hasAnyRole(currentUser?.role, allowedRoles)) {
+      return element;
+    }
+
+    return <Navigate to={APP_ROUTES.dashboard} replace />;
+  }, [currentUser?.role]);
+
   if (loading) return <AppBootSplash />;
 
   return (
@@ -187,7 +201,10 @@ function App() {
         {isAuthenticated && sidebarOpen && (
           <Sidebar
             onToggle={toggleSidebar}
-            onLogout={() => setIsAuthenticated(false)}
+            onLogout={() => {
+              setCurrentUser(getStoredUser());
+              setIsAuthenticated(false);
+            }}
             onNavigate={() => {
               if (mobileViewport) setSidebarOpen(false);
             }}
@@ -228,10 +245,13 @@ function App() {
             </button>
           )}
           <Routes>
-            <Route path={APP_ROUTES.privacy} element={<PrivacyPolicyPage />} />
+                <Route path={APP_ROUTES.privacy} element={<PrivacyPolicyPage />} />
             {!isAuthenticated ? (
               <>
-                <Route path={APP_ROUTES.login} element={<LoginPage onLoginSuccess={() => setIsAuthenticated(true)} />} />
+                <Route path={APP_ROUTES.login} element={<LoginPage onLoginSuccess={() => {
+                  setCurrentUser(getStoredUser());
+                  setIsAuthenticated(true);
+                }} />} />
                 <Route path="/login" element={<Navigate to={APP_ROUTES.login} replace />} />
                 <Route path="*" element={<Navigate to={APP_ROUTES.login} replace />} />
               </>
@@ -246,11 +266,13 @@ function App() {
                   path={`${APP_ROUTES.clinicalHistoryDetailBase}/:patientSlug`}
                   element={<ClinicalHistoryPage />}
                 />
-                <Route path={APP_ROUTES.cashflow} element={<CashflowPage />} />
-                <Route path={APP_ROUTES.notes} element={<NotesPage />} />
-                <Route path={APP_ROUTES.whatsapp} element={<WhatsAppPage />} />
-                <Route path={APP_ROUTES.settings} element={<SettingsPage />} />
-                <Route path={APP_ROUTES.obrasSociales} element={<ObrasSocialesPage />} />
+                <Route path={APP_ROUTES.cashflow} element={renderRoleRoute(<CashflowPage />, ['SUPER_USER', 'ADMIN'])} />
+                <Route path={APP_ROUTES.notes} element={renderRoleRoute(<NotesPage />, ['SUPER_USER', 'ADMIN'])} />
+                <Route path={APP_ROUTES.whatsapp} element={renderRoleRoute(<WhatsAppPage />, ['SUPER_USER', 'ADMIN'])} />
+                <Route path={APP_ROUTES.settings} element={renderRoleRoute(<SettingsPage />, ['SUPER_USER', 'ADMIN'])} />
+                <Route path={APP_ROUTES.obrasSociales} element={renderRoleRoute(<ObrasSocialesPage />, ['SUPER_USER', 'ADMIN'])} />
+                <Route path={APP_ROUTES.audit} element={renderRoleRoute(<AuditoriaPage />, ['SUPER_USER', 'ADMIN'])} />
+                <Route path={APP_ROUTES.authorizations} element={renderRoleRoute(<AutorizacionesPage />, ['SUPER_USER', 'ADMIN'])} />
 
                 <Route path="/dashboard" element={<Navigate to={APP_ROUTES.dashboard} replace />} />
                 <Route path="/appointments" element={<Navigate to={APP_ROUTES.appointments} replace />} />
@@ -261,6 +283,8 @@ function App() {
                 <Route path="/notes" element={<Navigate to={APP_ROUTES.notes} replace />} />
                 <Route path="/whatsapp" element={<Navigate to={APP_ROUTES.whatsapp} replace />} />
                 <Route path="/obras-sociales" element={<Navigate to={APP_ROUTES.obrasSociales} replace />} />
+                <Route path="/auditoria" element={<Navigate to={APP_ROUTES.audit} replace />} />
+                <Route path="/autorizaciones" element={<Navigate to={APP_ROUTES.authorizations} replace />} />
                 <Route path="/settings" element={<Navigate to={APP_ROUTES.settings} replace />} />
                 <Route path="*" element={<Navigate to={APP_ROUTES.dashboard} replace />} />
               </>

@@ -14,6 +14,9 @@ const WEEK_DAYS = [
 
 const APPOINTMENT_STATUSES = [
   { value: 'SCHEDULED', label: 'Programado', classes: 'bg-slate-100 text-slate-600 border-slate-200' },
+  { value: 'PENDING_AUTHORIZATION', label: 'Pend. autorización', classes: 'bg-amber-100 text-amber-700 border-amber-200' },
+  { value: 'AUTHORIZED', label: 'Autorizado', classes: 'bg-cyan-100 text-cyan-700 border-cyan-200' },
+  { value: 'REJECTED', label: 'Rechazado', classes: 'bg-rose-100 text-rose-700 border-rose-200' },
   { value: 'COMPLETED', label: 'Asistió', classes: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
   { value: 'NO_SHOW', label: 'Inasistencia', classes: 'bg-rose-100 text-rose-700 border-rose-200' },
 ];
@@ -29,6 +32,32 @@ const getInputDateValue = (value) => {
 
 const UNKNOWN_BIRTHDATE = '1900-01-01';
 
+const formatCurrency = (value) => new Intl.NumberFormat('es-AR', {
+  style: 'currency',
+  currency: 'ARS',
+}).format(Number(value || 0));
+
+const buildChecklistFromInsurance = (obraSocial, currentChecklist = null) => {
+  if (currentChecklist?.documents?.length) {
+    return currentChecklist;
+  }
+
+  const documents = Array.isArray(obraSocial?.requiredDocuments?.documents)
+    ? obraSocial.requiredDocuments.documents.map((document) => ({
+      ...document,
+      presented: false,
+      fileUrl: null,
+      fileName: null,
+      presentedAt: null,
+    }))
+    : [];
+
+  return {
+    documents,
+    additionalInfo: obraSocial?.requiredDocuments?.additionalInfo || '',
+  };
+};
+
 const isUnknownBirthDate = (birthDate) => {
   if (!birthDate) return true;
   const dateString = birthDate.includes('T') ? birthDate.split('T')[0] : birthDate;
@@ -38,7 +67,7 @@ const isUnknownBirthDate = (birthDate) => {
 const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, selectedSlot, appointment = null, professional = null }) => {
   const [patientData, setPatientData] = useState({
     dni: '', lastName: '', firstName: '', phone: '', birthDate: '',
-    healthInsurance: '', treatAsParticular: false, affiliateNumber: '',
+    healthInsurance: '', obraSocialId: '', treatAsParticular: false, affiliateNumber: '',
     hasCancer: false, hasMarcapasos: false, usesEA: false,
     usesWheelchair: false, isRespiratory: false,
   });
@@ -60,6 +89,12 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
   const [closeAfterPrintPreview, setCloseAfterPrintPreview] = useState(false);
   const [isAddingManualSession, setIsAddingManualSession] = useState(false);
   const [manualDraft, setManualDraft] = useState({ date: '', time: '' });
+  const [obrasSociales, setObrasSociales] = useState([]);
+  const [documentsChecklist, setDocumentsChecklist] = useState({ documents: [], additionalInfo: '' });
+  const [authorizationNumber, setAuthorizationNumber] = useState('');
+  const [authorizationFileUrl, setAuthorizationFileUrl] = useState('');
+  const [uploadingDocumentIndex, setUploadingDocumentIndex] = useState(-1);
+  const [uploadingAuthorization, setUploadingAuthorization] = useState(false);
 
   const lastSearchedRef = useRef('');
   const { ConfirmModalComponent, openModal } = useConfirmModal();
@@ -92,6 +127,17 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
       console.error(error);
     }
   }, [appointment?.patientId]);
+
+  const loadObrasSociales = useCallback(async () => {
+    try {
+      const { data } = await api.get('/obras-sociales', {
+        params: { includeInactive: '1' },
+      });
+      setObrasSociales(data || []);
+    } catch (error) {
+      console.error(error);
+    }
+  }, []);
 
   const projectedSessions = useMemo(() => {
     if (isEditMode) return [];
@@ -129,6 +175,43 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
     return sessions;
   }, [selectedDays, sessionCount, modalDate, modalTime, isEditMode]);
 
+  const selectedObraSocial = useMemo(() => {
+    if (patientData.obraSocialId) {
+      return obrasSociales.find((obraSocial) => obraSocial.id === patientData.obraSocialId) || null;
+    }
+
+    return obrasSociales.find((obraSocial) => obraSocial.nombreOs === patientData.healthInsurance) || null;
+  }, [obrasSociales, patientData.healthInsurance, patientData.obraSocialId]);
+
+  const patientChargeBreakdown = useMemo(() => {
+    if (!selectedObraSocial || patientData.treatAsParticular) {
+      return {
+        total: 0,
+        baseCopay: 0,
+        percentageAmount: 0,
+        fixedCopay: 0,
+      };
+    }
+
+    const honorario = Number(selectedObraSocial.honorarioEstimado || 0);
+    const percentage = Number(selectedObraSocial.percentageCoinsurance || 0);
+    const baseCopay = Number(selectedObraSocial.coseguroValor || 0);
+    const fixedCopay = Number(selectedObraSocial.fixedCopay || 0);
+    const percentageAmount = percentage > 0 ? (honorario * percentage) / 100 : 0;
+
+    return {
+      baseCopay,
+      percentageAmount,
+      fixedCopay,
+      total: baseCopay + percentageAmount + fixedCopay,
+    };
+  }, [patientData.treatAsParticular, selectedObraSocial]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    loadObrasSociales();
+  }, [isOpen, loadObrasSociales]);
+
   useEffect(() => {
     if (!isOpen) return;
     if (isEditMode && appointment) {
@@ -141,6 +224,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
         phone: p.phone || '',
         birthDate: p.birthDate && !isUnknownBirthDate(p.birthDate) ? p.birthDate.split('T')[0] : '',
         healthInsurance: p.healthInsurance || '',
+        obraSocialId: p.obraSocialId || '',
         treatAsParticular: p.treatAsParticular || false,
         affiliateNumber: p.affiliateNumber || '',
         hasCancer: p.hasCancer || false,
@@ -152,6 +236,9 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
       setDiagnosis(appointment.diagnosis || '');
       setStatus(appointment.status || 'SCHEDULED');
       setIsFirstSession(appointment.isFirstSession || false);
+      setDocumentsChecklist(appointment.documentsChecklist || { documents: [], additionalInfo: '' });
+      setAuthorizationNumber(appointment.authorizationNumber || '');
+      setAuthorizationFileUrl(appointment.authorizationFileUrl || '');
       setEditingFutureId(null);
       setFutureDraft({ date: '', time: '' });
       setIsAddingManualSession(false);
@@ -169,14 +256,17 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
       loadSessionCycles();
     } else {
       setPatientData({
-        dni: '', lastName: '', firstName: '', phone: '',
-        healthInsurance: '', treatAsParticular: false, affiliateNumber: '',
+        dni: '', lastName: '', firstName: '', phone: '', birthDate: '',
+        healthInsurance: '', obraSocialId: '', treatAsParticular: false, affiliateNumber: '',
         hasCancer: false, hasMarcapasos: false, usesEA: false,
         usesWheelchair: false, isRespiratory: false,
       });
       setDiagnosis('');
       setStatus('SCHEDULED');
       setIsFirstSession(true);
+      setDocumentsChecklist({ documents: [], additionalInfo: '' });
+      setAuthorizationNumber('');
+      setAuthorizationFileUrl('');
       setSessionCount(10);
       setFutureAppointments([]);
       setEditingFutureId(null);
@@ -189,6 +279,19 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
       }
     }
   }, [isOpen, isEditMode, appointment, selectedSlot, loadFutureAppointments]);
+
+  useEffect(() => {
+    if (!selectedObraSocial || patientData.treatAsParticular) {
+      setDocumentsChecklist({ documents: [], additionalInfo: '' });
+      return;
+    }
+
+    const nextChecklist = isEditMode
+      ? buildChecklistFromInsurance(selectedObraSocial, appointment?.documentsChecklist || null)
+      : buildChecklistFromInsurance(selectedObraSocial, null);
+
+    setDocumentsChecklist(nextChecklist);
+  }, [appointment?.documentsChecklist, isEditMode, patientData.treatAsParticular, selectedObraSocial]);
 
   const searchPatient = useCallback(async (field, value) => {
     if (value.length < 5 || value === lastSearchedRef.current) return;
@@ -203,6 +306,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
           dni: data.dni || prev.dni, phone: data.phone || '',
           birthDate: data.birthDate && !isUnknownBirthDate(data.birthDate) ? data.birthDate.split('T')[0] : prev.birthDate,
           healthInsurance: data.healthInsurance || '',
+          obraSocialId: data.obraSocialId || '',
           treatAsParticular: data.treatAsParticular || false,
           affiliateNumber: data.affiliateNumber || '',
           hasCancer: data.hasCancer || false,
@@ -217,6 +321,70 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
     }
   }, []);
 
+  const updateChecklistDocument = (index, updater) => {
+    setDocumentsChecklist((current) => ({
+      ...current,
+      documents: current.documents.map((document, currentIndex) => (
+        currentIndex === index ? updater(document) : document
+      )),
+    }));
+  };
+
+  const uploadDocumentToStorage = async (file, scope = 'appointment-documents') => {
+    const payload = new FormData();
+    payload.append('file', file);
+    payload.append('scope', scope);
+    if (appointment?.id) payload.append('entryId', appointment.id);
+    if (appointment?.patientId) payload.append('patientId', appointment.patientId);
+    if (appointment?.professionalId || professional?.id) payload.append('professionalId', appointment?.professionalId || professional?.id);
+
+    const response = await api.post('/uploads', payload, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+
+    return response.data?.url || '';
+  };
+
+  const handleChecklistFileUpload = async (index, event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    try {
+      setUploadingDocumentIndex(index);
+      const fileUrl = await uploadDocumentToStorage(file);
+      updateChecklistDocument(index, (document) => ({
+        ...document,
+        presented: true,
+        fileUrl,
+        fileName: file.name,
+        presentedAt: new Date().toISOString(),
+      }));
+    } catch (error) {
+      console.error(error);
+      alert(error?.response?.data?.message || 'No se pudo subir el documento.');
+    } finally {
+      setUploadingDocumentIndex(-1);
+    }
+  };
+
+  const handleAuthorizationFileUpload = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    try {
+      setUploadingAuthorization(true);
+      const fileUrl = await uploadDocumentToStorage(file, 'appointment-authorization');
+      setAuthorizationFileUrl(fileUrl);
+    } catch (error) {
+      console.error(error);
+      alert(error?.response?.data?.message || 'No se pudo subir el archivo de autorización.');
+    } finally {
+      setUploadingAuthorization(false);
+    }
+  };
+
   const handleAction = async () => {
     setLoading(true);
     const fullName = `${patientData.lastName} ${patientData.firstName}`.trim();
@@ -224,6 +392,9 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
       const payload = {
         diagnosis,
         status,
+        documentsChecklist,
+        authorizationNumber,
+        authorizationFileUrl,
         isFirstSession,
         patientData: {
           ...patientData,
@@ -347,6 +518,9 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
         time: manualDraft.time,
         diagnosis,
         status: 'SCHEDULED',
+        documentsChecklist,
+        authorizationNumber,
+        authorizationFileUrl,
         sessionCount: 1,
         selectedDays: []
       });
@@ -373,6 +547,10 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
         professionalId: appointment.professionalId || professional?.id,
         date: modalDate,
         time: modalTime,
+        status,
+        documentsChecklist,
+        authorizationNumber,
+        authorizationFileUrl,
         sessionCount: parseInt(sessionCount) || 1,
         selectedDays
       };
@@ -477,22 +655,44 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
             </div>
 
             <div className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-1">
                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">DNI del Paciente</label>
                   <input className="w-full p-3 border rounded-2xl bg-slate-50 font-bold focus:ring-2 ring-teal-500 outline-none" value={patientData.dni} onChange={e => { setPatientData({ ...patientData, dni: e.target.value }); searchPatient('dni', e.target.value); }} />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Obra Social</label>
-                  <input className="w-full p-3 border rounded-2xl bg-slate-50 font-bold focus:ring-2 ring-teal-500 outline-none" value={patientData.healthInsurance} onChange={e => setPatientData({ ...patientData, healthInsurance: e.target.value })} />
+                  <select
+                    className="w-full p-3 border rounded-2xl bg-slate-50 font-bold focus:ring-2 ring-teal-500 outline-none"
+                    value={patientData.obraSocialId || ''}
+                    onChange={(e) => {
+                      const obraSocialId = e.target.value;
+                      const obraSocial = obrasSociales.find((item) => item.id === obraSocialId) || null;
+                      setPatientData((prev) => ({
+                        ...prev,
+                        obraSocialId,
+                        healthInsurance: obraSocial?.nombreOs || '',
+                      }));
+                      setDocumentsChecklist(buildChecklistFromInsurance(obraSocial, null));
+                    }}
+                  >
+                    <option value="">Seleccionar obra social</option>
+                    {obrasSociales
+                      .filter((obraSocial) => obraSocial.isActive || obraSocial.id === patientData.obraSocialId)
+                      .map((obraSocial) => (
+                        <option key={obraSocial.id} value={obraSocial.id}>
+                          {obraSocial.nombreOs}{obraSocial.isActive ? '' : ' · INACTIVA'}
+                        </option>
+                      ))}
+                  </select>
                 </div>
                 <input placeholder="Apellido" className="p-3 border rounded-2xl bg-slate-50 font-bold" value={patientData.lastName} onChange={e => setPatientData({ ...patientData, lastName: e.target.value })} />
                 <input placeholder="Nombre" className="p-3 border rounded-2xl bg-slate-50 font-bold" value={patientData.firstName} onChange={e => setPatientData({ ...patientData, firstName: e.target.value })} />
-                <div className="space-y-1 col-span-2">
+                <div className="space-y-1 sm:col-span-2">
                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">N° Afiliado</label>
                   <input className="w-full p-3 border rounded-2xl bg-slate-50 font-bold focus:ring-2 ring-teal-500 outline-none" value={patientData.affiliateNumber || ''} onChange={e => setPatientData({ ...patientData, affiliateNumber: e.target.value })} />
                 </div>
-                <div className="col-span-2 rounded-[1.6rem] border border-slate-200 bg-slate-50 px-4 py-3">
+                <div className="sm:col-span-2 rounded-[1.6rem] border border-slate-200 bg-slate-50 px-4 py-3">
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Tratamiento Particular</p>
@@ -519,6 +719,110 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                     </p>
                   )}
                 </div>
+
+                {selectedObraSocial && selectedObraSocial.isActive === false && (
+                  <div className="sm:col-span-2 rounded-[1.6rem] border border-amber-200 bg-amber-50 px-4 py-3 text-[11px] font-black uppercase tracking-wide text-amber-800">
+                    Esta obra social se encuentra inactiva. No se podrán generar nuevos turnos hasta reactivarla o cambiar la cobertura del paciente.
+                  </div>
+                )}
+
+                {!!selectedObraSocial && !patientData.treatAsParticular && (
+                  <div className="sm:col-span-2 rounded-[1.6rem] border border-teal-100 bg-teal-50/70 px-4 py-4">
+                    <p className="text-[9px] font-black uppercase tracking-[0.22em] text-teal-600">Coseguro calculado</p>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-4">
+                      <div className="rounded-2xl bg-white px-3 py-3">
+                        <p className="text-[9px] font-black uppercase text-slate-400">Base</p>
+                        <p className="mt-1 text-sm font-black text-slate-800">{formatCurrency(patientChargeBreakdown.baseCopay)}</p>
+                      </div>
+                      <div className="rounded-2xl bg-white px-3 py-3">
+                        <p className="text-[9px] font-black uppercase text-slate-400">% adicional</p>
+                        <p className="mt-1 text-sm font-black text-slate-800">{formatCurrency(patientChargeBreakdown.percentageAmount)}</p>
+                      </div>
+                      <div className="rounded-2xl bg-white px-3 py-3">
+                        <p className="text-[9px] font-black uppercase text-slate-400">Copago fijo</p>
+                        <p className="mt-1 text-sm font-black text-slate-800">{formatCurrency(patientChargeBreakdown.fixedCopay)}</p>
+                      </div>
+                      <div className="rounded-2xl bg-slate-900 px-3 py-3 text-white">
+                        <p className="text-[9px] font-black uppercase text-slate-300">Total paciente</p>
+                        <p className="mt-1 text-sm font-black">{formatCurrency(patientChargeBreakdown.total)}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {!!selectedObraSocial && !patientData.treatAsParticular && documentsChecklist.documents?.length > 0 && (
+                  <div className="sm:col-span-2 rounded-[1.6rem] border border-slate-200 bg-white px-4 py-4">
+                    <p className="text-[9px] font-black uppercase tracking-[0.22em] text-slate-500">Checklist documental</p>
+                    <div className="mt-3 space-y-3">
+                      {documentsChecklist.documents.map((document, index) => (
+                        <div key={`${document.name}-${index}`} className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                              <p className="text-sm font-black text-slate-800">{document.name}</p>
+                              <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                                {document.mandatory ? 'Obligatorio' : 'Opcional'}
+                                {document.validityDays ? ` · vigencia ${document.validityDays} días` : ''}
+                              </p>
+                            </div>
+                            <div className="flex flex-col gap-2 sm:flex-row">
+                              <button
+                                type="button"
+                                onClick={() => updateChecklistDocument(index, (current) => ({
+                                  ...current,
+                                  presented: !current.presented,
+                                  presentedAt: !current.presented ? new Date().toISOString() : null,
+                                  fileUrl: !current.presented ? current.fileUrl : null,
+                                  fileName: !current.presented ? current.fileName : null,
+                                }))}
+                                className={`min-h-11 rounded-2xl px-4 py-2 text-xs font-black uppercase ${
+                                  document.presented ? 'bg-emerald-100 text-emerald-700' : 'bg-white text-slate-500 border border-slate-200'
+                                }`}
+                              >
+                                {document.presented ? 'Presentado' : 'Marcar presentado'}
+                              </button>
+                              <label className="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2 text-xs font-black uppercase text-slate-600">
+                                {uploadingDocumentIndex === index ? 'Subiendo...' : 'Adjuntar archivo'}
+                                <input type="file" className="hidden" accept="image/*,.pdf" onChange={(event) => handleChecklistFileUpload(index, event)} />
+                              </label>
+                            </div>
+                          </div>
+                          {document.fileUrl && (
+                            <a href={document.fileUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex text-xs font-bold text-teal-700 underline">
+                              {document.fileName || 'Ver archivo adjunto'}
+                            </a>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    {documentsChecklist.additionalInfo && (
+                      <p className="mt-3 text-sm font-medium text-slate-500">{documentsChecklist.additionalInfo}</p>
+                    )}
+                  </div>
+                )}
+
+                {!!selectedObraSocial?.requiresAuthorization && !patientData.treatAsParticular && (
+                  <div className="sm:col-span-2 rounded-[1.6rem] border border-amber-200 bg-amber-50 px-4 py-4">
+                    <p className="text-[9px] font-black uppercase tracking-[0.22em] text-amber-700">Autorización requerida</p>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto]">
+                      <input
+                        type="text"
+                        placeholder="Número de autorización"
+                        value={authorizationNumber}
+                        onChange={(event) => setAuthorizationNumber(event.target.value)}
+                        className="min-h-11 rounded-2xl border border-amber-200 bg-white px-4 py-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-amber-200"
+                      />
+                      <label className="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-2xl border border-amber-200 bg-white px-4 py-2 text-xs font-black uppercase text-amber-700">
+                        {uploadingAuthorization ? 'Subiendo...' : 'Subir PDF / imagen'}
+                        <input type="file" className="hidden" accept="image/*,.pdf" onChange={handleAuthorizationFileUpload} />
+                      </label>
+                    </div>
+                    {authorizationFileUrl && (
+                      <a href={authorizationFileUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex text-xs font-bold text-amber-700 underline">
+                        Ver autorización adjunta
+                      </a>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -541,7 +845,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                 <>
                   <div className="space-y-2">
                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Estado del Turno</label>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
                       {APPOINTMENT_STATUSES.map((item) => (
                         <button
                           key={item.value}

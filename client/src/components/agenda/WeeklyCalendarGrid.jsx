@@ -84,6 +84,33 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
       };
     }
 
+    if (status === 'PENDING_AUTHORIZATION') {
+      return {
+        cardClass: 'bg-amber-50 border-amber-500',
+        badgeClass: 'bg-amber-100 text-amber-700',
+        label: 'Pend. autorización',
+        icon: null,
+      };
+    }
+
+    if (status === 'AUTHORIZED') {
+      return {
+        cardClass: 'bg-cyan-50 border-cyan-500',
+        badgeClass: 'bg-cyan-100 text-cyan-700',
+        label: 'Autorizado',
+        icon: null,
+      };
+    }
+
+    if (status === 'REJECTED') {
+      return {
+        cardClass: 'bg-rose-50 border-rose-500',
+        badgeClass: 'bg-rose-100 text-rose-700',
+        label: 'Rechazado',
+        icon: null,
+      };
+    }
+
     if (isRespiratory && status === 'SCHEDULED') {
       return {
         cardClass: 'bg-purple-50 border-purple-400',

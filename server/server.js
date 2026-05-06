@@ -32,6 +32,8 @@ import createWhatsAppRoutes from './src/routes/whatsapp.routes.js';
 import createAgendaRoutes from './src/routes/agenda.routes.js';
 import createNotificationsRoutes from './src/routes/notifications.routes.js';
 import createObrasSocialesRoutes from './src/routes/obrasSociales.routes.js';
+import createUsersRoutes from './src/routes/users.routes.js';
+import createAuditRoutes from './src/routes/audit.routes.js';
 import { verifyWhatsAppWebhook, handleWhatsAppWebhook } from './src/controllers/whatsapp.controller.js';
 import { authMiddleware } from './src/middlewares/authMiddleware.js';
 import { csrfProtection, getCsrfToken } from './src/middlewares/csrfMiddleware.js';
@@ -248,6 +250,8 @@ app.use('/api/whatsapp', authMiddleware, createWhatsAppRoutes(prisma));
 app.use('/api/agenda', authMiddleware, createAgendaRoutes(prisma));
 app.use('/api/notifications', authMiddleware, createNotificationsRoutes(prisma));
 app.use('/api/obras-sociales', authMiddleware, createObrasSocialesRoutes(prisma));
+app.use('/api/users', authMiddleware, createUsersRoutes(prisma));
+app.use('/api/audit', authMiddleware, createAuditRoutes(prisma));
 
 // Utilidades
 app.get('/api/health', (req, res) => res.status(200).json({ status: 'ok' }));

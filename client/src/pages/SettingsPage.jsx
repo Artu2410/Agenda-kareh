@@ -3,6 +3,8 @@ import instance from '../api/axios';
 import { Check, Clock, Edit, Loader2, Plus } from 'lucide-react';
 import ProfessionalModal from '../components/settings/ProfessionalModal';
 import ScheduleModal from '../components/settings/ScheduleModal';
+import { getStoredUser } from '../services/session';
+import { isSuperUser, isAdmin } from '../utils/roles';
 
 const DEFAULT_TIMER_DURATION_MINUTES = 25;
 const normalizePositiveInteger = (value, fallbackValue = 1) => Math.max(1, parseInt(value, 10) || fallbackValue);
@@ -43,6 +45,19 @@ const SettingsPage = () => {
   const [isProfessionalModalOpen, setIsProfessionalModalOpen] = useState(false);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [selectedProfessional, setSelectedProfessional] = useState(null);
+  const [users, setUsers] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [userSaving, setUserSaving] = useState(false);
+  const [userForm, setUserForm] = useState({
+    email: '',
+    fullName: '',
+    role: 'PROFESSIONAL',
+    professionalId: '',
+    isActive: true,
+  });
+  const currentUser = getStoredUser();
+  const canManageUsers = isAdmin(currentUser.role);
+  const canManageAdminRoles = isSuperUser(currentUser.role);
 
   const fetchProfessionals = async () => {
     try {
@@ -55,6 +70,20 @@ const SettingsPage = () => {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchUsers = async () => {
+    if (!canManageUsers) return;
+
+    try {
+      setUsersLoading(true);
+      const response = await instance.get('/users');
+      setUsers(response.data || []);
+    } catch (err) {
+      console.error('Error al cargar usuarios:', err);
+    } finally {
+      setUsersLoading(false);
     }
   };
 
@@ -97,6 +126,7 @@ const SettingsPage = () => {
   useEffect(() => {
     fetchProfessionals();
     fetchAgendaConfig();
+    fetchUsers();
   }, []);
 
   const handleOpenProfessionalModal = (professional = null) => {
@@ -149,6 +179,69 @@ const SettingsPage = () => {
     setIsScheduleModalOpen(false);
     setSelectedProfessional(null);
     await fetchProfessionals();
+  };
+
+  const resetUserForm = () => {
+    setUserForm({
+      email: '',
+      fullName: '',
+      role: canManageAdminRoles ? 'PROFESSIONAL' : 'PROFESSIONAL',
+      professionalId: '',
+      isActive: true,
+    });
+  };
+
+  const handleCreateUser = async () => {
+    try {
+      setUserSaving(true);
+      await instance.post('/users', userForm);
+      resetUserForm();
+      await fetchUsers();
+    } catch (err) {
+      console.error('Error al crear usuario:', err);
+      alert(err.response?.data?.message || 'No se pudo crear el usuario');
+    } finally {
+      setUserSaving(false);
+    }
+  };
+
+  const handleToggleUserActive = async (user) => {
+    try {
+      await instance.put(`/users/${user.id}`, {
+        isActive: !user.isActive,
+        professionalId: user.professionalId || null,
+      });
+      await fetchUsers();
+    } catch (err) {
+      console.error('Error actualizando usuario:', err);
+      alert(err.response?.data?.message || 'No se pudo actualizar el usuario');
+    }
+  };
+
+  const handleChangeUserRole = async (user, role) => {
+    try {
+      await instance.put(`/users/${user.id}/role`, {
+        role,
+        professionalId: user.professionalId || null,
+      });
+      await fetchUsers();
+    } catch (err) {
+      console.error('Error cambiando rol:', err);
+      alert(err.response?.data?.message || 'No se pudo cambiar el rol');
+    }
+  };
+
+  const handleDeleteUser = async (user) => {
+    const confirmed = window.confirm(`¿Eliminar el usuario ${user.fullName}?`);
+    if (!confirmed) return;
+
+    try {
+      await instance.delete(`/users/${user.id}`);
+      await fetchUsers();
+    } catch (err) {
+      console.error('Error eliminando usuario:', err);
+      alert(err.response?.data?.message || 'No se pudo eliminar el usuario');
+    }
   };
 
   const handleAgendaInputChange = (field, fallbackValue = 1) => (event) => {
@@ -367,6 +460,123 @@ const SettingsPage = () => {
             )}
           </div>
         </section>
+
+        {canManageUsers && (
+          <section className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-100 bg-slate-50/50 p-6">
+              <h2 className="text-xl font-bold text-slate-700">Usuarios y roles</h2>
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                Accesos administrativos y profesionales
+              </p>
+            </div>
+
+            <div className="grid gap-6 p-6 lg:grid-cols-[360px_1fr]">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <h3 className="text-sm font-black uppercase tracking-[0.2em] text-slate-500">Nuevo usuario</h3>
+                <div className="mt-4 space-y-3">
+                  <input
+                    type="email"
+                    placeholder="Email"
+                    value={userForm.email}
+                    onChange={(event) => setUserForm((prev) => ({ ...prev, email: event.target.value }))}
+                    className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-teal-200"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Nombre completo"
+                    value={userForm.fullName}
+                    onChange={(event) => setUserForm((prev) => ({ ...prev, fullName: event.target.value }))}
+                    className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-teal-200"
+                  />
+                  <select
+                    value={userForm.role}
+                    onChange={(event) => setUserForm((prev) => ({ ...prev, role: event.target.value }))}
+                    className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-teal-200"
+                  >
+                    <option value="PROFESSIONAL">PROFESSIONAL</option>
+                    {canManageAdminRoles && <option value="ADMIN">ADMIN</option>}
+                  </select>
+                  <select
+                    value={userForm.professionalId}
+                    onChange={(event) => setUserForm((prev) => ({ ...prev, professionalId: event.target.value }))}
+                    className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-teal-200"
+                  >
+                    <option value="">Sin vincular</option>
+                    {professionals.map((professional) => (
+                      <option key={professional.id} value={professional.id}>
+                        {professional.fullName}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={handleCreateUser}
+                    disabled={userSaving}
+                    className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-teal-600 px-4 py-2 font-bold text-white disabled:opacity-60"
+                  >
+                    {userSaving ? 'Creando...' : 'Crear usuario'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {usersLoading ? (
+                  <div className="flex items-center gap-2 text-slate-500">
+                    <Loader2 size={16} className="animate-spin" />
+                    Cargando usuarios...
+                  </div>
+                ) : users.length === 0 ? (
+                  <p className="text-sm font-semibold text-slate-400">No hay usuarios disponibles.</p>
+                ) : (
+                  users.map((user) => (
+                    <article key={user.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+                      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                        <div>
+                          <p className="text-base font-black text-slate-800">{user.fullName}</p>
+                          <p className="text-sm font-semibold text-slate-500">{user.email}</p>
+                          <p className="mt-1 text-xs font-bold uppercase tracking-[0.18em] text-teal-600">
+                            {user.role}
+                            {user.professional?.fullName ? ` · ${user.professional.fullName}` : ''}
+                          </p>
+                        </div>
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                          {canManageAdminRoles && (
+                            <select
+                              value={user.role}
+                              onChange={(event) => handleChangeUserRole(user, event.target.value)}
+                              className="min-h-11 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold outline-none"
+                            >
+                              <option value="PROFESSIONAL">PROFESSIONAL</option>
+                              <option value="ADMIN">ADMIN</option>
+                            </select>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleToggleUserActive(user)}
+                            className={`min-h-11 rounded-xl px-4 py-2 text-sm font-bold ${
+                              user.isActive
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : 'bg-slate-100 text-slate-500'
+                            }`}
+                          >
+                            {user.isActive ? 'Activo' : 'Inactivo'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteUser(user)}
+                            className="min-h-11 rounded-xl bg-rose-50 px-4 py-2 text-sm font-bold text-rose-700"
+                          >
+                            Eliminar
+                          </button>
+                        </div>
+                      </div>
+                    </article>
+                  ))
+                )}
+              </div>
+            </div>
+          </section>
+        )}
       </main>
 
       {isProfessionalModalOpen && (

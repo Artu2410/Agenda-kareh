@@ -4,6 +4,8 @@ import {
   professionalWithScheduleSelect,
   workScheduleSelect,
 } from '../prisma/selects.js';
+import { assertScopedProfessionalId } from '../utils/accessScope.js';
+import { auditActions, safeWriteAuditLog } from '../utils/audit.js';
 
 const PROFESSIONALS_CACHE_KEY = 'professionals:all';
 const PROFESSIONALS_CACHE_TTL_MS = 60_000; // 1 min
@@ -56,16 +58,24 @@ const omitUndefined = (payload) => Object.fromEntries(
 export const getAllProfessionals = async (req, res, prisma) => {
   try {
     const cached = getCache(PROFESSIONALS_CACHE_KEY);
-    if (cached) {
+    if (cached && String(req.user?.role || '').toUpperCase() !== 'PROFESSIONAL') {
       return res.status(200).json(cached);
     }
 
+    const where = {};
+    if (String(req.user?.role || '').toUpperCase() === 'PROFESSIONAL') {
+      where.id = assertScopedProfessionalId(req.user);
+    }
+
     const professionals = await prisma.professional.findMany({
+      where,
       orderBy: { fullName: 'asc' },
       select: professionalWithScheduleSelect,
     });
 
-    setCache(PROFESSIONALS_CACHE_KEY, professionals, PROFESSIONALS_CACHE_TTL_MS);
+    if (String(req.user?.role || '').toUpperCase() !== 'PROFESSIONAL') {
+      setCache(PROFESSIONALS_CACHE_KEY, professionals, PROFESSIONALS_CACHE_TTL_MS);
+    }
     res.status(200).json(professionals);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching professionals', error: error.message });
@@ -88,6 +98,12 @@ export const createProfessional = async (req, res, prisma) => {
     });
 
     delCache(PROFESSIONALS_CACHE_KEY);
+    await safeWriteAuditLog(prisma, req, {
+      action: auditActions.professionalCreated,
+      resource: 'PROFESSIONAL',
+      resourceId: newProfessional.id,
+      newValues: newProfessional,
+    });
     res.status(201).json(newProfessional);
   } catch (error) {
     res.status(500).json({ message: 'Error creating professional', error: error.message });
@@ -97,6 +113,15 @@ export const createProfessional = async (req, res, prisma) => {
 export const updateProfessional = async (req, res, prisma) => {
   const { id } = req.params;
   try {
+    const currentProfessional = await prisma.professional.findUnique({
+      where: { id },
+      select: professionalSelect,
+    });
+
+    if (!currentProfessional) {
+      return res.status(404).json({ message: 'Profesional no encontrado' });
+    }
+
     const updatedProfessional = await prisma.professional.update({
       where: { id },
       data: omitUndefined(buildProfessionalPayload(req.body)),
@@ -104,6 +129,13 @@ export const updateProfessional = async (req, res, prisma) => {
     });
 
     delCache(PROFESSIONALS_CACHE_KEY);
+    await safeWriteAuditLog(prisma, req, {
+      action: auditActions.professionalUpdated,
+      resource: 'PROFESSIONAL',
+      resourceId: updatedProfessional.id,
+      oldValues: currentProfessional,
+      newValues: updatedProfessional,
+    });
     res.status(200).json(updatedProfessional);
   } catch (error) {
     res.status(500).json({ message: `Error updating professional ${id}`, error: error.message });
@@ -113,6 +145,10 @@ export const updateProfessional = async (req, res, prisma) => {
 export const getWorkSchedule = async (req, res, prisma) => {
   const { id } = req.params;
   try {
+    if (String(req.user?.role || '').toUpperCase() === 'PROFESSIONAL' && id !== assertScopedProfessionalId(req.user)) {
+      return res.status(403).json({ message: 'No autorizado para ver otro cronograma profesional' });
+    }
+
     const workSchedule = await prisma.workSchedule.findMany({
       where: { professionalId: id },
       select: workScheduleSelect,
@@ -128,6 +164,15 @@ export const archiveProfessional = async (req, res, prisma) => {
   const { id } = req.params;
   const { isArchived } = req.body;
   try {
+    const currentProfessional = await prisma.professional.findUnique({
+      where: { id },
+      select: professionalSelect,
+    });
+
+    if (!currentProfessional) {
+      return res.status(404).json({ message: 'Profesional no encontrado' });
+    }
+
     const updatedProfessional = await prisma.professional.update({
       where: { id },
       data: {
@@ -138,6 +183,13 @@ export const archiveProfessional = async (req, res, prisma) => {
     });
 
     delCache(PROFESSIONALS_CACHE_KEY);
+    await safeWriteAuditLog(prisma, req, {
+      action: auditActions.professionalUpdated,
+      resource: 'PROFESSIONAL',
+      resourceId: updatedProfessional.id,
+      oldValues: currentProfessional,
+      newValues: updatedProfessional,
+    });
     res.status(200).json(updatedProfessional);
   } catch (error) {
     res.status(500).json({ message: `Error archiving professional ${id}`, error: error.message });
@@ -195,6 +247,12 @@ export const deleteProfessional = async (req, res, prisma) => {
     });
 
     delCache(PROFESSIONALS_CACHE_KEY);
+    await safeWriteAuditLog(prisma, req, {
+      action: auditActions.professionalDeleted,
+      resource: 'PROFESSIONAL',
+      resourceId: id,
+      oldValues: professional,
+    });
     res.status(200).json({ message: 'Profesional eliminado exitosamente' });
   } catch (error) {
     res.status(500).json({ message: `Error deleting professional ${id}`, error: error.message });

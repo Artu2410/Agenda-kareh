@@ -8,10 +8,13 @@ import {
   updateEvolution, 
   cancelFutureAppointments,
   getAppointmentBatch,
+  getAppointmentAuthorizations,
+  reviewAppointmentAuthorization,
   sendWhatsAppTicket,
   sendWhatsAppTicketDocument,
   sendWhatsAppTicketImage
 } from '../controllers/AppointmentController.js';
+import { checkRole } from '../middlewares/authMiddleware.js';
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -33,6 +36,10 @@ const createRouter = (prisma) => {
 
   // 2. Ticket: Obtener lote de 10 sesiones
   router.get('/:id/batch', (req, res) => getAppointmentBatch(req, res, prisma));
+
+  // 2a. Autorizaciones pendientes / resueltas
+  router.get('/authorizations/list', checkRole('SUPER_USER', 'ADMIN'), (req, res) => getAppointmentAuthorizations(req, res, prisma));
+  router.patch('/:id/authorization', checkRole('SUPER_USER', 'ADMIN'), (req, res) => reviewAppointmentAuthorization(req, res, prisma));
 
   // 2b. Enviar ticket por WhatsApp (PDF)
   router.post('/:id/whatsapp-ticket', (req, res) => sendWhatsAppTicket(req, res, prisma));

@@ -10,11 +10,13 @@ async function main() {
 
   await prisma.$connect();
 
-  const [patients, appointments, users, obrasSociales] = await Promise.all([
+  const [patients, appointments, users, obrasSociales, auditLogs, pendingAuthorizations] = await Promise.all([
     prisma.patient.count(),
     prisma.appointment.count(),
     prisma.user.count().catch(() => 0),
     prisma.obraSocial.count().catch(() => 0),
+    prisma.auditLog.count().catch(() => 0),
+    prisma.appointment.count({ where: { authorizationStatus: 'PENDING' } }).catch(() => 0),
   ]);
 
   const tables = await prisma.$queryRaw`
@@ -29,6 +31,8 @@ async function main() {
   console.log(`Citas: ${appointments}`);
   console.log(`Usuarios: ${users}`);
   console.log(`Obras sociales: ${obrasSociales}`);
+  console.log(`Logs de auditoría: ${auditLogs}`);
+  console.log(`Autorizaciones pendientes: ${pendingAuthorizations}`);
   console.log('\nBase de datos accesible.\n');
 }
 

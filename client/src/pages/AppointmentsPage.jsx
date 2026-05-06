@@ -9,6 +9,11 @@ import AppointmentModal from '../components/AppointmentModal';
 import api from '../services/api'; 
 import toast from 'react-hot-toast';
 
+const isMobileAgendaViewport = () => {
+  if (typeof window === 'undefined') return false;
+  return window.matchMedia('(max-width: 767px)').matches;
+};
+
 const DEFAULT_AGENDA_CONFIG = {
   slotDuration: 30,
   capacityPerSlot: 5,
@@ -48,6 +53,7 @@ const AppointmentsPage = () => {
   const [selectedProfessionalId, setSelectedProfessionalId] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
   const [agendaConfig, setAgendaConfig] = useState(DEFAULT_AGENDA_CONFIG);
+  const [mobileAgendaViewport, setMobileAgendaViewport] = useState(isMobileAgendaViewport);
 
   const selectedProfessional = professionals.find((professional) => professional.id === selectedProfessionalId) || null;
   const selectedWorkSchedule = selectedProfessional?.workSchedule || [];
@@ -64,6 +70,12 @@ const AppointmentsPage = () => {
     const rangeEnd = addDays(currentWeek, 6);
     return `${format(currentWeek, 'd MMM', { locale: es })} - ${format(rangeEnd, 'd MMM yyyy', { locale: es })}`;
   }, [currentDate, currentWeek, viewMode]);
+
+  const mobileDayAppointments = useMemo(() => (
+    appointments
+      .filter((appointment) => format(new Date(appointment.date), 'yyyy-MM-dd') === format(currentDate, 'yyyy-MM-dd'))
+      .sort((a, b) => `${a.time}-${a.slotNumber}`.localeCompare(`${b.time}-${b.slotNumber}`))
+  ), [appointments, currentDate]);
 
   const fetchProfessionals = useCallback(async () => {
     try {
@@ -136,6 +148,13 @@ const AppointmentsPage = () => {
       setCurrentTime(new Date());
     }, 60000); // Actualizar cada minuto
     return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const handleResize = () => setMobileAgendaViewport(isMobileAgendaViewport());
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   useEffect(() => {
@@ -230,7 +249,7 @@ const AppointmentsPage = () => {
       </header>
 
       <main className="flex-1 overflow-auto p-3 pt-2 sm:p-4">
-        {viewMode === VIEW_MODE.week && (
+        {viewMode === VIEW_MODE.week && !mobileAgendaViewport && (
           <SlotTimersPanel
             currentTime={currentTime}
             appointments={appointments}
@@ -248,7 +267,43 @@ const AppointmentsPage = () => {
 
         {loading ? <div className="flex justify-center h-full items-center"><Loader2 className="animate-spin text-teal-500" size={40}/></div> : (
           <div className="relative min-w-0 overflow-hidden rounded-2xl border bg-white shadow-sm">
-            {viewMode === VIEW_MODE.week ? (
+            {viewMode === VIEW_MODE.week && mobileAgendaViewport ? (
+              <div className="space-y-3 p-4">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500">
+                    Vista diaria móvil
+                  </p>
+                  <p className="mt-1 text-lg font-black text-slate-800">
+                    {format(currentDate, "EEEE d 'de' MMMM", { locale: es })}
+                  </p>
+                </div>
+                {mobileDayAppointments.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center text-sm font-semibold text-slate-400">
+                    No hay turnos para este día.
+                  </div>
+                ) : mobileDayAppointments.map((appointment) => (
+                  <button
+                    key={appointment.id}
+                    type="button"
+                    onClick={() => handleSlotClick(appointment)}
+                    className="w-full rounded-[1.75rem] border border-slate-200 bg-white p-4 text-left shadow-sm"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-lg font-black text-slate-800">{appointment.patient?.fullName}</p>
+                        <p className="mt-1 text-sm font-semibold uppercase text-teal-700">
+                          {appointment.patient?.healthInsurance || 'Sin cobertura'}
+                        </p>
+                        <p className="mt-2 text-sm text-slate-500">{appointment.diagnosis || 'Sin diagnóstico'}</p>
+                      </div>
+                      <span className="rounded-2xl bg-slate-100 px-3 py-2 text-sm font-black text-slate-700">
+                        {appointment.time}
+                      </span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : viewMode === VIEW_MODE.week ? (
               <WeeklyCalendarGrid
                 currentDate={currentWeek}
                 onSlotClick={handleSlotClick}

@@ -56,6 +56,7 @@ export const authMiddleware = async (req, res, next) => {
       email: session.user.email,
       role: session.user.role,
       fullName: session.user.fullName,
+      professionalId: session.user.professionalId || null,
       sessionId: session.id,
       tokenId: decoded.jti,
     };
@@ -88,3 +89,5 @@ export const checkRole = (...roles) => {
     return next();
   };
 };
+
+export const authorize = checkRole;

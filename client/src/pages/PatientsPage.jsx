@@ -29,6 +29,7 @@ const EMPTY_FORM = {
   address: '',
   birthDate: '',
   healthInsurance: '',
+  obraSocialId: '',
   treatAsParticular: false,
   affiliateNumber: '',
   emergencyPhone: '',
@@ -94,6 +95,7 @@ export default function PatientsPage() {
   const [savingPatient, setSavingPatient] = useState(false);
   const [uploadingField, setUploadingField] = useState('');
   const [formData, setFormData] = useState(EMPTY_FORM);
+  const [obrasSociales, setObrasSociales] = useState([]);
 
   const fetchPatients = useCallback(async () => {
     try {
@@ -107,9 +109,29 @@ export default function PatientsPage() {
     }
   }, []);
 
+  const fetchObrasSociales = useCallback(async () => {
+    try {
+      const response = await api.get('/obras-sociales', {
+        params: { includeInactive: '1' },
+      });
+      setObrasSociales(response.data || []);
+    } catch (error) {
+      console.error('Error cargando obras sociales:', error);
+    }
+  }, []);
+
   useEffect(() => {
     fetchPatients();
-  }, [fetchPatients]);
+    fetchObrasSociales();
+  }, [fetchPatients, fetchObrasSociales]);
+
+  const selectedObraSocial = useMemo(() => {
+    if (formData.obraSocialId) {
+      return obrasSociales.find((obraSocial) => obraSocial.id === formData.obraSocialId) || null;
+    }
+
+    return obrasSociales.find((obraSocial) => obraSocial.nombreOs === formData.healthInsurance) || null;
+  }, [formData.healthInsurance, formData.obraSocialId, obrasSociales]);
 
   const filteredPatients = useMemo(() => {
     const normalizedTerm = searchTerm.trim().toLowerCase();
@@ -138,6 +160,7 @@ export default function PatientsPage() {
     setFormData({
       ...EMPTY_FORM,
       ...patient,
+      obraSocialId: patient.obraSocialId || '',
       birthDate: formatBirthDateForInput(patient.birthDate),
       emergencyPhone: patient.emergencyPhone || '',
       medicalHistory: patient.medicalHistory || '',
@@ -495,13 +518,29 @@ export default function PatientsPage() {
                   <div className="mt-4 grid gap-4 md:grid-cols-2">
                     <div>
                       <label className="mb-1 block text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Obra social</label>
-                      <input
-                        type="text"
-                        name="healthInsurance"
-                        value={formData.healthInsurance}
-                        onChange={handleInputChange}
+                      <select
+                        name="obraSocialId"
+                        value={formData.obraSocialId || ''}
+                        onChange={(event) => {
+                          const obraSocialId = event.target.value;
+                          const obraSocial = obrasSociales.find((item) => item.id === obraSocialId) || null;
+                          setFormData((prev) => ({
+                            ...prev,
+                            obraSocialId,
+                            healthInsurance: obraSocial?.nombreOs || '',
+                          }));
+                        }}
                         className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 font-semibold outline-none transition focus:ring-2 ring-teal-500"
-                      />
+                      >
+                        <option value="">Seleccionar obra social</option>
+                        {obrasSociales
+                          .filter((obraSocial) => obraSocial.isActive || obraSocial.id === formData.obraSocialId)
+                          .map((obraSocial) => (
+                            <option key={obraSocial.id} value={obraSocial.id}>
+                              {obraSocial.nombreOs}{obraSocial.isActive ? '' : ' · INACTIVA'}
+                            </option>
+                          ))}
+                      </select>
                     </div>
 
                     <div>
@@ -538,6 +577,34 @@ export default function PatientsPage() {
                         </button>
                       </div>
                     </div>
+
+                    {selectedObraSocial && selectedObraSocial.isActive === false && (
+                      <div className="md:col-span-2 rounded-[1.6rem] border border-amber-200 bg-amber-50 px-4 py-4 text-sm font-bold text-amber-800">
+                        Esta obra social se encuentra INACTIVA. Contacte al administrador.
+                      </div>
+                    )}
+
+                    {selectedObraSocial?.requiredDocuments?.documents?.length > 0 && (
+                      <div className="md:col-span-2 rounded-[1.6rem] border border-teal-100 bg-teal-50/70 px-4 py-4">
+                        <p className="text-[10px] font-black uppercase tracking-[0.22em] text-teal-600">Documentación requerida</p>
+                        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                          {selectedObraSocial.requiredDocuments.documents.map((document) => (
+                            <div key={document.name} className="rounded-2xl bg-white px-3 py-3 text-sm font-semibold text-slate-700">
+                              {document.name}
+                              <span className="ml-2 text-xs font-black uppercase text-slate-400">
+                                {document.mandatory ? 'Obligatorio' : 'Opcional'}
+                                {document.validityDays ? ` · ${document.validityDays} días` : ''}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                        {selectedObraSocial.requiredDocuments.additionalInfo && (
+                          <p className="mt-3 text-sm font-medium text-slate-600">
+                            {selectedObraSocial.requiredDocuments.additionalInfo}
+                          </p>
+                        )}
+                      </div>
+                    )}
 
                     <div>
                       <label className="mb-1 block text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Teléfono de emergencia</label>
