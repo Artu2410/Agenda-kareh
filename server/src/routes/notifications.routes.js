@@ -4,6 +4,7 @@ import * as notificationsController from '../controllers/notifications.controlle
 const router = express.Router();
 
 export default (prisma) => {
+  router.get('/config', notificationsController.getConfig);
   router.post('/subscribe', (req, res) => notificationsController.subscribe(req, res, prisma));
   router.post('/unsubscribe', (req, res) => notificationsController.unsubscribe(req, res, prisma));
   
