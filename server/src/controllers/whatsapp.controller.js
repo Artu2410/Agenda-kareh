@@ -17,6 +17,7 @@ import { findInMemoryWhatsAppCoverageByInput } from '../utils/whatsappCoverageCa
 const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
 const WELCOME_TEMPLATE = process.env.WHATSAPP_WELCOME_TEMPLATE || 'bienvenida_kareh';
 const HOLA_TEMPLATE = process.env.WHATSAPP_HOLA_TEMPLATE || 'bienvenida_kareh';
+const WHATSAPP_AUTOREPLY_ENABLED = String(process.env.WHATSAPP_AUTOREPLY_ENABLED || 'false').trim().toLowerCase() === 'true';
 
 const FLOW_STATES = Object.freeze({
   WELCOME: 'welcome',
@@ -1482,17 +1483,19 @@ export const handleWhatsAppWebhook = async (req, res, prisma) => {
           const effectiveState = shouldResetSession
             ? FLOW_STATES.WELCOME
             : (conversation.currentState || FLOW_STATES.WELCOME);
-          const autoReply = await getConversationAutoReply({
-            prisma,
-            conversation,
-            messageText: inboundText,
-            messageType: message.type,
-            currentState: effectiveState,
-            shouldSendWelcome: shouldResetSession,
-            hasNonTextMessage: message.type !== 'text',
-            hasMediaAttachment: Boolean(mediaMeta?.mediaId),
-            now,
-          });
+          const autoReply = WHATSAPP_AUTOREPLY_ENABLED
+            ? await getConversationAutoReply({
+              prisma,
+              conversation,
+              messageText: inboundText,
+              messageType: message.type,
+              currentState: effectiveState,
+              shouldSendWelcome: shouldResetSession,
+              hasNonTextMessage: message.type !== 'text',
+              hasMediaAttachment: Boolean(mediaMeta?.mediaId),
+              now,
+            })
+            : null;
           const nextConversationState = autoReply?.nextState || effectiveState;
           const nextProfileName = extractedPatientName || incomingProfileName || conversation.profileName;
           const shouldSkipAutoReply = autoReply && shouldSkipAutoReplyForCooldown({
