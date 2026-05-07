@@ -68,7 +68,7 @@ const UNKNOWN_INPUT_TEXT = [
   'Contame si es por obras sociales, ART, particular, PAMI particular o respiratorio, y te oriento desde recepción.',
 ].join('\n');
 const WAITING_HUMAN_REVIEW_TEXT = 'Perfecto 😊 Ya lo tiene administración. En cuanto lo revisen seguimos por acá.';
-const DOCUMENTATION_RECEIVED_TEXT = 'Perfecto 😊 Recibimos la documentación correctamente. Vamos a revisarla administrativamente y, si está todo bien, seguimos con la coordinación desde 48 hs.';
+const DOCUMENTATION_RECEIVED_TEXT = 'Perfecto 😊 Recibimos la documentación correctamente. Lo revisamos y seguimos por acá.';
 
 const AUTO_REPLY_LOCATION_TEXT = [
   'Av. Senador Morón 782, Bella Vista.',
@@ -645,7 +645,7 @@ const buildParticularIntroReply = (seed) => {
 const buildInsuranceDocsReply = () => {
   return [
     'Perfecto 😊 Si es por obra social, mandanos foto de la orden y la credencial.',
-    'Lo revisamos administrativamente y, si está todo bien, seguimos por acá con opciones desde 48 hs.',
+    'Lo revisamos y seguimos por acá manualmente.',
   ].join('\n');
 };
 
