@@ -339,6 +339,10 @@ model WhatsAppConversation {
   lastMessageText String?
   unreadCount     Int       @default(0)
   lastAutoReplyAt DateTime?
+  pricingExplainedAt DateTime?
+  slotOfferSentAt  DateTime?
+  lastServiceType  String?
+  lastOfferedSlots Json?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
