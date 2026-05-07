@@ -63,6 +63,7 @@ const getDaySchedules = (professional, dayOfWeek, useFallbackSchedule) => {
 const buildCandidateKey = (dateKey, time) => `${dateKey}|${time}`;
 const buildOccupancyKey = (professionalId, dateKey, time) => `${professionalId}|${dateKey}|${time}`;
 const RESPIRATORY_SERVICE_KIND = 'respiratorio';
+const DEFAULT_SLOT_SPACING_MINUTES = 60;
 
 const isRespiratoryServiceKind = (value) => String(value || '').trim().toLowerCase() === RESPIRATORY_SERVICE_KIND;
 
@@ -79,6 +80,175 @@ const getRespiratoryIntakeFitRank = (appointments = []) => {
   return appointments.every(isRespiratoryFollowUpAppointment) ? 1 : null;
 };
 
+const buildSlotReferenceKey = (slot) => buildCandidateKey(slot?.date, slot?.time);
+
+const normalizeSlotPreference = (value) => {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const normalizedPreference = {};
+
+  if (['morning', 'afternoon', 'evening'].includes(value.timeOfDay)) {
+    normalizedPreference.timeOfDay = value.timeOfDay;
+  }
+
+  if (Number.isFinite(Number(value.minHour))) {
+    normalizedPreference.minHour = Number(value.minHour);
+  }
+
+  if (Number.isFinite(Number(value.maxHour))) {
+    normalizedPreference.maxHour = Number(value.maxHour);
+  }
+
+  if (Array.isArray(value.allowedWeekdays)) {
+    const weekdays = value.allowedWeekdays
+      .map((weekday) => Number(weekday))
+      .filter((weekday) => Number.isInteger(weekday) && weekday >= 0 && weekday <= 6);
+
+    if (weekdays.length) {
+      normalizedPreference.allowedWeekdays = weekdays;
+    }
+  }
+
+  if (Number.isFinite(Number(value.specificDayOffset))) {
+    normalizedPreference.specificDayOffset = Math.max(0, Number(value.specificDayOffset));
+  }
+
+  return Object.keys(normalizedPreference).length ? normalizedPreference : null;
+};
+
+const normalizeExcludedSlots = (excludedSlots) => new Set(
+  (Array.isArray(excludedSlots) ? excludedSlots : [])
+    .map((slot) => {
+      if (typeof slot === 'string') {
+        return slot;
+      }
+
+      if (slot?.date && slot?.time) {
+        return buildSlotReferenceKey(slot);
+      }
+
+      return null;
+    })
+    .filter(Boolean),
+);
+
+const matchesSlotPreference = (slot, slotPreference, referenceDate) => {
+  if (!slotPreference) {
+    return true;
+  }
+
+  const startsAt = slot?.startsAt instanceof Date ? slot.startsAt : null;
+  const minutes = parseTimeToMinutes(slot?.time);
+  if (!startsAt || Number.isNaN(startsAt.getTime()) || minutes === null) {
+    return false;
+  }
+
+  const hour = minutes / 60;
+
+  if (slotPreference.timeOfDay === 'morning' && hour >= 12) {
+    return false;
+  }
+
+  if (slotPreference.timeOfDay === 'afternoon' && (hour < 12 || hour >= 17)) {
+    return false;
+  }
+
+  if (slotPreference.timeOfDay === 'evening' && hour < 17) {
+    return false;
+  }
+
+  if (slotPreference.minHour !== undefined && hour < slotPreference.minHour) {
+    return false;
+  }
+
+  if (slotPreference.maxHour !== undefined && hour > slotPreference.maxHour) {
+    return false;
+  }
+
+  if (slotPreference.allowedWeekdays?.length && !slotPreference.allowedWeekdays.includes(startsAt.getDay())) {
+    return false;
+  }
+
+  if (slotPreference.specificDayOffset !== undefined && referenceDate instanceof Date) {
+    const candidateDate = new Date(startsAt.getFullYear(), startsAt.getMonth(), startsAt.getDate(), 0, 0, 0, 0);
+    const baseDate = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), referenceDate.getDate(), 0, 0, 0, 0);
+    const dayOffset = Math.round((candidateDate.getTime() - baseDate.getTime()) / (24 * 60 * 60 * 1000));
+
+    if (dayOffset !== slotPreference.specificDayOffset) {
+      return false;
+    }
+  }
+
+  return true;
+};
+
+const pickDiverseCandidates = (candidates, {
+  maxSlots,
+  minSpacingMinutes = DEFAULT_SLOT_SPACING_MINUTES,
+} = {}) => {
+  const desiredCount = Math.max(1, Number(maxSlots) || 1);
+  if (candidates.length <= desiredCount) {
+    return candidates.slice(0, desiredCount);
+  }
+
+  const selectedCandidates = [];
+  const selectedKeys = new Set();
+  const selectedDates = new Set();
+
+  const pushCandidate = (candidate) => {
+    selectedCandidates.push(candidate);
+    selectedKeys.add(buildSlotReferenceKey(candidate));
+    selectedDates.add(candidate.date);
+  };
+
+  for (const candidate of candidates) {
+    if (!selectedCandidates.length) {
+      pushCandidate(candidate);
+    } else if (!selectedDates.has(candidate.date)) {
+      pushCandidate(candidate);
+    }
+
+    if (selectedCandidates.length >= desiredCount) {
+      return selectedCandidates;
+    }
+  }
+
+  for (const candidate of candidates) {
+    if (selectedKeys.has(buildSlotReferenceKey(candidate))) {
+      continue;
+    }
+
+    const hasTightConflict = selectedCandidates.some((selectedCandidate) => (
+      selectedCandidate.date === candidate.date
+      && Math.abs(selectedCandidate.startsAt.getTime() - candidate.startsAt.getTime()) < (minSpacingMinutes * 60 * 1000)
+    ));
+
+    if (hasTightConflict) {
+      continue;
+    }
+
+    pushCandidate(candidate);
+    if (selectedCandidates.length >= desiredCount) {
+      return selectedCandidates;
+    }
+  }
+
+  for (const candidate of candidates) {
+    if (selectedKeys.has(buildSlotReferenceKey(candidate))) {
+      continue;
+    }
+
+    pushCandidate(candidate);
+    if (selectedCandidates.length >= desiredCount) {
+      return selectedCandidates;
+    }
+  }
+
+  return selectedCandidates;
+};
+
 export const getSuggestedWhatsAppSlots = async ({
   prisma,
   maxSlots = 2,
@@ -87,11 +257,16 @@ export const getSuggestedWhatsAppSlots = async ({
   minDaysAhead = 1,
   preferLowerOccupancy = true,
   serviceKind = null,
+  slotPreference = null,
+  excludedSlots = [],
+  minSpacingMinutes = DEFAULT_SLOT_SPACING_MINUTES,
 } = {}) => {
   const agendaConfig = await prisma.agendaConfig.findFirst();
   const slotDuration = Math.max(1, Number(agendaConfig?.slotDuration) || 30);
   const capacityPerSlot = Math.max(1, Number(agendaConfig?.capacityPerSlot) || 5);
   const isRespiratoryIntake = isRespiratoryServiceKind(serviceKind);
+  const normalizedSlotPreference = normalizeSlotPreference(slotPreference);
+  const excludedSlotKeys = normalizeExcludedSlots(excludedSlots);
 
   const professionals = await prisma.professional.findMany({
     where: {
@@ -200,11 +375,17 @@ export const getSuggestedWhatsAppSlots = async ({
             : 0;
           if (isRespiratoryIntake && respiratoryIntakeFitRank === null) continue;
 
-          const candidateKey = buildCandidateKey(dateKey, time);
-          const nextCandidate = {
+          const slotReference = {
             date: dateKey,
             time,
             startsAt,
+          };
+          if (excludedSlotKeys.has(buildSlotReferenceKey(slotReference))) continue;
+          if (!matchesSlotPreference(slotReference, normalizedSlotPreference, windowStart)) continue;
+
+          const candidateKey = buildCandidateKey(dateKey, time);
+          const nextCandidate = {
+            ...slotReference,
             professionalId: professional.id,
             professionalName: professional.fullName,
             occupancy,
@@ -234,7 +415,7 @@ export const getSuggestedWhatsAppSlots = async ({
     }
   }
 
-  return Array.from(candidateByTime.values())
+  const sortedCandidates = Array.from(candidateByTime.values())
     .sort((left, right) => {
       if (isRespiratoryIntake && left.respiratoryIntakeFitRank !== right.respiratoryIntakeFitRank) {
         return left.respiratoryIntakeFitRank - right.respiratoryIntakeFitRank;
@@ -246,6 +427,10 @@ export const getSuggestedWhatsAppSlots = async ({
       }
 
       return left.occupancy - right.occupancy || timeDiff;
-    })
-    .slice(0, Math.max(1, Number(maxSlots) || 1));
+    });
+
+  return pickDiverseCandidates(sortedCandidates, {
+    maxSlots,
+    minSpacingMinutes,
+  });
 };
