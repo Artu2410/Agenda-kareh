@@ -35,6 +35,8 @@ const FLOW_STATES = Object.freeze({
 const FLOW_META = Object.freeze({
   OFFER: 'offer',
   DOCS: 'docs',
+  OBRA_SOCIAL: 'obra_social',
+  ART: 'art',
 });
 const CLINIC_LOCATION_MAPS_URL = 'https://maps.app.goo.gl/ChIJccvYOMO9vJURBOmqm_VIytA';
 
@@ -57,13 +59,13 @@ const getFlowStateMeta = (state) => String(state || '')
 const DEFAULT_WELCOME_TEXT = [
   'Hola{{name_suffix}} 😊',
   'Soy de recepción de Kareh.',
-  'Decime si es por particular, IOMA, PAMI o respiratorio.',
+  'Decime si es por obras sociales, ART, particular, PAMI particular o respiratorio.',
   'Si es postoperatorio o algo urgente, contame la zona y te paso opciones.',
 ].join('\n');
 
 const UNKNOWN_INPUT_TEXT = [
   'Claro.',
-  'Contame si es por particular, IOMA, PAMI o respiratorio, y te oriento desde recepción.',
+  'Contame si es por obras sociales, ART, particular, PAMI particular o respiratorio, y te oriento desde recepción.',
 ].join('\n');
 const WAITING_HUMAN_REVIEW_TEXT = 'Perfecto 😊 Ya lo tiene administración. En cuanto lo revisen seguimos por acá.';
 const DOCUMENTATION_RECEIVED_TEXT = 'Perfecto 😊 Recibimos la documentación correctamente. Vamos a revisarla administrativamente y en breve continuamos con la coordinación del turno.';
@@ -142,6 +144,10 @@ const MIME_EXTENSION = {
 
 const WHATSAPP_OUTBOUND_PLACEHOLDER = '[Archivo adjunto]';
 const WHATSAPP_AUDIO_PLACEHOLDER = '[Audio]';
+const SPECIAL_COVERAGE_AVAILABILITY = Object.freeze({
+  UNAVAILABLE: 'unavailable',
+  SUSPENDED: 'suspended',
+});
 
 const getPreviewText = (message) => {
   if (!message) return '';
@@ -424,6 +430,29 @@ const normalizeText = (value) => {
     .replace(/\s+/g, ' ');
 };
 
+const SPECIAL_COVERAGE_RULES = [
+  {
+    patterns: [/\bosde\b/],
+    label: 'OSDE',
+    availability: SPECIAL_COVERAGE_AVAILABILITY.UNAVAILABLE,
+  },
+  {
+    patterns: [/\bgalicia\b/, /\bgalicia salud\b/],
+    label: 'Galicia',
+    availability: SPECIAL_COVERAGE_AVAILABILITY.UNAVAILABLE,
+  },
+  {
+    patterns: [/\biosfa\b/],
+    label: 'IOSFA',
+    availability: SPECIAL_COVERAGE_AVAILABILITY.SUSPENDED,
+  },
+  {
+    patterns: [/\bunion personal\b/, /^up$/],
+    label: 'Union Personal',
+    availability: SPECIAL_COVERAGE_AVAILABILITY.SUSPENDED,
+  },
+];
+
 const GREETING_PREFIXES = ['hola', 'buenas', 'buen dia', 'buenos dias', 'buenas tardes', 'buenas noches'];
 const WEEKDAY_NAMES = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 
@@ -437,8 +466,9 @@ const PRICE_INTENT_PATTERNS = [/\b(cuanto sale|cuanto cuesta|precio|precios|valo
 const PARTICULAR_INTENT_PATTERNS = [/^(2|2 particular)$/, /\bparticular\b/];
 const PAMI_INTENT_PATTERNS = [/^(3|3 pami)$/, /\bpami\b/];
 const IOMA_INTENT_PATTERNS = [/\bioma\b/];
+const ART_INTENT_PATTERNS = [/\bart\b/, /\b(accidente laboral|aseguradora de riesgos del trabajo|riesgos del trabajo|siniestro)\b/];
 const INSURANCE_INTENT_PATTERNS = [
-  /\b(obra social|obras sociales|prepaga|prepagas|art|mutual|credencial|carnet)\b/,
+  /\b(obra social|obras sociales|prepaga|prepagas|mutual|credencial|carnet)\b/,
 ];
 const RESPIRATORY_INTENT_PATTERNS = [
   /^(4|4 respiratorio)$/,
@@ -482,6 +512,7 @@ const hasPriceIntent = (normalizedText) => matchesAnyPattern(normalizedText, PRI
 const hasParticularIntent = (normalizedText) => matchesAnyPattern(normalizedText, PARTICULAR_INTENT_PATTERNS);
 const hasPamiIntent = (normalizedText) => matchesAnyPattern(normalizedText, PAMI_INTENT_PATTERNS);
 const hasIomaIntent = (normalizedText) => matchesAnyPattern(normalizedText, IOMA_INTENT_PATTERNS);
+const hasArtKeywordIntent = (normalizedText) => matchesAnyPattern(normalizedText, ART_INTENT_PATTERNS);
 const hasRespiratoryIntent = (normalizedText) => matchesAnyPattern(normalizedText, RESPIRATORY_INTENT_PATTERNS);
 const hasSlotRequestIntent = (normalizedText) => matchesAnyPattern(normalizedText, SLOT_REQUEST_PATTERNS);
 const hasBookingCommitment = (normalizedText) => matchesAnyPattern(normalizedText, BOOKING_COMMIT_PATTERNS);
@@ -492,14 +523,45 @@ const hasNeuroIntent = (normalizedText) => matchesAnyPattern(normalizedText, NEU
 const hasBodyZoneIntent = (normalizedText) => matchesAnyPattern(normalizedText, BODY_ZONE_PATTERNS);
 const hasGenericReasonIntent = (normalizedText) => matchesAnyPattern(normalizedText, GENERIC_REASON_PATTERNS);
 const hasDocumentationText = (normalizedText) => matchesAnyPattern(normalizedText, DOCUMENT_TEXT_PATTERNS);
-const hasKnownCoverageIntent = (normalizedText) => Boolean(
-  normalizedText && findInMemoryWhatsAppCoverageByInput(normalizedText, { includeInactive: true }),
+const getKnownCoverageIntent = (normalizedText) => (
+  normalizedText ? findInMemoryWhatsAppCoverageByInput(normalizedText, { includeInactive: true }) : null
+);
+const hasKnownCoverageIntent = (normalizedText) => Boolean(getKnownCoverageIntent(normalizedText));
+const isArtCoverage = (coverage) => {
+  if (!coverage) return false;
+
+  const normalizedCoverageName = normalizeText(coverage.name);
+  const normalizedDocumentation = normalizeText(coverage.documentationRequired);
+
+  return normalizedCoverageName.includes(' art')
+    || normalizedCoverageName.endsWith(' art')
+    || normalizedDocumentation.includes('siniestro');
+};
+const hasArtIntent = (normalizedText) => (
+  hasArtKeywordIntent(normalizedText)
+  || isArtCoverage(getKnownCoverageIntent(normalizedText))
+);
+const getInactiveCoverageIntent = (normalizedText) => {
+  const matchedCoverage = getKnownCoverageIntent(normalizedText);
+  if (!matchedCoverage || matchedCoverage.isActive !== false) {
+    return null;
+  }
+
+  return {
+    label: matchedCoverage.name,
+    availability: normalizeText(matchedCoverage.documentationRequired).includes('suspendida')
+      ? SPECIAL_COVERAGE_AVAILABILITY.SUSPENDED
+      : SPECIAL_COVERAGE_AVAILABILITY.UNAVAILABLE,
+  };
+};
+const getSpecialCoverageIntent = (normalizedText) => (
+  SPECIAL_COVERAGE_RULES.find(({ patterns }) => matchesAnyPattern(normalizedText, patterns)) || null
 );
 const hasInsuranceIntent = (normalizedText) => (
   hasIomaIntent(normalizedText)
   || hasKnownCoverageIntent(normalizedText)
   || matchesAnyPattern(normalizedText, INSURANCE_INTENT_PATTERNS)
-);
+) && !hasArtIntent(normalizedText);
 const hasClinicalReason = (normalizedText) => (
   hasRespiratoryIntent(normalizedText)
   || hasBodyZoneIntent(normalizedText)
@@ -568,7 +630,7 @@ const buildGenericPriceReply = (seed) => {
   const pricing = getCurrentPricing();
   return [
     `${pickVariant(['Hola 😊', 'Claro', 'Buenísimo'], seed)} Las sesiones particulares están en ${formatCurrency(pricing.particular)}.`,
-    '¿La consulta es por dolor muscular, postoperatorio o respiratorio?',
+    'Si es por obra social, ART, PAMI particular o respiratorio, decime y te oriento.',
   ].join('\n');
 };
 
@@ -580,18 +642,31 @@ const buildParticularIntroReply = (seed) => {
   ].join('\n');
 };
 
-const buildInsuranceDocsReply = (normalizedText) => {
-  const pricing = getCurrentPricing();
-  if (hasIomaIntent(normalizedText)) {
+const buildInsuranceDocsReply = () => {
+  return [
+    'Perfecto 😊 Si es por obra social, mandanos foto de la orden y la credencial.',
+    'Lo revisamos administrativamente y seguimos por acá.',
+  ].join('\n');
+};
+
+const buildArtDocsReply = () => {
+  return [
+    'Perfecto 😊 Si es ART, mandanos foto de la orden y el número de siniestro si ya lo tenés.',
+    'Lo revisamos administrativamente y seguimos por acá.',
+  ].join('\n');
+};
+
+const buildSpecialCoverageReply = ({ label, availability }) => {
+  if (availability === SPECIAL_COVERAGE_AVAILABILITY.SUSPENDED) {
     return [
-      'Perfecto 😊 Mandanos foto de la orden y la credencial así lo revisamos administrativamente.',
-      `Si avanza por IOMA, el coseguro es de ${formatCurrency(pricing.iomaCoinsurance)} por sesión.`,
+      `Perfecto 😊 ${label} hoy está suspendida.`,
+      'Si querés, te paso valor particular y horarios.',
     ].join('\n');
   }
 
   return [
-    'Perfecto 😊 Mandanos foto de la orden y la credencial así lo revisamos administrativamente.',
-    'Después seguimos por acá con la coordinación.',
+    `Perfecto 😊 ${label} por ahora no la estamos trabajando.`,
+    'Si querés, te paso valor particular y horarios.',
   ].join('\n');
 };
 
@@ -682,6 +757,10 @@ const buildSlotOfferReply = async ({ prisma, kind, seed, urgent = false }) => {
 };
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const buildCoverageDocsState = (kind = FLOW_META.OBRA_SOCIAL) => (
+  buildFlowState(FLOW_STATES.OBRA_SOCIAL_DOCS, kind)
+);
 
 const getRandomAutoReplyDelayMs = () => (
   AUTO_REPLY_MIN_DELAY_MS
@@ -775,8 +854,20 @@ const getConversationAutoReply = async ({
   ) {
     return {
       type: 'text',
-      text: buildInsuranceDocsReply(normalized),
-      nextState: FLOW_STATES.OBRA_SOCIAL_DOCS,
+      text: buildInsuranceDocsReply(),
+      nextState: buildCoverageDocsState(FLOW_META.OBRA_SOCIAL),
+    };
+  }
+
+  if (
+    normalized
+    && currentStateBase === FLOW_STATES.OBRA_SOCIAL_DOCS
+    && !isMenuCommand(normalized)
+  ) {
+    return {
+      type: 'text',
+      text: hasFlowMeta(currentState, FLOW_META.ART) ? buildArtDocsReply() : buildInsuranceDocsReply(),
+      nextState: currentState,
     };
   }
 
@@ -785,11 +876,39 @@ const getConversationAutoReply = async ({
     if (directIntentReply) return directIntentReply;
   }
 
+  if (normalized) {
+    const inactiveCoverageIntent = getInactiveCoverageIntent(normalized);
+    if (inactiveCoverageIntent) {
+      return {
+        type: 'text',
+        text: buildSpecialCoverageReply(inactiveCoverageIntent),
+        nextState: FLOW_STATES.PARTICULAR,
+      };
+    }
+
+    const specialCoverageIntent = getSpecialCoverageIntent(normalized);
+    if (specialCoverageIntent) {
+      return {
+        type: 'text',
+        text: buildSpecialCoverageReply(specialCoverageIntent),
+        nextState: FLOW_STATES.PARTICULAR,
+      };
+    }
+  }
+
+  if (normalized && hasArtIntent(normalized)) {
+    return {
+      type: 'text',
+      text: buildArtDocsReply(),
+      nextState: buildCoverageDocsState(FLOW_META.ART),
+    };
+  }
+
   if (normalized && hasInsuranceIntent(normalized) && !hasPamiIntent(normalized)) {
     return {
       type: 'text',
-      text: buildInsuranceDocsReply(normalized),
-      nextState: FLOW_STATES.OBRA_SOCIAL_DOCS,
+      text: buildInsuranceDocsReply(),
+      nextState: buildCoverageDocsState(FLOW_META.OBRA_SOCIAL),
     };
   }
 
