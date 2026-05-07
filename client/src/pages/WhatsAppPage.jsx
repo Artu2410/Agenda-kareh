@@ -24,7 +24,7 @@ const getConversationStateBase = (value) => String(value || 'welcome').split('::
 
 const isBotPaused = (conversation) => BOT_PAUSED_STATES.has(getConversationStateBase(conversation?.currentState));
 
-const getBotStatusLabel = (conversation) => (isBotPaused(conversation) ? 'Bot pausado' : 'Bot activo');
+const getBotStatusLabel = (conversation) => (isBotPaused(conversation) ? 'Chat tomado' : 'Bot activo');
 
 const formatTime = (value) => {
   if (!value) return '';
@@ -114,6 +114,7 @@ const WhatsAppPage = () => {
   const selectedIdRef = useRef(null);
   const mobileViewportRef = useRef(mobileViewport);
   const shouldStickToBottomRef = useRef(true);
+  const takeoverInFlightConversationIdRef = useRef(null);
   const { ConfirmModalComponent, openModal } = useConfirmModal();
 
   const filteredConversations = useMemo(() => {
@@ -306,6 +307,41 @@ const WhatsAppPage = () => {
     const nextFile = event.target.files?.[0] || null;
     if (!nextFile) return;
     setAttachment(nextFile);
+    if (selectedConversation && !isBotPaused(selectedConversation)) {
+      void takeConversationControl(selectedConversation);
+    }
+  };
+
+  const takeConversationControl = useCallback(async (conversation) => {
+    if (!conversation || isBotPaused(conversation)) return;
+    if (takeoverInFlightConversationIdRef.current === conversation.id) return;
+
+    takeoverInFlightConversationIdRef.current = conversation.id;
+
+    setConversations((previous) => previous.map((item) => (
+      item.id === conversation.id
+        ? { ...item, currentState: 'human_handoff' }
+        : item
+    )));
+
+    try {
+      await api.post(`/whatsapp/conversations/${conversation.id}/pause-bot`);
+      await loadConversations();
+    } catch (error) {
+      console.error('Error tomando control de la conversación:', error);
+      await loadConversations();
+    } finally {
+      takeoverInFlightConversationIdRef.current = null;
+    }
+  }, [loadConversations]);
+
+  const handleDraftChange = (event) => {
+    const nextDraft = event.target.value;
+    setDraft(nextDraft);
+
+    if (nextDraft.trim() && selectedConversation && !isBotPaused(selectedConversation)) {
+      void takeConversationControl(selectedConversation);
+    }
   };
 
   const handleSend = async () => {
@@ -479,7 +515,7 @@ const WhatsAppPage = () => {
                   className="inline-flex items-center gap-2 rounded-xl border border-teal-200 bg-teal-50 px-3 py-2 text-xs font-bold text-teal-700 transition hover:bg-teal-100 disabled:opacity-60"
                 >
                   {botActionLoading ? <Loader2 size={14} className="animate-spin" /> : null}
-                  <span>Reactivar bot</span>
+                  <span>Liberar chat</span>
                 </button>
               ) : (
                 <button
@@ -489,7 +525,7 @@ const WhatsAppPage = () => {
                   className="inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700 transition hover:bg-amber-100 disabled:opacity-60"
                 >
                   {botActionLoading ? <Loader2 size={14} className="animate-spin" /> : null}
-                  <span>Pausar bot</span>
+                  <span>Tomar chat</span>
                 </button>
               )}
 
@@ -612,13 +648,13 @@ const WhatsAppPage = () => {
                 <textarea
                   ref={textareaRef}
                   value={draft}
-                  onChange={(event) => setDraft(event.target.value)}
+                  onChange={handleDraftChange}
                   placeholder="Escribe o pega el mensaje tal como quieres enviarlo..."
                   rows={1}
                   className="min-h-[56px] w-full resize-none bg-transparent text-sm font-semibold text-slate-700 outline-none placeholder:text-slate-400"
                 />
                 <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
-                  El chat queda apoyado abajo y el texto sube como en la app.
+                  Al escribir o adjuntar, el bot se detiene solo para no pisarse con recepción.
                 </p>
               </div>
             </div>

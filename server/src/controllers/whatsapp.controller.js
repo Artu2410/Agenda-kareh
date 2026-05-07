@@ -8,9 +8,11 @@ import {
   sendTextMessage,
   uploadMedia,
 } from '../services/whatsapp.js';
+import { getSuggestedWhatsAppSlots } from '../services/whatsappAvailability.js';
 import { normalizePhone } from '../utils/phone.js';
 import { transcribeAudioBuffer } from '../services/audioTranscription.js';
 import { sendNotificationToAll } from './notifications.controller.js';
+import { findInMemoryWhatsAppCoverageByInput } from '../utils/whatsappCoverageCatalog.js';
 
 const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
 const WELCOME_TEMPLATE = process.env.WHATSAPP_WELCOME_TEMPLATE || 'bienvenida_kareh';
@@ -30,6 +32,12 @@ const FLOW_STATES = Object.freeze({
   HUMAN_HANDOFF: 'human_handoff',
 });
 
+const FLOW_META = Object.freeze({
+  OFFER: 'offer',
+  DOCS: 'docs',
+});
+const CLINIC_LOCATION_MAPS_URL = 'https://maps.app.goo.gl/ChIJccvYOMO9vJURBOmqm_VIytA';
+
 const FLOW_STATE_SEPARATOR = '::';
 
 const buildFlowState = (baseState, ...metaParts) => [
@@ -47,185 +55,46 @@ const getFlowStateMeta = (state) => String(state || '')
   .filter(Boolean);
 
 const DEFAULT_WELCOME_TEXT = [
-  '¡Hola! {{1}} 👋',
-  '*Bienvenido/a a Kinesiología Kareh* 🌿',
-  '',
-  'Para asesorarte con tu turno, por favor enviá el número de tu opción:',
-  '',
-  '1️⃣ Indicar nombre de Obra Social / Prepaga / ART',
-  '2️⃣ Particular',
-  '3️⃣ PAMI Particular',
-  '4️⃣ Kinesiología Respiratoria',
-  '5️⃣ Ubicación y Horarios 📍',
-  '',
-  'Estamos procesando los mensajes para responderte lo antes posible. ✨',
+  'Hola{{name_suffix}} 😊',
+  'Soy de recepción de Kareh.',
+  'Decime si es por particular, IOMA, PAMI o respiratorio.',
+  'Si es postoperatorio o algo urgente, contame la zona y te paso opciones.',
 ].join('\n');
 
-const AUTO_REPLY_OBRA_SOCIAL_TEXT = [
-  '¡Perfecto! Primero indicanos el nombre de tu Obra Social, Prepaga o ART.',
-  '',
-  'Vamos a verificar si se encuentra habilitada actualmente en el Colegio de Kinesiólogos para poder atenderte.',
-  '',
-  '0️⃣ Volver al inicio.',
+const UNKNOWN_INPUT_TEXT = [
+  'Claro.',
+  'Contame si es por particular, IOMA, PAMI o respiratorio, y te oriento desde recepción.',
 ].join('\n');
-
-const OBRA_SOCIAL_VERIFICATION_PENDING_TEXT = [
-  '¡Recibido! Un administrador verificará si tu cobertura está habilitada actualmente.',
-  '',
-  'Para agilizar el proceso, por favor envianos la siguiente documentación:',
-  '',
-  '✅ Nombre, Apellido y DNI',
-  '✅ Fecha de nacimiento',
-  '📸 Foto de la Orden Médica (legible)',
-  '🩺 Antecedentes: Marcapasos, cáncer u otra condición.',
-  '',
-  'Cuando recibamos la documentación, un administrador seguirá la conversación para confirmarte la cobertura y asignarte un horario. ⏳',
-  '',
-  '0️⃣ Volver al inicio.',
-].join('\n');
-
-
-
-const AUTO_REPLY_PARTICULAR_TEXT = [
-  '¡Excelente! Información para sesiones *Particulares*:',
-  '',
-  '💰 Valor: $15.000 por sesión en cada zona a tratar (solo efectivo).',
-  '',
-  'Para coordinar tu turno, envianos:',
-  '✅ Nombre, Apellido y DNI',
-  '✅ Fecha de nacimiento',
-  '✅ Diagnóstico: qué zona hay que tratar',
-  '📸 Foto de la Orden Médica',
-  '🩺 Antecedentes: Marcapasos, cáncer u otra condición.',
-  '',
-  'Cuando recibamos la documentación, un administrador seguirá la conversación para asignarte un horario. ✨',
-  '',
-  '0️⃣ Volver al inicio.',
-].join('\n');
-
-const AUTO_REPLY_PAMI_TEXT = [
-  '¡Entendido! Para pacientes de PAMI el valor es diferencial:',
-  '',
-  '💰 Valor bonificado: $10.000 por sesión en cada zona a tratar (solo efectivo).',
-  '',
-  'Para reservar tu lugar, envianos:',
-  '✅ Nombre, Apellido y DNI',
-  '✅ Número de afiliado',
-  '✅ Fecha de nacimiento',
-  '📸 Foto de la Orden Médica (legible)',
-  '🩺 Antecedentes: Marcapasos, cáncer u otra condición.',
-  '',
-  'Cuando recibamos la documentación, un administrador seguirá la conversación para coordinar el horario. ⏳',
-  '',
-  '0️⃣ Volver al inicio.',
-].join('\n');
-
-const AUTO_REPLY_RESPIRATORIO_TEXT = [
-  '¡Excelente! Información para sesiones Respiratorias:',
-  '',
-  '💰 Valor: 30.000 por sesión (solo efectivo).',
-  '',
-  'Para coordinar tu turno, envianos:',
-  '✅ Nombre, Apellido y DNI',
-  '✅ Fecha de nacimiento',
-  '✅ Diagnóstico',
-  '📸 Foto de la Orden Médica',
-  '🩺 Antecedentes: Marcapasos, cáncer u otra condición.',
-  '',
-  'Cuando recibamos la documentación, un administrador seguirá la conversación. ✨',
-  '',
-  '0️⃣ Volver al inicio.',
-].join('\n');
-
-const UNKNOWN_INPUT_TEXT = 'Perdón, no entendí eso. Por favor, enviá los datos solicitados o escribí *0* para volver al inicio. 🙏';
-const WAITING_HUMAN_REVIEW_TEXT = 'Ya recibimos tu documentación. En breve te responde un administrador. Si necesitás volver al inicio, escribí *0*.';
-
-const DOCUMENTATION_RECEIVED_TEXT = [
-  '¡Gracias! Recibimos tu documentación correctamente.',
-  'En breve te responde un administrador para continuar con el turno. ✨',
-].join('\n');
+const WAITING_HUMAN_REVIEW_TEXT = 'Perfecto 😊 Ya lo tiene administración. En cuanto lo revisen seguimos por acá.';
+const DOCUMENTATION_RECEIVED_TEXT = 'Perfecto 😊 Recibimos la documentación correctamente. Vamos a revisarla administrativamente y en breve continuamos con la coordinación del turno.';
 
 const AUTO_REPLY_LOCATION_TEXT = [
-  '📍 *Nuestra ubicación:*',
   'Av. Senador Morón 782, Bella Vista.',
-  '🗺️ Google Maps: https://maps.app.goo.gl/ChIJccvYOMO9vJURBOmqm_VIytA',
-  '',
-  '⏰ *Horarios:*',
-  '• Lunes y viernes: 14:00 a 19:00 hs.',
-  '• Martes, miércoles y jueves: 17:30 a 19:00 hs.',
-  '• Sábados: 08:00 a 12:00 hs.',
-  '',
-  '0️⃣ Volver al inicio.',
+  'Atendemos lun y vie de 14:00 a 19:00 hs, mar a jue de 17:30 a 19:00 hs y sáb de 08:00 a 12:00 hs.',
+  `Mapa: ${CLINIC_LOCATION_MAPS_URL}`,
+  'Si querés, te paso dos horarios disponibles.',
 ].join('\n');
-
-const DOCUMENT_COLLECTION_STATES = new Set([
-  FLOW_STATES.OBRA_SOCIAL_DOCS,
-  FLOW_STATES.PARTICULAR,
-  FLOW_STATES.PAMI,
-  FLOW_STATES.RESPIRATORIO,
-  FLOW_STATES.FINAL_DOCS,
-]);
 
 const DIRECT_INTENT_RULES = [
   {
     patterns: [/\b(rpg|rehabilitacion postural global|rehabilitación postural global|postural)\b/],
-    text: 'Por el momento no contamos con la especialidad de RPG, pero con gusto podemos orientarte con otras opciones. Saludos.',
+    text: 'Por ahora no estamos tomando RPG. Si querés, te orientamos con otras opciones del consultorio.',
     nextState: FLOW_STATES.WELCOME,
   },
   {
     patterns: [/\b(vestibular|mareos|vertigo|vértigo)\b/],
-    text: 'Por el momento no contamos con rehabilitación vestibular, pero con gusto podemos orientarte con otras opciones. Saludos.',
+    text: 'Por ahora no estamos tomando rehabilitación vestibular. Si querés, vemos otra alternativa.',
     nextState: FLOW_STATES.WELCOME,
   },
   {
     patterns: [/\b(drenaje|linfatico|linfático)\b/],
-    text: 'Por el momento no contamos con drenaje linfático manual, pero con gusto podemos orientarte con otras opciones. Saludos.',
+    text: 'Por ahora no estamos tomando drenaje linfático. Si querés, vemos otra opción de atención.',
     nextState: FLOW_STATES.WELCOME,
   },
   {
     patterns: [/\b(domicilio|domiciliario|domiciliaria|en casa|en domicilio)\b/],
-    text: 'Por el momento no realizamos atención a domicilio, pero con gusto podemos ayudarte a coordinar atención en consultorio. Saludos.',
+    text: 'Atención a domicilio no estamos tomando en este momento. Si te sirve en consultorio, te paso opciones.',
     nextState: FLOW_STATES.WELCOME,
-  },
-  {
-    patterns: [/^(1|1 obra social|1 prepaga|1 art)$/],
-    text: AUTO_REPLY_OBRA_SOCIAL_TEXT,
-    nextState: FLOW_STATES.OBRA_SOCIAL,
-  },
-  {
-    patterns: [/\b(obra social|obras sociales|prepaga|art|carnet|cobertura)\b/],
-    text: AUTO_REPLY_OBRA_SOCIAL_TEXT,
-    nextState: FLOW_STATES.OBRA_SOCIAL,
-  },
-  {
-    patterns: [/^(2|2 particular)$/],
-    text: AUTO_REPLY_PARTICULAR_TEXT,
-    nextState: FLOW_STATES.PARTICULAR,
-  },
-  {
-    patterns: [/\b(particular|precio|precios|cuanto sale|cuanto cuesta|costo|costos|valor|efectivo|pagar en el centro)\b/],
-    text: AUTO_REPLY_PARTICULAR_TEXT,
-    nextState: FLOW_STATES.PARTICULAR,
-  },
-  {
-    patterns: [/^(3|3 pami)$/],
-    text: AUTO_REPLY_PAMI_TEXT,
-    nextState: FLOW_STATES.PAMI,
-  },
-  {
-    patterns: [/\b(pami|jubilado|jubilada|jubilados)\b/],
-    text: AUTO_REPLY_PAMI_TEXT,
-    nextState: FLOW_STATES.PAMI,
-  },
-  {
-    patterns: [/^(4|4 respiratorio)$/],
-    text: AUTO_REPLY_RESPIRATORIO_TEXT,
-    nextState: FLOW_STATES.RESPIRATORIO,
-  },
-  {
-    patterns: [/\b(respiratorio|respiratoria|nebulizacion|pecho|kinesiologia respiratoria|rehabilitacion respiratoria|respira)\b/],
-    text: AUTO_REPLY_RESPIRATORIO_TEXT,
-    nextState: FLOW_STATES.RESPIRATORIO,
   },
   {
     patterns: [/^(5|5 ubicacion|5 ubicacion y horarios)$/],
@@ -250,6 +119,10 @@ const HOLA_TEMPLATE_BODY_PARAMS = String(process.env.WHATSAPP_HOLA_TEMPLATE_BODY
 const WELCOME_FALLBACK_TEXT = WELCOME_TEXT_TEMPLATE;
 const WELCOME_COOLDOWN_HOURS = Number(process.env.WHATSAPP_WELCOME_COOLDOWN_HOURS || 24);
 const WELCOME_COOLDOWN_MS = WELCOME_COOLDOWN_HOURS * 60 * 60 * 1000;
+const PRICING_CHANGE_DATE = new Date(2026, 5, 1, 0, 0, 0, 0);
+const AUTO_REPLY_COOLDOWN_MS = 15 * 1000;
+const AUTO_REPLY_MIN_DELAY_MS = 1500;
+const AUTO_REPLY_MAX_DELAY_MS = 5500;
 
 const MIME_EXTENSION = {
   'image/jpeg': 'jpg',
@@ -552,18 +425,51 @@ const normalizeText = (value) => {
 };
 
 const GREETING_PREFIXES = ['hola', 'buenas', 'buen dia', 'buenos dias', 'buenas tardes', 'buenas noches'];
+const WEEKDAY_NAMES = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 
 const MENU_COMMAND_PATTERNS = [/^(0|menu|menu principal|volver|inicio)(\b.*)?$/];
 const LISTO_COMMAND_PATTERNS = [/^(listo|ya esta|ya envie todo|termine)(\b.*)?$/];
-const GENERIC_COVERAGE_PROMPT_PATTERNS = [
-  /^(obra social|obras sociales|prepaga|prepagas|art|cobertura|coberturas|mutual)(\b.*)?$/,
-];
 const LOCATION_INTENT_PATTERNS = [
   /^(5|5 ubicacion|5 ubicacion y horarios)$/,
   /\b(ubicacion|direccion|donde estan|donde quedan|mapa|horario|horarios)\b/,
 ];
+const PRICE_INTENT_PATTERNS = [/\b(cuanto sale|cuanto cuesta|precio|precios|valor|costo|costos)\b/];
+const PARTICULAR_INTENT_PATTERNS = [/^(2|2 particular)$/, /\bparticular\b/];
+const PAMI_INTENT_PATTERNS = [/^(3|3 pami)$/, /\bpami\b/];
+const IOMA_INTENT_PATTERNS = [/\bioma\b/];
+const INSURANCE_INTENT_PATTERNS = [
+  /\b(obra social|obras sociales|prepaga|prepagas|art|mutual|credencial|carnet)\b/,
+];
+const RESPIRATORY_INTENT_PATTERNS = [
+  /^(4|4 respiratorio)$/,
+  /\b(respiratorio|respiratoria|bronquiolitis|broncoespasmo|nebulizacion|tos persistente|respira)\b/,
+];
+const SLOT_REQUEST_PATTERNS = [
+  /\b(turno|horario|horarios|disponibilidad|disponible|arrancar|empezar|comenzar|sesion|sesiones)\b/,
+];
+const BOOKING_COMMIT_PATTERNS = [
+  /\b(me sirve|me queda bien|quiero ese|quiero turno|quiero sacar turno|avancemos|podemos avanzar|dale|de una|ok|esta bien|perfecto|prefiero|viernes|sabado|lunes|martes|miercoles|jueves)\b/,
+];
+const PRICE_OBJECTION_PATTERNS = [/\b(caro|cara|mucha plata|se me complica|no llego|no puedo pagar)\b/];
+const COMPLEX_ADMIN_PATTERNS = [
+  /\b(reintegro|reintegran|devolucion|auditoria|factura|facturacion|reclamo|queja|problema|excepcion|cubre|cobertura|autoriza|autorizacion|bono|bonos)\b/,
+];
+const URGENT_PATTERNS = [/\b(cirugia|protesis|lca|postoperatorio|fractura|dificultad respiratoria)\b/];
+const NEURO_PATTERNS = [/\b(neuro|neurorehabilitacion|acv|hemiplejia|parkinson|esclerosis|neurologica)\b/];
+const BODY_ZONE_PATTERNS = [
+  /\b(rodilla|hombro|espalda|cintura|cuello|cervical|lumbar|tobillo|pie|mano|codo|brazo|pierna|columna|ciatica|rotula|menisco|rotador)\b/,
+];
+const GENERIC_REASON_PATTERNS = [/\b(dolor|contractura|lesion|rehabilitacion|operacion|esguince|luxacion)\b/];
+const DOCUMENT_TEXT_PATTERNS = [/\b(orden|credencial|dni|frente|dorso|estudio|resonancia|radiografia|receta|foto)\b/];
+const OFFER_FLOW_STATES = new Set([FLOW_STATES.PARTICULAR, FLOW_STATES.PAMI, FLOW_STATES.RESPIRATORIO]);
 
 const matchesAnyPattern = (text, patterns) => patterns.some((pattern) => pattern.test(text));
+const hashText = (value) => String(value || '')
+  .split('')
+  .reduce((accumulator, char) => ((accumulator * 31) + char.charCodeAt(0)) >>> 0, 7);
+const pickVariant = (variants, seed = '') => variants[hashText(seed) % variants.length];
+const formatCurrency = (value) => `$${Number(value || 0).toLocaleString('es-AR')}`;
+const hasFlowMeta = (state, meta) => getFlowStateMeta(state).includes(meta);
 
 const isGreeting = (normalizedText) => GREETING_PREFIXES.some(
   (prefix) => normalizedText === prefix || normalizedText.startsWith(`${prefix} `),
@@ -571,19 +477,229 @@ const isGreeting = (normalizedText) => GREETING_PREFIXES.some(
 
 const isMenuCommand = (normalizedText) => matchesAnyPattern(normalizedText, MENU_COMMAND_PATTERNS);
 const isListoCommand = (normalizedText) => matchesAnyPattern(normalizedText, LISTO_COMMAND_PATTERNS);
-const isGenericCoveragePrompt = (normalizedText) => matchesAnyPattern(normalizedText, GENERIC_COVERAGE_PROMPT_PATTERNS);
 const isLocationIntent = (normalizedText) => matchesAnyPattern(normalizedText, LOCATION_INTENT_PATTERNS);
+const hasPriceIntent = (normalizedText) => matchesAnyPattern(normalizedText, PRICE_INTENT_PATTERNS);
+const hasParticularIntent = (normalizedText) => matchesAnyPattern(normalizedText, PARTICULAR_INTENT_PATTERNS);
+const hasPamiIntent = (normalizedText) => matchesAnyPattern(normalizedText, PAMI_INTENT_PATTERNS);
+const hasIomaIntent = (normalizedText) => matchesAnyPattern(normalizedText, IOMA_INTENT_PATTERNS);
+const hasRespiratoryIntent = (normalizedText) => matchesAnyPattern(normalizedText, RESPIRATORY_INTENT_PATTERNS);
+const hasSlotRequestIntent = (normalizedText) => matchesAnyPattern(normalizedText, SLOT_REQUEST_PATTERNS);
+const hasBookingCommitment = (normalizedText) => matchesAnyPattern(normalizedText, BOOKING_COMMIT_PATTERNS);
+const hasPriceObjection = (normalizedText) => matchesAnyPattern(normalizedText, PRICE_OBJECTION_PATTERNS);
+const hasComplexAdminIntent = (normalizedText) => matchesAnyPattern(normalizedText, COMPLEX_ADMIN_PATTERNS);
+const hasUrgentIntent = (normalizedText) => matchesAnyPattern(normalizedText, URGENT_PATTERNS);
+const hasNeuroIntent = (normalizedText) => matchesAnyPattern(normalizedText, NEURO_PATTERNS);
+const hasBodyZoneIntent = (normalizedText) => matchesAnyPattern(normalizedText, BODY_ZONE_PATTERNS);
+const hasGenericReasonIntent = (normalizedText) => matchesAnyPattern(normalizedText, GENERIC_REASON_PATTERNS);
+const hasDocumentationText = (normalizedText) => matchesAnyPattern(normalizedText, DOCUMENT_TEXT_PATTERNS);
+const hasKnownCoverageIntent = (normalizedText) => Boolean(
+  normalizedText && findInMemoryWhatsAppCoverageByInput(normalizedText, { includeInactive: true }),
+);
+const hasInsuranceIntent = (normalizedText) => (
+  hasIomaIntent(normalizedText)
+  || hasKnownCoverageIntent(normalizedText)
+  || matchesAnyPattern(normalizedText, INSURANCE_INTENT_PATTERNS)
+);
+const hasClinicalReason = (normalizedText) => (
+  hasRespiratoryIntent(normalizedText)
+  || hasBodyZoneIntent(normalizedText)
+  || hasGenericReasonIntent(normalizedText)
+  || hasUrgentIntent(normalizedText)
+  || hasNeuroIntent(normalizedText)
+);
+const isServiceFlowState = (stateBase) => OFFER_FLOW_STATES.has(stateBase);
+const isCollectingDocumentation = (currentState) => {
+  const stateBase = getFlowStateBase(currentState);
+  if (stateBase === FLOW_STATES.OBRA_SOCIAL_DOCS || stateBase === FLOW_STATES.FINAL_DOCS) {
+    return true;
+  }
 
-const canApplyDirectIntent = (currentStateBase) => !currentStateBase
-  || currentStateBase === FLOW_STATES.WELCOME
-  || currentStateBase === FLOW_STATES.OBRA_SOCIAL
-  || currentStateBase === FLOW_STATES.OBRA_SOCIAL_UNAVAILABLE
-  || currentStateBase === FLOW_STATES.LOCATION
-  || currentStateBase === FLOW_STATES.WAITING_HUMAN_REVIEW;
+  return isServiceFlowState(stateBase)
+    && (hasFlowMeta(currentState, FLOW_META.DOCS) || hasFlowMeta(currentState, FLOW_META.OFFER));
+};
+const isAwaitingSlotChoice = (currentState) => (
+  isServiceFlowState(getFlowStateBase(currentState)) && hasFlowMeta(currentState, FLOW_META.OFFER)
+);
 
-const getCoverageInputLabel = (messageText) => {
-  const normalized = String(messageText || '').trim();
-  return normalized || 'la cobertura indicada';
+const getCurrentPricing = (referenceDate = new Date()) => (
+  referenceDate >= PRICING_CHANGE_DATE
+    ? {
+      particular: 18000,
+      respiratorio: 35000,
+      pami: 12000,
+      iomaCoinsurance: 7000,
+    }
+    : {
+      particular: 15000,
+      respiratorio: 30000,
+      pami: 10000,
+      iomaCoinsurance: 7000,
+    }
+);
+
+const getServiceKindFromState = (stateBase) => {
+  if (stateBase === FLOW_STATES.RESPIRATORIO) return FLOW_STATES.RESPIRATORIO;
+  if (stateBase === FLOW_STATES.PAMI) return FLOW_STATES.PAMI;
+  return FLOW_STATES.PARTICULAR;
+};
+
+const getServiceKindFromMessage = (normalizedText, currentStateBase) => {
+  if (hasRespiratoryIntent(normalizedText) || currentStateBase === FLOW_STATES.RESPIRATORIO) {
+    return FLOW_STATES.RESPIRATORIO;
+  }
+  if (hasPamiIntent(normalizedText) || currentStateBase === FLOW_STATES.PAMI) {
+    return FLOW_STATES.PAMI;
+  }
+  return FLOW_STATES.PARTICULAR;
+};
+
+const formatSlotLabel = (slot) => {
+  const startsAt = slot?.startsAt instanceof Date ? slot.startsAt : new Date(slot?.startsAt || `${slot?.date}T12:00:00`);
+  if (Number.isNaN(startsAt.getTime())) {
+    return slot?.time ? `a las ${slot.time} hs` : 'en el próximo horario disponible';
+  }
+
+  return `${WEEKDAY_NAMES[startsAt.getDay()]} ${startsAt.getDate()} a las ${slot.time} hs`;
+};
+
+const joinSlotLabels = (slots = []) => slots.map((slot) => formatSlotLabel(slot)).join(' o ');
+
+const buildGenericPriceReply = (seed) => {
+  const pricing = getCurrentPricing();
+  return [
+    `${pickVariant(['Hola 😊', 'Claro', 'Buenísimo'], seed)} Las sesiones particulares están en ${formatCurrency(pricing.particular)}.`,
+    '¿La consulta es por dolor muscular, postoperatorio o respiratorio?',
+  ].join('\n');
+};
+
+const buildParticularIntroReply = (seed) => {
+  const pricing = getCurrentPricing();
+  return [
+    `${pickVariant(['Claro', 'Perfecto 😊', 'Buenísimo'], seed)} Las sesiones particulares están en ${formatCurrency(pricing.particular)}.`,
+    'Decime la zona a tratar y te paso dos horarios.',
+  ].join('\n');
+};
+
+const buildInsuranceDocsReply = (normalizedText) => {
+  const pricing = getCurrentPricing();
+  if (hasIomaIntent(normalizedText)) {
+    return [
+      'Perfecto 😊 Mandanos foto de la orden y la credencial así lo revisamos administrativamente.',
+      `Si avanza por IOMA, el coseguro es de ${formatCurrency(pricing.iomaCoinsurance)} por sesión.`,
+    ].join('\n');
+  }
+
+  return [
+    'Perfecto 😊 Mandanos foto de la orden y la credencial así lo revisamos administrativamente.',
+    'Después seguimos por acá con la coordinación.',
+  ].join('\n');
+};
+
+const buildPamiIntroReply = (seed) => {
+  const pricing = getCurrentPricing();
+  return [
+    `${pickVariant(['Claro', 'Perfecto 😊', 'Buenísimo'], seed)} Si es PAMI particular, hoy está en ${formatCurrency(pricing.pami)} por sesión.`,
+    'Decime la zona a tratar y te paso dos horarios.',
+  ].join('\n');
+};
+
+const buildDocumentationRequestReply = ({ kind, seed }) => {
+  const basePrefix = pickVariant(['Perfecto 😊', 'Claro', 'Dale'], seed);
+  const lines = [
+    `${basePrefix} Tomo esa opción como preferencia.`,
+    'Mandanos nombre y apellido, fecha de nacimiento y la orden si ya la tenés a mano.',
+  ];
+
+  if (kind === FLOW_STATES.PAMI) {
+    lines[1] = 'Mandanos nombre y apellido, fecha de nacimiento y la orden si ya la tenés a mano.';
+  }
+
+  return lines.join('\n');
+};
+
+const buildHumanHandoffReply = (seed) => pickVariant([
+  'Eso lo revisa administración y te seguimos por acá apenas lo validen.',
+  'Ese punto lo ve administración. En cuanto lo revisen, seguimos por acá.',
+  'Lo paso a administración y seguimos por este medio apenas lo validen.',
+], seed);
+
+const buildPriceObjectionReply = (seed) => [
+  `${pickVariant(['Claro', 'Perfecto 😊', 'Dale'], seed)} Se puede abonar sesión por sesión.`,
+  'Si querés, seguimos con alguna de las opciones que te pasé.',
+].join('\n');
+
+const buildNoAvailabilityReply = () => [
+  'La agenda está bastante ajustada en este momento.',
+  'Lo paso a recepción y seguimos por acá con la opción más próxima.',
+].join('\n');
+
+const buildSlotOfferReply = async ({ prisma, kind, seed, urgent = false }) => {
+  const schedulingConfig = kind === FLOW_STATES.PAMI
+    ? { horizonDays: 14, minLeadMinutes: 180, preferLowerOccupancy: true }
+    : urgent
+      ? { horizonDays: 7, minLeadMinutes: 60, preferLowerOccupancy: false }
+      : { horizonDays: 12, minLeadMinutes: 120, preferLowerOccupancy: true };
+
+  const suggestedSlots = await getSuggestedWhatsAppSlots({
+    prisma,
+    maxSlots: 2,
+    horizonDays: schedulingConfig.horizonDays,
+    minLeadMinutes: schedulingConfig.minLeadMinutes,
+    preferLowerOccupancy: schedulingConfig.preferLowerOccupancy,
+  });
+
+  if (!suggestedSlots.length) {
+    return {
+      type: 'text',
+      text: buildNoAvailabilityReply(),
+      nextState: FLOW_STATES.WAITING_HUMAN_REVIEW,
+    };
+  }
+
+  const pricing = getCurrentPricing();
+  const priceLine = kind === FLOW_STATES.RESPIRATORIO
+    ? `Las sesiones respiratorias están en ${formatCurrency(pricing.respiratorio)}.`
+    : kind === FLOW_STATES.PAMI
+      ? `PAMI particular hoy está en ${formatCurrency(pricing.pami)} por sesión.`
+      : `Las sesiones particulares están en ${formatCurrency(pricing.particular)}.`;
+
+  const urgencyLine = kind === FLOW_STATES.RESPIRATORIO
+    ? 'Conviene arrancar rápido para sostener la evolución respiratoria.'
+    : 'En estos casos conviene arrancar rápido para no perder movilidad.';
+
+  const lines = [
+    urgent ? urgencyLine : pickVariant(['Perfecto 😊', 'Claro', 'Buenísimo'], seed),
+    priceLine,
+    `Podemos ofrecerte ${joinSlotLabels(suggestedSlots)}.`,
+    'Si una te sirve, avanzamos.',
+  ];
+
+  return {
+    type: 'text',
+    text: lines.filter(Boolean).join('\n'),
+    nextState: buildFlowState(kind, FLOW_META.OFFER),
+  };
+};
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const getRandomAutoReplyDelayMs = () => (
+  AUTO_REPLY_MIN_DELAY_MS
+  + Math.floor(Math.random() * ((AUTO_REPLY_MAX_DELAY_MS - AUTO_REPLY_MIN_DELAY_MS) + 1))
+);
+
+const shouldSkipAutoReplyForCooldown = ({ conversation, currentState, nextState, now = new Date() }) => {
+  const lastAutoReplyAt = conversation?.lastAutoReplyAt ? new Date(conversation.lastAutoReplyAt) : null;
+  if (!lastAutoReplyAt || Number.isNaN(lastAutoReplyAt.getTime())) {
+    return false;
+  }
+
+  const elapsedMs = now.getTime() - lastAutoReplyAt.getTime();
+  if (elapsedMs >= AUTO_REPLY_COOLDOWN_MS) {
+    return false;
+  }
+
+  return String(nextState || currentState || '') === String(currentState || '');
 };
 
 const getDirectIntentReply = (normalizedText) => {
@@ -597,7 +713,8 @@ const getDirectIntentReply = (normalizedText) => {
   };
 };
 
-const getConversationAutoReply = ({
+const getConversationAutoReply = async ({
+  prisma,
   messageText,
   messageType = 'text',
   currentState,
@@ -628,25 +745,26 @@ const getConversationAutoReply = ({
     };
   }
 
-  if (normalized && currentStateBase === FLOW_STATES.OBRA_SOCIAL && isGenericCoveragePrompt(normalized)) {
-    return {
-      type: 'text',
-      text: AUTO_REPLY_OBRA_SOCIAL_TEXT,
-      nextState: FLOW_STATES.OBRA_SOCIAL,
-    };
-  }
-
   if (
-    DOCUMENT_COLLECTION_STATES.has(currentStateBase)
+    isCollectingDocumentation(currentState)
     && (
       hasMediaAttachment
       || (normalized && isListoCommand(normalized))
+      || (normalized && hasDocumentationText(normalized))
     )
   ) {
     return {
       type: 'text',
       text: DOCUMENTATION_RECEIVED_TEXT,
-      nextState: FLOW_STATES.HUMAN_HANDOFF,
+      nextState: FLOW_STATES.WAITING_HUMAN_REVIEW,
+    };
+  }
+
+  if (normalized && hasComplexAdminIntent(normalized)) {
+    return {
+      type: 'text',
+      text: buildHumanHandoffReply(normalized),
+      nextState: FLOW_STATES.WAITING_HUMAN_REVIEW,
     };
   }
 
@@ -657,14 +775,96 @@ const getConversationAutoReply = ({
   ) {
     return {
       type: 'text',
-      text: OBRA_SOCIAL_VERIFICATION_PENDING_TEXT,
+      text: buildInsuranceDocsReply(normalized),
       nextState: FLOW_STATES.OBRA_SOCIAL_DOCS,
     };
   }
 
-  if (normalized && (shouldSendWelcome || canApplyDirectIntent(currentStateBase))) {
+  if (normalized) {
     const directIntentReply = getDirectIntentReply(normalized);
     if (directIntentReply) return directIntentReply;
+  }
+
+  if (normalized && hasInsuranceIntent(normalized) && !hasPamiIntent(normalized)) {
+    return {
+      type: 'text',
+      text: buildInsuranceDocsReply(normalized),
+      nextState: FLOW_STATES.OBRA_SOCIAL_DOCS,
+    };
+  }
+
+  if (normalized && hasPamiIntent(normalized) && currentStateBase !== FLOW_STATES.PAMI && !hasClinicalReason(normalized) && !hasSlotRequestIntent(normalized)) {
+    return {
+      type: 'text',
+      text: buildPamiIntroReply(normalized),
+      nextState: FLOW_STATES.PAMI,
+    };
+  }
+
+  if (normalized && hasPriceObjection(normalized) && isAwaitingSlotChoice(currentState)) {
+    return {
+      type: 'text',
+      text: buildPriceObjectionReply(normalized),
+      nextState: currentState,
+    };
+  }
+
+  if (normalized && isAwaitingSlotChoice(currentState) && hasBookingCommitment(normalized)) {
+    const serviceKind = getServiceKindFromState(currentStateBase);
+    return {
+      type: 'text',
+      text: buildDocumentationRequestReply({ kind: serviceKind, seed: normalized }),
+      nextState: buildFlowState(serviceKind, FLOW_META.DOCS),
+    };
+  }
+
+  if (normalized && currentStateBase === FLOW_STATES.WELCOME && hasPriceIntent(normalized) && !hasClinicalReason(normalized) && !hasInsuranceIntent(normalized)) {
+    return {
+      type: 'text',
+      text: buildGenericPriceReply(normalized),
+      nextState: FLOW_STATES.PARTICULAR,
+    };
+  }
+
+  if (
+    normalized
+    && (
+      currentStateBase === FLOW_STATES.PARTICULAR
+      || currentStateBase === FLOW_STATES.PAMI
+      || currentStateBase === FLOW_STATES.RESPIRATORIO
+      || currentStateBase === FLOW_STATES.WELCOME
+      || currentStateBase === FLOW_STATES.LOCATION
+    )
+  ) {
+    const serviceKind = getServiceKindFromMessage(normalized, currentStateBase);
+    const shouldOfferSlots = hasClinicalReason(normalized)
+      || hasSlotRequestIntent(normalized)
+      || (serviceKind === FLOW_STATES.RESPIRATORIO && hasRespiratoryIntent(normalized));
+
+    if (serviceKind === FLOW_STATES.PAMI && !shouldOfferSlots && currentStateBase === FLOW_STATES.PAMI) {
+      return {
+        type: 'text',
+        text: buildPamiIntroReply(normalized),
+        nextState: FLOW_STATES.PAMI,
+      };
+    }
+
+    if (shouldOfferSlots) {
+      return buildSlotOfferReply({
+        prisma,
+        kind: serviceKind,
+        seed: normalized,
+        urgent: hasUrgentIntent(normalized) || hasNeuroIntent(normalized) || serviceKind === FLOW_STATES.RESPIRATORIO,
+      });
+    }
+
+    if (serviceKind === FLOW_STATES.PARTICULAR && (hasParticularIntent(normalized) || currentStateBase === FLOW_STATES.PARTICULAR) && !shouldOfferSlots) {
+      return {
+        type: 'text',
+        text: hasPriceIntent(normalized) ? buildGenericPriceReply(normalized) : buildParticularIntroReply(normalized),
+        nextState: FLOW_STATES.PARTICULAR,
+      };
+    }
   }
 
   if (shouldSendWelcome && (normalized || hasNonTextMessage)) {
@@ -679,7 +879,7 @@ const getConversationAutoReply = ({
     return null;
   }
 
-  if (DOCUMENT_COLLECTION_STATES.has(currentStateBase)) {
+  if (isCollectingDocumentation(currentState)) {
     return null;
   }
 
@@ -691,7 +891,7 @@ const getConversationAutoReply = ({
     };
   }
 
-  if (normalized && currentStateBase !== FLOW_STATES.WELCOME) {
+  if (normalized) {
     return {
       type: 'text',
       text: UNKNOWN_INPUT_TEXT,
@@ -825,7 +1025,8 @@ export const handleWhatsAppWebhook = async (req, res, prisma) => {
           const effectiveState = shouldResetSession
             ? FLOW_STATES.WELCOME
             : (conversation.currentState || FLOW_STATES.WELCOME);
-          const autoReply = getConversationAutoReply({
+          const autoReply = await getConversationAutoReply({
+            prisma,
             messageText: inboundText,
             messageType: message.type,
             currentState: effectiveState,
@@ -835,6 +1036,12 @@ export const handleWhatsAppWebhook = async (req, res, prisma) => {
           });
           const nextConversationState = autoReply?.nextState || effectiveState;
           const nextProfileName = extractedPatientName || incomingProfileName || conversation.profileName;
+          const shouldSkipAutoReply = autoReply && shouldSkipAutoReplyForCooldown({
+            conversation,
+            currentState: effectiveState,
+            nextState: nextConversationState,
+            now,
+          });
           const storedInboundText = buildStoredInboundText({
             message,
             transcribedText: transcribedAudioText,
@@ -887,29 +1094,64 @@ export const handleWhatsAppWebhook = async (req, res, prisma) => {
             console.error('Error enviando notificación push:', pushError);
           }
 
-          if (autoReply) {
+          if (autoReply && !shouldSkipAutoReply) {
             try {
-              const outboundText = autoReply.type === 'welcome'
-                ? buildReplyText(WELCOME_TEXT_TEMPLATE, nextProfileName)
-                : autoReply.text;
-              const response = await sendTextMessage({
-                to: conversation.waId,
-                text: outboundText,
-              });
+              await sleep(getRandomAutoReplyDelayMs());
+
+              let outboundText = autoReply.text;
+              let response = null;
+              let outboundType = 'text';
+
+              if (autoReply.type === 'welcome') {
+                const welcomeResult = await sendWelcomeReply({
+                  to: conversation.waId,
+                  patientName: nextProfileName,
+                });
+
+                response = welcomeResult.response;
+                outboundText = welcomeResult.outboundText;
+                outboundType = welcomeResult.outboundType;
+              } else {
+                response = await sendTextMessage({
+                  to: conversation.waId,
+                  text: outboundText,
+                });
+              }
 
               await prisma.whatsAppMessage.create({
                 data: {
                   conversationId: conversation.id,
                   direction: 'outbound',
-                  type: 'text',
+                  type: outboundType,
                   text: outboundText,
                   waMessageId: response?.messages?.[0]?.id,
                   status: 'sent',
                 },
               });
+
+              await prisma.whatsAppConversation.update({
+                where: { id: conversation.id },
+                data: { lastAutoReplyAt: new Date() },
+              });
+
+              console.log('[WA AUTO REPLY]', {
+                conversationId: conversation.id,
+                currentState: effectiveState,
+                nextState: nextConversationState,
+                inboundText,
+                outboundText,
+              });
             } catch (err) {
               console.error('Error enviando respuesta automática:', err);
             }
+          } else if (autoReply && shouldSkipAutoReply) {
+            console.log('[WA AUTO REPLY SKIPPED]', {
+              conversationId: conversation.id,
+              currentState: effectiveState,
+              nextState: nextConversationState,
+              inboundText,
+              reason: 'cooldown',
+            });
           }
         }
 
