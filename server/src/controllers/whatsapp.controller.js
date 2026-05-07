@@ -482,6 +482,22 @@ const MORNING_SLOT_PATTERNS = [/\b(a la manana|de manana|temprano|primera hora)\
 const AFTERNOON_SLOT_PATTERNS = [/\b(a la tarde|por la tarde|tarde)\b/];
 const EVENING_SLOT_PATTERNS = [/\b(mas tarde|a ultima hora|despues de las 17|despues de las 18|despues de las 19)\b/];
 const TOMORROW_SLOT_PATTERNS = [/\b(para manana|manana)\b/];
+const HUMAN_HANDOFF_PATTERNS = [
+  /\bkati\b/,
+  /\bkatia\b/,
+  /\bkaren\b/,
+  /\bkarina\b/,
+  /\bmas temprano\b/,
+  /\bmas tarde\b/,
+  /\bpuedo mover\b/,
+  /\bcambiar turno\b/,
+  /\breprogramar\b/,
+  /\bmi turno\b/,
+  /\bel turno\b/,
+  /\bllego mas tarde\b/,
+  /\bpuedo ir antes\b/,
+  /\bse puede pasar\b/,
+];
 const BOOKING_COMMIT_PATTERNS = [
   /\b(me sirve|me queda bien|quiero ese|quiero turno|quiero sacar turno|avancemos|podemos avanzar|dale|de una|ok|esta bien|perfecto|prefiero|viernes|sabado|lunes|martes|miercoles|jueves)\b/,
 ];
@@ -529,6 +545,7 @@ const hasArtKeywordIntent = (normalizedText) => matchesAnyPattern(normalizedText
 const hasRespiratoryIntent = (normalizedText) => matchesAnyPattern(normalizedText, RESPIRATORY_INTENT_PATTERNS);
 const hasSlotRequestIntent = (normalizedText) => matchesAnyPattern(normalizedText, SLOT_REQUEST_PATTERNS);
 const hasWhenIntent = (normalizedText) => matchesAnyPattern(normalizedText, WHEN_INTENT_PATTERNS);
+const hasHumanHandoffIntent = (normalizedText) => matchesAnyPattern(normalizedText, HUMAN_HANDOFF_PATTERNS);
 const hasBookingCommitment = (normalizedText) => matchesAnyPattern(normalizedText, BOOKING_COMMIT_PATTERNS);
 const hasPriceObjection = (normalizedText) => matchesAnyPattern(normalizedText, PRICE_OBJECTION_PATTERNS);
 const hasComplexAdminIntent = (normalizedText) => matchesAnyPattern(normalizedText, COMPLEX_ADMIN_PATTERNS);
@@ -707,13 +724,19 @@ const getServiceKindFromMessage = (normalizedText, currentStateBase) => {
   return FLOW_STATES.PARTICULAR;
 };
 
+const padDatePart = (value) => String(value).padStart(2, '0');
+
+const formatSlotCalendarDate = (date) => (
+  `${padDatePart(date.getDate())}/${padDatePart(date.getMonth() + 1)}/${String(date.getFullYear()).slice(-2)}`
+);
+
 const formatSlotLabel = (slot) => {
   const startsAt = slot?.startsAt instanceof Date ? slot.startsAt : new Date(slot?.startsAt || `${slot?.date}T12:00:00`);
   if (Number.isNaN(startsAt.getTime())) {
     return slot?.time ? `a las ${slot.time} hs` : 'en el próximo horario disponible';
   }
 
-  return `${WEEKDAY_NAMES[startsAt.getDay()]} ${startsAt.getDate()} a las ${slot.time} hs`;
+  return `${WEEKDAY_NAMES[startsAt.getDay()]} ${formatSlotCalendarDate(startsAt)} a las ${slot.time} hs`;
 };
 
 const joinSlotLabels = (slots = []) => slots.map((slot) => formatSlotLabel(slot)).join(' o ');
@@ -805,6 +828,12 @@ const buildHumanHandoffReply = (seed) => pickVariant([
   'Eso lo revisa administración y seguimos por acá.',
   'Ese punto lo ve administración. Seguimos por acá.',
   'Lo paso a administración y seguimos por este medio.',
+], seed);
+
+const buildTurnChangeHandoffReply = (seed) => pickVariant([
+  'Perfecto 😊\nAhora lo revisamos y seguimos por acá.',
+  'Dale 😊\nYa lo vemos y te confirmamos por acá.',
+  'Perfecto 😊\nLo vemos y seguimos por acá.',
 ], seed);
 
 const buildPriceObjectionReply = (seed) => [
@@ -1041,6 +1070,17 @@ const getConversationAutoReply = async ({
       type: 'text',
       text: AUTO_REPLY_LOCATION_TEXT,
       nextState: FLOW_STATES.LOCATION,
+    };
+  }
+
+  if (normalized && hasHumanHandoffIntent(normalized)) {
+    return {
+      type: 'text',
+      text: buildTurnChangeHandoffReply(normalized),
+      nextState: FLOW_STATES.HUMAN_HANDOFF,
+      memory: {
+        clearSlotOffer: true,
+      },
     };
   }
 
