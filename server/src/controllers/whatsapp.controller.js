@@ -68,7 +68,7 @@ const UNKNOWN_INPUT_TEXT = [
   'Contame si es por obras sociales, ART, particular, PAMI particular o respiratorio, y te oriento desde recepción.',
 ].join('\n');
 const WAITING_HUMAN_REVIEW_TEXT = 'Perfecto 😊 Ya lo tiene administración. En cuanto lo revisen seguimos por acá.';
-const DOCUMENTATION_RECEIVED_TEXT = 'Perfecto 😊 Recibimos la documentación correctamente. Vamos a revisarla administrativamente y en breve continuamos con la coordinación del turno.';
+const DOCUMENTATION_RECEIVED_TEXT = 'Perfecto 😊 Recibimos la documentación correctamente. Vamos a revisarla administrativamente y, si está todo bien, seguimos con la coordinación desde 48 hs.';
 
 const AUTO_REPLY_LOCATION_TEXT = [
   'Av. Senador Morón 782, Bella Vista.',
@@ -80,23 +80,23 @@ const AUTO_REPLY_LOCATION_TEXT = [
 const DIRECT_INTENT_RULES = [
   {
     patterns: [/\b(rpg|rehabilitacion postural global|rehabilitación postural global|postural)\b/],
-    text: 'Por ahora no estamos tomando RPG. Si querés, te orientamos con otras opciones del consultorio.',
-    nextState: FLOW_STATES.WELCOME,
+    text: 'Por ahora no estamos tomando RPG. Si querés avanzar por particular, contame qué necesitás tratar y te paso horarios.',
+    nextState: FLOW_STATES.PARTICULAR,
   },
   {
     patterns: [/\b(vestibular|mareos|vertigo|vértigo)\b/],
-    text: 'Por ahora no estamos tomando rehabilitación vestibular. Si querés, vemos otra alternativa.',
-    nextState: FLOW_STATES.WELCOME,
+    text: 'Por ahora no estamos tomando rehabilitación vestibular. Si querés avanzar por particular, contame qué necesitás tratar y te paso horarios.',
+    nextState: FLOW_STATES.PARTICULAR,
   },
   {
     patterns: [/\b(drenaje|linfatico|linfático)\b/],
-    text: 'Por ahora no estamos tomando drenaje linfático. Si querés, vemos otra opción de atención.',
-    nextState: FLOW_STATES.WELCOME,
+    text: 'Perfecto 😊 Drenaje linfático lo vemos caso por caso según disponibilidad profesional. Lo revisamos y seguimos por acá.',
+    nextState: FLOW_STATES.WAITING_HUMAN_REVIEW,
   },
   {
     patterns: [/\b(domicilio|domiciliario|domiciliaria|en casa|en domicilio)\b/],
-    text: 'Atención a domicilio no estamos tomando en este momento. Si te sirve en consultorio, te paso opciones.',
-    nextState: FLOW_STATES.WELCOME,
+    text: 'Atención a domicilio no estamos tomando en este momento. Si te sirve en consultorio por particular, contame qué necesitás tratar y te paso horarios.',
+    nextState: FLOW_STATES.PARTICULAR,
   },
   {
     patterns: [/^(5|5 ubicacion|5 ubicacion y horarios)$/],
@@ -645,7 +645,7 @@ const buildParticularIntroReply = (seed) => {
 const buildInsuranceDocsReply = () => {
   return [
     'Perfecto 😊 Si es por obra social, mandanos foto de la orden y la credencial.',
-    'Lo revisamos administrativamente y seguimos por acá.',
+    'Lo revisamos administrativamente y, si está todo bien, seguimos por acá con opciones desde 48 hs.',
   ].join('\n');
 };
 
@@ -660,13 +660,13 @@ const buildSpecialCoverageReply = ({ label, availability }) => {
   if (availability === SPECIAL_COVERAGE_AVAILABILITY.SUSPENDED) {
     return [
       `Perfecto 😊 ${label} hoy está suspendida.`,
-      'Si querés, te paso valor particular y horarios.',
+      'Si querés avanzar por particular, decime si es respiratorio o qué necesitás tratar y te paso horarios.',
     ].join('\n');
   }
 
   return [
     `Perfecto 😊 ${label} por ahora no la estamos trabajando.`,
-    'Si querés, te paso valor particular y horarios.',
+    'Si querés avanzar por particular, decime si es respiratorio o qué necesitás tratar y te paso horarios.',
   ].join('\n');
 };
 
@@ -708,19 +708,26 @@ const buildNoAvailabilityReply = () => [
   'Lo paso a recepción y seguimos por acá con la opción más próxima.',
 ].join('\n');
 
+const getWhatsAppMinDaysAhead = (kind) => (
+  kind === FLOW_STATES.OBRA_SOCIAL ? 2 : 1
+);
+
 const buildSlotOfferReply = async ({ prisma, kind, seed, urgent = false }) => {
+  const minDaysAhead = getWhatsAppMinDaysAhead(kind);
   const schedulingConfig = kind === FLOW_STATES.PAMI
-    ? { horizonDays: 14, minLeadMinutes: 180, preferLowerOccupancy: true }
+    ? { horizonDays: 14, minLeadMinutes: 180, minDaysAhead, preferLowerOccupancy: true }
     : urgent
-      ? { horizonDays: 7, minLeadMinutes: 60, preferLowerOccupancy: false }
-      : { horizonDays: 12, minLeadMinutes: 120, preferLowerOccupancy: true };
+      ? { horizonDays: 7, minLeadMinutes: 60, minDaysAhead, preferLowerOccupancy: false }
+      : { horizonDays: 12, minLeadMinutes: 120, minDaysAhead, preferLowerOccupancy: true };
 
   const suggestedSlots = await getSuggestedWhatsAppSlots({
     prisma,
     maxSlots: 2,
     horizonDays: schedulingConfig.horizonDays,
     minLeadMinutes: schedulingConfig.minLeadMinutes,
+    minDaysAhead: schedulingConfig.minDaysAhead,
     preferLowerOccupancy: schedulingConfig.preferLowerOccupancy,
+    serviceKind: kind,
   });
 
   if (!suggestedSlots.length) {

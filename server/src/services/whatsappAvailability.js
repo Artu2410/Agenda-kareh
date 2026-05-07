@@ -62,17 +62,36 @@ const getDaySchedules = (professional, dayOfWeek, useFallbackSchedule) => {
 
 const buildCandidateKey = (dateKey, time) => `${dateKey}|${time}`;
 const buildOccupancyKey = (professionalId, dateKey, time) => `${professionalId}|${dateKey}|${time}`;
+const RESPIRATORY_SERVICE_KIND = 'respiratorio';
+
+const isRespiratoryServiceKind = (value) => String(value || '').trim().toLowerCase() === RESPIRATORY_SERVICE_KIND;
+
+const isRespiratoryFollowUpAppointment = (appointment) => (
+  appointment?.patient?.isRespiratory === true
+  && [2, 3].includes(Number(appointment?.sessionNumber))
+);
+
+const getRespiratoryIntakeFitRank = (appointments = []) => {
+  if (!appointments.length) {
+    return 0;
+  }
+
+  return appointments.every(isRespiratoryFollowUpAppointment) ? 1 : null;
+};
 
 export const getSuggestedWhatsAppSlots = async ({
   prisma,
   maxSlots = 2,
   horizonDays = 10,
   minLeadMinutes = 120,
+  minDaysAhead = 1,
   preferLowerOccupancy = true,
+  serviceKind = null,
 } = {}) => {
   const agendaConfig = await prisma.agendaConfig.findFirst();
   const slotDuration = Math.max(1, Number(agendaConfig?.slotDuration) || 30);
   const capacityPerSlot = Math.max(1, Number(agendaConfig?.capacityPerSlot) || 5);
+  const isRespiratoryIntake = isRespiratoryServiceKind(serviceKind);
 
   const professionals = await prisma.professional.findMany({
     where: {
@@ -107,15 +126,19 @@ export const getSuggestedWhatsAppSlots = async ({
 
   const now = new Date();
   const leadTimeMs = Math.max(0, Number(minLeadMinutes) || 0) * 60 * 1000;
+  const normalizedMinDaysAhead = Math.max(1, Number(minDaysAhead) || 1);
+  const normalizedHorizonDays = Math.max(normalizedMinDaysAhead, Number(horizonDays) || normalizedMinDaysAhead);
   const windowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+  const firstEligibleDate = new Date(windowStart);
+  firstEligibleDate.setDate(firstEligibleDate.getDate() + normalizedMinDaysAhead);
   const windowEnd = new Date(windowStart);
-  windowEnd.setDate(windowEnd.getDate() + Math.max(1, Number(horizonDays) || 1));
+  windowEnd.setDate(windowEnd.getDate() + normalizedHorizonDays);
   windowEnd.setHours(23, 59, 59, 999);
 
   const appointments = await prisma.appointment.findMany({
     where: {
       date: {
-        gte: windowStart,
+        gte: firstEligibleDate,
         lte: windowEnd,
       },
       professionalId: { in: professionals.map((professional) => professional.id) },
@@ -125,20 +148,28 @@ export const getSuggestedWhatsAppSlots = async ({
       date: true,
       time: true,
       professionalId: true,
+      sessionNumber: true,
+      patient: {
+        select: {
+          isRespiratory: true,
+        },
+      },
     },
   });
 
   const occupancyBySlot = new Map();
+  const appointmentsBySlot = new Map();
   appointments.forEach((appointment) => {
     const dateKey = formatLocalDateKey(appointment.date);
     if (!dateKey || !appointment.time || !appointment.professionalId) return;
     const slotKey = buildOccupancyKey(appointment.professionalId, dateKey, appointment.time);
     occupancyBySlot.set(slotKey, (occupancyBySlot.get(slotKey) || 0) + 1);
+    appointmentsBySlot.set(slotKey, [...(appointmentsBySlot.get(slotKey) || []), appointment]);
   });
 
   const candidateByTime = new Map();
 
-  for (let dayOffset = 0; dayOffset <= horizonDays; dayOffset += 1) {
+  for (let dayOffset = normalizedMinDaysAhead; dayOffset <= normalizedHorizonDays; dayOffset += 1) {
     const currentDate = new Date(windowStart);
     currentDate.setDate(windowStart.getDate() + dayOffset);
     const dateKey = formatLocalDateKey(currentDate);
@@ -162,6 +193,13 @@ export const getSuggestedWhatsAppSlots = async ({
           const occupancy = occupancyBySlot.get(buildOccupancyKey(professional.id, dateKey, time)) || 0;
           if (occupancy >= capacityPerSlot) continue;
 
+          const occupancyKey = buildOccupancyKey(professional.id, dateKey, time);
+          const slotAppointments = appointmentsBySlot.get(occupancyKey) || [];
+          const respiratoryIntakeFitRank = isRespiratoryIntake
+            ? getRespiratoryIntakeFitRank(slotAppointments)
+            : 0;
+          if (isRespiratoryIntake && respiratoryIntakeFitRank === null) continue;
+
           const candidateKey = buildCandidateKey(dateKey, time);
           const nextCandidate = {
             date: dateKey,
@@ -171,10 +209,24 @@ export const getSuggestedWhatsAppSlots = async ({
             professionalName: professional.fullName,
             occupancy,
             remainingCapacity: capacityPerSlot - occupancy,
+            respiratoryIntakeFitRank,
           };
 
           const currentCandidate = candidateByTime.get(candidateKey);
-          if (!currentCandidate || nextCandidate.occupancy < currentCandidate.occupancy) {
+          const shouldReplaceCurrentCandidate = !currentCandidate
+            || (
+              isRespiratoryIntake
+              && (
+                nextCandidate.respiratoryIntakeFitRank < currentCandidate.respiratoryIntakeFitRank
+                || (
+                  nextCandidate.respiratoryIntakeFitRank === currentCandidate.respiratoryIntakeFitRank
+                  && nextCandidate.occupancy < currentCandidate.occupancy
+                )
+              )
+            )
+            || (!isRespiratoryIntake && nextCandidate.occupancy < currentCandidate.occupancy);
+
+          if (shouldReplaceCurrentCandidate) {
             candidateByTime.set(candidateKey, nextCandidate);
           }
         }
@@ -184,6 +236,10 @@ export const getSuggestedWhatsAppSlots = async ({
 
   return Array.from(candidateByTime.values())
     .sort((left, right) => {
+      if (isRespiratoryIntake && left.respiratoryIntakeFitRank !== right.respiratoryIntakeFitRank) {
+        return left.respiratoryIntakeFitRank - right.respiratoryIntakeFitRank;
+      }
+
       const timeDiff = left.startsAt.getTime() - right.startsAt.getTime();
       if (!preferLowerOccupancy || timeDiff !== 0) {
         return timeDiff || left.occupancy - right.occupancy;
