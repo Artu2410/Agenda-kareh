@@ -77,67 +77,127 @@ const getCokibaDetails = (obraSocial) => {
   };
 };
 
+const getCoverageHighlights = (areaCobertura = '') => {
+  const text = String(areaCobertura || '');
+  const hasProvincia = /provincia de buenos aires/i.test(text);
+  const hasSanMiguel = /san miguel/i.test(text);
+  const hasBellaVista = /bella vista/i.test(text);
+
+  return { hasProvincia, hasSanMiguel, hasBellaVista };
+};
+
+const renderCoverageText = (areaCobertura = '') => {
+  const source = String(areaCobertura || '').trim();
+  if (!source) {
+    return <span className="text-slate-400">Sin dato de cobertura.</span>;
+  }
+
+  return source.split(/(Provincia de Buenos Aires|San Miguel|Bella Vista)/gi).map((chunk, index) => {
+    const normalized = chunk.trim().toLowerCase();
+    const isHighlight =
+      normalized === 'provincia de buenos aires' ||
+      normalized === 'san miguel' ||
+      normalized === 'bella vista';
+
+    if (!isHighlight) {
+      return <span key={`${chunk}-${index}`}>{chunk}</span>;
+    }
+
+    return (
+      <span
+        key={`${chunk}-${index}`}
+        className="rounded-lg bg-emerald-100 px-2 py-1 text-lg font-black text-emerald-800"
+      >
+        {chunk}
+      </span>
+    );
+  });
+};
+
+const getImportantLinks = (links = []) => {
+  const items = Array.isArray(links) ? links : [];
+  const scoreLink = (link) => {
+    const text = `${link?.label || ''} ${link?.href || ''}`.toLowerCase();
+    if (/autoriz/.test(text)) return 0;
+    if (/valid|directconnection|prestador|afiliatoria/.test(text)) return 1;
+    if (/convenio/.test(text)) return 2;
+    if (/manual/.test(text)) return 3;
+    return 4;
+  };
+
+  const unique = [];
+  const seen = new Set();
+
+  items
+    .filter((link) => link?.href)
+    .sort((a, b) => scoreLink(a) - scoreLink(b))
+    .forEach((link) => {
+      if (seen.has(link.href)) return;
+      seen.add(link.href);
+      unique.push(link);
+    });
+
+  return unique.slice(0, 4);
+};
+
+const formatLinkLabel = (link) => {
+  const label = String(link?.label || '').trim();
+  const href = String(link?.href || '').trim();
+  const text = `${label} ${href}`.toLowerCase();
+
+  if (/autoriz/.test(text)) return 'Autorización';
+  if (/valid|directconnection|prestador|afiliatoria/.test(text)) return 'Validación';
+  if (/convenio/.test(text)) return 'Convenio';
+  if (/manual/.test(text)) return 'Manual';
+  if (label && !/^https?:\/\//i.test(label)) return label;
+  return 'Abrir link';
+};
+
 const ObraSocialDetailPanel = ({ obraSocial }) => {
   const details = getCokibaDetails(obraSocial);
   const documents = Array.isArray(obraSocial?.requiredDocuments?.documents)
     ? obraSocial.requiredDocuments.documents
     : [];
   const additionalDocumentInfo = String(obraSocial?.requiredDocuments?.additionalInfo || '').trim();
-  const notes = [details.observaciones, additionalDocumentInfo].filter(Boolean);
+  const { hasProvincia, hasSanMiguel, hasBellaVista } = getCoverageHighlights(details.areaCobertura);
+  const importantLinks = getImportantLinks(details.links);
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
-      <div className="grid gap-4 xl:grid-cols-3">
+      <div className="grid gap-4 xl:grid-cols-[1.1fr,0.9fr]">
         <section className="rounded-2xl bg-white p-4 shadow-sm">
           <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">
-            Estado y Referencias
+            Área de Cobertura
           </p>
-          <div className="mt-3 space-y-3 text-sm">
-            <div>
-              <p className="font-bold text-slate-500">Estado detectado por COKIBA</p>
-              <p className="mt-1 font-black text-slate-800">
-                {obraSocial.detectedStatus || obraSocial.estado || 'Sin dato'}
-              </p>
-              <p className="mt-1 text-xs font-semibold text-slate-500">
-                {obraSocial.statusManualOverride
-                  ? `Override manual activo. Estado aplicado: ${obraSocial.isActive ? 'Activa' : 'Inactiva'}.`
-                  : 'Usando el estado automático detectado en COKIBA.'}
-              </p>
-            </div>
-            {details.arancelVigenteDesde && (
-              <div>
-                <p className="font-bold text-slate-500">Arancel vigente desde</p>
-                <p className="mt-1 font-semibold text-slate-800">{details.arancelVigenteDesde}</p>
-              </div>
-            )}
-            {details.honorarioReferenciaPrestacion && (
-              <div>
-                <p className="font-bold text-slate-500">Honorario básico de referencia</p>
-                <p className="mt-1 font-black text-teal-700">
-                  {formatCurrency(details.honorarioBasicaReferencia)} · {details.honorarioReferenciaPrestacion}
-                </p>
-              </div>
-            )}
-            <div className="grid gap-2 sm:grid-cols-2">
-              {details.cuit && (
-                <div className="rounded-xl bg-slate-50 px-3 py-2">
-                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">CUIT</p>
-                  <p className="mt-1 font-semibold text-slate-700">{details.cuit}</p>
-                </div>
+          <div className="mt-3">
+            <div className="flex flex-wrap gap-2">
+              {hasProvincia && (
+                <span className="rounded-full bg-emerald-100 px-3 py-1 text-sm font-black uppercase tracking-[0.16em] text-emerald-800">
+                  Provincia de Buenos Aires
+                </span>
               )}
-              {details.numeroPrestador && (
-                <div className="rounded-xl bg-slate-50 px-3 py-2">
-                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">N° Prestador</p>
-                  <p className="mt-1 font-semibold text-slate-700">{details.numeroPrestador}</p>
-                </div>
+              {hasSanMiguel && (
+                <span className="rounded-full bg-violet-100 px-3 py-1 text-sm font-black uppercase tracking-[0.16em] text-violet-800">
+                  San Miguel
+                </span>
               )}
+              {hasBellaVista && (
+                <span className="rounded-full bg-violet-100 px-3 py-1 text-sm font-black uppercase tracking-[0.16em] text-violet-800">
+                  Bella Vista
+                </span>
+              )}
+              <span className={`rounded-full px-3 py-1 text-sm font-black uppercase tracking-[0.16em] ${
+                obraSocial.requiresAuthorization
+                  ? 'bg-amber-100 text-amber-800'
+                  : 'bg-slate-100 text-slate-700'
+              }`}>
+                {obraSocial.requiresAuthorization ? 'Requiere autorización' : 'Sin autorización previa'}
+              </span>
             </div>
-            {details.areaCobertura && (
-              <div>
-                <p className="font-bold text-slate-500">Área de cobertura</p>
-                <p className="mt-1 font-semibold text-slate-800">{details.areaCobertura}</p>
-              </div>
-            )}
+
+            <div className="mt-4 rounded-2xl bg-slate-50 px-4 py-4 text-lg font-black leading-relaxed text-slate-800">
+              {renderCoverageText(details.areaCobertura)}
+            </div>
           </div>
         </section>
 
@@ -145,85 +205,58 @@ const ObraSocialDetailPanel = ({ obraSocial }) => {
           <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">
             Coseguro y Documentación
           </p>
-          <div className="mt-3 space-y-3 text-sm">
-            <div>
-              <p className="font-bold text-slate-500">Texto de coseguro informado por COKIBA</p>
-              <p className="mt-1 font-black text-amber-700">
+          <div className="mt-3 space-y-4 text-sm">
+            <div className="rounded-2xl bg-amber-50 px-4 py-3">
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">
+                Coseguro
+              </p>
+              <p className="mt-1 text-lg font-black text-amber-900">
                 {details.coseguroTexto || formatCurrency(obraSocial.coseguroValor)}
               </p>
-              {!details.coinsuranceReliable && (
-                <p className="mt-1 text-xs font-semibold text-amber-700">
-                  El texto de COKIBA es complejo. El importe por sesión puede requerir revisión manual.
-                </p>
-              )}
             </div>
 
-            {documents.length > 0 ? (
-              <div>
-                <p className="font-bold text-slate-500">Documentación requerida</p>
+            <div>
+              <p className="font-black uppercase tracking-[0.18em] text-slate-500">
+                Documentación requerida
+              </p>
+              {documents.length > 0 ? (
                 <div className="mt-2 grid gap-2">
                   {documents.map((document) => (
                     <div key={document.name} className="rounded-xl bg-slate-50 px-3 py-2">
                       <p className="font-semibold text-slate-800">{document.name}</p>
-                      <p className="mt-1 text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
-                        {document.mandatory ? 'Obligatorio' : 'Opcional'}
-                        {document.validityDays ? ` · ${document.validityDays} días` : ''}
+                      <p className="mt-1 text-xs font-black uppercase tracking-[0.16em] text-slate-400">
+                        {document.validityDays ? `${document.validityDays} días` : 'Obligatorio'}
                       </p>
                     </div>
                   ))}
                 </div>
-              </div>
-            ) : (
-              <div>
-                <p className="font-bold text-slate-500">Documentación requerida</p>
-                <p className="mt-1 text-sm font-semibold text-slate-400">
-                  No se detectó una lista estructurada en COKIBA.
+              ) : (
+                <p className="mt-2 text-sm font-semibold text-slate-400">
+                  No se detectó documentación para pedir.
                 </p>
-              </div>
-            )}
+              )}
+              {!documents.length && additionalDocumentInfo && (
+                <p className="mt-2 whitespace-pre-line rounded-xl bg-slate-50 px-3 py-2 text-sm font-medium text-slate-600">
+                  {additionalDocumentInfo}
+                </p>
+              )}
+            </div>
 
-            {details.authorizationNote && (
+            {importantLinks.length > 0 && (
               <div>
-                <p className="font-bold text-slate-500">Autorización</p>
-                <p className="mt-1 font-semibold text-slate-800">{details.authorizationNote}</p>
-              </div>
-            )}
-          </div>
-        </section>
-
-        <section className="rounded-2xl bg-white p-4 shadow-sm">
-          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">
-            Observaciones y Enlaces
-          </p>
-          <div className="mt-3 space-y-3 text-sm">
-            {notes.length > 0 ? (
-              <div className="space-y-2">
-                {notes.map((note) => (
-                  <p
-                    key={note}
-                    className="whitespace-pre-line rounded-xl bg-slate-50 px-3 py-2 font-medium text-slate-700"
-                  >
-                    {note}
-                  </p>
-                ))}
-              </div>
-            ) : (
-              <p className="font-semibold text-slate-400">Sin observaciones extraídas.</p>
-            )}
-
-            {details.links.length > 0 && (
-              <div>
-                <p className="font-bold text-slate-500">Links útiles</p>
+                <p className="font-black uppercase tracking-[0.18em] text-slate-500">
+                  Links útiles
+                </p>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {details.links.map((link) => (
+                  {importantLinks.map((link) => (
                     <a
                       key={link.href}
                       href={link.href}
                       target="_blank"
                       rel="noreferrer"
-                      className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-black uppercase tracking-[0.16em] text-slate-600 transition hover:border-teal-300 hover:text-teal-700"
+                      className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-black uppercase tracking-[0.16em] text-slate-700 transition hover:border-teal-300 hover:text-teal-700"
                     >
-                      {link.label}
+                      {formatLinkLabel(link)}
                     </a>
                   ))}
                 </div>
@@ -232,53 +265,6 @@ const ObraSocialDetailPanel = ({ obraSocial }) => {
           </div>
         </section>
       </div>
-
-      {details.norms.length > 0 && (
-        <section className="mt-4 rounded-2xl bg-white p-4 shadow-sm">
-          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">
-            Normas de Facturación
-          </p>
-          <div className="mt-3 grid gap-2">
-            {details.norms.map((line) => (
-              <div key={line} className="rounded-xl bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
-                {line}
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {details.tariffRows.length > 0 && (
-        <section className="mt-4 rounded-2xl bg-white p-4 shadow-sm">
-          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">
-            Aranceles por Categoría
-          </p>
-          <div className="mt-3 overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 text-[11px] uppercase tracking-[0.16em] text-slate-400">
-                  <th className="pb-2 pr-4">Prestación</th>
-                  <th className="pb-2 pr-4 text-right">Básica</th>
-                  <th className="pb-2 pr-4 text-right">A</th>
-                  <th className="pb-2 pr-4 text-right">B</th>
-                  <th className="pb-2 text-right">C</th>
-                </tr>
-              </thead>
-              <tbody>
-                {details.tariffRows.map((row) => (
-                  <tr key={`${row.prestacion}-${row.categoriaBasica}`} className="border-b border-slate-100 last:border-b-0">
-                    <td className="py-2 pr-4 font-semibold text-slate-700">{row.prestacion}</td>
-                    <td className="py-2 pr-4 text-right font-black text-teal-700">{formatCurrency(row.categoriaBasica)}</td>
-                    <td className="py-2 pr-4 text-right font-semibold text-slate-600">{formatCurrency(row.categoriaA)}</td>
-                    <td className="py-2 pr-4 text-right font-semibold text-slate-600">{formatCurrency(row.categoriaB)}</td>
-                    <td className="py-2 text-right font-semibold text-slate-600">{formatCurrency(row.categoriaC)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
     </div>
   );
 };
