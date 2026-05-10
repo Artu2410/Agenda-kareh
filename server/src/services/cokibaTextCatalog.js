@@ -24,14 +24,25 @@ const DOCUMENT_LINE_PATTERN =
   /derivaci[oó]n|validaci[oó]n|credencial|orden|planilla|bono|historia cl[ií]nica|certificado|prescripci[oó]n|autorizaci[oó]n previa|carnet|afiliatoria|documento de identidad|cud/i;
 const STATUS_INACTIVE_PATTERN =
   /OBRA SOCIAL .*?(INACTIVA|SUSPENDIDA|BAJA|INACTIVO)|\bINACTIVA DESDE\b|\bSUSPENDIDA\b|\bBAJA\b/i;
+const NOISE_PATTERN = /<!\[CDATA\[|<!--|-->|whatsclasstmp|\/\*--><!\]\]>\*\/|\.whatsclasstmp/i;
 
 const normalizeText = (value) => (
   String(value || '')
+    .replace(/<!--\/\*--><!\[CDATA\[\/* ><!--\*\//gi, ' ')
+    .replace(/\/\*--><!\]\]>\*\//gi, ' ')
+    .replace(/<!\[CDATA\[|\]\]>/gi, ' ')
+    .replace(/<!--|-->/g, ' ')
+    .replace(/\.whatsclasstmp\{[^}]+\}/gi, ' ')
     .replace(/\u00a0/g, ' ')
     .replace(/\r/g, '')
     .replace(/[ \t]+/g, ' ')
     .trim()
 );
+
+const isNoiseLine = (value) => {
+  const normalized = normalizeText(value);
+  return !normalized || NOISE_PATTERN.test(normalized);
+};
 
 const normalizeLines = (value) => (
   String(value || '')
@@ -39,7 +50,7 @@ const normalizeLines = (value) => (
     .replace(/\r/g, '')
     .split('\n')
     .map((line) => normalizeText(line))
-    .filter(Boolean)
+    .filter((line) => line && !isNoiseLine(line))
 );
 
 const uniqueBy = (items, getKey) => {

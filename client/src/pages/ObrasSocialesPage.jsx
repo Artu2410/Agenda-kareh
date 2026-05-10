@@ -315,10 +315,18 @@ const ObrasSocialesPage = () => {
     try {
       setLoading(true);
       const params = {};
-      params.includeInactive = '1';
-      if (filtroEstado === 'active') params.isActive = 'true';
-      if (filtroEstado === 'inactive') params.isActive = 'false';
-      if (filtroEstado === 'requires-auth') params.requiresAuthorization = 'true';
+      if (filtroEstado === 'active') {
+        params.isActive = 'true';
+      } else if (filtroEstado === 'inactive') {
+        params.isActive = 'false';
+      } else {
+        params.includeInactive = '1';
+      }
+
+      if (filtroEstado === 'requires-auth') {
+        params.requiresAuthorization = 'true';
+      }
+
       if (filtroZona === 'san-miguel') params.zona = 'san-miguel';
 
       const currentMonth = new Date();
