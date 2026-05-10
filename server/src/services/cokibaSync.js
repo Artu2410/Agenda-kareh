@@ -42,6 +42,7 @@ const DOCUMENT_LINE_PATTERN =
   /derivaci[oó]n|validaci[oó]n|credencial|orden|planilla|bono|historia cl[ií]nica|certificado|prescripci[oó]n|autorizaci[oó]n previa|carnet|afiliatoria/i;
 const STATUS_INACTIVE_PATTERN =
   /OBRA SOCIAL .*?(INACTIVA|SUSPENDIDA|BAJA|INACTIVO)|\bINACTIVA DESDE\b|\bSUSPENDIDA\b|\bBAJA\b/i;
+const NOISE_PATTERN = /<!\[CDATA\[|<!--|-->|whatsclasstmp|\/\*--><!\]\]>\*\/|\.whatsclasstmp/i;
 
 const getCokibaConfig = () => ({
   plazoPago: Number.parseInt(process.env.COKIBA_PLAZO_PAGO || '60', 10) || 60,
@@ -81,11 +82,21 @@ const normalizeMoney = (value) => {
 
 const normalizeText = (value) => (
   String(value || '')
+    .replace(/<!--\/\*--><!\[CDATA\[\/* ><!--\*\//gi, ' ')
+    .replace(/\/\*--><!\]\]>\*\//gi, ' ')
+    .replace(/<!\[CDATA\[|\]\]>/gi, ' ')
+    .replace(/<!--|-->/g, ' ')
+    .replace(/\.whatsclasstmp\{[^}]+\}/gi, ' ')
     .replace(/\u00a0/g, ' ')
     .replace(/\r/g, '')
     .replace(/[ \t]+/g, ' ')
     .trim()
 );
+
+const isNoiseLine = (value) => {
+  const normalized = normalizeText(value);
+  return !normalized || NOISE_PATTERN.test(normalized);
+};
 
 const normalizeLines = (value) => (
   String(value || '')
@@ -93,7 +104,7 @@ const normalizeLines = (value) => (
     .replace(/\r/g, '')
     .split('\n')
     .map((line) => normalizeText(line))
-    .filter(Boolean)
+    .filter((line) => line && !isNoiseLine(line))
 );
 
 const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -235,6 +246,33 @@ const extractPostLabelLines = (lines, label) => {
 
 const cleanDisplayLabel = (value) => normalizeText(String(value || '').split('/')[0]);
 
+const extractCleanInactiveStatus = (value) => {
+  const normalized = normalizeText(value);
+  return (
+    normalizeText(
+      normalized.match(/(OBRA SOCIAL\s+(?:INACTIVA|SUSPENDIDA|BAJA)[^\n]*)/i)?.[1]
+      || normalized.match(/((?:INACTIVA|SUSPENDIDA|BAJA)\s+DESDE[^\n]*)/i)?.[1]
+      || normalized.match(/((?:INACTIVA|SUSPENDIDA|BAJA)[^\n]*)/i)?.[1]
+    ) || normalized
+  );
+};
+
+const getNameFromStatusLine = (value) => {
+  const normalized = normalizeText(value);
+  const cleanStatus = extractCleanInactiveStatus(normalized);
+  const statusIndex = cleanStatus ? normalized.indexOf(cleanStatus) : -1;
+  if (statusIndex > 0) {
+    return normalizeText(normalized.slice(0, statusIndex));
+  }
+  const match = normalized.match(/^(.*?)\s*OBRA SOCIAL\b/i);
+  return normalizeText(match?.[1] || '');
+};
+
+const looksLikeInsuranceName = (value) => {
+  const normalized = normalizeText(value);
+  return Boolean(normalized) && /[A-ZÁÉÍÓÚÑ]{3,}/i.test(normalized) && !NOISE_PATTERN.test(normalized);
+};
+
 const pickDisplayName = (detail, lines, option) => {
   const ignoredHeadingPattern =
     /aranceles y normas|arancel vigente|cuit:|area de cobertura:|coseguro:|observaciones:|convenio|presentaci[oó]n de la facturaci[oó]n|normativa/i;
@@ -244,6 +282,7 @@ const pickDisplayName = (detail, lines, option) => {
     .find(
       (heading) =>
         heading &&
+        !isNoiseLine(heading) &&
         !ignoredHeadingPattern.test(heading) &&
         !STATUS_INACTIVE_PATTERN.test(heading)
     );
@@ -252,6 +291,7 @@ const pickDisplayName = (detail, lines, option) => {
 
   const lineCandidate = lines.find(
     (line) =>
+      !isNoiseLine(line) &&
       !isKnownLabelLine(line) &&
       !STATUS_INACTIVE_PATTERN.test(line) &&
       !SECTION_HEADING_PATTERN.test(line) &&
@@ -267,7 +307,7 @@ const detectStatus = (lines) => {
 
   if (statusLine) {
     return {
-      detectedStatus: normalizeText(statusLine),
+      detectedStatus: extractCleanInactiveStatus(statusLine),
       detectedIsActive: false,
     };
   }
@@ -276,6 +316,38 @@ const detectStatus = (lines) => {
     detectedStatus: 'Activa',
     detectedIsActive: true,
   };
+};
+
+const isDelegacion4 = (value) => /(?:DELEGACI[OÓ]N|DELEGACION|REGIONAL|DR)\s*(?:REGIONAL\s*)?(?:IV|4)\b/i.test(
+  String(value || '')
+);
+
+const computeAtendibleSanMiguel = ({ nombreOs, areaCobertura, detailLines }) => {
+  const normalizedArea = String(areaCobertura || '').toUpperCase();
+  const combinedText = [nombreOs, areaCobertura, ...(detailLines || [])].join(' ').toUpperCase();
+
+  if (normalizedArea.includes('PROVINCIA DE BUENOS AIRES')) {
+    return true;
+  }
+
+  if (isDelegacion4(combinedText)) {
+    return true;
+  }
+
+  if (combinedText.includes('SAN MIGUEL') || combinedText.includes('BELLA VISTA')) {
+    return true;
+  }
+
+  const listedDistricts = normalizedArea
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  if (listedDistricts.length >= 3) {
+    return false;
+  }
+
+  return WHITELIST_SAN_MIGUEL.some((item) => combinedText.includes(item));
 };
 
 const extractTariffDetails = (tables = []) => {
@@ -577,6 +649,18 @@ const mergeSupplementalRecord = (record, option, supplementalCatalog) => {
       record.requiresAuthorization === null || record.requiresAuthorization === undefined
         ? supplementalEntry.requiresAuthorization
         : record.requiresAuthorization,
+    atendibleSanMiguel:
+      record.atendibleSanMiguel ||
+      computeAtendibleSanMiguel({
+        nombreOs: record.nombreOs || supplementalEntry.nombreOs,
+        areaCobertura: mergedDetails.areaCobertura,
+        detailLines: [
+          ...(mergedDetails.norms || []),
+          mergedDetails.observaciones,
+          mergedDetails.authorizationNote,
+          supplementalEntry.nombreOs,
+        ],
+      }),
     requiredDocuments: mergedRequiredDocuments,
     cokibaDetails: {
       ...mergedDetails,
@@ -598,8 +682,13 @@ const extractDetailRecord = (detail, option, plazoPago) => {
       !/^Superior$/i.test(line)
   );
 
-  const nombreOs = pickDisplayName(detail, lines, option);
+  const initialName = pickDisplayName(detail, lines, option);
   const { detectedStatus, detectedIsActive } = detectStatus(lines);
+  const statusDerivedName = getNameFromStatusLine(detectedStatus);
+  const nombreOs =
+    looksLikeInsuranceName(initialName)
+      ? initialName
+      : (looksLikeInsuranceName(statusDerivedName) ? statusDerivedName : cleanDisplayLabel(option.label));
   const areaCobertura = extractLabelValue(lines, 'Area de Cobertura');
   const rawCoseguro = extractLabelValue(lines, 'Coseguro', { multiline: true });
   const postConventionLines = extractPostLabelLines(lines, 'Convenio');
@@ -623,7 +712,6 @@ const extractDetailRecord = (detail, option, plazoPago) => {
     postConventionLines,
     authorizationInfo,
   });
-  const combinedZoneText = `${nombreOs} ${areaCobertura}`.toUpperCase();
 
   return {
     codigoCokiba: option.value,
@@ -638,11 +726,14 @@ const extractDetailRecord = (detail, option, plazoPago) => {
     detectedStatus,
     detectedIsActive,
     requiresAuthorization: authorizationInfo.isReliable ? authorizationInfo.value : null,
-    atendibleSanMiguel:
-      combinedZoneText.includes('PROVINCIA DE BUENOS AIRES') ||
-      combinedZoneText.includes('SAN MIGUEL') ||
-      combinedZoneText.includes('BELLA VISTA') ||
-      WHITELIST_SAN_MIGUEL.some((item) => combinedZoneText.includes(item)),
+    atendibleSanMiguel: computeAtendibleSanMiguel({
+      nombreOs,
+      areaCobertura,
+      detailLines: [
+        ...lines.slice(0, 40),
+        ...(cokibaDetails.norms || []).slice(0, 20),
+      ],
+    }),
     requiredDocuments,
     cokibaDetails: {
       ...cokibaDetails,
