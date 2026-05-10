@@ -599,7 +599,7 @@ export default function PatientsPage() {
                           ))}
                         </div>
                         {selectedObraSocial.requiredDocuments.additionalInfo && (
-                          <p className="mt-3 text-sm font-medium text-slate-600">
+                          <p className="mt-3 whitespace-pre-line text-sm font-medium text-slate-600">
                             {selectedObraSocial.requiredDocuments.additionalInfo}
                           </p>
                         )}

@@ -795,7 +795,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                       ))}
                     </div>
                     {documentsChecklist.additionalInfo && (
-                      <p className="mt-3 text-sm font-medium text-slate-500">{documentsChecklist.additionalInfo}</p>
+                      <p className="mt-3 whitespace-pre-line text-sm font-medium text-slate-500">{documentsChecklist.additionalInfo}</p>
                     )}
                   </div>
                 )}

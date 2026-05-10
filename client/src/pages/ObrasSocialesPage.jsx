@@ -34,6 +34,255 @@ const formatDateTime = (value) => {
   return parsed.toLocaleString('es-AR');
 };
 
+const getCokibaDetails = (obraSocial) => {
+  const details =
+    obraSocial?.cokibaDetails && typeof obraSocial.cokibaDetails === 'object'
+      ? obraSocial.cokibaDetails
+      : {};
+
+  const linkMap = new Map();
+  const pushLink = (href, label) => {
+    const normalizedHref = String(href || '').trim();
+    if (!normalizedHref) return;
+    if (!linkMap.has(normalizedHref)) {
+      linkMap.set(normalizedHref, {
+        href: normalizedHref,
+        label: String(label || normalizedHref).trim(),
+      });
+    }
+  };
+
+  if (Array.isArray(details.links)) {
+    details.links.forEach((link) => pushLink(link?.href, link?.text));
+  }
+
+  pushLink(details.convenioUrl, details.convenioLabel || 'Convenio');
+  pushLink(details.validacionUrl, 'Validación afiliatoria');
+  pushLink(details.autorizacionUrl, 'Autorización');
+
+  return {
+    arancelVigenteDesde: details.arancelVigenteDesde || '',
+    cuit: details.cuit || '',
+    areaCobertura: details.areaCobertura || '',
+    coseguroTexto: details.coseguroTexto || '',
+    observaciones: details.observaciones || '',
+    numeroPrestador: details.numeroPrestador || '',
+    authorizationNote: details.authorizationNote || '',
+    norms: Array.isArray(details.norms) ? details.norms : [],
+    tariffRows: Array.isArray(details.tariffRows) ? details.tariffRows : [],
+    honorarioReferenciaPrestacion: details.honorarioReferenciaPrestacion || '',
+    honorarioBasicaReferencia: parseFloat(details.honorarioBasicaReferencia) || 0,
+    coinsuranceReliable: details.coinsuranceReliable !== false,
+    links: [...linkMap.values()],
+  };
+};
+
+const ObraSocialDetailPanel = ({ obraSocial }) => {
+  const details = getCokibaDetails(obraSocial);
+  const documents = Array.isArray(obraSocial?.requiredDocuments?.documents)
+    ? obraSocial.requiredDocuments.documents
+    : [];
+  const additionalDocumentInfo = String(obraSocial?.requiredDocuments?.additionalInfo || '').trim();
+  const notes = [details.observaciones, additionalDocumentInfo].filter(Boolean);
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+      <div className="grid gap-4 xl:grid-cols-3">
+        <section className="rounded-2xl bg-white p-4 shadow-sm">
+          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">
+            Estado y Referencias
+          </p>
+          <div className="mt-3 space-y-3 text-sm">
+            <div>
+              <p className="font-bold text-slate-500">Estado detectado por COKIBA</p>
+              <p className="mt-1 font-black text-slate-800">
+                {obraSocial.detectedStatus || obraSocial.estado || 'Sin dato'}
+              </p>
+              <p className="mt-1 text-xs font-semibold text-slate-500">
+                {obraSocial.statusManualOverride
+                  ? `Override manual activo. Estado aplicado: ${obraSocial.isActive ? 'Activa' : 'Inactiva'}.`
+                  : 'Usando el estado automático detectado en COKIBA.'}
+              </p>
+            </div>
+            {details.arancelVigenteDesde && (
+              <div>
+                <p className="font-bold text-slate-500">Arancel vigente desde</p>
+                <p className="mt-1 font-semibold text-slate-800">{details.arancelVigenteDesde}</p>
+              </div>
+            )}
+            {details.honorarioReferenciaPrestacion && (
+              <div>
+                <p className="font-bold text-slate-500">Honorario básico de referencia</p>
+                <p className="mt-1 font-black text-teal-700">
+                  {formatCurrency(details.honorarioBasicaReferencia)} · {details.honorarioReferenciaPrestacion}
+                </p>
+              </div>
+            )}
+            <div className="grid gap-2 sm:grid-cols-2">
+              {details.cuit && (
+                <div className="rounded-xl bg-slate-50 px-3 py-2">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">CUIT</p>
+                  <p className="mt-1 font-semibold text-slate-700">{details.cuit}</p>
+                </div>
+              )}
+              {details.numeroPrestador && (
+                <div className="rounded-xl bg-slate-50 px-3 py-2">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">N° Prestador</p>
+                  <p className="mt-1 font-semibold text-slate-700">{details.numeroPrestador}</p>
+                </div>
+              )}
+            </div>
+            {details.areaCobertura && (
+              <div>
+                <p className="font-bold text-slate-500">Área de cobertura</p>
+                <p className="mt-1 font-semibold text-slate-800">{details.areaCobertura}</p>
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="rounded-2xl bg-white p-4 shadow-sm">
+          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">
+            Coseguro y Documentación
+          </p>
+          <div className="mt-3 space-y-3 text-sm">
+            <div>
+              <p className="font-bold text-slate-500">Texto de coseguro informado por COKIBA</p>
+              <p className="mt-1 font-black text-amber-700">
+                {details.coseguroTexto || formatCurrency(obraSocial.coseguroValor)}
+              </p>
+              {!details.coinsuranceReliable && (
+                <p className="mt-1 text-xs font-semibold text-amber-700">
+                  El texto de COKIBA es complejo. El importe por sesión puede requerir revisión manual.
+                </p>
+              )}
+            </div>
+
+            {documents.length > 0 ? (
+              <div>
+                <p className="font-bold text-slate-500">Documentación requerida</p>
+                <div className="mt-2 grid gap-2">
+                  {documents.map((document) => (
+                    <div key={document.name} className="rounded-xl bg-slate-50 px-3 py-2">
+                      <p className="font-semibold text-slate-800">{document.name}</p>
+                      <p className="mt-1 text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
+                        {document.mandatory ? 'Obligatorio' : 'Opcional'}
+                        {document.validityDays ? ` · ${document.validityDays} días` : ''}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div>
+                <p className="font-bold text-slate-500">Documentación requerida</p>
+                <p className="mt-1 text-sm font-semibold text-slate-400">
+                  No se detectó una lista estructurada en COKIBA.
+                </p>
+              </div>
+            )}
+
+            {details.authorizationNote && (
+              <div>
+                <p className="font-bold text-slate-500">Autorización</p>
+                <p className="mt-1 font-semibold text-slate-800">{details.authorizationNote}</p>
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="rounded-2xl bg-white p-4 shadow-sm">
+          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">
+            Observaciones y Enlaces
+          </p>
+          <div className="mt-3 space-y-3 text-sm">
+            {notes.length > 0 ? (
+              <div className="space-y-2">
+                {notes.map((note) => (
+                  <p
+                    key={note}
+                    className="whitespace-pre-line rounded-xl bg-slate-50 px-3 py-2 font-medium text-slate-700"
+                  >
+                    {note}
+                  </p>
+                ))}
+              </div>
+            ) : (
+              <p className="font-semibold text-slate-400">Sin observaciones extraídas.</p>
+            )}
+
+            {details.links.length > 0 && (
+              <div>
+                <p className="font-bold text-slate-500">Links útiles</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {details.links.map((link) => (
+                    <a
+                      key={link.href}
+                      href={link.href}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-black uppercase tracking-[0.16em] text-slate-600 transition hover:border-teal-300 hover:text-teal-700"
+                    >
+                      {link.label}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+      </div>
+
+      {details.norms.length > 0 && (
+        <section className="mt-4 rounded-2xl bg-white p-4 shadow-sm">
+          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">
+            Normas de Facturación
+          </p>
+          <div className="mt-3 grid gap-2">
+            {details.norms.map((line) => (
+              <div key={line} className="rounded-xl bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
+                {line}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {details.tariffRows.length > 0 && (
+        <section className="mt-4 rounded-2xl bg-white p-4 shadow-sm">
+          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">
+            Aranceles por Categoría
+          </p>
+          <div className="mt-3 overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 text-[11px] uppercase tracking-[0.16em] text-slate-400">
+                  <th className="pb-2 pr-4">Prestación</th>
+                  <th className="pb-2 pr-4 text-right">Básica</th>
+                  <th className="pb-2 pr-4 text-right">A</th>
+                  <th className="pb-2 pr-4 text-right">B</th>
+                  <th className="pb-2 text-right">C</th>
+                </tr>
+              </thead>
+              <tbody>
+                {details.tariffRows.map((row) => (
+                  <tr key={`${row.prestacion}-${row.categoriaBasica}`} className="border-b border-slate-100 last:border-b-0">
+                    <td className="py-2 pr-4 font-semibold text-slate-700">{row.prestacion}</td>
+                    <td className="py-2 pr-4 text-right font-black text-teal-700">{formatCurrency(row.categoriaBasica)}</td>
+                    <td className="py-2 pr-4 text-right font-semibold text-slate-600">{formatCurrency(row.categoriaA)}</td>
+                    <td className="py-2 pr-4 text-right font-semibold text-slate-600">{formatCurrency(row.categoriaB)}</td>
+                    <td className="py-2 text-right font-semibold text-slate-600">{formatCurrency(row.categoriaC)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+    </div>
+  );
+};
+
 const ObrasSocialesPage = () => {
   const [obrasSociales, setObrasSociales] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -158,6 +407,7 @@ const ObrasSocialesPage = () => {
       plazoPago: os.plazoPago || 60,
       atendibleSanMiguel: os.atendibleSanMiguel || false,
       isActive: os.isActive ?? true,
+      statusManualOverride: os.statusManualOverride ?? false,
       requiresAuthorization: os.requiresAuthorization ?? false,
       requiredDocuments: JSON.stringify(os.requiredDocuments || { documents: [], additionalInfo: '' }, null, 2),
     });
@@ -246,9 +496,9 @@ const ObrasSocialesPage = () => {
   const missingCredentialFields = syncStatus.config?.missingFields || [];
   const placeholderCredentialFields = syncStatus.config?.placeholderFields || [];
   const canSync = Boolean(syncStatus.config?.canSync);
-  const hasSyncConfigurationIssue =
-    missingCredentialFields.length > 0 || placeholderCredentialFields.length > 0;
+  const hasSyncConfigurationIssue = !canSync;
   const syncInProgress = syncing || Boolean(syncStatus.syncing);
+  const syncIsPublic = syncStatus.config?.accessMode === 'public';
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 sm:p-6">
@@ -258,7 +508,7 @@ const ObrasSocialesPage = () => {
           <div>
             <h1 className="text-3xl font-bold text-slate-800">Obras Sociales</h1>
             <p className="mt-1 text-sm font-medium text-slate-500">
-              Prestadoras sincronizadas desde COKIBA · Honorarios y coseguros de Categoría Básica
+              Prestadoras sincronizadas desde COKIBA · Estado, documentación, aranceles y coseguros de Categoría Básica
             </p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row">
@@ -269,7 +519,7 @@ const ObrasSocialesPage = () => {
               className="flex items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2 font-bold text-white transition-all hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
               title={
                 !canSync
-                  ? 'Configurá las credenciales COKIBA en server/.env antes de sincronizar.'
+                  ? 'No se pudo preparar la sincronización de COKIBA.'
                   : 'Sincronizar ahora con COKIBA'
               }
             >
@@ -310,19 +560,29 @@ const ObrasSocialesPage = () => {
               }`}
             >
               <AlertTriangle size={14} />
-              {hasSyncConfigurationIssue ? 'Configuración pendiente' : 'COKIBA listo para sincronizar'}
+              {hasSyncConfigurationIssue
+                ? 'Sincronización pendiente'
+                : syncIsPublic
+                  ? 'Modo público COKIBA'
+                  : 'COKIBA listo para sincronizar'}
             </div>
           </div>
 
-          {missingCredentialFields.length > 0 && (
+          {hasSyncConfigurationIssue && missingCredentialFields.length > 0 && (
             <p className="mt-3 text-sm text-amber-700">
               Faltan variables en `server/.env`: {missingCredentialFields.join(', ')}.
             </p>
           )}
 
-          {placeholderCredentialFields.length > 0 && (
+          {hasSyncConfigurationIssue && placeholderCredentialFields.length > 0 && (
             <p className="mt-2 text-sm text-amber-700">
               Hay variables con valores de ejemplo: {placeholderCredentialFields.join(', ')}.
+            </p>
+          )}
+
+          {!hasSyncConfigurationIssue && syncIsPublic && (
+            <p className="mt-3 text-sm text-emerald-700">
+              La sincronización usa la publicación pública de COKIBA. Las credenciales en `server/.env` quedan como opcionales.
             </p>
           )}
         </div>
@@ -430,7 +690,7 @@ const ObrasSocialesPage = () => {
               <p className="mt-1 text-sm text-slate-400">
                 {obrasSociales.length === 0
                   ? hasSyncConfigurationIssue
-                    ? 'Configurá COKIBA_DNI y COKIBA_CLAVE en server/.env para poder sincronizar desde COKIBA.'
+                    ? 'No se pudo preparar la sincronización desde COKIBA.'
                     : 'Todavía no hay datos sincronizados. Usá el botón "Sincronizar COKIBA".'
                   : 'Probá cambiando los filtros o la búsqueda.'}
               </p>
@@ -468,223 +728,274 @@ const ObrasSocialesPage = () => {
                   </thead>
                   <tbody>
                     {filtered.map((os) => {
+                      const isExpanded = expandedId === os.id;
                       const isEditing = editingId === os.id;
                       const isSaving = savingId === os.id;
+                      const details = getCokibaDetails(os);
 
                       return (
-                        <tr
-                          key={os.id}
-                          className={`border-b border-slate-100 transition-colors ${
-                            isEditing
-                              ? 'bg-teal-50/40'
-                              : 'bg-white/70 hover:bg-white'
-                          }`}
-                        >
-                          <td className="p-4">
-                            <div className="flex items-center gap-3">
-                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-emerald-500 text-[11px] font-black text-white shadow">
-                                {os.nombreOs.substring(0, 2).toUpperCase()}
+                        <React.Fragment key={os.id}>
+                          <tr
+                            className={`border-b border-slate-100 transition-colors ${
+                              isEditing
+                                ? 'bg-teal-50/40'
+                                : isExpanded
+                                  ? 'bg-slate-50/60'
+                                  : 'bg-white/70 hover:bg-white'
+                            }`}
+                          >
+                            <td className="p-4">
+                              <div className="flex items-center gap-3">
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-emerald-500 text-[11px] font-black text-white shadow">
+                                  {os.nombreOs.substring(0, 2).toUpperCase()}
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="truncate text-sm font-bold text-slate-800">
+                                    {os.nombreOs}
+                                  </p>
+                                  <p className="text-[11px] font-medium text-slate-400">
+                                    {os.codigoCokiba}
+                                    {details.arancelVigenteDesde ? ` · Arancel ${details.arancelVigenteDesde}` : ''}
+                                  </p>
+                                </div>
                               </div>
-                              <div className="min-w-0">
-                                <p className="truncate text-sm font-bold text-slate-800">
-                                  {os.nombreOs}
-                                </p>
-                                <p className="text-[11px] font-medium text-slate-400">
-                                  {os.codigoCokiba}
-                                </p>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="p-4 text-right">
-                            {isEditing ? (
-                              <input
-                                type="number"
-                                step="0.01"
-                                value={editForm.coseguroValor}
-                                onChange={(e) =>
-                                  setEditForm((f) => ({
-                                    ...f,
-                                    coseguroValor: e.target.value,
-                                  }))
-                                }
-                                className="w-28 rounded-lg border border-teal-300 bg-white px-2 py-1 text-right text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-teal-200"
-                              />
-                            ) : (
-                              <span className="text-sm font-bold text-amber-700">
-                                {formatCurrency(os.coseguroValor)}
-                              </span>
-                            )}
-                          </td>
-                          <td className="p-4 text-right">
-                            {isEditing ? (
-                              <input
-                                type="number"
-                                step="0.01"
-                                value={editForm.honorarioEstimado}
-                                onChange={(e) =>
-                                  setEditForm((f) => ({
-                                    ...f,
-                                    honorarioEstimado: e.target.value,
-                                  }))
-                                }
-                                className="w-28 rounded-lg border border-teal-300 bg-white px-2 py-1 text-right text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-teal-200"
-                              />
-                            ) : (
-                              <span className="text-sm font-bold text-teal-700">
-                                {formatCurrency(os.honorarioEstimado)}
-                              </span>
-                            )}
-                          </td>
-                          <td className="p-4 text-right">
-                            {isEditing ? (
-                              <input
-                                type="number"
-                                step="0.01"
-                                value={editForm.fixedCopay}
-                                onChange={(e) =>
-                                  setEditForm((f) => ({
-                                    ...f,
-                                    fixedCopay: e.target.value,
-                                  }))
-                                }
-                                className="w-28 rounded-lg border border-teal-300 bg-white px-2 py-1 text-right text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-teal-200"
-                              />
-                            ) : (
-                              <span className="text-sm font-bold text-slate-700">
-                                {formatCurrency(os.fixedCopay)}
-                              </span>
-                            )}
-                          </td>
-                          <td className="p-4 text-center">
-                            {isEditing ? (
-                              <input
-                                type="number"
-                                value={editForm.plazoPago}
-                                onChange={(e) =>
-                                  setEditForm((f) => ({
-                                    ...f,
-                                    plazoPago: parseInt(e.target.value) || 60,
-                                  }))
-                                }
-                                className="w-16 rounded-lg border border-teal-300 bg-white px-2 py-1 text-center text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-teal-200"
-                              />
-                            ) : (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">
-                                <Clock size={12} />
-                                {os.plazoPago}d
-                              </span>
-                            )}
-                          </td>
-                          <td className="p-4 text-center">
-                            {isEditing ? (
-                              <div className="space-y-2">
-                                <button
-                                  type="button"
-                                  onClick={() =>
+                            </td>
+                            <td className="p-4 text-right">
+                              {isEditing ? (
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  value={editForm.coseguroValor}
+                                  onChange={(e) =>
                                     setEditForm((f) => ({
                                       ...f,
-                                      atendibleSanMiguel: !f.atendibleSanMiguel,
+                                      coseguroValor: e.target.value,
                                     }))
                                   }
-                                  className={`rounded-full px-3 py-1 text-xs font-bold transition ${
-                                    editForm.atendibleSanMiguel
-                                      ? 'bg-violet-100 text-violet-700'
-                                      : 'bg-slate-100 text-slate-400'
-                                  }`}
-                                >
-                                  {editForm.atendibleSanMiguel ? '✓ Zona' : '✗ Zona'}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setEditForm((f) => ({
-                                      ...f,
-                                      isActive: !f.isActive,
-                                    }))
-                                  }
-                                  className={`rounded-full px-3 py-1 text-xs font-bold transition ${
-                                    editForm.isActive
-                                      ? 'bg-emerald-100 text-emerald-700'
-                                      : 'bg-rose-100 text-rose-700'
-                                  }`}
-                                >
-                                  {editForm.isActive ? 'Activa' : 'Inactiva'}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setEditForm((f) => ({
-                                      ...f,
-                                      requiresAuthorization: !f.requiresAuthorization,
-                                    }))
-                                  }
-                                  className={`rounded-full px-3 py-1 text-xs font-bold transition ${
-                                    editForm.requiresAuthorization
-                                      ? 'bg-amber-100 text-amber-700'
-                                      : 'bg-slate-100 text-slate-400'
-                                  }`}
-                                >
-                                  {editForm.requiresAuthorization ? 'Autoriza' : 'Libre'}
-                                </button>
-                              </div>
-                            ) : (
-                              <div className="flex flex-col items-center gap-1">
-                                {os.atendibleSanMiguel ? (
-                                  <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 px-2.5 py-1 text-xs font-bold text-violet-700">
-                                    <MapPin size={12} />
-                                    SM/BV
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-500">
-                                    Sin zona
-                                  </span>
-                                )}
-                                <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold ${
-                                  os.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
-                                }`}>
-                                  {os.isActive ? 'Activa' : 'Inactiva'}
+                                  className="w-28 rounded-lg border border-teal-300 bg-white px-2 py-1 text-right text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-teal-200"
+                                />
+                              ) : (
+                                <span className="text-sm font-bold text-amber-700">
+                                  {formatCurrency(os.coseguroValor)}
                                 </span>
-                                {os.requiresAuthorization && (
-                                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-700">
-                                    Autorización
+                              )}
+                            </td>
+                            <td className="p-4 text-right">
+                              {isEditing ? (
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  value={editForm.honorarioEstimado}
+                                  onChange={(e) =>
+                                    setEditForm((f) => ({
+                                      ...f,
+                                      honorarioEstimado: e.target.value,
+                                    }))
+                                  }
+                                  className="w-28 rounded-lg border border-teal-300 bg-white px-2 py-1 text-right text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-teal-200"
+                                />
+                              ) : (
+                                <span className="text-sm font-bold text-teal-700">
+                                  {formatCurrency(os.honorarioEstimado)}
+                                </span>
+                              )}
+                            </td>
+                            <td className="p-4 text-right">
+                              {isEditing ? (
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  value={editForm.fixedCopay}
+                                  onChange={(e) =>
+                                    setEditForm((f) => ({
+                                      ...f,
+                                      fixedCopay: e.target.value,
+                                    }))
+                                  }
+                                  className="w-28 rounded-lg border border-teal-300 bg-white px-2 py-1 text-right text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-teal-200"
+                                />
+                              ) : (
+                                <span className="text-sm font-bold text-slate-700">
+                                  {formatCurrency(os.fixedCopay)}
+                                </span>
+                              )}
+                            </td>
+                            <td className="p-4 text-center">
+                              {isEditing ? (
+                                <input
+                                  type="number"
+                                  value={editForm.plazoPago}
+                                  onChange={(e) =>
+                                    setEditForm((f) => ({
+                                      ...f,
+                                      plazoPago: parseInt(e.target.value, 10) || 60,
+                                    }))
+                                  }
+                                  className="w-16 rounded-lg border border-teal-300 bg-white px-2 py-1 text-center text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-teal-200"
+                                />
+                              ) : (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">
+                                  <Clock size={12} />
+                                  {os.plazoPago}d
+                                </span>
+                              )}
+                            </td>
+                            <td className="p-4 text-center">
+                              {isEditing ? (
+                                <div className="space-y-2">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setEditForm((f) => ({
+                                        ...f,
+                                        atendibleSanMiguel: !f.atendibleSanMiguel,
+                                      }))
+                                    }
+                                    className={`rounded-full px-3 py-1 text-xs font-bold transition ${
+                                      editForm.atendibleSanMiguel
+                                        ? 'bg-violet-100 text-violet-700'
+                                        : 'bg-slate-100 text-slate-400'
+                                    }`}
+                                  >
+                                    {editForm.atendibleSanMiguel ? '✓ Zona' : '✗ Zona'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setEditForm((f) => ({
+                                        ...f,
+                                        statusManualOverride: true,
+                                        isActive: !f.isActive,
+                                      }))
+                                    }
+                                    className={`rounded-full px-3 py-1 text-xs font-bold transition ${
+                                      editForm.isActive
+                                        ? 'bg-emerald-100 text-emerald-700'
+                                        : 'bg-rose-100 text-rose-700'
+                                    }`}
+                                  >
+                                    {editForm.isActive ? 'Activa' : 'Inactiva'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setEditForm((f) => ({
+                                        ...f,
+                                        statusManualOverride: !f.statusManualOverride,
+                                        isActive: f.statusManualOverride
+                                          ? (os.detectedIsActive ?? os.isActive ?? true)
+                                          : f.isActive,
+                                      }))
+                                    }
+                                    className={`rounded-full px-3 py-1 text-xs font-bold transition ${
+                                      editForm.statusManualOverride
+                                        ? 'bg-sky-100 text-sky-700'
+                                        : 'bg-slate-100 text-slate-500'
+                                    }`}
+                                  >
+                                    {editForm.statusManualOverride ? 'Manual' : 'Auto COKIBA'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setEditForm((f) => ({
+                                        ...f,
+                                        requiresAuthorization: !f.requiresAuthorization,
+                                      }))
+                                    }
+                                    className={`rounded-full px-3 py-1 text-xs font-bold transition ${
+                                      editForm.requiresAuthorization
+                                        ? 'bg-amber-100 text-amber-700'
+                                        : 'bg-slate-100 text-slate-400'
+                                    }`}
+                                  >
+                                    {editForm.requiresAuthorization ? 'Autoriza' : 'Libre'}
+                                  </button>
+                                  <p className="text-[11px] font-semibold text-slate-500">
+                                    Detectado: {os.detectedStatus || 'Activa'}
+                                  </p>
+                                </div>
+                              ) : (
+                                <div className="flex flex-col items-center gap-1">
+                                  {os.atendibleSanMiguel ? (
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 px-2.5 py-1 text-xs font-bold text-violet-700">
+                                      <MapPin size={12} />
+                                      SM/BV
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-500">
+                                      Sin zona
+                                    </span>
+                                  )}
+                                  <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold ${
+                                    os.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
+                                  }`}>
+                                    {os.isActive ? 'Activa' : 'Inactiva'}
                                   </span>
-                                )}
-                              </div>
-                            )}
-                          </td>
-                          <td className="p-4 text-center">
-                            {isEditing ? (
-                              <div className="flex items-center justify-center gap-1">
-                                <button
-                                  type="button"
-                                  onClick={() => saveEdit(os.id)}
-                                  disabled={isSaving}
-                                  className="rounded-full p-2 text-teal-600 transition-colors hover:bg-teal-50 disabled:opacity-50"
-                                  title="Guardar"
-                                >
-                                  <Save size={18} />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={cancelEdit}
-                                  className="rounded-full p-2 text-slate-400 transition-colors hover:bg-slate-100"
-                                  title="Cancelar"
-                                >
-                                  <X size={18} />
-                                </button>
-                              </div>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => startEdit(os)}
-                                className="rounded-full p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
-                                title="Editar valores"
-                              >
-                                <Edit3 size={18} />
-                              </button>
-                            )}
-                          </td>
-                        </tr>
+                                  {os.statusManualOverride && (
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 px-2.5 py-1 text-xs font-bold text-sky-700">
+                                      Manual
+                                    </span>
+                                  )}
+                                  {os.requiresAuthorization && (
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-700">
+                                      Autorización
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </td>
+                            <td className="p-4 text-center">
+                              {isEditing ? (
+                                <div className="flex items-center justify-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => saveEdit(os.id)}
+                                    disabled={isSaving}
+                                    className="rounded-full p-2 text-teal-600 transition-colors hover:bg-teal-50 disabled:opacity-50"
+                                    title="Guardar"
+                                  >
+                                    <Save size={18} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={cancelEdit}
+                                    className="rounded-full p-2 text-slate-400 transition-colors hover:bg-slate-100"
+                                    title="Cancelar"
+                                  >
+                                    <X size={18} />
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center justify-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setExpandedId(isExpanded ? null : os.id)}
+                                    className="rounded-full p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                                    title="Ver detalle"
+                                  >
+                                    {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => startEdit(os)}
+                                    className="rounded-full p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                                    title="Editar valores"
+                                  >
+                                    <Edit3 size={18} />
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                          {isExpanded && !isEditing && (
+                            <tr className="border-b border-slate-100 bg-white">
+                              <td colSpan={7} className="p-4 pt-0">
+                                <ObraSocialDetailPanel obraSocial={os} />
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
                       );
                     })}
                   </tbody>
@@ -697,6 +1008,7 @@ const ObrasSocialesPage = () => {
                   const isExpanded = expandedId === os.id;
                   const isEditing = editingId === os.id;
                   const isSaving = savingId === os.id;
+                  const details = getCokibaDetails(os);
 
                   return (
                     <article
@@ -726,6 +1038,11 @@ const ObrasSocialesPage = () => {
                               Hon: {formatCurrency(os.honorarioEstimado)}
                             </span>
                           </div>
+                          {details.arancelVigenteDesde && (
+                            <p className="mt-1 text-[11px] font-semibold text-slate-400">
+                              Arancel {details.arancelVigenteDesde}
+                            </p>
+                          )}
                         </div>
                         <div className="flex items-center gap-2">
                           {os.atendibleSanMiguel && (
@@ -842,6 +1159,10 @@ const ObrasSocialesPage = () => {
                               <p className="mt-0.5 font-bold text-slate-700">
                                 {os.isActive ? 'Activa' : 'Inactiva'} · {os.requiresAuthorization ? 'Requiere autorización' : 'Sin autorización previa'}
                               </p>
+                              <p className="mt-1 text-xs font-semibold text-slate-500">
+                                Detectado: {os.detectedStatus || 'Activa'}
+                                {os.statusManualOverride ? ' · Override manual activo' : ''}
+                              </p>
                             </div>
                             {os.ultimaSync && (
                               <div className="col-span-2">
@@ -853,6 +1174,81 @@ const ObrasSocialesPage = () => {
                                 </p>
                               </div>
                             )}
+                          </div>
+                          {isEditing && (
+                            <div className="mt-3 grid gap-2">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setEditForm((f) => ({
+                                    ...f,
+                                    atendibleSanMiguel: !f.atendibleSanMiguel,
+                                  }))
+                                }
+                                className={`rounded-xl px-3 py-2 text-xs font-bold transition ${
+                                  editForm.atendibleSanMiguel
+                                    ? 'bg-violet-100 text-violet-700'
+                                    : 'bg-white text-slate-500'
+                                }`}
+                              >
+                                {editForm.atendibleSanMiguel ? 'Zona SM/BV activa' : 'Sin zona SM/BV'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setEditForm((f) => ({
+                                    ...f,
+                                    statusManualOverride: true,
+                                    isActive: !f.isActive,
+                                  }))
+                                }
+                                className={`rounded-xl px-3 py-2 text-xs font-bold transition ${
+                                  editForm.isActive
+                                    ? 'bg-emerald-100 text-emerald-700'
+                                    : 'bg-rose-100 text-rose-700'
+                                }`}
+                              >
+                                {editForm.isActive ? 'Marcar activa' : 'Marcar inactiva'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setEditForm((f) => ({
+                                    ...f,
+                                    statusManualOverride: !f.statusManualOverride,
+                                    isActive: f.statusManualOverride
+                                      ? (os.detectedIsActive ?? os.isActive ?? true)
+                                      : f.isActive,
+                                  }))
+                                }
+                                className={`rounded-xl px-3 py-2 text-xs font-bold transition ${
+                                  editForm.statusManualOverride
+                                    ? 'bg-sky-100 text-sky-700'
+                                    : 'bg-white text-slate-500'
+                                }`}
+                              >
+                                {editForm.statusManualOverride ? 'Estado manual' : 'Usar auto COKIBA'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setEditForm((f) => ({
+                                    ...f,
+                                    requiresAuthorization: !f.requiresAuthorization,
+                                  }))
+                                }
+                                className={`rounded-xl px-3 py-2 text-xs font-bold transition ${
+                                  editForm.requiresAuthorization
+                                    ? 'bg-amber-100 text-amber-700'
+                                    : 'bg-white text-slate-500'
+                                }`}
+                              >
+                                {editForm.requiresAuthorization ? 'Requiere autorización' : 'Sin autorización'}
+                              </button>
+                            </div>
+                          )}
+                          <div className="mt-4">
+                            <ObraSocialDetailPanel obraSocial={os} />
                           </div>
                           <div className="mt-3 flex justify-end gap-2">
                             {isEditing ? (
