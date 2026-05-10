@@ -131,7 +131,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
   const loadObrasSociales = useCallback(async () => {
     try {
       const { data } = await api.get('/obras-sociales', {
-        params: { includeInactive: '1' },
+        params: { includeInactive: '1', includeArchived: '1' },
       });
       setObrasSociales(data || []);
     } catch (error) {

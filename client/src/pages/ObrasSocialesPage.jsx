@@ -19,6 +19,8 @@ import {
   Save,
   X,
   AlertTriangle,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 import { showErrorToast, showSuccessToast } from '../components/toastHelpers';
 
@@ -152,6 +154,192 @@ const formatLinkLabel = (link) => {
   if (label && !/^https?:\/\//i.test(label)) return label;
   return 'Abrir link';
 };
+
+const createEmptyManualForm = () => ({
+  nombreOs: '',
+  codigoCokiba: '',
+  coseguroValor: 0,
+  coseguroTexto: '',
+  honorarioEstimado: 0,
+  percentageCoinsurance: 0,
+  fixedCopay: 0,
+  plazoPago: 60,
+  areaCobertura: '',
+  documentLines: '',
+  additionalDocumentInfo: '',
+  usefulLinks: '',
+  atendibleSanMiguel: false,
+  isActive: true,
+  requiresAuthorization: false,
+  statusManualOverride: true,
+});
+
+const parseTextareaLines = (value = '') =>
+  String(value || '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+const buildDocumentPayload = (documentLines = '', additionalInfo = '') => {
+  const documents = parseTextareaLines(documentLines).map((line) => {
+    const validityMatch = line.match(/\(?(\d+)\s*d[ií]as\)?/i);
+    const name = line
+      .replace(/\(?\d+\s*d[ií]as\)?/gi, '')
+      .replace(/[():-]+$/g, '')
+      .trim();
+
+    return {
+      name: name || line.trim(),
+      mandatory: true,
+      validityDays: validityMatch ? Number.parseInt(validityMatch[1], 10) : null,
+    };
+  });
+
+  const normalizedAdditionalInfo = String(additionalInfo || '').trim();
+  if (!documents.length && !normalizedAdditionalInfo) {
+    return null;
+  }
+
+  return {
+    documents,
+    additionalInfo: normalizedAdditionalInfo,
+  };
+};
+
+const guessLinkLabel = (href = '') => {
+  const normalized = String(href || '').toLowerCase();
+  if (/autoriz/.test(normalized)) return 'Autorización';
+  if (/valid|directconnection|prestador|afiliatoria/.test(normalized)) return 'Validación';
+  if (/convenio/.test(normalized)) return 'Convenio';
+  if (/manual/.test(normalized)) return 'Manual';
+  return 'Link útil';
+};
+
+const buildLinksPayload = (value = '') => {
+  const seen = new Set();
+
+  return parseTextareaLines(value)
+    .filter((line) => /^https?:\/\//i.test(line))
+    .filter((line) => {
+      const key = line.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .map((href) => ({
+      href,
+      text: guessLinkLabel(href),
+    }));
+};
+
+const buildCokibaDetailsPayload = (currentDetails = {}, form = {}) => {
+  const links = buildLinksPayload(form.usefulLinks);
+  const convenioLink = links.find((link) => /convenio/i.test(link.text) || /convenio/i.test(link.href));
+  const validacionLink = links.find((link) => /valid|directconnection|prestador|afiliatoria/i.test(`${link.text} ${link.href}`));
+  const autorizacionLink = links.find((link) => /autoriz/i.test(`${link.text} ${link.href}`));
+
+  return {
+    ...currentDetails,
+    areaCobertura: String(form.areaCobertura || '').trim(),
+    coseguroTexto: String(form.coseguroTexto || '').trim(),
+    authorizationNote:
+      currentDetails?.authorizationNote
+      || (form.requiresAuthorization ? 'Requiere autorización previa' : 'Sin autorización previa'),
+    convenioUrl: convenioLink?.href || '',
+    convenioLabel: convenioLink?.text || '',
+    validacionUrl: validacionLink?.href || '',
+    autorizacionUrl: autorizacionLink?.href || '',
+    links,
+  };
+};
+
+const ObraSocialSupplementalEditor = ({ form, setForm, showName = false, showCode = false }) => (
+  <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">
+      Datos de Tu Grilla
+    </p>
+    <div className="mt-4 grid gap-4 md:grid-cols-2">
+      {showName && (
+        <label className="md:col-span-2">
+          <span className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Nombre</span>
+          <input
+            type="text"
+            value={form.nombreOs}
+            onChange={(event) => setForm((current) => ({ ...current, nombreOs: event.target.value }))}
+            className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 outline-none transition focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+          />
+        </label>
+      )}
+
+      {showCode && (
+        <label>
+          <span className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Código manual</span>
+          <input
+            type="text"
+            value={form.codigoCokiba}
+            onChange={(event) => setForm((current) => ({ ...current, codigoCokiba: event.target.value }))}
+            placeholder="Opcional"
+            className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 outline-none transition focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+          />
+        </label>
+      )}
+
+      <label className={showCode ? '' : 'md:col-span-2'}>
+        <span className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Coseguro visible</span>
+        <input
+          type="text"
+          value={form.coseguroTexto}
+          onChange={(event) => setForm((current) => ({ ...current, coseguroTexto: event.target.value }))}
+          placeholder="Ej: NO POSEE"
+          className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 outline-none transition focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+        />
+      </label>
+
+      <label className="md:col-span-2">
+        <span className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Área de cobertura</span>
+        <textarea
+          rows={3}
+          value={form.areaCobertura}
+          onChange={(event) => setForm((current) => ({ ...current, areaCobertura: event.target.value }))}
+          className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 outline-none transition focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+        />
+      </label>
+
+      <label>
+        <span className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Documentación</span>
+        <textarea
+          rows={5}
+          value={form.documentLines}
+          onChange={(event) => setForm((current) => ({ ...current, documentLines: event.target.value }))}
+          placeholder={'Una por línea\nEj: Derivación médica (60 días)'}
+          className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 outline-none transition focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+        />
+      </label>
+
+      <label>
+        <span className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Info extra documentación</span>
+        <textarea
+          rows={5}
+          value={form.additionalDocumentInfo}
+          onChange={(event) => setForm((current) => ({ ...current, additionalDocumentInfo: event.target.value }))}
+          placeholder="Autorización, validación, notas operativas..."
+          className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 outline-none transition focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+        />
+      </label>
+
+      <label className="md:col-span-2">
+        <span className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Links útiles</span>
+        <textarea
+          rows={4}
+          value={form.usefulLinks}
+          onChange={(event) => setForm((current) => ({ ...current, usefulLinks: event.target.value }))}
+          placeholder={'Uno por línea\nhttps://...'}
+          className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 outline-none transition focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+        />
+      </label>
+    </div>
+  </section>
+);
 
 const ObraSocialDetailPanel = ({ obraSocial }) => {
   const details = getCokibaDetails(obraSocial);
@@ -294,6 +482,10 @@ const ObrasSocialesPage = () => {
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({});
   const [savingId, setSavingId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [createForm, setCreateForm] = useState(createEmptyManualForm);
+  const [creating, setCreating] = useState(false);
   const [sortField, setSortField] = useState('nombreOs');
   const [sortDir, setSortDir] = useState('asc');
 
@@ -392,18 +584,36 @@ const ObrasSocialesPage = () => {
   };
 
   const startEdit = (os) => {
+    const details = getCokibaDetails(os);
+    const documents = Array.isArray(os?.requiredDocuments?.documents)
+      ? os.requiredDocuments.documents
+      : [];
+
     setEditingId(os.id);
+    setExpandedId(os.id);
     setEditForm({
+      nombreOs: os.nombreOs || '',
       coseguroValor: parseFloat(os.coseguroValor) || 0,
+      coseguroTexto: details.coseguroTexto || '',
       honorarioEstimado: parseFloat(os.honorarioEstimado) || 0,
       percentageCoinsurance: parseFloat(os.percentageCoinsurance) || 0,
       fixedCopay: parseFloat(os.fixedCopay) || 0,
       plazoPago: os.plazoPago || 60,
+      areaCobertura: details.areaCobertura || '',
+      documentLines: documents
+        .map((document) => (
+          document?.validityDays
+            ? `${document.name} (${document.validityDays} días)`
+            : document?.name
+        ))
+        .filter(Boolean)
+        .join('\n'),
+      additionalDocumentInfo: String(os?.requiredDocuments?.additionalInfo || '').trim(),
+      usefulLinks: (details.links || []).map((link) => link.href).filter(Boolean).join('\n'),
       atendibleSanMiguel: os.atendibleSanMiguel || false,
       isActive: os.isActive ?? true,
       statusManualOverride: os.statusManualOverride ?? false,
       requiresAuthorization: os.requiresAuthorization ?? false,
-      requiredDocuments: JSON.stringify(os.requiredDocuments || { documents: [], additionalInfo: '' }, null, 2),
     });
   };
 
@@ -412,10 +622,44 @@ const ObrasSocialesPage = () => {
     setEditForm({});
   };
 
-  const saveEdit = async (id) => {
+  const buildMutationPayload = (current, form, { includeCode = false } = {}) => {
+    const details = buildCokibaDetailsPayload(current?.cokibaDetails || {}, form);
+    const useManualStatus = current ? Boolean(form.statusManualOverride) : true;
+
+    return {
+      ...(includeCode && form.codigoCokiba ? { codigoCokiba: String(form.codigoCokiba).trim() } : {}),
+      nombreOs: String(form.nombreOs || current?.nombreOs || '').trim(),
+      coseguroValor: parseFloat(form.coseguroValor) || 0,
+      honorarioEstimado: parseFloat(form.honorarioEstimado) || 0,
+      percentageCoinsurance: parseFloat(form.percentageCoinsurance) || 0,
+      fixedCopay: parseFloat(form.fixedCopay) || 0,
+      plazoPago: parseInt(form.plazoPago, 10) || 60,
+      ...(useManualStatus
+        ? {
+            estado: form.isActive ? 'Activa' : 'Inactiva',
+            isActive: Boolean(form.isActive),
+          }
+        : {}),
+      ...(!current
+        ? {
+            detectedStatus: form.isActive ? 'Activa' : 'Inactiva',
+            detectedIsActive: Boolean(form.isActive),
+          }
+        : {}),
+      statusManualOverride: useManualStatus,
+      requiresAuthorization: Boolean(form.requiresAuthorization),
+      atendibleSanMiguel: Boolean(form.atendibleSanMiguel),
+      requiredDocuments: buildDocumentPayload(form.documentLines, form.additionalDocumentInfo),
+      cokibaDetails: details,
+      rawCategoria: current?.rawCategoria || 'Básica',
+    };
+  };
+
+  const saveEdit = async (os) => {
     try {
-      setSavingId(id);
-      await instance.put(`/obras-sociales/${id}`, editForm);
+      setSavingId(os.id);
+      const payload = buildMutationPayload(os, editForm);
+      await instance.put(`/obras-sociales/${os.id}`, payload);
       await fetchObrasSociales();
       setEditingId(null);
       setEditForm({});
@@ -425,6 +669,50 @@ const ObrasSocialesPage = () => {
       showErrorToast('No se pudo actualizar la obra social.');
     } finally {
       setSavingId(null);
+    }
+  };
+
+  const createManualObraSocial = async () => {
+    if (!String(createForm.nombreOs || '').trim()) {
+      showErrorToast('Ingresá el nombre de la obra social.');
+      return;
+    }
+
+    try {
+      setCreating(true);
+      const payload = buildMutationPayload(null, createForm, { includeCode: true });
+      await instance.post('/obras-sociales', payload);
+      await fetchObrasSociales();
+      setCreateForm(createEmptyManualForm());
+      setShowCreateForm(false);
+      showSuccessToast('Obra social agregada a tu grilla.');
+    } catch (error) {
+      console.error('Error creating obra social:', error);
+      showErrorToast(error?.response?.data?.error || 'No se pudo crear la obra social.');
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const removeFromGrid = async (os) => {
+    const confirmed = window.confirm(`Quitar "${os.nombreOs}" de tu grilla?`);
+    if (!confirmed) return;
+
+    try {
+      setDeletingId(os.id);
+      await instance.delete(`/obras-sociales/${os.id}`);
+      await fetchObrasSociales();
+      if (expandedId === os.id) setExpandedId(null);
+      if (editingId === os.id) {
+        setEditingId(null);
+        setEditForm({});
+      }
+      showSuccessToast('Obra social quitada de tu grilla.');
+    } catch (error) {
+      console.error('Error removing obra social:', error);
+      showErrorToast(error?.response?.data?.error || 'No se pudo quitar la obra social.');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -506,6 +794,17 @@ const ObrasSocialesPage = () => {
             </p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              onClick={() => {
+                setShowCreateForm((current) => !current);
+                setCreateForm(createEmptyManualForm());
+              }}
+              className="flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 font-bold text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-50 sm:w-auto"
+            >
+              <Plus size={18} />
+              {showCreateForm ? 'Cerrar alta manual' : 'Agregar manual'}
+            </button>
             <button
               type="button"
               onClick={handleSync}
@@ -642,6 +941,126 @@ const ObrasSocialesPage = () => {
             </select>
           </div>
         </div>
+
+        {showCreateForm && (
+          <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">Alta manual</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-500">
+                    Agregá una obra social propia y dejala lista para tu grilla.
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCreateForm(false);
+                      setCreateForm(createEmptyManualForm());
+                    }}
+                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold text-slate-500 hover:bg-slate-100"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={createManualObraSocial}
+                    disabled={creating}
+                    className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-bold text-white hover:bg-teal-700 disabled:opacity-50"
+                  >
+                    {creating ? 'Guardando...' : 'Guardar obra social'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <label>
+                  <span className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Coseguro</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={createForm.coseguroValor}
+                    onChange={(event) => setCreateForm((current) => ({ ...current, coseguroValor: event.target.value }))}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 outline-none transition focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+                  />
+                </label>
+                <label>
+                  <span className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Honorario</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={createForm.honorarioEstimado}
+                    onChange={(event) => setCreateForm((current) => ({ ...current, honorarioEstimado: event.target.value }))}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 outline-none transition focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+                  />
+                </label>
+                <label>
+                  <span className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Copago fijo</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={createForm.fixedCopay}
+                    onChange={(event) => setCreateForm((current) => ({ ...current, fixedCopay: event.target.value }))}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 outline-none transition focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+                  />
+                </label>
+                <label>
+                  <span className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Plazo pago</span>
+                  <input
+                    type="number"
+                    value={createForm.plazoPago}
+                    onChange={(event) => setCreateForm((current) => ({ ...current, plazoPago: event.target.value }))}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 outline-none transition focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+                  />
+                </label>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCreateForm((current) => ({ ...current, atendibleSanMiguel: !current.atendibleSanMiguel }))}
+                  className={`rounded-full px-3 py-1.5 text-xs font-black uppercase tracking-[0.16em] transition ${
+                    createForm.atendibleSanMiguel
+                      ? 'bg-violet-100 text-violet-700'
+                      : 'bg-slate-100 text-slate-500'
+                  }`}
+                >
+                  {createForm.atendibleSanMiguel ? 'Zona SM/BV' : 'Sin zona SM/BV'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCreateForm((current) => ({ ...current, isActive: !current.isActive }))}
+                  className={`rounded-full px-3 py-1.5 text-xs font-black uppercase tracking-[0.16em] transition ${
+                    createForm.isActive
+                      ? 'bg-emerald-100 text-emerald-700'
+                      : 'bg-rose-100 text-rose-700'
+                  }`}
+                >
+                  {createForm.isActive ? 'Activa' : 'Inactiva'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCreateForm((current) => ({ ...current, requiresAuthorization: !current.requiresAuthorization }))}
+                  className={`rounded-full px-3 py-1.5 text-xs font-black uppercase tracking-[0.16em] transition ${
+                    createForm.requiresAuthorization
+                      ? 'bg-amber-100 text-amber-700'
+                      : 'bg-slate-100 text-slate-500'
+                  }`}
+                >
+                  {createForm.requiresAuthorization ? 'Requiere autorización' : 'Sin autorización'}
+                </button>
+              </div>
+
+              <ObraSocialSupplementalEditor
+                form={createForm}
+                setForm={setCreateForm}
+                showName
+                showCode
+              />
+            </div>
+          </div>
+        )}
 
         <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -944,7 +1363,7 @@ const ObrasSocialesPage = () => {
                                 <div className="flex items-center justify-center gap-1">
                                   <button
                                     type="button"
-                                    onClick={() => saveEdit(os.id)}
+                                    onClick={() => saveEdit(os)}
                                     disabled={isSaving}
                                     className="rounded-full p-2 text-teal-600 transition-colors hover:bg-teal-50 disabled:opacity-50"
                                     title="Guardar"
@@ -978,14 +1397,31 @@ const ObrasSocialesPage = () => {
                                   >
                                     <Edit3 size={18} />
                                   </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => removeFromGrid(os)}
+                                    disabled={deletingId === os.id}
+                                    className="rounded-full p-2 text-rose-400 transition-colors hover:bg-rose-50 hover:text-rose-700 disabled:opacity-50"
+                                    title="Quitar de mi grilla"
+                                  >
+                                    <Trash2 size={18} />
+                                  </button>
                                 </div>
                               )}
                             </td>
                           </tr>
-                          {isExpanded && !isEditing && (
+                          {isExpanded && (
                             <tr className="border-b border-slate-100 bg-white">
                               <td colSpan={7} className="p-4 pt-0">
-                                <ObraSocialDetailPanel obraSocial={os} />
+                                {isEditing ? (
+                                  <ObraSocialSupplementalEditor
+                                    form={editForm}
+                                    setForm={setEditForm}
+                                    showName
+                                  />
+                                ) : (
+                                  <ObraSocialDetailPanel obraSocial={os} />
+                                )}
                               </td>
                             </tr>
                           )}
@@ -1170,76 +1606,86 @@ const ObrasSocialesPage = () => {
                             )}
                           </div>
                           {isEditing && (
-                            <div className="mt-3 grid gap-2">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setEditForm((f) => ({
-                                    ...f,
-                                    atendibleSanMiguel: !f.atendibleSanMiguel,
-                                  }))
-                                }
-                                className={`rounded-xl px-3 py-2 text-xs font-bold transition ${
-                                  editForm.atendibleSanMiguel
-                                    ? 'bg-violet-100 text-violet-700'
-                                    : 'bg-white text-slate-500'
-                                }`}
-                              >
-                                {editForm.atendibleSanMiguel ? 'Zona SM/BV activa' : 'Sin zona SM/BV'}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setEditForm((f) => ({
-                                    ...f,
-                                    statusManualOverride: true,
-                                    isActive: !f.isActive,
-                                  }))
-                                }
-                                className={`rounded-xl px-3 py-2 text-xs font-bold transition ${
-                                  editForm.isActive
-                                    ? 'bg-emerald-100 text-emerald-700'
-                                    : 'bg-rose-100 text-rose-700'
-                                }`}
-                              >
-                                {editForm.isActive ? 'Marcar activa' : 'Marcar inactiva'}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setEditForm((f) => ({
-                                    ...f,
-                                    statusManualOverride: !f.statusManualOverride,
-                                    isActive: f.statusManualOverride
-                                      ? (os.detectedIsActive ?? os.isActive ?? true)
-                                      : f.isActive,
-                                  }))
-                                }
-                                className={`rounded-xl px-3 py-2 text-xs font-bold transition ${
-                                  editForm.statusManualOverride
-                                    ? 'bg-sky-100 text-sky-700'
-                                    : 'bg-white text-slate-500'
-                                }`}
-                              >
-                                {editForm.statusManualOverride ? 'Estado manual' : 'Usar auto COKIBA'}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setEditForm((f) => ({
-                                    ...f,
-                                    requiresAuthorization: !f.requiresAuthorization,
-                                  }))
-                                }
-                                className={`rounded-xl px-3 py-2 text-xs font-bold transition ${
-                                  editForm.requiresAuthorization
-                                    ? 'bg-amber-100 text-amber-700'
-                                    : 'bg-white text-slate-500'
-                                }`}
-                              >
-                                {editForm.requiresAuthorization ? 'Requiere autorización' : 'Sin autorización'}
-                              </button>
-                            </div>
+                            <>
+                              <div className="mt-3 grid gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setEditForm((f) => ({
+                                      ...f,
+                                      atendibleSanMiguel: !f.atendibleSanMiguel,
+                                    }))
+                                  }
+                                  className={`rounded-xl px-3 py-2 text-xs font-bold transition ${
+                                    editForm.atendibleSanMiguel
+                                      ? 'bg-violet-100 text-violet-700'
+                                      : 'bg-white text-slate-500'
+                                  }`}
+                                >
+                                  {editForm.atendibleSanMiguel ? 'Zona SM/BV activa' : 'Sin zona SM/BV'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setEditForm((f) => ({
+                                      ...f,
+                                      statusManualOverride: true,
+                                      isActive: !f.isActive,
+                                    }))
+                                  }
+                                  className={`rounded-xl px-3 py-2 text-xs font-bold transition ${
+                                    editForm.isActive
+                                      ? 'bg-emerald-100 text-emerald-700'
+                                      : 'bg-rose-100 text-rose-700'
+                                  }`}
+                                >
+                                  {editForm.isActive ? 'Marcar activa' : 'Marcar inactiva'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setEditForm((f) => ({
+                                      ...f,
+                                      statusManualOverride: !f.statusManualOverride,
+                                      isActive: f.statusManualOverride
+                                        ? (os.detectedIsActive ?? os.isActive ?? true)
+                                        : f.isActive,
+                                    }))
+                                  }
+                                  className={`rounded-xl px-3 py-2 text-xs font-bold transition ${
+                                    editForm.statusManualOverride
+                                      ? 'bg-sky-100 text-sky-700'
+                                      : 'bg-white text-slate-500'
+                                  }`}
+                                >
+                                  {editForm.statusManualOverride ? 'Estado manual' : 'Usar auto COKIBA'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setEditForm((f) => ({
+                                      ...f,
+                                      requiresAuthorization: !f.requiresAuthorization,
+                                    }))
+                                  }
+                                  className={`rounded-xl px-3 py-2 text-xs font-bold transition ${
+                                    editForm.requiresAuthorization
+                                      ? 'bg-amber-100 text-amber-700'
+                                      : 'bg-white text-slate-500'
+                                  }`}
+                                >
+                                  {editForm.requiresAuthorization ? 'Requiere autorización' : 'Sin autorización'}
+                                </button>
+                              </div>
+
+                              <div className="mt-4">
+                                <ObraSocialSupplementalEditor
+                                  form={editForm}
+                                  setForm={setEditForm}
+                                  showName
+                                />
+                              </div>
+                            </>
                           )}
                           <div className="mt-4">
                             <ObraSocialDetailPanel obraSocial={os} />
@@ -1256,7 +1702,7 @@ const ObrasSocialesPage = () => {
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => saveEdit(os.id)}
+                                  onClick={() => saveEdit(os)}
                                   disabled={isSaving}
                                   className="rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-teal-700 disabled:opacity-50"
                                 >
@@ -1264,13 +1710,23 @@ const ObrasSocialesPage = () => {
                                 </button>
                               </>
                             ) : (
-                              <button
-                                type="button"
-                                onClick={() => startEdit(os)}
-                                className="flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-500 hover:bg-slate-100"
-                              >
-                                <Edit3 size={14} /> Editar
-                              </button>
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => startEdit(os)}
+                                  className="flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-500 hover:bg-slate-100"
+                                >
+                                  <Edit3 size={14} /> Editar
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => removeFromGrid(os)}
+                                  disabled={deletingId === os.id}
+                                  className="flex items-center gap-1 rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-bold text-rose-600 hover:bg-rose-50 disabled:opacity-50"
+                                >
+                                  <Trash2 size={14} /> Quitar
+                                </button>
+                              </>
                             )}
                           </div>
                         </div>

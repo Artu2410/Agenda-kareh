@@ -982,9 +982,10 @@ const defaultLogger = {
 export const getCokibaSyncStatus = async (prisma) => {
   const config = buildConfigStatus();
   const [total, activas, latest] = await Promise.all([
-    prisma.obraSocial.count(),
-    prisma.obraSocial.count({ where: { isActive: true } }),
+    prisma.obraSocial.count({ where: { isArchived: false } }),
+    prisma.obraSocial.count({ where: { isArchived: false, isActive: true } }),
     prisma.obraSocial.findFirst({
+      where: { isArchived: false },
       orderBy: { ultimaSync: 'desc' },
       select: {
         ultimaSync: true,
