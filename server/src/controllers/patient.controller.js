@@ -141,10 +141,10 @@ const resolvePatientInsurancePayload = async (prisma, payload = {}) => {
 
   const obraSocial = await prisma.obraSocial.findUnique({
     where: { id: normalizedObraSocialId },
-    select: { id: true, nombreOs: true },
+    select: { id: true, nombreOs: true, isArchived: true },
   });
 
-  if (!obraSocial) {
+  if (!obraSocial || obraSocial.isArchived) {
     const error = new Error('La obra social seleccionada no existe');
     error.statusCode = 400;
     throw error;

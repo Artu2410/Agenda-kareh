@@ -101,6 +101,7 @@ const resolvePatientInsurancePayload = async (tx, payload = {}) => {
     select: {
       id: true,
       nombreOs: true,
+      isArchived: true,
       isActive: true,
       requiresAuthorization: true,
       requiredDocuments: true,
@@ -111,7 +112,7 @@ const resolvePatientInsurancePayload = async (tx, payload = {}) => {
     },
   });
 
-  if (!obraSocial) {
+  if (!obraSocial || obraSocial.isArchived) {
     const error = new Error('La obra social seleccionada no existe');
     error.statusCode = 400;
     throw error;
@@ -145,7 +146,7 @@ const getAppointmentInsuranceContext = async (tx, patient, payload = {}) => {
     where: { id: requestedObraSocialId },
   });
 
-  if (!obraSocial) {
+  if (!obraSocial || obraSocial.isArchived) {
     const error = new Error('La obra social seleccionada no existe');
     error.statusCode = 400;
     throw error;

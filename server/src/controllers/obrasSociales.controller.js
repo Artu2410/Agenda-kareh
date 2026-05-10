@@ -24,10 +24,35 @@ const parseRequiredDocuments = (value) => {
   }
 };
 
+const parseCokibaDetails = (value) => {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return null;
+  if (typeof value === 'object') return value;
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+};
+
 // 1. LISTAR TODAS LAS OBRAS SOCIALES
 export const getObrasSociales = async (req, res, prisma) => {
-  const { estado, search, zona, activeOnly, includeInactive, requiresAuthorization } = req.query;
+  const {
+    estado,
+    search,
+    zona,
+    activeOnly,
+    includeInactive,
+    requiresAuthorization,
+    includeArchived,
+  } = req.query;
   const where = {};
+  const shouldIncludeArchived = parseBoolean(includeArchived, false);
+
+  if (!shouldIncludeArchived) {
+    where.isArchived = false;
+  }
 
   if (estado) {
     where.estado = estado;
@@ -128,7 +153,7 @@ export const getObraSocial = async (req, res, prisma) => {
       where: { id },
     });
 
-    if (!obraSocial) {
+    if (!obraSocial || obraSocial.isArchived) {
       return res.status(404).json({ error: 'Obra social no encontrada' });
     }
 
@@ -183,10 +208,11 @@ export const createObraSocial = async (req, res, prisma) => {
         detectedStatus: detectedStatus || estado || 'Activa',
         detectedIsActive: parseBoolean(detectedIsActive, parseBoolean(isActive, true)),
         statusManualOverride: parseBoolean(statusManualOverride, true),
+        isArchived: false,
         requiresAuthorization: parseBoolean(requiresAuthorization, false),
-        atendibleSanMiguel: atendibleSanMiguel || false,
+        atendibleSanMiguel: parseBoolean(atendibleSanMiguel, false),
         requiredDocuments: parseRequiredDocuments(requiredDocuments),
-        cokibaDetails: cokibaDetails && typeof cokibaDetails === 'object' ? cokibaDetails : null,
+        cokibaDetails: parseCokibaDetails(cokibaDetails),
         rawCategoria: rawCategoria || 'Básica',
         ultimaSync: new Date(),
       },
@@ -232,6 +258,7 @@ export const updateObraSocial = async (req, res, prisma) => {
     detectedStatus,
     detectedIsActive,
     statusManualOverride,
+    isArchived,
   } = req.body;
 
   const data = {};
@@ -246,18 +273,19 @@ export const updateObraSocial = async (req, res, prisma) => {
   if (detectedStatus !== undefined) data.detectedStatus = detectedStatus;
   if (detectedIsActive !== undefined) data.detectedIsActive = parseBoolean(detectedIsActive, true);
   if (requiresAuthorization !== undefined) data.requiresAuthorization = parseBoolean(requiresAuthorization, false);
-  if (atendibleSanMiguel !== undefined) data.atendibleSanMiguel = atendibleSanMiguel;
+  if (atendibleSanMiguel !== undefined) data.atendibleSanMiguel = parseBoolean(atendibleSanMiguel, false);
   if (requiredDocuments !== undefined) data.requiredDocuments = parseRequiredDocuments(requiredDocuments);
-  if (cokibaDetails !== undefined) data.cokibaDetails = cokibaDetails && typeof cokibaDetails === 'object' ? cokibaDetails : null;
+  if (cokibaDetails !== undefined) data.cokibaDetails = parseCokibaDetails(cokibaDetails);
   if (rawCategoria !== undefined) data.rawCategoria = rawCategoria;
   if (statusManualOverride !== undefined) data.statusManualOverride = parseBoolean(statusManualOverride, false);
+  if (isArchived !== undefined) data.isArchived = parseBoolean(isArchived, false);
 
   try {
     const current = await prisma.obraSocial.findUnique({
       where: { id },
     });
 
-    if (!current) {
+    if (!current || current.isArchived) {
       return res.status(404).json({ error: 'Obra social no encontrada' });
     }
 
@@ -307,14 +335,33 @@ export const deleteObraSocial = async (req, res, prisma) => {
   try {
     const current = await prisma.obraSocial.findUnique({
       where: { id },
+      select: {
+        id: true,
+        codigoCokiba: true,
+        nombreOs: true,
+        estado: true,
+        isActive: true,
+        detectedStatus: true,
+        detectedIsActive: true,
+        statusManualOverride: true,
+        isArchived: true,
+        requiredDocuments: true,
+        cokibaDetails: true,
+      },
     });
 
-    if (!current) {
+    if (!current || current.isArchived) {
       return res.status(404).json({ error: 'Obra social no encontrada' });
     }
 
-    await prisma.obraSocial.delete({
+    const archived = await prisma.obraSocial.update({
       where: { id },
+      data: {
+        isArchived: true,
+        isActive: false,
+        estado: 'Archivada',
+        statusManualOverride: true,
+      },
     });
 
     await safeWriteAuditLog(prisma, req, {
@@ -322,9 +369,10 @@ export const deleteObraSocial = async (req, res, prisma) => {
       resource: 'OBRA_SOCIAL',
       resourceId: id,
       oldValues: current,
+      newValues: archived,
     });
 
-    res.status(200).json({ message: 'Obra social eliminada con éxito' });
+    res.status(200).json({ message: 'Obra social quitada de la grilla con éxito' });
   } catch (error) {
     if (error.code === 'P2025') {
       return res.status(404).json({ error: 'Obra social no encontrada' });
@@ -341,10 +389,10 @@ export const deleteObraSocial = async (req, res, prisma) => {
 export const getObrasSocialesStats = async (req, res, prisma) => {
   try {
     const [total, activas, sanMiguel, requierenAutorizacion] = await Promise.all([
-      prisma.obraSocial.count(),
-      prisma.obraSocial.count({ where: { isActive: true } }),
-      prisma.obraSocial.count({ where: { atendibleSanMiguel: true } }),
-      prisma.obraSocial.count({ where: { requiresAuthorization: true } }),
+      prisma.obraSocial.count({ where: { isArchived: false } }),
+      prisma.obraSocial.count({ where: { isArchived: false, isActive: true } }),
+      prisma.obraSocial.count({ where: { isArchived: false, atendibleSanMiguel: true } }),
+      prisma.obraSocial.count({ where: { isArchived: false, requiresAuthorization: true } }),
     ]);
 
     res.status(200).json({ total, activas, sanMiguel, requierenAutorizacion });

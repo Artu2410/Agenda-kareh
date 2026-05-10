@@ -12,6 +12,7 @@ export const obraSocialSelect = {
   detectedStatus: true,
   detectedIsActive: true,
   statusManualOverride: true,
+  isArchived: true,
   requiresAuthorization: true,
   atendibleSanMiguel: true,
   rawCategoria: true,

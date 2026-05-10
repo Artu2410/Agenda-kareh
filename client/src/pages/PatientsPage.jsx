@@ -112,7 +112,7 @@ export default function PatientsPage() {
   const fetchObrasSociales = useCallback(async () => {
     try {
       const response = await api.get('/obras-sociales', {
-        params: { includeInactive: '1' },
+        params: { includeInactive: '1', includeArchived: '1' },
       });
       setObrasSociales(response.data || []);
     } catch (error) {

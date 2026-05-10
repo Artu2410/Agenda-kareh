@@ -399,6 +399,7 @@ model ObraSocial {
   detectedStatus  String?
   detectedIsActive Boolean?
   statusManualOverride Boolean @default(false)
+  isArchived      Boolean  @default(false)
   requiresAuthorization Boolean @default(false)
   atendibleSanMiguel Boolean @default(false)  // Zona San Miguel / Bella Vista
   requiredDocuments Json?
@@ -413,6 +414,7 @@ model ObraSocial {
 
   @@index([estado])
   @@index([isActive])
+  @@index([isArchived])
   @@index([requiresAuthorization])
   @@index([nombreOs])
 }
