@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import puppeteer from 'puppeteer';
+import { loadSupplementalCokibaCatalog, matchSupplementalCokibaEntry } from './cokibaTextCatalog.js';
 
 const COKIBA_OS_URL = 'https://autogestion.cokiba.org.ar/web/?q=form_os';
 
@@ -108,6 +109,27 @@ const uniqueBy = (items, getKey) => {
   });
 };
 
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const mergeTextLines = (...values) => uniqueBy(
+  values
+    .flatMap((value) => String(value || '').split('\n'))
+    .map((line) => normalizeText(line))
+    .filter(Boolean),
+  (line) => line.toLowerCase()
+).join('\n');
+
+const mergeLinks = (...collections) => uniqueBy(
+  collections
+    .flatMap((collection) => collection || [])
+    .map((link) => ({
+      href: normalizeText(link?.href),
+      text: normalizeText(link?.text || link?.label || link?.href),
+    }))
+    .filter((link) => link.href),
+  (link) => link.href.toLowerCase()
+);
+
 const extractUrlsFromText = (value) => uniqueBy(
   (String(value || '').match(/https?:\/\/[^\s)]+/gi) || [])
     .map((item) => item.replace(/[.,;]+$/, '')),
@@ -182,6 +204,9 @@ const extractLabelValue = (lines, label, { multiline = false } = {}) => {
   if (index === -1) return '';
 
   const inlineValue = normalizeText(lines[index].replace(matcher, '$1'));
+  if (inlineValue && !multiline) {
+    return inlineValue;
+  }
   const values = inlineValue ? [inlineValue] : [];
 
   for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
@@ -373,7 +398,9 @@ const filterRelevantLinks = (links = []) => uniqueBy(
       (link) =>
         link.href &&
         /^https?:\/\//i.test(link.href) &&
-        !/\/web\/\?q=form_os$/i.test(link.href)
+        !/\/web\/\?q=form_os$/i.test(link.href) &&
+        !/\/web\/?$/i.test(link.href) &&
+        !/#(?:main-content|top)$/i.test(link.href)
     ),
   (link) => `${link.href.toLowerCase()}|${link.text.toLowerCase()}`
 );
@@ -428,6 +455,138 @@ const buildCokibaDetails = ({ detail, lines, tariffs, rawCoseguro, postConventio
     tariffRows: tariffs.rows,
     honorarioReferenciaPrestacion: tariffs.referenceRow?.prestacion || '',
     honorarioBasicaReferencia: tariffs.referenceRow?.categoriaBasica || 0,
+  };
+};
+
+const mergeRequiredDocuments = (baseValue, supplementValue) => {
+  const baseDocuments = Array.isArray(baseValue?.documents) ? baseValue.documents : [];
+  const supplementalDocuments = Array.isArray(supplementValue?.documents) ? supplementValue.documents : [];
+  const documentsByName = new Map();
+
+  [...baseDocuments, ...supplementalDocuments].forEach((document) => {
+    const name = normalizeText(document?.name);
+    if (!name) return;
+
+    const key = name.toLowerCase();
+    const current = documentsByName.get(key) || {
+      name,
+      mandatory: false,
+      validityDays: null,
+    };
+
+    documentsByName.set(key, {
+      name,
+      mandatory: current.mandatory || Boolean(document?.mandatory),
+      validityDays:
+        current.validityDays === null || current.validityDays === undefined
+          ? (document?.validityDays ?? null)
+          : current.validityDays,
+    });
+  });
+
+  return {
+    documents: [...documentsByName.values()],
+    additionalInfo: mergeTextLines(baseValue?.additionalInfo, supplementValue?.additionalInfo),
+  };
+};
+
+const mergeSupplementalRecord = (record, option, supplementalCatalog) => {
+  const supplementalEntry = matchSupplementalCokibaEntry({
+    entries: supplementalCatalog,
+    candidates: [record.nombreOs, cleanDisplayLabel(option.label), option.label],
+  });
+
+  if (!supplementalEntry) {
+    return record;
+  }
+
+  const baseDetails = record.cokibaDetails || {};
+  const supplementalDetails = supplementalEntry.cokibaDetails || {};
+  const mergedRequiredDocuments = mergeRequiredDocuments(record.requiredDocuments, supplementalEntry.requiredDocuments);
+  const mergedDetails = {
+    ...baseDetails,
+    arancelVigenteDesde: baseDetails.arancelVigenteDesde || supplementalDetails.arancelVigenteDesde || '',
+    cuit: baseDetails.cuit || supplementalDetails.cuit || '',
+    areaCobertura: baseDetails.areaCobertura || supplementalDetails.areaCobertura || '',
+    coseguroTexto:
+      baseDetails.coseguroTexto && baseDetails.coinsuranceReliable !== false
+        ? baseDetails.coseguroTexto
+        : (supplementalDetails.coseguroTexto || baseDetails.coseguroTexto || ''),
+    observaciones: mergeTextLines(baseDetails.observaciones, supplementalDetails.observaciones),
+    convenioTexto: baseDetails.convenioTexto || supplementalDetails.convenioTexto || '',
+    convenioUrl:
+      /convenio/i.test(baseDetails.convenioUrl || '')
+        ? (baseDetails.convenioUrl || '')
+        : (supplementalDetails.convenioUrl || baseDetails.convenioUrl || ''),
+    convenioLabel: baseDetails.convenioLabel || supplementalDetails.convenioLabel || '',
+    validacionUrl: baseDetails.validacionUrl || supplementalDetails.validacionUrl || '',
+    autorizacionUrl: baseDetails.autorizacionUrl || supplementalDetails.autorizacionUrl || '',
+    numeroPrestador: baseDetails.numeroPrestador || supplementalDetails.numeroPrestador || '',
+    authorizationNote: baseDetails.authorizationNote || supplementalDetails.authorizationNote || '',
+    norms: uniqueBy(
+      [...(baseDetails.norms || []), ...(supplementalDetails.norms || [])].map((line) => normalizeText(line)).filter(Boolean),
+      (line) => line.toLowerCase()
+    ),
+    links: mergeLinks(baseDetails.links, supplementalDetails.links),
+    extractedUrls: uniqueBy(
+      [...(baseDetails.extractedUrls || []), ...(supplementalDetails.extractedUrls || [])].map((url) => normalizeText(url)).filter(Boolean),
+      (url) => url.toLowerCase()
+    ),
+    tariffHeaders: Array.isArray(baseDetails.tariffHeaders) && baseDetails.tariffHeaders.length
+      ? baseDetails.tariffHeaders
+      : (supplementalDetails.tariffHeaders || []),
+    tariffRows: Array.isArray(baseDetails.tariffRows) && baseDetails.tariffRows.length
+      ? baseDetails.tariffRows
+      : (supplementalDetails.tariffRows || []),
+    honorarioReferenciaPrestacion:
+      baseDetails.honorarioReferenciaPrestacion || supplementalDetails.honorarioReferenciaPrestacion || '',
+    honorarioBasicaReferencia:
+      baseDetails.honorarioBasicaReferencia || supplementalDetails.honorarioBasicaReferencia || 0,
+    supplementalCatalogMatch: supplementalEntry.nombreOs,
+  };
+
+  const supplementalCoinsuranceRule = parseCoinsuranceRule(supplementalDetails.coseguroTexto || '');
+  const shouldUseSupplementalCoinsurance =
+    (!baseDetails.coseguroTexto || baseDetails.coinsuranceReliable === false) &&
+    supplementalCoinsuranceRule.isReliable;
+
+  return {
+    ...record,
+    coseguroValor: shouldUseSupplementalCoinsurance ? supplementalCoinsuranceRule.baseCopay : record.coseguroValor,
+    percentageCoinsurance: shouldUseSupplementalCoinsurance
+      ? supplementalCoinsuranceRule.percentageCoinsurance
+      : record.percentageCoinsurance,
+    fixedCopay: shouldUseSupplementalCoinsurance ? supplementalCoinsuranceRule.fixedCopay : record.fixedCopay,
+    estado:
+      record.detectedIsActive === false || !supplementalEntry.detectedStatus
+        ? record.estado
+        : supplementalEntry.detectedStatus,
+    isActive:
+      record.detectedIsActive === false || supplementalEntry.detectedIsActive === null || supplementalEntry.detectedIsActive === undefined
+        ? record.isActive
+        : supplementalEntry.detectedIsActive,
+    detectedStatus:
+      record.detectedIsActive === false || !supplementalEntry.detectedStatus
+        ? record.detectedStatus
+        : supplementalEntry.detectedStatus,
+    detectedIsActive:
+      record.detectedIsActive === false || supplementalEntry.detectedIsActive === null || supplementalEntry.detectedIsActive === undefined
+        ? record.detectedIsActive
+        : supplementalEntry.detectedIsActive,
+    requiresAuthorization:
+      record.requiresAuthorization === null || record.requiresAuthorization === undefined
+        ? supplementalEntry.requiresAuthorization
+        : record.requiresAuthorization,
+    requiredDocuments: mergedRequiredDocuments,
+    cokibaDetails: {
+      ...mergedDetails,
+      coinsuranceMode: shouldUseSupplementalCoinsurance
+        ? supplementalCoinsuranceRule.mode
+        : baseDetails.coinsuranceMode,
+      coinsuranceReliable: shouldUseSupplementalCoinsurance
+        ? supplementalCoinsuranceRule.isReliable
+        : baseDetails.coinsuranceReliable,
+    },
   };
 };
 
@@ -587,12 +746,34 @@ const fetchOptionDetails = async (page, catalog, option) => {
 
 const collectObrasSociales = async (page, plazoPago, logger) => {
   const catalog = await fetchOptionCatalog(page, logger);
+  const supplementalCatalog = await loadSupplementalCokibaCatalog({ logger });
   const result = [];
 
   for (const [index, option] of catalog.options.entries()) {
     try {
-      const detail = await fetchOptionDetails(page, catalog, option);
-      const record = extractDetailRecord(detail, option, plazoPago);
+      let detail = null;
+
+      for (let attempt = 1; attempt <= 2; attempt += 1) {
+        try {
+          detail = await fetchOptionDetails(page, catalog, option);
+          break;
+        } catch (error) {
+          if (attempt === 2) {
+            throw error;
+          }
+
+          logger.warn(
+            `⚠️ Reintentando ${option.value} · ${cleanDisplayLabel(option.label)} tras fallo transitorio: ${error.message}`
+          );
+          await wait(1500);
+        }
+      }
+
+      const record = mergeSupplementalRecord(
+        extractDetailRecord(detail, option, plazoPago),
+        option,
+        supplementalCatalog
+      );
       result.push(record);
 
       if ((index + 1) % 10 === 0 || index === catalog.options.length - 1) {
@@ -743,6 +924,7 @@ export const runCokibaSync = async ({ prisma, logger = defaultLogger } = {}) => 
     browser = await puppeteer.launch({
       headless: 'new',
       args: DEFAULT_LAUNCH_ARGS,
+      protocolTimeout: 120000,
       defaultViewport: { width: 1280, height: 800 },
     });
 
