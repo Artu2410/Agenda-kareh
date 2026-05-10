@@ -157,7 +157,11 @@ export const createObraSocial = async (req, res, prisma) => {
     requiresAuthorization,
     atendibleSanMiguel,
     requiredDocuments,
+    cokibaDetails,
     rawCategoria,
+    detectedStatus,
+    detectedIsActive,
+    statusManualOverride,
   } = req.body;
 
   if (!nombreOs) {
@@ -176,9 +180,13 @@ export const createObraSocial = async (req, res, prisma) => {
         plazoPago: parseInt(plazoPago) || 60,
         estado: estado || 'Activa',
         isActive: parseBoolean(isActive, true),
+        detectedStatus: detectedStatus || estado || 'Activa',
+        detectedIsActive: parseBoolean(detectedIsActive, parseBoolean(isActive, true)),
+        statusManualOverride: parseBoolean(statusManualOverride, true),
         requiresAuthorization: parseBoolean(requiresAuthorization, false),
         atendibleSanMiguel: atendibleSanMiguel || false,
         requiredDocuments: parseRequiredDocuments(requiredDocuments),
+        cokibaDetails: cokibaDetails && typeof cokibaDetails === 'object' ? cokibaDetails : null,
         rawCategoria: rawCategoria || 'Básica',
         ultimaSync: new Date(),
       },
@@ -219,7 +227,11 @@ export const updateObraSocial = async (req, res, prisma) => {
     requiresAuthorization,
     atendibleSanMiguel,
     requiredDocuments,
+    cokibaDetails,
     rawCategoria,
+    detectedStatus,
+    detectedIsActive,
+    statusManualOverride,
   } = req.body;
 
   const data = {};
@@ -231,10 +243,14 @@ export const updateObraSocial = async (req, res, prisma) => {
   if (plazoPago !== undefined) data.plazoPago = parseInt(plazoPago);
   if (estado !== undefined) data.estado = estado;
   if (isActive !== undefined) data.isActive = parseBoolean(isActive, true);
+  if (detectedStatus !== undefined) data.detectedStatus = detectedStatus;
+  if (detectedIsActive !== undefined) data.detectedIsActive = parseBoolean(detectedIsActive, true);
   if (requiresAuthorization !== undefined) data.requiresAuthorization = parseBoolean(requiresAuthorization, false);
   if (atendibleSanMiguel !== undefined) data.atendibleSanMiguel = atendibleSanMiguel;
   if (requiredDocuments !== undefined) data.requiredDocuments = parseRequiredDocuments(requiredDocuments);
+  if (cokibaDetails !== undefined) data.cokibaDetails = cokibaDetails && typeof cokibaDetails === 'object' ? cokibaDetails : null;
   if (rawCategoria !== undefined) data.rawCategoria = rawCategoria;
+  if (statusManualOverride !== undefined) data.statusManualOverride = parseBoolean(statusManualOverride, false);
 
   try {
     const current = await prisma.obraSocial.findUnique({
@@ -243,6 +259,19 @@ export const updateObraSocial = async (req, res, prisma) => {
 
     if (!current) {
       return res.status(404).json({ error: 'Obra social no encontrada' });
+    }
+
+    if (statusManualOverride !== undefined && parseBoolean(statusManualOverride, false) === false) {
+      data.estado = current.detectedStatus || current.estado;
+      data.isActive =
+        current.detectedIsActive === null || current.detectedIsActive === undefined
+          ? current.isActive
+          : current.detectedIsActive;
+    } else if (
+      statusManualOverride === undefined &&
+      (estado !== undefined || isActive !== undefined)
+    ) {
+      data.statusManualOverride = true;
     }
 
     const updated = await prisma.obraSocial.update({

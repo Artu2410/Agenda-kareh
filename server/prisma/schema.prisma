@@ -396,9 +396,13 @@ model ObraSocial {
   plazoPago       Int      @default(60)       // Días default 60
   estado          String   @default("Activa") // Activa / Baja / Suspendida
   isActive        Boolean  @default(true)
+  detectedStatus  String?
+  detectedIsActive Boolean?
+  statusManualOverride Boolean @default(false)
   requiresAuthorization Boolean @default(false)
   atendibleSanMiguel Boolean @default(false)  // Zona San Miguel / Bella Vista
   requiredDocuments Json?
+  cokibaDetails   Json?
   rawCategoria    String?                     // Categoría original scrapeada
   ultimaSync      DateTime @default(now())    // Última sincronización
   createdAt       DateTime @default(now())

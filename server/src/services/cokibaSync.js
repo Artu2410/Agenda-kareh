@@ -1,10 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import puppeteer from 'puppeteer';
 
-const COKIBA_LOGIN_URL = 'https://autogestion.cokiba.org.ar/web/?q=login';
 const COKIBA_OS_URL = 'https://autogestion.cokiba.org.ar/web/?q=form_os';
-
-const ESTADOS_EXCLUIDOS = ['baja', 'suspendida', 'falta de pago'];
 
 const WHITELIST_SAN_MIGUEL = [
   'OSDE',
@@ -30,50 +27,37 @@ const DEFAULT_LAUNCH_ARGS = [
   '--disable-gpu',
 ];
 
-const LOOKS_LIKE_PLACEHOLDER = /^(tu_|your_|example|demo|test)/i;
+const KNOWN_LABELS = [
+  'Arancel Vigente desde',
+  'CUIT',
+  'Area de Cobertura',
+  'Coseguro',
+  'Observaciones',
+  'Convenio',
+];
+
+const SECTION_HEADING_PATTERN = /^(documentaci[oó]n|normas|presentaci[oó]n|normativa|importante:|nota:)/i;
+const DOCUMENT_LINE_PATTERN =
+  /derivaci[oó]n|validaci[oó]n|credencial|orden|planilla|bono|historia cl[ií]nica|certificado|prescripci[oó]n|autorizaci[oó]n previa|carnet|afiliatoria/i;
+const STATUS_INACTIVE_PATTERN =
+  /OBRA SOCIAL .*?(INACTIVA|SUSPENDIDA|BAJA|INACTIVO)|\bINACTIVA DESDE\b|\bSUSPENDIDA\b|\bBAJA\b/i;
 
 const getCokibaConfig = () => ({
-  dni: String(process.env.COKIBA_DNI || '').trim(),
-  clave: String(process.env.COKIBA_CLAVE || '').trim(),
   plazoPago: Number.parseInt(process.env.COKIBA_PLAZO_PAGO || '60', 10) || 60,
 });
 
 const buildConfigStatus = () => {
   const config = getCokibaConfig();
-  const missingFields = [];
-  const placeholderFields = [];
-
-  if (!config.dni) missingFields.push('COKIBA_DNI');
-  if (!config.clave) missingFields.push('COKIBA_CLAVE');
-
-  if (config.dni && LOOKS_LIKE_PLACEHOLDER.test(config.dni)) {
-    placeholderFields.push('COKIBA_DNI');
-  }
-  if (config.clave && LOOKS_LIKE_PLACEHOLDER.test(config.clave)) {
-    placeholderFields.push('COKIBA_CLAVE');
-  }
 
   return {
-    configured: missingFields.length === 0,
-    missingFields,
-    placeholderFields,
-    canSync: missingFields.length === 0 && placeholderFields.length === 0,
+    configured: true,
+    missingFields: [],
+    placeholderFields: [],
+    canSync: true,
+    credentialsOptional: true,
+    accessMode: 'public',
     plazoPago: config.plazoPago,
   };
-};
-
-const ensureCredentials = () => {
-  const status = buildConfigStatus();
-
-  if (status.missingFields.length > 0) {
-    throw new Error(`Faltan credenciales COKIBA: ${status.missingFields.join(', ')}`);
-  }
-
-  if (status.placeholderFields.length > 0) {
-    throw new Error(`Las credenciales COKIBA siguen con placeholders: ${status.placeholderFields.join(', ')}`);
-  }
-
-  return getCokibaConfig();
 };
 
 const normalizeMoney = (value) => {
@@ -94,168 +78,424 @@ const normalizeMoney = (value) => {
   return 0;
 };
 
-const extractCode = (row) => {
-  for (const cell of row) {
-    const value = String(cell || '').trim();
-    if (/^\d{1,6}$/.test(value)) return value;
-    if (/^[A-Z0-9]{2,10}$/i.test(value) && value.length <= 10) return value;
-  }
-  return null;
-};
-
-const extractName = (row) => {
-  let candidate = '';
-
-  for (const cell of row) {
-    const value = String(cell || '').trim();
-    if (!value) continue;
-    if (/^\$?\s*[\d.,]+$/.test(value)) continue;
-    if (/^\d{1,6}$/.test(value)) continue;
-    if (value.length > candidate.length) candidate = value;
-  }
-
-  return candidate;
-};
-
-const extractCategory = (row) => {
-  const keywords = ['básica', 'basica', 'superior', 'premium', 'especial', 'categoría', 'categoria'];
-
-  for (const cell of row) {
-    const value = String(cell || '').toLowerCase();
-    if (keywords.some((keyword) => value.includes(keyword))) {
-      return String(cell).trim();
-    }
-  }
-
-  return null;
-};
-
-const extractAmount = (row, type) => {
-  const amounts = row
-    .map((cell) => normalizeMoney(cell))
-    .filter((value) => Number.isFinite(value) && value > 0)
-    .sort((a, b) => a - b);
-
-  if (amounts.length === 0) return 0;
-  if (amounts.length === 1) return amounts[0];
-
-  return type === 'honorario' ? amounts[amounts.length - 1] : amounts[0];
-};
-
-const generateCode = (name) => (
-  `${String(name || '')
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, '')
-    .substring(0, 10)}_${Date.now().toString(36)}`
+const normalizeText = (value) => (
+  String(value || '')
+    .replace(/\u00a0/g, ' ')
+    .replace(/\r/g, '')
+    .replace(/[ \t]+/g, ' ')
+    .trim()
 );
 
-const parseRows = (rawRows, plazoPago, logger) => {
-  const obrasSociales = [];
+const normalizeLines = (value) => (
+  String(value || '')
+    .replace(/\u00a0/g, ' ')
+    .replace(/\r/g, '')
+    .split('\n')
+    .map((line) => normalizeText(line))
+    .filter(Boolean)
+);
 
-  for (const row of rawRows) {
-    if (!Array.isArray(row) || row.length < 3) continue;
+const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-    const fullText = row.join(' ').toLowerCase();
-    const excluded = ESTADOS_EXCLUIDOS.some((estado) => fullText.includes(estado));
-    if (excluded) continue;
+const uniqueBy = (items, getKey) => {
+  const seen = new Set();
 
-    const codigo = extractCode(row);
-    const nombre = extractName(row);
-    const categoria = extractCategory(row);
-    const honorario = extractAmount(row, 'honorario');
-    const coseguro = extractAmount(row, 'coseguro');
-
-    if (categoria && !categoria.toLowerCase().includes('básica') && !categoria.toLowerCase().includes('basica')) {
-      continue;
-    }
-
-    if (!nombre || nombre.length < 2) continue;
-
-    const rowText = row.join(' ').toUpperCase();
-    const atendibleSanMiguel =
-      rowText.includes('PROVINCIA DE BUENOS AIRES') ||
-      rowText.includes('SAN MIGUEL') ||
-      rowText.includes('BELLA VISTA') ||
-      WHITELIST_SAN_MIGUEL.some((item) => nombre.toUpperCase().includes(item));
-
-    obrasSociales.push({
-      codigoCokiba: codigo || generateCode(nombre),
-      nombreOs: nombre,
-      coseguroValor: coseguro,
-      honorarioEstimado: honorario,
-      plazoPago,
-      estado: 'Activa',
-      atendibleSanMiguel,
-      rawCategoria: categoria || 'Básica',
-    });
-  }
-
-  logger.info(`✅ ${obrasSociales.length} obras sociales activas extraídas`);
-  return obrasSociales;
+  return items.filter((item) => {
+    const key = getKey(item);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 };
 
-const login = async (page, logger, credentials) => {
-  logger.info('🔐 Navegando al login de COKIBA...');
-  await page.goto(COKIBA_LOGIN_URL, { waitUntil: 'networkidle2', timeout: 30000 });
-  await page.waitForSelector('input[name="dni"], input[name="username"], input#edit-name', {
-    timeout: 15000,
-  });
+const extractUrlsFromText = (value) => uniqueBy(
+  (String(value || '').match(/https?:\/\/[^\s)]+/gi) || [])
+    .map((item) => item.replace(/[.,;]+$/, '')),
+  (item) => item.toLowerCase()
+);
 
-  const dniSelector = (await page.$('input#edit-name')) ? 'input#edit-name' : 'input[name="dni"]';
-  const passSelector = (await page.$('input#edit-pass')) ? 'input#edit-pass' : 'input[name="clave"]';
-  const submitBtn = await page.$('input#edit-submit, button[type="submit"], input[type="submit"]');
+const parseCoinsuranceRule = (rawText) => {
+  const normalized = normalizeText(rawText);
 
-  if (!submitBtn) {
-    throw new Error('No se encontró el botón de login de COKIBA');
-  }
-
-  await page.type(dniSelector, credentials.dni, { delay: 30 });
-  await page.type(passSelector, credentials.clave, { delay: 30 });
-
-  await Promise.all([
-    page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 }),
-    submitBtn.click(),
-  ]);
-
-  const loginState = await page.evaluate(() => {
-    const bodyText = document.body.innerText || '';
-    const hasPasswordField = Boolean(document.querySelector('input#edit-pass, input[name="pass"]'));
-    const hasLogoutLink = Array.from(document.querySelectorAll('a'))
-      .some((link) => /logout|cerrar sesi[oó]n/i.test((link.getAttribute('href') || '') + ' ' + (link.textContent || '')));
-
+  if (!normalized || /no posee|sin coseguro|sin copago|no corresponde/i.test(normalized)) {
     return {
-      bodyText,
-      hasPasswordField,
-      hasLogoutLink,
+      baseCopay: 0,
+      percentageCoinsurance: 0,
+      fixedCopay: 0,
+      mode: 'none',
+      isReliable: true,
     };
-  });
-
-  const looksLoggedIn =
-    loginState.hasLogoutLink ||
-    /cerrar sesi[oó]n/i.test(loginState.bodyText) ||
-    /usuario:/i.test(loginState.bodyText);
-
-  if (!looksLoggedIn && loginState.hasPasswordField) {
-    throw new Error('Login fallido en COKIBA. Verificá COKIBA_DNI y COKIBA_CLAVE.');
   }
 
-  logger.info('✅ Login exitoso en COKIBA');
+  const percentageMatches = [...normalized.matchAll(/(\d+(?:[.,]\d+)?)\s*%/gi)]
+    .map((match) => Number.parseFloat(match[1].replace(',', '.')))
+    .filter((value) => Number.isFinite(value));
+
+  const amountMatches = uniqueBy(
+    [...normalized.matchAll(/\$\s*\d[\d.,]*/g)]
+      .map((match) => normalizeMoney(match[0]))
+      .filter((value) => value > 0),
+    (value) => value.toFixed(2)
+  );
+
+  const hasComplexKeywords = /seg[uú]n|adicional|bono|por sesi[oó]n|modulo|m[oó]dulo|\s+y\s+|\/|\+/i.test(
+    normalized
+  );
+
+  if (percentageMatches.length === 1 && amountMatches.length === 0) {
+    return {
+      baseCopay: 0,
+      percentageCoinsurance: percentageMatches[0],
+      fixedCopay: 0,
+      mode: 'percentage',
+      isReliable: true,
+    };
+  }
+
+  if (percentageMatches.length === 0 && amountMatches.length === 1 && !hasComplexKeywords) {
+    return {
+      baseCopay: amountMatches[0],
+      percentageCoinsurance: 0,
+      fixedCopay: 0,
+      mode: 'fixed',
+      isReliable: true,
+    };
+  }
+
+  return {
+    baseCopay: null,
+    percentageCoinsurance: null,
+    fixedCopay: null,
+    mode: 'complex',
+    isReliable: false,
+  };
 };
 
-const logout = async (page, logger) => {
-  try {
-    await page.goto('https://autogestion.cokiba.org.ar/web/?q=user/logout', {
-      waitUntil: 'networkidle2',
-      timeout: 15000,
-    });
-    logger.info('✅ Sesión COKIBA cerrada');
-  } catch (error) {
-    logger.warn(`⚠️ No se pudo cerrar sesión COKIBA: ${error.message}`);
+const buildLabelRegex = (label) => new RegExp(`^${escapeRegex(label)}\\s*:?\\s*(.*)$`, 'i');
+
+const isKnownLabelLine = (line) => KNOWN_LABELS.some((label) => buildLabelRegex(label).test(line));
+
+const extractLabelValue = (lines, label, { multiline = false } = {}) => {
+  const matcher = buildLabelRegex(label);
+  const index = lines.findIndex((line) => matcher.test(line));
+
+  if (index === -1) return '';
+
+  const inlineValue = normalizeText(lines[index].replace(matcher, '$1'));
+  const values = inlineValue ? [inlineValue] : [];
+
+  for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
+    const current = normalizeText(lines[cursor]);
+    if (!current) continue;
+    if (isKnownLabelLine(current) || /^Superior$/i.test(current)) break;
+
+    values.push(current);
+    if (!multiline) break;
   }
+
+  return normalizeText(values.join(' '));
+};
+
+const extractPostLabelLines = (lines, label) => {
+  const matcher = buildLabelRegex(label);
+  const index = lines.findIndex((line) => matcher.test(line));
+
+  if (index === -1) return [];
+
+  return lines
+    .slice(index + 1)
+    .map((line) => normalizeText(line))
+    .filter((line) => line && !/^Superior$/i.test(line));
+};
+
+const cleanDisplayLabel = (value) => normalizeText(String(value || '').split('/')[0]);
+
+const pickDisplayName = (detail, lines, option) => {
+  const ignoredHeadingPattern =
+    /aranceles y normas|arancel vigente|cuit:|area de cobertura:|coseguro:|observaciones:|convenio|presentaci[oó]n de la facturaci[oó]n|normativa/i;
+
+  const headingCandidate = (detail.headings || [])
+    .map((heading) => normalizeText(heading))
+    .find(
+      (heading) =>
+        heading &&
+        !ignoredHeadingPattern.test(heading) &&
+        !STATUS_INACTIVE_PATTERN.test(heading)
+    );
+
+  if (headingCandidate) return headingCandidate;
+
+  const lineCandidate = lines.find(
+    (line) =>
+      !isKnownLabelLine(line) &&
+      !STATUS_INACTIVE_PATTERN.test(line) &&
+      !SECTION_HEADING_PATTERN.test(line) &&
+      !/^Aranceles y Normas de Facturaci[oó]n$/i.test(line) &&
+      !/^Pasar al contenido principal$/i.test(line)
+  );
+
+  return lineCandidate || cleanDisplayLabel(option.label);
+};
+
+const detectStatus = (lines) => {
+  const statusLine = lines.find((line) => STATUS_INACTIVE_PATTERN.test(line));
+
+  if (statusLine) {
+    return {
+      detectedStatus: normalizeText(statusLine),
+      detectedIsActive: false,
+    };
+  }
+
+  return {
+    detectedStatus: 'Activa',
+    detectedIsActive: true,
+  };
+};
+
+const extractTariffDetails = (tables = []) => {
+  const tariffTable = [...tables]
+    .filter((table) => table.length > 1)
+    .sort((a, b) => b.length - a.length)
+    .find((table) =>
+      table.some((row) => row.slice(1).some((cell) => normalizeMoney(cell) > 0))
+    ) || [];
+
+  const rows = tariffTable
+    .map((row) => row.map((cell) => normalizeText(cell)))
+    .filter((row) => row.some(Boolean));
+
+  const headers = rows[0] || [];
+  const dataRows = rows.slice(1)
+    .map((row) => ({
+      prestacion: normalizeText(row[0]),
+      categoriaBasica: normalizeMoney(row[1] || 0),
+      categoriaA: normalizeMoney(row[2] || 0),
+      categoriaB: normalizeMoney(row[3] || 0),
+      categoriaC: normalizeMoney(row[4] || 0),
+      rawValues: row,
+    }))
+    .filter((row) => row.prestacion);
+
+  const referenceRow =
+    dataRows.find((row) => /consultorio/i.test(row.prestacion)) ||
+    dataRows.find((row) => row.categoriaBasica > 0) ||
+    null;
+
+  return {
+    headers,
+    rows: dataRows,
+    referenceRow,
+  };
+};
+
+const cleanBulletLine = (line) => normalizeText(String(line || '').replace(/^[*-]\s*/, ''));
+
+const buildRequiredDocuments = (lines = []) => {
+  const documentCandidates = lines
+    .map((line) => cleanBulletLine(line))
+    .filter((line) => line && DOCUMENT_LINE_PATTERN.test(line));
+
+  const documents = uniqueBy(
+    documentCandidates.map((line) => {
+      const validityMatch = line.match(/(?:validez|vigencia)\s*(\d+)\s*d[ií]as/i);
+
+      return {
+        name: normalizeText(line.replace(/\((?:validez|vigencia)[^)]+\)/gi, '').replace(/\.+$/, '')),
+        mandatory: true,
+        validityDays: validityMatch ? Number.parseInt(validityMatch[1], 10) : null,
+      };
+    }),
+    (document) => document.name.toLowerCase()
+  );
+
+  const additionalInfo = uniqueBy(
+    lines
+      .map((line) => cleanBulletLine(line))
+      .filter(
+        (line) =>
+          line &&
+          !/^aqu[ií]$/i.test(line) &&
+          (
+            /autoriz|validaci[oó]n|verificaci[oó]n|prestador|http|www\.|plazo m[aá]ximo|internaci[oó]n|copago|domicilio|direct connection/i.test(
+              line
+            ) ||
+            (SECTION_HEADING_PATTERN.test(line) && !/^documentaci[oó]n/i.test(line))
+          )
+      ),
+    (line) => line.toLowerCase()
+  ).join('\n');
+
+  return {
+    documents,
+    additionalInfo,
+  };
+};
+
+const extractAuthorizationInfo = (lines = []) => {
+  const joined = normalizeText(lines.join(' '));
+  const authLine = lines.find((line) => /autoriz/i.test(line)) || '';
+
+  if (/autorizaci[oó]n previa no es obligatoria|no requiere autorizaci[oó]n previa|sin autorizaci[oó]n previa/i.test(joined)) {
+    return {
+      value: false,
+      isReliable: true,
+      note: authLine || 'Sin autorizacion previa obligatoria',
+    };
+  }
+
+  if (
+    /autorizaci[oó]n previa a trav[eé]s|autorizaci[oó]n previa obligatoria|requiere autorizaci[oó]n|debe autorizar|solicitar una autorizaci[oó]n/i.test(
+      joined
+    )
+  ) {
+    return {
+      value: true,
+      isReliable: true,
+      note: authLine || 'Requiere autorizacion previa',
+    };
+  }
+
+  return {
+    value: null,
+    isReliable: false,
+    note: authLine || '',
+  };
+};
+
+const filterRelevantLinks = (links = []) => uniqueBy(
+  links
+    .map((link) => ({
+      text: normalizeText(link.text),
+      href: normalizeText(link.href),
+    }))
+    .filter(
+      (link) =>
+        link.href &&
+        /^https?:\/\//i.test(link.href) &&
+        !/\/web\/\?q=form_os$/i.test(link.href)
+    ),
+  (link) => `${link.href.toLowerCase()}|${link.text.toLowerCase()}`
+);
+
+const buildCokibaDetails = ({ detail, lines, tariffs, rawCoseguro, postConventionLines, authorizationInfo }) => {
+  const relevantLinks = filterRelevantLinks(detail.links || []);
+  const inlineUrls = extractUrlsFromText(detail.bodyText);
+  const combinedUrls = uniqueBy(
+    [
+      ...relevantLinks.map((link) => link.href),
+      ...inlineUrls,
+    ],
+    (value) => value.toLowerCase()
+  );
+
+  const agreementLink = relevantLinks.find((link) => /convenio|\.pdf/i.test(`${link.text} ${link.href}`));
+  const validationLink =
+    relevantLinks.find((link) => /valid|directconnection|afiliatoria|prestador/i.test(`${link.text} ${link.href}`)) ||
+    combinedUrls.find((url) => /valid|directconnection|afiliatoria|prestador/i.test(url)) ||
+    '';
+  const authorizationLink =
+    relevantLinks.find((link) => /autoriz/i.test(`${link.text} ${link.href}`)) ||
+    combinedUrls.find((url) => /autoriz/i.test(url)) ||
+    '';
+
+  return {
+    arancelVigenteDesde: extractLabelValue(lines, 'Arancel Vigente desde'),
+    cuit: extractLabelValue(lines, 'CUIT'),
+    areaCobertura: extractLabelValue(lines, 'Area de Cobertura'),
+    coseguroTexto: rawCoseguro,
+    observaciones: extractLabelValue(lines, 'Observaciones', { multiline: true }),
+    convenioTexto: extractLabelValue(lines, 'Convenio'),
+    convenioUrl: agreementLink?.href || '',
+    convenioLabel: agreementLink?.text || '',
+    validacionUrl: typeof validationLink === 'string' ? validationLink : validationLink?.href || '',
+    autorizacionUrl: typeof authorizationLink === 'string' ? authorizationLink : authorizationLink?.href || '',
+    numeroPrestador: (
+      lines.find((line) => /numero de prestador de cokiba/i.test(line))
+        ?.replace(/.*numero de prestador de cokiba:\s*/i, '')
+        ?.trim() || ''
+    ),
+    authorizationNote: authorizationInfo.note,
+    norms: uniqueBy(
+      postConventionLines
+        .map((line) => cleanBulletLine(line))
+        .filter((line) => line && !/^aqu[ií]$/i.test(line)),
+      (line) => line.toLowerCase()
+    ),
+    links: relevantLinks,
+    extractedUrls: combinedUrls,
+    tariffHeaders: tariffs.headers,
+    tariffRows: tariffs.rows,
+    honorarioReferenciaPrestacion: tariffs.referenceRow?.prestacion || '',
+    honorarioBasicaReferencia: tariffs.referenceRow?.categoriaBasica || 0,
+  };
+};
+
+const extractDetailRecord = (detail, option, plazoPago) => {
+  const lines = normalizeLines(detail.bodyText).filter(
+    (line) =>
+      !/^Aranceles y Normas de Facturaci[oó]n(\s*\|.*)?$/i.test(line) &&
+      !/^Pasar al contenido principal$/i.test(line) &&
+      !/^Superior$/i.test(line)
+  );
+
+  const nombreOs = pickDisplayName(detail, lines, option);
+  const { detectedStatus, detectedIsActive } = detectStatus(lines);
+  const areaCobertura = extractLabelValue(lines, 'Area de Cobertura');
+  const rawCoseguro = extractLabelValue(lines, 'Coseguro', { multiline: true });
+  const postConventionLines = extractPostLabelLines(lines, 'Convenio');
+  const tariffs = extractTariffDetails(detail.tables);
+  const authorizationInfo = extractAuthorizationInfo(lines);
+  const coinsuranceRule = parseCoinsuranceRule(rawCoseguro);
+  const requiredDocuments = buildRequiredDocuments(
+    uniqueBy(
+      [
+        ...lines.filter((line) => /^[-*]\s*/.test(line) || DOCUMENT_LINE_PATTERN.test(line)),
+        ...postConventionLines,
+      ],
+      (line) => normalizeText(line).toLowerCase()
+    )
+  );
+  const cokibaDetails = buildCokibaDetails({
+    detail,
+    lines,
+    tariffs,
+    rawCoseguro,
+    postConventionLines,
+    authorizationInfo,
+  });
+  const combinedZoneText = `${nombreOs} ${areaCobertura}`.toUpperCase();
+
+  return {
+    codigoCokiba: option.value,
+    nombreOs,
+    coseguroValor: coinsuranceRule.baseCopay,
+    percentageCoinsurance: coinsuranceRule.percentageCoinsurance,
+    fixedCopay: coinsuranceRule.fixedCopay,
+    honorarioEstimado: tariffs.referenceRow?.categoriaBasica || 0,
+    plazoPago,
+    estado: detectedStatus,
+    isActive: detectedIsActive,
+    detectedStatus,
+    detectedIsActive,
+    requiresAuthorization: authorizationInfo.isReliable ? authorizationInfo.value : null,
+    atendibleSanMiguel:
+      combinedZoneText.includes('PROVINCIA DE BUENOS AIRES') ||
+      combinedZoneText.includes('SAN MIGUEL') ||
+      combinedZoneText.includes('BELLA VISTA') ||
+      WHITELIST_SAN_MIGUEL.some((item) => combinedZoneText.includes(item)),
+    requiredDocuments,
+    cokibaDetails: {
+      ...cokibaDetails,
+      coinsuranceMode: coinsuranceRule.mode,
+      coinsuranceReliable: coinsuranceRule.isReliable,
+    },
+    rawCategoria: 'Básica',
+  };
 };
 
 const fetchOptionCatalog = async (page, logger) => {
-  logger.info('📋 Navegando a la sección de Obras Sociales...');
+  logger.info('📋 Navegando a la sección pública de Obras Sociales...');
   await page.goto(COKIBA_OS_URL, { waitUntil: 'networkidle2', timeout: 30000 });
   await page.waitForSelector('#edit-seleccion-os-obrasocial', { timeout: 15000 });
 
@@ -286,52 +526,7 @@ const fetchOptionCatalog = async (page, logger) => {
   return catalog;
 };
 
-const parseCoseguroFromText = (text) => {
-  const normalized = String(text || '').trim();
-  if (!normalized || /no posee|sin coseguro|no\s*$/i.test(normalized)) {
-    return 0;
-  }
-
-  return normalizeMoney(normalized);
-};
-
-const extractDetailRecord = (detail, option, plazoPago) => {
-  const bodyText = detail.bodyText || '';
-  const relevantHeading = (detail.headings || []).find(
-    (heading) =>
-      heading &&
-      !/novedades|aranceles y normas|cuit:|area de cobertura:|coseguro:|observaciones:|convenio|superior|aqui/i.test(
-        heading
-      )
-  );
-
-  const tariffTable = [...(detail.tables || [])].sort((a, b) => b.length - a.length)[0] || [];
-  const consultorioRow = tariffTable.find((row) => /consultorio/i.test(String(row?.[0] || '')));
-  const categoriaBasica = normalizeMoney(consultorioRow?.[1] || 0);
-  const coseguroMatch = bodyText.match(/Coseguro:\s*([^\n]+)/i);
-  const areaMatch = bodyText.match(/Area de Cobertura:\s*([^\n]+)/i);
-
-  const nombreOs = relevantHeading || option.label;
-  const area = areaMatch?.[1]?.trim() || '';
-  const combinedZoneText = `${nombreOs} ${area}`.toUpperCase();
-
-  return {
-    codigoCokiba: option.value,
-    nombreOs,
-    coseguroValor: parseCoseguroFromText(coseguroMatch?.[1] || ''),
-    honorarioEstimado: categoriaBasica,
-    plazoPago,
-    estado: 'Activa',
-    atendibleSanMiguel:
-      combinedZoneText.includes('PROVINCIA DE BUENOS AIRES') ||
-      combinedZoneText.includes('SAN MIGUEL') ||
-      combinedZoneText.includes('BELLA VISTA') ||
-      WHITELIST_SAN_MIGUEL.some((item) => combinedZoneText.includes(item)),
-    rawCategoria: 'Básica',
-  };
-};
-
-const fetchOptionDetails = async (page, catalog, option, plazoPago, logger) => {
+const fetchOptionDetails = async (page, catalog, option) => {
   const detail = await page.evaluate(async (payload) => {
     const targetUrl = new URL(payload.action, window.location.origin).toString();
     const params = new URLSearchParams();
@@ -368,6 +563,12 @@ const fetchOptionDetails = async (page, catalog, option, plazoPago, logger) => {
         )
         .filter((table) => table.length > 1),
       bodyText: doc.body?.innerText || doc.body?.textContent || '',
+      links: Array.from(doc.querySelectorAll('a[href]'))
+        .map((anchor) => ({
+          text: anchor.textContent.trim(),
+          href: new URL(anchor.getAttribute('href'), window.location.origin).toString(),
+        }))
+        .filter((link) => link.href),
     };
   }, {
     action: catalog.action,
@@ -381,8 +582,7 @@ const fetchOptionDetails = async (page, catalog, option, plazoPago, logger) => {
     throw new Error(`Respuesta HTTP ${detail.status}`);
   }
 
-  const record = extractDetailRecord(detail, option, plazoPago);
-  return record;
+  return detail;
 };
 
 const collectObrasSociales = async (page, plazoPago, logger) => {
@@ -391,19 +591,27 @@ const collectObrasSociales = async (page, plazoPago, logger) => {
 
   for (const [index, option] of catalog.options.entries()) {
     try {
-      const detail = await fetchOptionDetails(page, catalog, option, plazoPago, logger);
-      result.push(detail);
+      const detail = await fetchOptionDetails(page, catalog, option);
+      const record = extractDetailRecord(detail, option, plazoPago);
+      result.push(record);
+
       if ((index + 1) % 10 === 0 || index === catalog.options.length - 1) {
         logger.info(`✔ Progreso COKIBA: ${index + 1}/${catalog.options.length}`);
       }
     } catch (error) {
-      logger.warn(`⚠️ No se pudo extraer ${option.value} · ${option.label}: ${error.message}`);
+      logger.warn(`⚠️ No se pudo extraer ${option.value} · ${cleanDisplayLabel(option.label)}: ${error.message}`);
     }
   }
 
   logger.info(`✅ ${result.length} obras sociales extraídas con detalle`);
   return result;
 };
+
+const pickSyncedValue = (nextValue, currentValue, fallbackValue) => (
+  nextValue === null || nextValue === undefined
+    ? (currentValue === null || currentValue === undefined ? fallbackValue : currentValue)
+    : nextValue
+);
 
 const synchronizeRows = async (prisma, obrasSociales, logger) => {
   let created = 0;
@@ -412,25 +620,72 @@ const synchronizeRows = async (prisma, obrasSociales, logger) => {
   for (const obraSocial of obrasSociales) {
     const existing = await prisma.obraSocial.findUnique({
       where: { codigoCokiba: obraSocial.codigoCokiba },
-      select: { id: true, isActive: true },
+      select: {
+        id: true,
+        estado: true,
+        isActive: true,
+        statusManualOverride: true,
+        coseguroValor: true,
+        percentageCoinsurance: true,
+        fixedCopay: true,
+        requiresAuthorization: true,
+        requiredDocuments: true,
+      },
     });
+
+    const updateData = {
+      nombreOs: obraSocial.nombreOs,
+      coseguroValor: pickSyncedValue(obraSocial.coseguroValor, existing?.coseguroValor, 0),
+      percentageCoinsurance: pickSyncedValue(
+        obraSocial.percentageCoinsurance,
+        existing?.percentageCoinsurance,
+        0
+      ),
+      fixedCopay: pickSyncedValue(obraSocial.fixedCopay, existing?.fixedCopay, 0),
+      honorarioEstimado: obraSocial.honorarioEstimado,
+      plazoPago: obraSocial.plazoPago,
+      detectedStatus: obraSocial.detectedStatus,
+      detectedIsActive: obraSocial.detectedIsActive,
+      requiresAuthorization:
+        obraSocial.requiresAuthorization === null || obraSocial.requiresAuthorization === undefined
+          ? (existing?.requiresAuthorization ?? false)
+          : obraSocial.requiresAuthorization,
+      atendibleSanMiguel: obraSocial.atendibleSanMiguel,
+      requiredDocuments:
+        obraSocial.requiredDocuments?.documents?.length || obraSocial.requiredDocuments?.additionalInfo
+          ? obraSocial.requiredDocuments
+          : (existing?.requiredDocuments ?? null),
+      cokibaDetails: obraSocial.cokibaDetails,
+      rawCategoria: obraSocial.rawCategoria,
+      ultimaSync: new Date(),
+    };
+
+    if (!existing?.statusManualOverride) {
+      updateData.estado = obraSocial.estado;
+      updateData.isActive = obraSocial.isActive;
+    }
 
     await prisma.obraSocial.upsert({
       where: { codigoCokiba: obraSocial.codigoCokiba },
-      update: {
+      update: updateData,
+      create: {
+        codigoCokiba: obraSocial.codigoCokiba,
         nombreOs: obraSocial.nombreOs,
-        coseguroValor: obraSocial.coseguroValor,
+        coseguroValor: obraSocial.coseguroValor ?? 0,
+        percentageCoinsurance: obraSocial.percentageCoinsurance ?? 0,
+        fixedCopay: obraSocial.fixedCopay ?? 0,
         honorarioEstimado: obraSocial.honorarioEstimado,
         plazoPago: obraSocial.plazoPago,
         estado: obraSocial.estado,
+        isActive: obraSocial.isActive,
+        detectedStatus: obraSocial.detectedStatus,
+        detectedIsActive: obraSocial.detectedIsActive,
+        statusManualOverride: false,
+        requiresAuthorization: obraSocial.requiresAuthorization ?? false,
         atendibleSanMiguel: obraSocial.atendibleSanMiguel,
+        requiredDocuments: obraSocial.requiredDocuments,
+        cokibaDetails: obraSocial.cokibaDetails,
         rawCategoria: obraSocial.rawCategoria,
-        ...(obraSocial.estado?.toLowerCase() !== 'activa' ? { isActive: false } : {}),
-        ultimaSync: new Date(),
-      },
-      create: {
-        ...obraSocial,
-        isActive: obraSocial.estado?.toLowerCase() === 'activa',
         ultimaSync: new Date(),
       },
     });
@@ -477,13 +732,13 @@ export const getCokibaSyncStatus = async (prisma) => {
 };
 
 export const runCokibaSync = async ({ prisma, logger = defaultLogger } = {}) => {
-  const credentials = ensureCredentials();
+  const config = getCokibaConfig();
   const localPrisma = prisma || new PrismaClient();
   const ownsPrisma = !prisma;
   let browser = null;
 
   try {
-    logger.info('🚀 Iniciando sincronización COKIBA...');
+    logger.info('🚀 Iniciando sincronización COKIBA en modo público...');
 
     browser = await puppeteer.launch({
       headless: 'new',
@@ -497,9 +752,7 @@ export const runCokibaSync = async ({ prisma, logger = defaultLogger } = {}) => 
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     );
 
-    await login(page, logger, credentials);
-    const obrasSociales = await collectObrasSociales(page, credentials.plazoPago, logger);
-    await logout(page, logger);
+    const obrasSociales = await collectObrasSociales(page, config.plazoPago, logger);
 
     if (obrasSociales.length === 0) {
       throw new Error('No se pudieron extraer obras sociales desde COKIBA.');
