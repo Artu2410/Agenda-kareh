@@ -95,7 +95,6 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
   const [authorizationNumber, setAuthorizationNumber] = useState('');
   const [authorizationFileUrl, setAuthorizationFileUrl] = useState('');
   const [paidInAdvance, setPaidInAdvance] = useState(false);
-  const [uploadingDocumentIndex, setUploadingDocumentIndex] = useState(-1);
   const [uploadingAuthorization, setUploadingAuthorization] = useState(false);
 
   const lastSearchedRef = useRef('');
@@ -333,15 +332,6 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
     }
   }, []);
 
-  const updateChecklistDocument = (index, updater) => {
-    setDocumentsChecklist((current) => ({
-      ...current,
-      documents: current.documents.map((document, currentIndex) => (
-        currentIndex === index ? updater(document) : document
-      )),
-    }));
-  };
-
   const uploadDocumentToStorage = async (file, scope = 'appointment-documents') => {
     const payload = new FormData();
     payload.append('file', file);
@@ -355,29 +345,6 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
     });
 
     return response.data?.url || '';
-  };
-
-  const handleChecklistFileUpload = async (index, event) => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file) return;
-
-    try {
-      setUploadingDocumentIndex(index);
-      const fileUrl = await uploadDocumentToStorage(file);
-      updateChecklistDocument(index, (document) => ({
-        ...document,
-        presented: true,
-        fileUrl,
-        fileName: file.name,
-        presentedAt: new Date().toISOString(),
-      }));
-    } catch (error) {
-      console.error(error);
-      alert(error?.response?.data?.message || 'No se pudo subir el documento.');
-    } finally {
-      setUploadingDocumentIndex(-1);
-    }
   };
 
   const handleAuthorizationFileUpload = async (event) => {
@@ -824,56 +791,6 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                         <p className="mt-1 text-sm font-black">{formatCurrency(patientChargeBreakdown.total)}</p>
                       </div>
                     </div>
-                  </div>
-                )}
-
-                {!!selectedObraSocial && !patientData.treatAsParticular && documentsChecklist.documents?.length > 0 && (
-                  <div className="sm:col-span-2 rounded-[1.6rem] border border-slate-200 bg-white px-4 py-4">
-                    <p className="text-[9px] font-black uppercase tracking-[0.22em] text-slate-500">Checklist documental</p>
-                    <div className="mt-3 space-y-3">
-                      {documentsChecklist.documents.map((document, index) => (
-                        <div key={`${document.name}-${index}`} className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
-                          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                            <div>
-                              <p className="text-sm font-black text-slate-800">{document.name}</p>
-                              <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                                {document.mandatory ? 'Obligatorio' : 'Opcional'}
-                                {document.validityDays ? ` · vigencia ${document.validityDays} días` : ''}
-                              </p>
-                            </div>
-                            <div className="flex flex-col gap-2 sm:flex-row">
-                              <button
-                                type="button"
-                                onClick={() => updateChecklistDocument(index, (current) => ({
-                                  ...current,
-                                  presented: !current.presented,
-                                  presentedAt: !current.presented ? new Date().toISOString() : null,
-                                  fileUrl: !current.presented ? current.fileUrl : null,
-                                  fileName: !current.presented ? current.fileName : null,
-                                }))}
-                                className={`min-h-11 rounded-2xl px-4 py-2 text-xs font-black uppercase ${
-                                  document.presented ? 'bg-emerald-100 text-emerald-700' : 'bg-white text-slate-500 border border-slate-200'
-                                }`}
-                              >
-                                {document.presented ? 'Presentado' : 'Marcar presentado'}
-                              </button>
-                              <label className="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2 text-xs font-black uppercase text-slate-600">
-                                {uploadingDocumentIndex === index ? 'Subiendo...' : 'Adjuntar archivo'}
-                                <input type="file" className="hidden" accept="image/*,.pdf" onChange={(event) => handleChecklistFileUpload(index, event)} />
-                              </label>
-                            </div>
-                          </div>
-                          {document.fileUrl && (
-                            <a href={document.fileUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex text-xs font-bold text-teal-700 underline">
-                              {document.fileName || 'Ver archivo adjunto'}
-                            </a>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                    {documentsChecklist.additionalInfo && (
-                      <p className="mt-3 whitespace-pre-line text-sm font-medium text-slate-500">{documentsChecklist.additionalInfo}</p>
-                    )}
                   </div>
                 )}
 
