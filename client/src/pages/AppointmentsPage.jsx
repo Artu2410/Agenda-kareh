@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { format, startOfWeek, startOfMonth, endOfMonth, addDays, addWeeks, addMonths, subWeeks, subMonths, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Loader2, UserRound, CalendarClock, Clock } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, UserRound, CalendarClock, Clock, Banknote } from 'lucide-react';
 import WeeklyCalendarGrid from '../components/agenda/WeeklyCalendarGrid';
 import MonthlyCalendarGrid from '../components/agenda/MonthlyCalendarGrid';
 import SlotTimersPanel from '../components/agenda/SlotTimersPanel';
 import AppointmentModal from '../components/AppointmentModal';
 import api from '../services/api'; 
 import toast from 'react-hot-toast';
+import { getCoverageLabel } from '../utils/coverage';
 
 const isMobileAgendaViewport = () => {
   if (typeof window === 'undefined') return false;
@@ -292,8 +293,14 @@ const AppointmentsPage = () => {
                       <div>
                         <p className="text-lg font-black text-slate-800">{appointment.patient?.fullName}</p>
                         <p className="mt-1 text-sm font-semibold uppercase text-teal-700">
-                          {appointment.patient?.healthInsurance || 'Sin cobertura'}
+                          {getCoverageLabel(appointment.patient?.healthInsurance, appointment.patient?.treatAsParticular) || 'Sin cobertura'}
                         </p>
+                        {appointment.paidInAdvance && (
+                          <p className="mt-2 inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-700">
+                            <Banknote size={11} />
+                            Pago adelantado
+                          </p>
+                        )}
                         <p className="mt-2 text-sm text-slate-500">{appointment.diagnosis || 'Sin diagnóstico'}</p>
                       </div>
                       <span className="rounded-2xl bg-slate-100 px-3 py-2 text-sm font-black text-slate-700">

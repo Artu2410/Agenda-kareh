@@ -136,6 +136,7 @@ export const appointmentBaseSelect = {
   coinsuranceAmount: true,
   patientChargeAmount: true,
   coinsuranceDetails: true,
+  paidInAdvance: true,
   whatsappTicketSentAt: true,
   whatsappReminderSentAt: true,
 };

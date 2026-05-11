@@ -10,7 +10,7 @@ import {
   startOfWeek,
 } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Activity, AlertTriangle, CalendarClock, CheckCircle2, ChevronRight, Clock3, Zap } from 'lucide-react';
+import { Activity, AlertTriangle, CalendarClock, CheckCircle2, ChevronRight, Clock3, Zap, Banknote } from 'lucide-react';
 import { getCoverageLabel, isParticularCoverage } from '@/utils/coverage';
 
 const WEEKDAY_HEADERS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
@@ -255,9 +255,17 @@ const MonthlyCalendarGrid = ({
                           )}`}>
                             {getCoverageLabel(appointment.patient?.healthInsurance, appointment.patient?.treatAsParticular)}
                           </span>
-                          <span className={`rounded-full px-2 py-1 text-[10px] font-black uppercase tracking-[0.16em] ${statusMeta.badgeClass}`}>
-                            {statusMeta.label}
-                          </span>
+                          <div className="flex flex-wrap justify-end gap-1">
+                            {appointment.paidInAdvance && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-700">
+                                <Banknote size={11} />
+                                Pago
+                              </span>
+                            )}
+                            <span className={`rounded-full px-2 py-1 text-[10px] font-black uppercase tracking-[0.16em] ${statusMeta.badgeClass}`}>
+                              {statusMeta.label}
+                            </span>
+                          </div>
                         </div>
 
                         <div className="mt-3 flex items-center gap-2 text-slate-400">

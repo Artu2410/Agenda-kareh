@@ -275,6 +275,7 @@ model Appointment {
   coinsuranceAmount      Decimal?        @db.Decimal(10, 2)
   patientChargeAmount    Decimal?        @db.Decimal(10, 2)
   coinsuranceDetails     Json?
+  paidInAdvance          Boolean         @default(false)
   payment                CashFlow?
   whatsappTicketSentAt   DateTime?
   whatsappReminderSentAt DateTime?
@@ -285,6 +286,7 @@ model Appointment {
   @@index([patientId])
   @@index([obraSocialId])
   @@index([authorizationStatus, date])
+  @@index([paidInAdvance, date])
 }
 
 // ---------------------------------------------------------

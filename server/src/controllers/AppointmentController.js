@@ -262,6 +262,7 @@ const buildAppointmentWritePayload = async (tx, patient, payload = {}) => {
     coinsuranceAmount: insuranceContext.charge.total,
     patientChargeAmount: insuranceContext.charge.total,
     coinsuranceDetails: insuranceContext.charge,
+    paidInAdvance: Boolean(payload.paidInAdvance),
   };
 };
 
@@ -334,6 +335,7 @@ export const createAppointment = async (req, res, prisma) => {
     documentsChecklist,
     authorizationNumber,
     authorizationFileUrl,
+    paidInAdvance,
   } = req.body;
 
   // Fallback: si phone o birthDate no están al nivel raíz, buscar en patientData
@@ -447,6 +449,7 @@ export const createAppointment = async (req, res, prisma) => {
         documentsChecklist,
         authorizationNumber,
         authorizationFileUrl,
+        paidInAdvance,
       });
 
       const appointmentsCreated = [];
@@ -484,6 +487,7 @@ export const createAppointment = async (req, res, prisma) => {
                 patientId: patient.id,
                 professionalId: prof.id,
                 ...baseAppointmentPayload,
+                paidInAdvance: Boolean(baseAppointmentPayload.paidInAdvance && sessionsCreated === 0),
               },
               select: appointmentSelect,
             });
@@ -516,6 +520,7 @@ export const createAppointment = async (req, res, prisma) => {
           authorizationStatus: appointment.authorizationStatus,
           obraSocialId: appointment.obraSocialId,
           patientChargeAmount: appointment.patientChargeAmount,
+          paidInAdvance: appointment.paidInAdvance,
         },
       })),
     );
@@ -538,9 +543,10 @@ export const updateEvolution = async (req, res, prisma) => {
     documentsChecklist,
     authorizationNumber,
     authorizationFileUrl,
+    paidInAdvance,
   } = req.body;
 
-  if (!diagnosis && !status && !patientData && !evolution && isFirstSession === undefined) {
+  if (!diagnosis && !status && !patientData && !evolution && isFirstSession === undefined && paidInAdvance === undefined) {
     return res.status(400).json({ message: "No hay datos para actualizar." });
   }
 
@@ -571,6 +577,7 @@ export const updateEvolution = async (req, res, prisma) => {
         documentsChecklist,
         authorizationNumber,
         authorizationFileUrl,
+        paidInAdvance: paidInAdvance ?? currentApt.paidInAdvance,
       });
 
       const updatedAppointment = await tx.appointment.update({
@@ -587,6 +594,7 @@ export const updateEvolution = async (req, res, prisma) => {
           coinsuranceAmount: appointmentWritePayload.coinsuranceAmount,
           patientChargeAmount: appointmentWritePayload.patientChargeAmount,
           coinsuranceDetails: appointmentWritePayload.coinsuranceDetails,
+          paidInAdvance: appointmentWritePayload.paidInAdvance,
         },
         select: appointmentSelect,
       });
@@ -678,6 +686,7 @@ export const updateAppointment = async (req, res, prisma) => {
     documentsChecklist,
     authorizationNumber,
     authorizationFileUrl,
+    paidInAdvance,
   } = req.body;
 
   if (!patientId) {
@@ -718,6 +727,7 @@ export const updateAppointment = async (req, res, prisma) => {
         documentsChecklist,
         authorizationNumber,
         authorizationFileUrl,
+        paidInAdvance: paidInAdvance ?? currentAppointment.paidInAdvance,
       });
 
       // Actualizar datos del paciente
@@ -751,6 +761,7 @@ export const updateAppointment = async (req, res, prisma) => {
       updateData.coinsuranceAmount = appointmentWritePayload.coinsuranceAmount;
       updateData.patientChargeAmount = appointmentWritePayload.patientChargeAmount;
       updateData.coinsuranceDetails = appointmentWritePayload.coinsuranceDetails;
+      updateData.paidInAdvance = appointmentWritePayload.paidInAdvance;
 
       if (hasScheduleChange) {
         const occupiedSlots = await tx.appointment.findMany({
