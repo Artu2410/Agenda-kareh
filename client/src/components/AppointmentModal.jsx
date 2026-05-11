@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Calendar as CalendarIcon, Printer, Loader2, Trash2, History, Pencil, Check, X, Flag, Plus } from 'lucide-react';
+import { Calendar as CalendarIcon, Printer, Loader2, Trash2, History, Pencil, Check, X, Flag, Plus, Banknote } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import api from '@/services/api';
@@ -31,6 +31,7 @@ const getInputDateValue = (value) => {
 };
 
 const UNKNOWN_BIRTHDATE = '1900-01-01';
+const PARTICULAR_OPTION_VALUE = '__PARTICULAR__';
 
 const formatCurrency = (value) => new Intl.NumberFormat('es-AR', {
   style: 'currency',
@@ -93,6 +94,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
   const [documentsChecklist, setDocumentsChecklist] = useState({ documents: [], additionalInfo: '' });
   const [authorizationNumber, setAuthorizationNumber] = useState('');
   const [authorizationFileUrl, setAuthorizationFileUrl] = useState('');
+  const [paidInAdvance, setPaidInAdvance] = useState(false);
   const [uploadingDocumentIndex, setUploadingDocumentIndex] = useState(-1);
   const [uploadingAuthorization, setUploadingAuthorization] = useState(false);
 
@@ -207,6 +209,14 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
     };
   }, [patientData.treatAsParticular, selectedObraSocial]);
 
+  const selectedCoverageValue = useMemo(() => {
+    if (patientData.treatAsParticular) {
+      return PARTICULAR_OPTION_VALUE;
+    }
+
+    return patientData.obraSocialId || '';
+  }, [patientData.obraSocialId, patientData.treatAsParticular]);
+
   useEffect(() => {
     if (!isOpen) return;
     loadObrasSociales();
@@ -239,6 +249,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
       setDocumentsChecklist(appointment.documentsChecklist || { documents: [], additionalInfo: '' });
       setAuthorizationNumber(appointment.authorizationNumber || '');
       setAuthorizationFileUrl(appointment.authorizationFileUrl || '');
+      setPaidInAdvance(Boolean(appointment.paidInAdvance));
       setEditingFutureId(null);
       setFutureDraft({ date: '', time: '' });
       setIsAddingManualSession(false);
@@ -267,6 +278,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
       setDocumentsChecklist({ documents: [], additionalInfo: '' });
       setAuthorizationNumber('');
       setAuthorizationFileUrl('');
+      setPaidInAdvance(false);
       setSessionCount(10);
       setFutureAppointments([]);
       setEditingFutureId(null);
@@ -395,6 +407,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
         documentsChecklist,
         authorizationNumber,
         authorizationFileUrl,
+        paidInAdvance,
         isFirstSession,
         patientData: {
           ...patientData,
@@ -521,6 +534,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
         documentsChecklist,
         authorizationNumber,
         authorizationFileUrl,
+        paidInAdvance: false,
         sessionCount: 1,
         selectedDays: []
       });
@@ -551,6 +565,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
         documentsChecklist,
         authorizationNumber,
         authorizationFileUrl,
+        paidInAdvance: false,
         sessionCount: parseInt(sessionCount) || 1,
         selectedDays
       };
@@ -643,6 +658,11 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                       <Check size={10} /> Inicio de Ciclo
                     </span>
                   )}
+                  {paidInAdvance && (
+                    <span className="flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg px-2 py-0.5 text-[9px] font-black uppercase">
+                      <Banknote size={10} /> Pago adelantado
+                    </span>
+                  )}
                 </div>
                 <p className="text-teal-600 text-[10px] font-black uppercase tracking-widest mt-2">
                   {isEditMode ? appointment?.professional?.fullName : professional?.fullName || 'Profesional no seleccionado'}
@@ -664,19 +684,35 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Obra Social</label>
                   <select
                     className="w-full p-3 border rounded-2xl bg-slate-50 font-bold focus:ring-2 ring-teal-500 outline-none"
-                    value={patientData.obraSocialId || ''}
+                    value={selectedCoverageValue}
                     onChange={(e) => {
                       const obraSocialId = e.target.value;
+                      if (obraSocialId === PARTICULAR_OPTION_VALUE) {
+                        setPatientData((prev) => {
+                          const hasCoverageLoaded = Boolean(prev.obraSocialId || prev.healthInsurance);
+                          return {
+                            ...prev,
+                            obraSocialId: prev.obraSocialId || '',
+                            healthInsurance: hasCoverageLoaded ? prev.healthInsurance : 'PARTICULAR',
+                            treatAsParticular: true,
+                          };
+                        });
+                        setDocumentsChecklist({ documents: [], additionalInfo: '' });
+                        return;
+                      }
+
                       const obraSocial = obrasSociales.find((item) => item.id === obraSocialId) || null;
                       setPatientData((prev) => ({
                         ...prev,
                         obraSocialId,
                         healthInsurance: obraSocial?.nombreOs || '',
+                        treatAsParticular: false,
                       }));
                       setDocumentsChecklist(buildChecklistFromInsurance(obraSocial, null));
                     }}
                   >
                     <option value="">Seleccionar obra social</option>
+                    <option value={PARTICULAR_OPTION_VALUE}>PARTICULAR</option>
                     {obrasSociales
                       .filter((obraSocial) => obraSocial.isActive || obraSocial.id === patientData.obraSocialId)
                       .map((obraSocial) => (
@@ -704,7 +740,24 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                     </div>
                     <button
                       type="button"
-                      onClick={() => setPatientData((prev) => ({ ...prev, treatAsParticular: !prev.treatAsParticular }))}
+                      onClick={() => setPatientData((prev) => {
+                        const nextValue = !prev.treatAsParticular;
+                        if (nextValue) {
+                          const hasCoverageLoaded = Boolean(prev.obraSocialId || prev.healthInsurance);
+                          return {
+                            ...prev,
+                            obraSocialId: prev.obraSocialId || '',
+                            healthInsurance: hasCoverageLoaded ? prev.healthInsurance : 'PARTICULAR',
+                            treatAsParticular: true,
+                          };
+                        }
+
+                        return {
+                          ...prev,
+                          healthInsurance: prev.healthInsurance === 'PARTICULAR' ? '' : prev.healthInsurance,
+                          treatAsParticular: false,
+                        };
+                      })}
                       className={`rounded-2xl px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all ${patientData.treatAsParticular
                           ? 'bg-blue-600 text-white shadow-md hover:bg-blue-700'
                           : 'bg-white text-slate-500 border border-slate-200 hover:border-blue-300 hover:text-blue-700'
@@ -718,6 +771,30 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                       Cobertura original: {getCoverageLabel(patientData.healthInsurance)}
                     </p>
                   )}
+                </div>
+
+                <div className="sm:col-span-2 rounded-[1.6rem] border border-emerald-200 bg-emerald-50 px-4 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[9px] font-black text-emerald-700 uppercase tracking-widest">Sesión pagada por adelantado</p>
+                      <p className="mt-1 text-[11px] font-semibold text-emerald-700/80">
+                        {isEditMode
+                          ? 'Marcá este turno si ya quedó cobrado.'
+                          : 'Si generás varias sesiones, se marca solo el primer turno.'}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setPaidInAdvance((current) => !current)}
+                      className={`rounded-2xl px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all ${
+                        paidInAdvance
+                          ? 'bg-emerald-600 text-white shadow-md hover:bg-emerald-700'
+                          : 'bg-white text-emerald-700 border border-emerald-200 hover:border-emerald-300'
+                      }`}
+                    >
+                      {paidInAdvance ? 'Marcada' : 'Sin marcar'}
+                    </button>
+                  </div>
                 </div>
 
                 {selectedObraSocial && selectedObraSocial.isActive === false && (
@@ -1128,6 +1205,11 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                           Sesión {apt.isFirstSession ? 1 : displaySessionNumber} {apt.isFirstSession && <span className="text-teal-600 ml-1 font-black">(Ingreso)</span>}
                         </p>
                         <span className="text-[11px] font-bold text-slate-700">{format(new Date(apt.date), "dd 'de' MMMM", { locale: es })}</span>
+                        {apt.paidInAdvance && (
+                          <p className="mt-1 text-[9px] font-black uppercase tracking-wider text-emerald-700">
+                            Pago adelantado
+                          </p>
+                        )}
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] font-black text-teal-600 bg-teal-50 px-2 py-1 rounded-lg">{apt.time} hs</span>

@@ -1,7 +1,7 @@
 import React, { useMemo, useEffect, useRef } from 'react';
 import { format, addDays } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Activity, Zap, Plus, CheckCircle2, Flag, AlertTriangle, CalendarClock } from 'lucide-react';
+import { Activity, Zap, Plus, CheckCircle2, Flag, AlertTriangle, CalendarClock, Banknote } from 'lucide-react';
 import { getCoverageLabel, isParticularCoverage } from '@/utils/coverage';
 
 const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
@@ -329,9 +329,17 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
                           </div>
 
                           <div className="mt-2 flex justify-end">
-                            <span className={`rounded-full px-2 py-1 text-[8px] font-black uppercase tracking-wider ${statusMeta.badgeClass}`}>
-                              {statusMeta.label}
-                            </span>
+                            <div className="flex flex-wrap justify-end gap-1">
+                              {app.paidInAdvance && (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-1 text-[8px] font-black uppercase tracking-wider text-emerald-700">
+                                  <Banknote size={9} />
+                                  Pago
+                                </span>
+                              )}
+                              <span className={`rounded-full px-2 py-1 text-[8px] font-black uppercase tracking-wider ${statusMeta.badgeClass}`}>
+                                {statusMeta.label}
+                              </span>
+                            </div>
                           </div>
 
                           <div className="mt-1 p-1 bg-white/80 rounded border border-slate-200/50 shadow-inner">
