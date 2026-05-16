@@ -145,6 +145,13 @@ const resolvePatientInsurancePayload = async (prisma, payload = {}) => {
   });
 
   if (!obraSocial || obraSocial.isArchived) {
+    if (treatAsParticular) {
+      return {
+        obraSocialId: null,
+        healthInsurance: payload.healthInsurance || 'PARTICULAR',
+        treatAsParticular: true,
+      };
+    }
     const error = new Error('La obra social seleccionada no existe');
     error.statusCode = 400;
     throw error;
