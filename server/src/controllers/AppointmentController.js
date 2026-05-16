@@ -263,6 +263,7 @@ const buildAppointmentWritePayload = async (tx, patient, payload = {}) => {
     patientChargeAmount: insuranceContext.charge.total,
     coinsuranceDetails: insuranceContext.charge,
     paidInAdvance: Boolean(payload.paidInAdvance),
+    sessionToken: payload.sessionToken || null,
   };
 };
 
