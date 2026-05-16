@@ -155,8 +155,11 @@ const sendOtpEmail = async (email, otp) => {
     return { delivered: false, devOtp: otp };
   }
 
+  const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
+  const fromName = process.env.RESEND_FROM_NAME || 'Kareh Salud';
+
   const { error } = await resend.emails.send({
-    from: 'Kareh Salud <onboarding@resend.dev>',
+    from: `${fromName} <${fromEmail}>`,
     to: email,
     subject: 'Tu código de acceso a Kareh Salud',
     html: `

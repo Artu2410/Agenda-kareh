@@ -49,6 +49,7 @@ const additionalAllowedOrigins = String(process.env.CORS_ALLOWED_ORIGINS || '')
 const allowedOrigins = new Set([
     'https://agenda-kareh.vercel.app',
     'https://kareh-salud.vercel.app',
+    'https://agenda.kareh.com.ar',
     'http://localhost:5173',
     'http://localhost:5174',
     process.env.FRONTEND_URL,
