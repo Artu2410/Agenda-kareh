@@ -390,6 +390,20 @@ export const createPatient = async (req, res, prisma) => {
     medicalHistory,
     dniImageUrl,
     dniBackImageUrl,
+  const {
+    fullName,
+    dni,
+    phone,
+    email,
+    address,
+    birthDate,
+    healthInsurance,
+    treatAsParticular,
+    affiliateNumber,
+    emergencyPhone,
+    medicalHistory,
+    dniImageUrl,
+    dniBackImageUrl,
     insuranceCardImageUrl,
     insuranceCardBackImageUrl,
     hasCancer,
@@ -397,6 +411,7 @@ export const createPatient = async (req, res, prisma) => {
     usesEA,
     usesWheelchair,
     isRespiratory,
+    isIU,
     medicalNotes,
   } = req.body;
   try {
@@ -442,6 +457,7 @@ export const createPatient = async (req, res, prisma) => {
         usesEA: !!usesEA,
         usesWheelchair: !!usesWheelchair,
         isRespiratory: !!isRespiratory,
+        isIU: !!isIU,
         medicalNotes,
       },
       select: patientWithAppointmentCountSelect,
@@ -468,7 +484,7 @@ export const updatePatient = async (req, res, prisma) => {
   const { 
     fullName, dni, phone, email, address, birthDate, healthInsurance,
     treatAsParticular, affiliateNumber, emergencyPhone, medicalHistory, hasMarcapasos, usesEA, hasCancer, medicalNotes,
-    usesWheelchair, isRespiratory,
+    usesWheelchair, isRespiratory, isIU,
     dniImageUrl, dniBackImageUrl, insuranceCardImageUrl, insuranceCardBackImageUrl,
   } = req.body;
 
@@ -515,6 +531,7 @@ export const updatePatient = async (req, res, prisma) => {
         hasCancer,
         usesWheelchair,
         isRespiratory,
+        isIU,
         medicalNotes
       },
       select: patientWithAppointmentCountSelect,

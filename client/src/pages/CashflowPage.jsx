@@ -24,6 +24,7 @@ const CashflowPage = () => {
   const [modalInstanceKey, setModalInstanceKey] = useState(0);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [collapsedMonths, setCollapsedMonths] = useState({});
+  const [showBalances, setShowBalances] = useState(true);
 
   const fetchTransactions = useCallback(async ({ silent = false } = {}) => {
     try {
@@ -138,9 +139,10 @@ const CashflowPage = () => {
   const cashBalance = balancesByAccount.CASH;
   const mercadoPagoBalance = balancesByAccount.MERCADO_PAGO;
 
-  const formatCurrency = (value) => (
-    new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(value)
-  );
+  const formatCurrency = (value) => {
+    if (!showBalances) return '***';
+    return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(value);
+  };
 
   const weeklyStats = useMemo(() => {
     const weeks = new Map();
@@ -253,14 +255,23 @@ const CashflowPage = () => {
             key: monthKey,
             label: format(transactionDate, 'MMMM yyyy', { locale: es }),
             items: [],
+            income: 0,
+            expense: 0
           });
         }
 
         const monthGroup = groups.get(monthKey);
         monthGroup.items.push(transaction);
+        
+        const amount = parseFloat(transaction.amount);
+        if (transaction.type === 'INCOME') monthGroup.income += amount;
+        if (transaction.type === 'EXPENSE') monthGroup.expense += amount;
       });
 
-    return Array.from(groups.values());
+    return Array.from(groups.values()).map(group => ({
+      ...group,
+      balance: group.income - group.expense
+    }));
   }, [transactions]);
 
   useEffect(() => {
@@ -322,11 +333,25 @@ const CashflowPage = () => {
     <div className="min-h-screen bg-slate-50 p-4 sm:p-6">
       <div className="max-w-7xl mx-auto">
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-800">Caja Chica</h1>
-            <p className="mt-1 text-sm font-medium text-slate-500">
-              Cada movimiento ahora impacta en una cuenta concreta para no mezclar efectivo con Mercado Pago.
-            </p>
+          <div className="flex items-center gap-4">
+            <div>
+              <h1 className="text-3xl font-bold text-slate-800">Caja Chica</h1>
+              <p className="mt-1 text-sm font-medium text-slate-500">
+                Cada movimiento ahora impacta en una cuenta concreta para no mezclar efectivo con Mercado Pago.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowBalances(!showBalances)}
+              className="p-2 rounded-full hover:bg-slate-200 transition-colors text-slate-400"
+              title={showBalances ? 'Ocultar saldos' : 'Mostrar saldos'}
+            >
+              {showBalances ? (
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9.88 9.88 4.62 4.62"/><path d="M1 1s3 7 10 7 10-7 10-7"/><path d="m23 23-4.62-4.62"/><path d="M8.47 16.14A10.3 10.3 0 0 1 2 12s3-7 10-7c.92 0 1.76.12 2.53.33"/><path d="M15.53 15.53c-.93.3-1.91.47-3.03.47-7 0-10-7-10-7"/><path d="M15 9.21a3 3 0 0 0-4.21 4.21"/><path d="M21.16 16.11A10.33 10.33 0 0 0 22 12s-3-7-10-7"/></svg>
+              )}
+            </button>
           </div>
         </div>
 
@@ -424,14 +449,32 @@ const CashflowPage = () => {
                             {group.items.length} movimiento{group.items.length === 1 ? '' : 's'} registrados
                           </p>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => toggleMonthVisibility(group.key)}
-                          className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-100"
-                        >
-                          {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
-                          {isCollapsed ? 'Mostrar movimientos' : 'Ocultar movimientos'}
-                        </button>
+                        
+                        <div className="flex items-center gap-6">
+                          <div className="hidden sm:flex gap-6">
+                            <div className="text-right">
+                              <p className="text-[9px] font-black uppercase text-green-600">Ingresos</p>
+                              <p className="text-sm font-black text-slate-900">{formatCurrency(group.income)}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-[9px] font-black uppercase text-red-600">Egresos</p>
+                              <p className="text-sm font-black text-slate-900">{formatCurrency(group.expense)}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-[9px] font-black uppercase text-teal-600">Neto</p>
+                              <p className={`text-sm font-black ${group.balance >= 0 ? 'text-teal-600' : 'text-red-600'}`}>{formatCurrency(group.balance)}</p>
+                            </div>
+                          </div>
+                          
+                          <button
+                            type="button"
+                            onClick={() => toggleMonthVisibility(group.key)}
+                            className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-100"
+                          >
+                            {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+                            {isCollapsed ? 'Mostrar' : 'Ocultar'}
+                          </button>
+                        </div>
                       </div>
                     </div>
 

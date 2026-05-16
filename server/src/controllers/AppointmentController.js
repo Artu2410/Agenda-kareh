@@ -336,6 +336,7 @@ export const createAppointment = async (req, res, prisma) => {
     authorizationNumber,
     authorizationFileUrl,
     paidInAdvance,
+    sessionToken,
   } = req.body;
 
   // Fallback: si phone o birthDate no están al nivel raíz, buscar en patientData
@@ -450,6 +451,7 @@ export const createAppointment = async (req, res, prisma) => {
         authorizationNumber,
         authorizationFileUrl,
         paidInAdvance,
+        sessionToken,
       });
 
       const appointmentsCreated = [];
@@ -487,6 +489,7 @@ export const createAppointment = async (req, res, prisma) => {
                 patientId: patient.id,
                 professionalId: prof.id,
                 ...baseAppointmentPayload,
+                sessionToken: baseAppointmentPayload.sessionToken,
                 paidInAdvance: Boolean(baseAppointmentPayload.paidInAdvance && sessionsCreated === 0),
               },
               select: appointmentSelect,
@@ -544,6 +547,7 @@ export const updateEvolution = async (req, res, prisma) => {
     authorizationNumber,
     authorizationFileUrl,
     paidInAdvance,
+    sessionToken,
   } = req.body;
 
   if (!diagnosis && !status && !patientData && !evolution && isFirstSession === undefined && paidInAdvance === undefined) {
@@ -578,6 +582,7 @@ export const updateEvolution = async (req, res, prisma) => {
         authorizationNumber,
         authorizationFileUrl,
         paidInAdvance: paidInAdvance ?? currentApt.paidInAdvance,
+        sessionToken: sessionToken ?? currentApt.sessionToken,
       });
 
       const updatedAppointment = await tx.appointment.update({
@@ -595,6 +600,7 @@ export const updateEvolution = async (req, res, prisma) => {
           patientChargeAmount: appointmentWritePayload.patientChargeAmount,
           coinsuranceDetails: appointmentWritePayload.coinsuranceDetails,
           paidInAdvance: appointmentWritePayload.paidInAdvance,
+          sessionToken: appointmentWritePayload.sessionToken,
         },
         select: appointmentSelect,
       });
@@ -687,6 +693,7 @@ export const updateAppointment = async (req, res, prisma) => {
     authorizationNumber,
     authorizationFileUrl,
     paidInAdvance,
+    sessionToken,
   } = req.body;
 
   if (!patientId) {
@@ -728,6 +735,7 @@ export const updateAppointment = async (req, res, prisma) => {
         authorizationNumber,
         authorizationFileUrl,
         paidInAdvance: paidInAdvance ?? currentAppointment.paidInAdvance,
+        sessionToken: sessionToken ?? currentAppointment.sessionToken,
       });
 
       // Actualizar datos del paciente
@@ -762,6 +770,7 @@ export const updateAppointment = async (req, res, prisma) => {
       updateData.patientChargeAmount = appointmentWritePayload.patientChargeAmount;
       updateData.coinsuranceDetails = appointmentWritePayload.coinsuranceDetails;
       updateData.paidInAdvance = appointmentWritePayload.paidInAdvance;
+      updateData.sessionToken = appointmentWritePayload.sessionToken;
 
       if (hasScheduleChange) {
         const occupiedSlots = await tx.appointment.findMany({

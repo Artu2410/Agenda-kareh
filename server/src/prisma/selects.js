@@ -51,6 +51,7 @@ export const patientSelect = {
   usesEA: true,
   usesWheelchair: true,
   isRespiratory: true,
+  isIU: true,
   medicalNotes: true,
   createdAt: true,
   updatedAt: true,
@@ -82,6 +83,12 @@ export const professionalSelect = {
   address: true,
   emergencyPhone: true,
   medicalHistory: true,
+  hasCancer: true,
+  hasMarcapasos: true,
+  usesEA: true,
+  usesWheelchair: true,
+  isRespiratory: true,
+  medicalNotes: true,
   dniImageUrl: true,
   dniBackImageUrl: true,
   licenseMNImageUrl: true,
@@ -139,6 +146,7 @@ export const appointmentBaseSelect = {
   paidInAdvance: true,
   whatsappTicketSentAt: true,
   whatsappReminderSentAt: true,
+  sessionToken: true,
 };
 
 export const appointmentSelect = {

@@ -161,6 +161,9 @@ model Patient {
   insuranceCardBackImageUrl String?
   phone                     String?
   address                   String?
+  insuranceCardBackImageUrl String?
+  phone                     String?
+  address                   String?
   emergencyPhone            String?
   medicalHistory            String?
   hasCancer                 Boolean  @default(false)
@@ -168,6 +171,7 @@ model Patient {
   usesEA                    Boolean  @default(false)
   usesWheelchair            Boolean  @default(false)
   isRespiratory             Boolean  @default(false)
+  isIU                      Boolean  @default(false)
   medicalNotes              String?  @db.Text
   createdAt                 DateTime @default(now())
   updatedAt                 DateTime @updatedAt
@@ -279,6 +283,8 @@ model Appointment {
   payment                CashFlow?
   whatsappTicketSentAt   DateTime?
   whatsappReminderSentAt DateTime?
+  sessionToken           String?
+
 
   @@unique([date, time, slotNumber, professionalId])
   @@index([date])

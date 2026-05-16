@@ -64,7 +64,7 @@ const getCoverageBadgeClass = (value, treatAsParticular = false) => (
 
 const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedule = [], selectedProfessional = null, currentTime, capacityPerSlot = 5 }) => {
   const scrollContainerRef = useRef(null);
-  const getStatusMeta = (status, usesEA, treatAsParticular, healthInsurance, isRespiratory) => {
+  const getStatusMeta = (status, usesEA, treatAsParticular, healthInsurance, isRespiratory, isIU) => {
     const isPami = healthInsurance?.toUpperCase().includes('PAMI');
     if (status === 'COMPLETED') {
       return {
@@ -108,6 +108,15 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
         badgeClass: 'bg-rose-100 text-rose-700',
         label: 'Rechazado',
         icon: null,
+      };
+    }
+
+    if (isIU && status === 'SCHEDULED') {
+      return {
+        cardClass: 'bg-orange-50 border-orange-400',
+        badgeClass: 'bg-orange-100 text-orange-700',
+        label: 'Tratamiento IU',
+        icon: <span className="text-lg">💧</span>
       };
     }
 
@@ -296,7 +305,8 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
                         app.patient?.usesEA,
                         app.patient?.treatAsParticular,
                         app.patient?.healthInsurance,
-                        app.patient?.isRespiratory
+                        app.patient?.isRespiratory,
+                        app.patient?.isIU
                       );
 
                       return (
@@ -327,6 +337,14 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
                               SESIÓN {app.isFirstSession ? 1 : app.sessionNumber}
                             </span>
                           </div>
+
+                          {app.sessionToken && (
+                            <div className="mt-1 flex items-center gap-1">
+                              <span className="text-[8px] font-black text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded border border-orange-100 uppercase tracking-tighter">
+                                Token: {app.sessionToken}
+                              </span>
+                            </div>
+                          )}
 
                           <div className="mt-2 flex justify-end">
                             <div className="flex flex-wrap justify-end gap-1">

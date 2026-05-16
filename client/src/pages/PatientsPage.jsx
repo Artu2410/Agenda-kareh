@@ -37,6 +37,7 @@ const EMPTY_FORM = {
   hasCancer: false,
   hasMarcapasos: false,
   usesEA: false,
+  isIU: false,
   medicalNotes: '',
   dniImageUrl: '',
   dniBackImageUrl: '',
@@ -80,6 +81,7 @@ const renderPatientBadges = (patient) => (
     {patient.hasCancer && <MedicalAlertTooltip icon={AlertCircle} alert="oncologico" />}
     {patient.hasMarcapasos && <MedicalAlertTooltip icon={Activity} alert="marcapasos" />}
     {patient.usesEA && <MedicalAlertTooltip icon={Zap} alert="ea" />}
+    {patient.isIU && <span className="inline-flex items-center justify-center rounded-full bg-orange-100 p-1 text-orange-600" title="Tratamiento IU">💧</span>}
   </div>
 );
 
@@ -169,6 +171,7 @@ export default function PatientsPage() {
       dniBackImageUrl: patient.dniBackImageUrl || '',
       insuranceCardImageUrl: patient.insuranceCardImageUrl || '',
       insuranceCardBackImageUrl: patient.insuranceCardBackImageUrl || '',
+      isIU: patient.isIU || false,
     });
     setShowModal(true);
   };
@@ -648,6 +651,10 @@ export default function PatientsPage() {
                       <label className="flex items-center gap-2 text-sm font-semibold">
                         <input type="checkbox" name="usesEA" checked={formData.usesEA} onChange={handleInputChange} />
                         Usa EA
+                      </label>
+                      <label className="flex items-center gap-2 text-sm font-semibold">
+                        <input type="checkbox" name="isIU" checked={formData.isIU} onChange={handleInputChange} />
+                        Tratamiento IU
                       </label>
                     </div>
                   </div>

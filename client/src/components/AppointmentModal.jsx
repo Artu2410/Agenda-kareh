@@ -95,6 +95,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
   const [authorizationNumber, setAuthorizationNumber] = useState('');
   const [authorizationFileUrl, setAuthorizationFileUrl] = useState('');
   const [paidInAdvance, setPaidInAdvance] = useState(false);
+  const [sessionToken, setSessionToken] = useState('');
   const [uploadingAuthorization, setUploadingAuthorization] = useState(false);
 
   const lastSearchedRef = useRef('');
@@ -249,6 +250,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
       setAuthorizationNumber(appointment.authorizationNumber || '');
       setAuthorizationFileUrl(appointment.authorizationFileUrl || '');
       setPaidInAdvance(Boolean(appointment.paidInAdvance));
+      setSessionToken(appointment.sessionToken || '');
       setEditingFutureId(null);
       setFutureDraft({ date: '', time: '' });
       setIsAddingManualSession(false);
@@ -278,6 +280,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
       setAuthorizationNumber('');
       setAuthorizationFileUrl('');
       setPaidInAdvance(false);
+      setSessionToken('');
       setSessionCount(10);
       setFutureAppointments([]);
       setEditingFutureId(null);
@@ -375,6 +378,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
         authorizationNumber,
         authorizationFileUrl,
         paidInAdvance,
+        sessionToken,
         isFirstSession,
         patientData: {
           ...patientData,
@@ -502,6 +506,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
         authorizationNumber,
         authorizationFileUrl,
         paidInAdvance: false,
+        sessionToken,
         sessionCount: 1,
         selectedDays: []
       });
@@ -533,6 +538,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
         authorizationNumber,
         authorizationFileUrl,
         paidInAdvance: false,
+        sessionToken,
         sessionCount: parseInt(sessionCount) || 1,
         selectedDays
       };
@@ -817,6 +823,19 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                     )}
                   </div>
                 )}
+
+                <div className="sm:col-span-2 rounded-[1.6rem] border border-orange-200 bg-orange-50 px-4 py-3">
+                  <div className="flex flex-col gap-2">
+                    <label className="text-[9px] font-black text-orange-700 uppercase tracking-widest ml-1">Token de Sesión (Obra Social)</label>
+                    <input
+                      type="text"
+                      placeholder="Ingrese el número de token / validación"
+                      className="w-full p-3 border border-orange-200 rounded-2xl bg-white font-bold text-orange-800 focus:ring-2 ring-orange-500 outline-none"
+                      value={sessionToken}
+                      onChange={(e) => setSessionToken(e.target.value)}
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
