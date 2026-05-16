@@ -390,20 +390,6 @@ export const createPatient = async (req, res, prisma) => {
     medicalHistory,
     dniImageUrl,
     dniBackImageUrl,
-  const {
-    fullName,
-    dni,
-    phone,
-    email,
-    address,
-    birthDate,
-    healthInsurance,
-    treatAsParticular,
-    affiliateNumber,
-    emergencyPhone,
-    medicalHistory,
-    dniImageUrl,
-    dniBackImageUrl,
     insuranceCardImageUrl,
     insuranceCardBackImageUrl,
     hasCancer,
@@ -793,4 +779,3 @@ export const renumberAllPatients = async (req, res, prisma) => {
     res.status(500).json({ error: 'Error al re-numerar', message: error.message });
   }
 };
-
