@@ -161,9 +161,6 @@ model Patient {
   insuranceCardBackImageUrl String?
   phone                     String?
   address                   String?
-  insuranceCardBackImageUrl String?
-  phone                     String?
-  address                   String?
   emergencyPhone            String?
   medicalHistory            String?
   hasCancer                 Boolean  @default(false)
