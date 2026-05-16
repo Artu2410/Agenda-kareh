@@ -20,23 +20,22 @@ enum UserRole {
 // 1. CONFIGURACIÓN GLOBAL DE LA APP
 // ---------------------------------------------------------
 model User {
-  id                  String    @id @default(cuid())
-  email               String    @unique
-  fullName            String
-  role                UserRole  @default(ADMIN)
-  professionalId      String?   @unique
-  isActive            Boolean   @default(true)
-  failedLoginAttempts Int       @default(0)
-  lockedUntil         DateTime?
-  lastLoginAt         DateTime?
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
-
-  professional         Professional? @relation(fields: [professionalId], references: [id], onDelete: SetNull)
-  sessions             AuthSession[]
-  otpChallenges        AuthOtpChallenge[]
-  auditLogs            AuditLog[]
-  authorizedAppointments Appointment[] @relation("AppointmentAuthorizationReviewer")
+  id                     String             @id @default(cuid())
+  email                  String             @unique
+  fullName               String
+  role                   UserRole           @default(ADMIN)
+  professionalId         String?            @unique
+  isActive               Boolean            @default(true)
+  failedLoginAttempts    Int                @default(0)
+  lockedUntil            DateTime?
+  lastLoginAt            DateTime?
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+  authorizedAppointments Appointment[]      @relation("AppointmentAuthorizationReviewer")
+  auditLogs              AuditLog[]
+  otpChallenges          AuthOtpChallenge[]
+  professional           Professional?      @relation(fields: [professionalId], references: [id], onDelete: SetNull)
+  sessions               AuthSession[]
 }
 
 model AuthSession {
@@ -52,8 +51,7 @@ model AuthSession {
   revokedReason    String?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, expiresAt])
   @@index([accessTokenJti])
@@ -69,8 +67,7 @@ model AuthOtpChallenge {
   consumedAt    DateTime?
   lastAttemptAt DateTime?
   createdAt     DateTime  @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([email, expiresAt])
   @@index([userId, createdAt])
@@ -88,8 +85,7 @@ model AuditLog {
   ipAddress  String?
   userAgent  String?
   createdAt  DateTime @default(now())
-
-  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([entityType, entityId])
@@ -144,16 +140,16 @@ model AgendaTimerState {
 // 2. PACIENTES
 // ---------------------------------------------------------
 model Patient {
-  id                        String   @id @default(cuid())
-  dni                       String   @unique
+  id                        String            @id @default(cuid())
+  dni                       String            @unique
   fullName                  String
-  clinicalRecordNumber      Int      @unique @default(autoincrement())
+  clinicalRecordNumber      Int               @unique @default(autoincrement())
   folio                     Int?
   email                     String?
   birthDate                 DateTime
   healthInsurance           String?
   obraSocialId              String?
-  treatAsParticular         Boolean  @default(false)
+  treatAsParticular         Boolean           @default(false)
   affiliateNumber           String?
   dniImageUrl               String?
   dniBackImageUrl           String?
@@ -163,20 +159,19 @@ model Patient {
   address                   String?
   emergencyPhone            String?
   medicalHistory            String?
-  hasCancer                 Boolean  @default(false)
-  hasMarcapasos             Boolean  @default(false)
-  usesEA                    Boolean  @default(false)
-  usesWheelchair            Boolean  @default(false)
-  isRespiratory             Boolean  @default(false)
-  isIU                      Boolean  @default(false)
-  medicalNotes              String?  @db.Text
-  createdAt                 DateTime @default(now())
-  updatedAt                 DateTime @updatedAt
-
-  appointments    Appointment[]
-  clinicalHistory ClinicalHistory[]
-  treatmentCycles TreatmentCycle[]
-  obraSocial      ObraSocial?       @relation(fields: [obraSocialId], references: [id], onDelete: SetNull)
+  hasCancer                 Boolean           @default(false)
+  hasMarcapasos             Boolean           @default(false)
+  usesEA                    Boolean           @default(false)
+  usesWheelchair            Boolean           @default(false)
+  isRespiratory             Boolean           @default(false)
+  isIU                      Boolean           @default(false)
+  medicalNotes              String?           @db.Text
+  createdAt                 DateTime          @default(now())
+  updatedAt                 DateTime          @updatedAt
+  appointments              Appointment[]
+  clinicalHistory           ClinicalHistory[]
+  treatmentCycles           TreatmentCycle[]
+  obraSocial                ObraSocial?       @relation(fields: [obraSocialId], references: [id], onDelete: SetNull)
 
   @@index([phone])
   @@index([obraSocialId])
@@ -191,14 +186,14 @@ enum ProfessionalType {
 }
 
 model Professional {
-  id                           String           @id @default(cuid())
+  id                           String            @id @default(cuid())
   fullName                     String
-  licenseNumber                String           @unique
+  licenseNumber                String            @unique
   licenseNumberMP              String?
-  specialty                    String           @default("Kinesiología")
-  type                         ProfessionalType @default(MN)
-  isActive                     Boolean          @default(true)
-  isArchived                   Boolean          @default(false)
+  specialty                    String            @default("Kinesiología")
+  type                         ProfessionalType  @default(MN)
+  isActive                     Boolean           @default(true)
+  isArchived                   Boolean           @default(false)
   dni                          String?
   phone                        String?
   birthDate                    DateTime?
@@ -215,22 +210,21 @@ model Professional {
   degreeBackImageUrl           String?
   providerRegistryImageUrl     String?
   malpracticeInsuranceImageUrl String?
-  createdAt                    DateTime         @default(now())
-  updatedAt                    DateTime         @updatedAt
-
-  appointments      Appointment[]
-  clinicalHistories ClinicalHistory[]
-  workSchedule      WorkSchedule[]
-  user              User?
+  createdAt                    DateTime          @default(now())
+  updatedAt                    DateTime          @updatedAt
+  appointments                 Appointment[]
+  clinicalHistories            ClinicalHistory[]
+  workSchedule                 WorkSchedule[]
+  user                         User?
 }
 
 model WorkSchedule {
   id             String       @id @default(cuid())
   professionalId String
-  professional   Professional @relation(fields: [professionalId], references: [id])
   dayOfWeek      Int
   startTime      String
   endTime        String
+  professional   Professional @relation(fields: [professionalId], references: [id])
 
   @@unique([professionalId, dayOfWeek])
 }
@@ -241,47 +235,46 @@ model WorkSchedule {
 model TreatmentCycle {
   id            String        @id @default(cuid())
   patientId     String
-  patient       Patient       @relation(fields: [patientId], references: [id])
   diagnosis     String
   startDate     DateTime      @default(now())
   totalSessions Int
-  appointments  Appointment[]
   createdAt     DateTime      @default(now())
+  appointments  Appointment[]
+  patient       Patient       @relation(fields: [patientId], references: [id])
 }
 
 model Appointment {
-  id                     String          @id @default(cuid())
-  date                   DateTime
-  time                   String
-  slotNumber             Int
-  diagnosis              String?
-  patientId              String
-  patient                Patient         @relation(fields: [patientId], references: [id])
-  professionalId         String
-  professional           Professional    @relation(fields: [professionalId], references: [id])
-  obraSocialId           String?
-  obraSocial             ObraSocial?     @relation(fields: [obraSocialId], references: [id], onDelete: SetNull)
-  cycleId                String?
-  treatmentCycle         TreatmentCycle? @relation(fields: [cycleId], references: [id])
-  sessionNumber          Int?
-  isFirstSession         Boolean         @default(false)
-  status                 String          @default("SCHEDULED")
-  authorizationStatus    String          @default("NOT_REQUIRED")
-  authorizationNumber    String?
-  authorizationFileUrl   String?
-  authorizationReviewedAt DateTime?
+  id                        String          @id @default(cuid())
+  date                      DateTime
+  time                      String
+  slotNumber                Int
+  diagnosis                 String?
+  patientId                 String
+  professionalId            String
+  obraSocialId              String?
+  cycleId                   String?
+  sessionNumber             Int?
+  isFirstSession            Boolean         @default(false)
+  status                    String          @default("SCHEDULED")
+  authorizationStatus       String          @default("NOT_REQUIRED")
+  authorizationNumber       String?
+  authorizationFileUrl      String?
+  authorizationReviewedAt   DateTime?
   authorizationReviewedById String?
-  authorizationReviewedBy User?          @relation("AppointmentAuthorizationReviewer", fields: [authorizationReviewedById], references: [id], onDelete: SetNull)
-  documentsChecklist     Json?
-  coinsuranceAmount      Decimal?        @db.Decimal(10, 2)
-  patientChargeAmount    Decimal?        @db.Decimal(10, 2)
-  coinsuranceDetails     Json?
-  paidInAdvance          Boolean         @default(false)
-  payment                CashFlow?
-  whatsappTicketSentAt   DateTime?
-  whatsappReminderSentAt DateTime?
-  sessionToken           String?
-
+  documentsChecklist        Json?
+  coinsuranceAmount         Decimal?        @db.Decimal(10, 2)
+  patientChargeAmount       Decimal?        @db.Decimal(10, 2)
+  coinsuranceDetails        Json?
+  paidInAdvance             Boolean         @default(false)
+  whatsappTicketSentAt      DateTime?
+  whatsappReminderSentAt    DateTime?
+  sessionToken              String?
+  authorizationReviewedBy   User?           @relation("AppointmentAuthorizationReviewer", fields: [authorizationReviewedById], references: [id], onDelete: SetNull)
+  treatmentCycle            TreatmentCycle? @relation(fields: [cycleId], references: [id])
+  obraSocial                ObraSocial?     @relation(fields: [obraSocialId], references: [id], onDelete: SetNull)
+  patient                   Patient         @relation(fields: [patientId], references: [id])
+  professional              Professional    @relation(fields: [professionalId], references: [id])
+  payment                   CashFlow?
 
   @@unique([date, time, slotNumber, professionalId])
   @@index([date])
@@ -297,15 +290,15 @@ model Appointment {
 // ---------------------------------------------------------
 model ClinicalHistory {
   id             String        @id @default(cuid())
-  patientId      String // DEBE SER STRING PARA COINCIDIR CON PATIENT.ID
-  patient        Patient       @relation(fields: [patientId], references: [id])
+  patientId      String
   professionalId String?
-  professional   Professional? @relation(fields: [professionalId], references: [id])
   date           DateTime      @default(now())
   diagnosis      String?
   evolution      String        @db.Text
   attachments    String?
   createdAt      DateTime      @default(now())
+  patient        Patient       @relation(fields: [patientId], references: [id])
+  professional   Professional? @relation(fields: [professionalId], references: [id])
 }
 
 // ---------------------------------------------------------
@@ -321,8 +314,8 @@ model CashFlow {
   account            String       @default("CASH")
   destinationAccount String?
   appointmentId      String?      @unique
-  appointment        Appointment? @relation(fields: [appointmentId], references: [id])
   date               DateTime     @default(now())
+  appointment        Appointment? @relation(fields: [appointmentId], references: [id])
 }
 
 enum FlowType {
@@ -335,23 +328,22 @@ enum FlowType {
 // 7. WHATSAPP INBOX
 // ---------------------------------------------------------
 model WhatsAppConversation {
-  id              String    @id @default(cuid())
-  waId            String    @unique
-  phone           String
-  profileName     String?
-  currentState    String?   @default("welcome")
-  lastMessageAt   DateTime?
-  lastMessageText String?
-  unreadCount     Int       @default(0)
-  lastAutoReplyAt DateTime?
+  id                 String            @id @default(cuid())
+  waId               String            @unique
+  phone              String
+  profileName        String?
+  currentState       String?           @default("welcome")
+  lastMessageAt      DateTime?
+  lastMessageText    String?
+  unreadCount        Int               @default(0)
+  lastAutoReplyAt    DateTime?
   pricingExplainedAt DateTime?
-  slotOfferSentAt  DateTime?
-  lastServiceType  String?
-  lastOfferedSlots Json?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-
-  messages WhatsAppMessage[]
+  slotOfferSentAt    DateTime?
+  lastServiceType    String?
+  lastOfferedSlots   Json?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  messages           WhatsAppMessage[]
 
   @@index([phone])
   @@index([lastMessageAt])
@@ -360,7 +352,6 @@ model WhatsAppConversation {
 model WhatsAppMessage {
   id             String               @id @default(cuid())
   conversationId String
-  conversation   WhatsAppConversation @relation(fields: [conversationId], references: [id])
   direction      String
   type           String
   text           String?
@@ -372,6 +363,7 @@ model WhatsAppMessage {
   status         String?
   statusAt       DateTime?
   createdAt      DateTime             @default(now())
+  conversation   WhatsAppConversation @relation(fields: [conversationId], references: [id])
 
   @@index([conversationId])
   @@index([status])
@@ -391,31 +383,30 @@ model PushSubscription {
 // 8. OBRAS SOCIALES (COKIBA)
 // ---------------------------------------------------------
 model ObraSocial {
-  id              String   @id @default(cuid())
-  codigoCokiba    String   @unique          // Código interno de COKIBA
-  nombreOs        String                     // Nombre de la entidad
-  coseguroValor   Decimal  @db.Decimal(10, 2) // Monto a cobrar en mostrador
-  honorarioEstimado Decimal @db.Decimal(10, 2) // Lo que COKIBA liquida
-  percentageCoinsurance Decimal @default(0) @db.Decimal(5, 2)
-  fixedCopay      Decimal  @default(0) @db.Decimal(10, 2)
-  plazoPago       Int      @default(60)       // Días default 60
-  estado          String   @default("Activa") // Activa / Baja / Suspendida
-  isActive        Boolean  @default(true)
-  detectedStatus  String?
-  detectedIsActive Boolean?
-  statusManualOverride Boolean @default(false)
-  isArchived      Boolean  @default(false)
-  requiresAuthorization Boolean @default(false)
-  atendibleSanMiguel Boolean @default(false)  // Zona San Miguel / Bella Vista
-  requiredDocuments Json?
-  cokibaDetails   Json?
-  rawCategoria    String?                     // Categoría original scrapeada
-  ultimaSync      DateTime @default(now())    // Última sincronización
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  patients        Patient[]
-  appointments    Appointment[]
+  id                    String        @id @default(cuid())
+  codigoCokiba          String        @unique
+  nombreOs              String
+  coseguroValor         Decimal       @db.Decimal(10, 2)
+  honorarioEstimado     Decimal       @db.Decimal(10, 2)
+  percentageCoinsurance Decimal       @default(0) @db.Decimal(5, 2)
+  fixedCopay            Decimal       @default(0) @db.Decimal(10, 2)
+  plazoPago             Int           @default(60)
+  estado                String        @default("Activa")
+  isActive              Boolean       @default(true)
+  detectedStatus        String?
+  detectedIsActive      Boolean?
+  statusManualOverride  Boolean       @default(false)
+  isArchived            Boolean       @default(false)
+  requiresAuthorization Boolean       @default(false)
+  atendibleSanMiguel    Boolean       @default(false)
+  requiredDocuments     Json?
+  cokibaDetails         Json?
+  rawCategoria          String?
+  ultimaSync            DateTime      @default(now())
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  appointments          Appointment[]
+  patients              Patient[]
 
   @@index([estado])
   @@index([isActive])
