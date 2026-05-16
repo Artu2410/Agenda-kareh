@@ -771,8 +771,30 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                 </div>
 
                 {selectedObraSocial && selectedObraSocial.isActive === false && (
-                  <div className="sm:col-span-2 rounded-[1.6rem] border border-amber-200 bg-amber-50 px-4 py-3 text-[11px] font-black uppercase tracking-wide text-amber-800">
-                    Esta obra social se encuentra inactiva. No se podrán generar nuevos turnos hasta reactivarla o cambiar la cobertura del paciente.
+                  <div className="sm:col-span-2 rounded-[1.6rem] border border-amber-200 bg-amber-50 px-4 py-4">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-1">
+                        <p className="text-[11px] font-black uppercase tracking-wide text-amber-800">
+                          Esta obra social se encuentra inactiva o sin convenio vigente.
+                        </p>
+                        <p className="mt-1 text-[10px] font-semibold text-amber-700/80 uppercase">
+                          No se podrán procesar pagos por COKIBA. Podés atenderlo de forma Particular.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPatientData((prev) => ({
+                            ...prev,
+                            treatAsParticular: true,
+                          }));
+                          setDocumentsChecklist({ documents: [], additionalInfo: '' });
+                        }}
+                        className="rounded-xl bg-amber-600 px-3 py-2 text-[9px] font-black uppercase tracking-wider text-white shadow-sm hover:bg-amber-700 transition-all shrink-0"
+                      >
+                        Atender Particular
+                      </button>
+                    </div>
                   </div>
                 )}
 
