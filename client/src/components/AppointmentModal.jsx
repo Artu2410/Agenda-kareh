@@ -103,6 +103,9 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
   const isEditMode = !!appointment?.id;
   const modalDate = selectedSlot?.date || getInputDateValue(appointment?.date);
   const modalTime = selectedSlot?.time || appointment?.time || '';
+  const originalIsFirstSession = Boolean(appointment?.isFirstSession);
+  const hasSessionBoundaryChange = isEditMode && originalIsFirstSession !== isFirstSession;
+  const isPendingCycleReset = isEditMode && !originalIsFirstSession && isFirstSession;
 
   const loadFutureAppointments = useCallback(async () => {
     if (!appointment?.patientId) {
@@ -367,9 +370,33 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
     }
   };
 
+  const confirmSessionBoundaryChange = useCallback(() => new Promise((resolve) => {
+    const appointmentDateLabel = modalDate
+      ? format(new Date(`${modalDate}T12:00:00`), 'dd/MM', { locale: es })
+      : 'seleccionada';
+
+    openModal({
+      title: isPendingCycleReset ? 'Reiniciar ciclo' : 'Quitar inicio de ciclo',
+      message: isPendingCycleReset
+        ? `La sesión del ${appointmentDateLabel} pasará a ser la nueva sesión 1 y se renumerarán las sesiones siguientes de este paciente. ¿Deseas continuar?`
+        : `La sesión del ${appointmentDateLabel} dejará de ser inicio de ciclo y se renumerarán las sesiones siguientes de este paciente. ¿Deseas continuar?`,
+      confirmText: isPendingCycleReset ? 'Reiniciar ciclo' : 'Guardar cambio',
+      cancelText: 'Cancelar',
+      danger: true,
+      icon: Flag,
+      onConfirm: async () => resolve(true),
+      onCancel: () => resolve(false),
+    });
+  }), [isPendingCycleReset, modalDate, openModal]);
+
   const handleAction = async () => {
-    setLoading(true);
     const fullName = `${patientData.lastName} ${patientData.firstName}`.trim();
+    if (hasSessionBoundaryChange) {
+      const confirmed = await confirmSessionBoundaryChange();
+      if (!confirmed) return;
+    }
+
+    setLoading(true);
     try {
       const payload = {
         diagnosis,
@@ -626,10 +653,19 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                       <Flag size={9} fill="currentColor" /> Reiniciar Ciclo (Sesión 1)
                     </button>
                   )}
-                  {isEditMode && isFirstSession && (
+                  {isEditMode && isFirstSession && !isPendingCycleReset && (
                     <span className="flex items-center gap-1 bg-teal-50 text-teal-600 border border-teal-100 rounded-lg px-2 py-0.5 text-[9px] font-black uppercase anima-pulse">
                       <Check size={10} /> Inicio de Ciclo
                     </span>
+                  )}
+                  {isEditMode && isPendingCycleReset && (
+                    <button
+                      type="button"
+                      onClick={() => setIsFirstSession(false)}
+                      className="bg-amber-50 text-amber-700 border border-amber-200 rounded-lg px-2 py-0.5 text-[9px] font-black uppercase hover:bg-amber-100 transition-all flex items-center gap-1"
+                    >
+                      <X size={10} /> Deshacer reinicio
+                    </button>
                   )}
                   {paidInAdvance && (
                     <span className="flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg px-2 py-0.5 text-[9px] font-black uppercase">
@@ -908,6 +944,20 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                       Marcar como Sesión de Ingreso (Reinicia contador)
                     </label>
                   </div>
+                  {hasSessionBoundaryChange && (
+                    <div className={`flex items-start gap-2 rounded-2xl border px-3 py-3 text-[10px] font-black ${
+                      isPendingCycleReset
+                        ? 'border-amber-200 bg-amber-50 text-amber-800'
+                        : 'border-rose-200 bg-rose-50 text-rose-700'
+                    }`}>
+                      <Flag size={14} className="mt-0.5 shrink-0" />
+                      <p>
+                        {isPendingCycleReset
+                          ? 'Al guardar, este turno pasará a ser la nueva sesión 1 y se renumerarán las sesiones siguientes.'
+                          : 'Al guardar, este turno dejará de ser inicio de ciclo y se renumerarán las sesiones siguientes.'}
+                      </p>
+                    </div>
+                  )}
                 </>
               )}
 

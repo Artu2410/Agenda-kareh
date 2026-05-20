@@ -8,6 +8,7 @@ import {
   subMonths,
 } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { getCoverageLabel } from '../utils/coverage.js';
 
 const formatMonthLabel = (date) => format(date, 'MMMM yyyy', { locale: es });
 const formatChartMonth = (date) => format(date, 'MMM yy', { locale: es }).replace('.', '').toUpperCase();
@@ -66,14 +67,12 @@ const buildMonthlySnapshot = async (prisma, baseDate) => {
     
     if (apt.patient.isRespiratory) {
       insurance = 'PARTICULAR RESPIRATORIO';
-    } else if (apt.patient.treatAsParticular) {
-      insurance = 'PARTICULAR';
     } else {
-      insurance = apt.patient.healthInsurance || 'SIN COBERTURA';
+      insurance = getCoverageLabel(apt.patient.healthInsurance, apt.patient.treatAsParticular);
     }
 
     insurance = insurance.toUpperCase().trim();
-    if (!insurance) insurance = 'SIN COBERTURA';
+    if (!insurance) insurance = 'PARTICULAR';
     insuranceMap[insurance] = (insuranceMap[insurance] || 0) + 1;
   });
 
