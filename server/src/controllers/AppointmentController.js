@@ -614,8 +614,10 @@ export const updateEvolution = async (req, res, prisma) => {
         select: appointmentSelect,
       });
 
-      // Siempre re-secuenciamos al actualizar una evolución para mantener la coherencia
-      await resequencePatientAppointments(tx, currentApt.patientId);
+      const shouldResequence = isFirstSession !== undefined && isFirstSession !== currentApt.isFirstSession;
+      if (shouldResequence) {
+        await resequencePatientAppointments(tx, currentApt.patientId);
+      }
 
       let evolutionForHistory = evolution || '';
 
