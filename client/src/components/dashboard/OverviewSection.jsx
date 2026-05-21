@@ -76,12 +76,21 @@ const WeeklyCard = ({ weekly }) => (
       />
     </div>
 
-    <div className="mt-4 flex items-center justify-between rounded-2xl border border-purple-200 bg-purple-50 p-4">
-      <div>
-        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-purple-700">Respiratorios</p>
-        <p className="mt-0.5 text-sm font-bold text-slate-600">Semana actual</p>
+    <div className="mt-4 grid gap-3 md:grid-cols-2">
+      <div className="flex items-center justify-between rounded-2xl border border-purple-200 bg-purple-50 p-4">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-purple-700">🫁 Respiratorios</p>
+          <p className="mt-0.5 text-sm font-bold text-slate-600">Semana actual</p>
+        </div>
+        <span className="text-2xl font-black text-purple-900">{formatCount(weekly?.respiratory)}</span>
       </div>
-      <span className="text-2xl font-black text-purple-900">{formatCount(weekly?.respiratory)}</span>
+      <div className="flex items-center justify-between rounded-2xl border border-orange-200 bg-orange-50 p-4">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-orange-700">💧 I.U. / Piso Pélvico</p>
+          <p className="mt-0.5 text-sm font-bold text-slate-600">Semana actual</p>
+        </div>
+        <span className="text-2xl font-black text-orange-900">{formatCount(weekly?.iu)}</span>
+      </div>
     </div>
   </OverviewCard>
 );
@@ -132,6 +141,23 @@ const MonthlyCard = ({ monthly }) => (
     <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
       <p className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-500">Asistencia real del mes</p>
       <p className="mt-2 text-2xl font-black text-slate-900">{formatRate(monthly?.attendanceRate)}</p>
+    </div>
+
+    <div className="mt-3 grid gap-3 md:grid-cols-2">
+      <div className="flex items-center justify-between rounded-2xl border border-purple-200 bg-purple-50 px-4 py-4">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-purple-700">🫁 Respiratorios</p>
+          <p className="mt-0.5 text-sm font-bold text-slate-600">Mes actual</p>
+        </div>
+        <span className="text-xl font-black text-purple-900">{formatCount(monthly?.respiratory)}</span>
+      </div>
+      <div className="flex items-center justify-between rounded-2xl border border-orange-200 bg-orange-50 px-4 py-4">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-orange-700">💧 I.U. / Piso Pélvico</p>
+          <p className="mt-0.5 text-sm font-bold text-slate-600">Mes actual</p>
+        </div>
+        <span className="text-xl font-black text-orange-900">{formatCount(monthly?.iu)}</span>
+      </div>
     </div>
   </OverviewCard>
 );
