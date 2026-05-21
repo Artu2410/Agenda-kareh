@@ -10,6 +10,9 @@ import {
 import { es } from 'date-fns/locale';
 import { getCoverageLabel } from '../utils/coverage.js';
 
+const RESPIRATORY_BUCKET = 'PARTICULAR RESPIRATORIO';
+const IU_BUCKET = 'PARTICULAR IU';
+
 const formatMonthLabel = (date) => format(date, 'MMMM yyyy', { locale: es });
 const formatChartMonth = (date) => format(date, 'MMM yy', { locale: es }).replace('.', '').toUpperCase();
 
@@ -35,6 +38,7 @@ const buildMonthlySnapshot = async (prisma, baseDate) => {
             healthInsurance: true,
             treatAsParticular: true,
             isRespiratory: true,
+            isIU: true,
           },
         },
       },
@@ -66,7 +70,9 @@ const buildMonthlySnapshot = async (prisma, baseDate) => {
     let insurance = '';
     
     if (apt.patient.isRespiratory) {
-      insurance = 'PARTICULAR RESPIRATORIO';
+      insurance = RESPIRATORY_BUCKET;
+    } else if (apt.patient.isIU) {
+      insurance = IU_BUCKET;
     } else {
       insurance = getCoverageLabel(apt.patient.healthInsurance, apt.patient.treatAsParticular);
     }
@@ -95,7 +101,8 @@ const buildMonthlySnapshot = async (prisma, baseDate) => {
     resolvedCount,
     attendanceRate,
     insuranceBreakdown,
-    respiratoryCount: appointments.filter(a => a.patient.isRespiratory).length,
+    respiratoryCount: appointments.filter((appointment) => appointment.patient.isRespiratory).length,
+    iuCount: appointments.filter((appointment) => appointment.patient.isIU).length,
   };
 };
 
@@ -118,13 +125,22 @@ export const getMetrics = async (req, res, prisma) => {
     const weeklyCompleted = weeklyAppointments.filter((appointment) => appointment.status === 'COMPLETED').length;
     const weeklyNoShow = weeklyAppointments.filter((appointment) => appointment.status === 'NO_SHOW').length;
     const weeklyTotal = weeklyAppointments.length;
-    const weeklyRespiratory = await prisma.appointment.count({
-      where: {
-        date: { gte: weekStart, lte: weekEnd },
-        status: { not: 'CANCELLED' },
-        patient: { isRespiratory: true },
-      },
-    });
+    const [weeklyRespiratory, weeklyIU] = await Promise.all([
+      prisma.appointment.count({
+        where: {
+          date: { gte: weekStart, lte: weekEnd },
+          status: { not: 'CANCELLED' },
+          patient: { isRespiratory: true },
+        },
+      }),
+      prisma.appointment.count({
+        where: {
+          date: { gte: weekStart, lte: weekEnd },
+          status: { not: 'CANCELLED' },
+          patient: { isIU: true },
+        },
+      }),
+    ]);
     const weeklyResolved = weeklyCompleted + weeklyNoShow;
 
     const currentMonthSnapshot = await buildMonthlySnapshot(prisma, now);
@@ -192,6 +208,7 @@ export const getMetrics = async (req, res, prisma) => {
         noShow: weeklyNoShow,
         resolved: weeklyResolved,
         respiratory: weeklyRespiratory,
+        iu: weeklyIU,
         percentage: weeklyTotal > 0 ? Number(((weeklyCompleted / weeklyTotal) * 100).toFixed(1)) : 0,
         attendanceRate: weeklyResolved > 0 ? Number(((weeklyCompleted / weeklyResolved) * 100).toFixed(1)) : 0,
       },
@@ -206,9 +223,9 @@ export const getMetrics = async (req, res, prisma) => {
         change: monthlyChange,
         changeLabel: monthlyChange >= 0 ? `+${monthlyChange}%` : `${monthlyChange}%`,
         label: formatMonthLabel(now),
-        label: formatMonthLabel(now),
         insuranceBreakdown: currentMonthSnapshot.insuranceBreakdown,
         respiratory: currentMonthSnapshot.respiratoryCount,
+        iu: currentMonthSnapshot.iuCount,
       },
       annual: {
         patientCount: uniquePatients.length,

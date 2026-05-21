@@ -371,6 +371,8 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
                             {app.patient?.hasMarcapasos && <Activity size={12} className="text-blue-600 stroke-[3px]" />}
                             {app.patient?.usesEA && <Zap size={12} className="text-amber-500 fill-amber-500" />}
                             {app.patient?.usesWheelchair && <span className="text-[14px]" title="Silla de Ruedas">🦽</span>}
+                            {app.patient?.isIU && <span className="text-[14px]" title="Tratamiento IU / piso pélvico">💧</span>}
+                            {app.patient?.isRespiratory && <span className="text-[14px]" title="Respiratorio">🫁</span>}
                           </div>
                         </div>
                       );

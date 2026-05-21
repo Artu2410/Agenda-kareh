@@ -25,7 +25,7 @@ const getCoverageBadgeClass = (value, treatAsParticular = false) => (
     : 'border-teal-200 bg-teal-100/70 text-teal-800'
 );
 
-const getStatusMeta = (status) => {
+const getStatusMeta = (status, isRespiratory, isIU) => {
   if (status === 'COMPLETED') {
     return {
       cardClass: 'border-emerald-200 bg-emerald-50/90',
@@ -43,6 +43,26 @@ const getStatusMeta = (status) => {
       label: 'Inasistencia',
       accentClass: 'bg-rose-500',
       icon: <AlertTriangle size={14} className="shrink-0 text-rose-600" />,
+    };
+  }
+
+  if (isIU && status === 'SCHEDULED') {
+    return {
+      cardClass: 'border-orange-200 bg-orange-50/90',
+      badgeClass: 'bg-orange-100 text-orange-700',
+      label: 'Tratamiento IU',
+      accentClass: 'bg-orange-500',
+      icon: <span className="text-lg">💧</span>,
+    };
+  }
+
+  if (isRespiratory && status === 'SCHEDULED') {
+    return {
+      cardClass: 'border-purple-200 bg-purple-50/90',
+      badgeClass: 'bg-purple-100 text-purple-700',
+      label: 'Respiratorio',
+      accentClass: 'bg-purple-500',
+      icon: <span className="text-lg">🫁</span>,
     };
   }
 
@@ -222,7 +242,11 @@ const MonthlyCalendarGrid = ({
 
                 <div className="mt-3 space-y-2">
                   {visibleAppointments.map((appointment) => {
-                    const statusMeta = getStatusMeta(appointment.status);
+                    const statusMeta = getStatusMeta(
+                      appointment.status,
+                      appointment.patient?.isRespiratory,
+                      appointment.patient?.isIU,
+                    );
 
                     return (
                       <button
@@ -273,6 +297,7 @@ const MonthlyCalendarGrid = ({
                           {appointment.patient?.hasMarcapasos && <Activity size={12} className="stroke-[2.6] text-blue-600" title="Marcapasos" />}
                           {appointment.patient?.usesEA && <Zap size={12} className="fill-amber-500 text-amber-500" title="Electroanalgesia" />}
                           {appointment.patient?.usesWheelchair && <span className="text-[13px]" title="Silla de ruedas">🦽</span>}
+                          {appointment.patient?.isIU && <span className="text-[13px]" title="Tratamiento IU / piso pélvico">💧</span>}
                           {appointment.patient?.isRespiratory && <span className="text-[13px]" title="Respiratorio">🫁</span>}
                         </div>
                       </button>

@@ -381,6 +381,7 @@ export const createAppointment = async (req, res, prisma) => {
             hasCancer: patientData.hasCancer ?? false,
             usesWheelchair: patientData.usesWheelchair ?? false,
             isRespiratory: patientData.isRespiratory ?? false,
+            isIU: patientData.isIU ?? false,
           },
           create: { 
             dni: String(patientData.dni), 
@@ -396,6 +397,7 @@ export const createAppointment = async (req, res, prisma) => {
             hasCancer: patientData.hasCancer ?? false,
             usesWheelchair: patientData.usesWheelchair ?? false,
             isRespiratory: patientData.isRespiratory ?? false,
+            isIU: patientData.isIU ?? false,
           },
           select: patientSelect,
         });
@@ -638,6 +640,7 @@ export const updateEvolution = async (req, res, prisma) => {
             usesEA: patientData.usesEA ?? undefined,
             usesWheelchair: patientData.usesWheelchair ?? undefined,
             isRespiratory: patientData.isRespiratory ?? undefined,
+            isIU: patientData.isIU ?? undefined,
           },
           select: patientIdSelect,
         });

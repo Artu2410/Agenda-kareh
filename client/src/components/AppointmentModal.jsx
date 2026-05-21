@@ -70,7 +70,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
     dni: '', lastName: '', firstName: '', phone: '', birthDate: '',
     healthInsurance: '', obraSocialId: '', treatAsParticular: false, affiliateNumber: '',
     hasCancer: false, hasMarcapasos: false, usesEA: false,
-    usesWheelchair: false, isRespiratory: false,
+    usesWheelchair: false, isRespiratory: false, isIU: false,
   });
 
   const [diagnosis, setDiagnosis] = useState('');
@@ -245,6 +245,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
         usesEA: p.usesEA || false,
         usesWheelchair: p.usesWheelchair || false,
         isRespiratory: p.isRespiratory || false,
+        isIU: p.isIU || false,
       });
       setDiagnosis(appointment.diagnosis || '');
       setStatus(appointment.status || 'SCHEDULED');
@@ -274,7 +275,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
         dni: '', lastName: '', firstName: '', phone: '', birthDate: '',
         healthInsurance: '', obraSocialId: '', treatAsParticular: false, affiliateNumber: '',
         hasCancer: false, hasMarcapasos: false, usesEA: false,
-        usesWheelchair: false, isRespiratory: false,
+        usesWheelchair: false, isRespiratory: false, isIU: false,
       });
       setDiagnosis('');
       setStatus('SCHEDULED');
@@ -331,6 +332,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
           usesEA: data.usesEA || false,
           usesWheelchair: data.usesWheelchair || false,
           isRespiratory: data.isRespiratory || false,
+          isIU: data.isIU || false,
         }));
       }
     } catch {
@@ -996,7 +998,8 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                   { key: 'hasMarcapasos', label: 'Marcapasos', color: 'accent-blue-500' },
                   { key: 'usesEA', label: 'E.A.', color: 'accent-amber-500' },
                   { key: 'usesWheelchair', label: 'Silla Ruedas 🦽', color: 'accent-slate-600' },
-                  { key: 'isRespiratory', label: 'Respiratorio 🫁', color: 'accent-rose-500' }
+                  { key: 'isRespiratory', label: 'Respiratorio 🫁', color: 'accent-rose-500' },
+                  { key: 'isIU', label: 'I.U. Piso Pélvico 💧', color: 'accent-orange-500' }
                 ].map((item) => (
                   <label key={item.key} className="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" className={`${item.color} w-4 h-4`} checked={patientData[item.key]} onChange={e => setPatientData({ ...patientData, [item.key]: e.target.checked })} />
