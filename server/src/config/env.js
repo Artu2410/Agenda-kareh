@@ -12,13 +12,18 @@ const envSchema = z.object({
   // Server
   PORT: z.coerce.number().default(5000),
   JWT_SECRET: z.string().min(32, 'JWT_SECRET debe tener al menos 32 caracteres'),
+  JWT_REFRESH_SECRET: z.string().min(32, 'JWT_REFRESH_SECRET debe tener al menos 32 caracteres').optional(),
+  REFRESH_TOKEN_SECRET: z.string().min(32, 'REFRESH_TOKEN_SECRET debe tener al menos 32 caracteres').optional(),
   JWT_EXPIRES_IN: z.string().default('7d'),
+  COOKIE_SECURE: z.enum(['true', 'false']).default('false'),
+  SENTRY_DSN: z.string().url('SENTRY_DSN debe ser una URL válida').optional().or(z.literal('')),
 
   // Database
   DATABASE_URL: z.string().url('DATABASE_URL debe ser una URL válida'),
 
   // CORS
   FRONTEND_URL: z.string().url().optional(),
+  CLIENT_URL: z.string().url().optional(),
   CORS_ALLOWED_ORIGINS: z.string().default(''),
 
   // Auth

@@ -8,6 +8,7 @@ import {
 } from '../prisma/selects.js';
 import { buildProfessionalPatientWhere, assertScopedProfessionalId, withProfessionalScope } from '../utils/accessScope.js';
 import { auditActions, safeWriteAuditLog } from '../utils/audit.js';
+import { createInternalError } from '../errors/AppError.js';
 
 const parseDateAvoidTZ = (d) => {
   if (!d) return null;
@@ -199,8 +200,7 @@ export const searchPatientByDni = async (req, res, prisma) => {
     if (!patient) return res.status(200).json(null);
     res.status(200).json(patient);
   } catch (error) {
-    console.error('❌ Error en searchPatientByDni:', error);
-    res.status(500).json({ error: 'Error al buscar paciente', message: error.message });
+    throw createInternalError(error, 'Error al buscar paciente');
   }
 };
 
@@ -220,8 +220,7 @@ export const getAllPatients = async (req, res, prisma) => {
     });
     res.status(200).json(patients);
   } catch (error) {
-    console.error('❌ Error en getAllPatients:', error);
-    res.status(500).json({ error: 'Error al obtener los pacientes', message: error.message });
+    throw createInternalError(error, 'Error al obtener los pacientes');
   }
 };
 
@@ -374,11 +373,7 @@ export const getClinicalHistoryPatients = async (req, res, prisma) => {
       },
     });
   } catch (error) {
-    console.error('❌ Error en getClinicalHistoryPatients:', error);
-    res.status(500).json({
-      error: 'Error al obtener pacientes para historias clínicas',
-      message: error.message,
-    });
+    throw createInternalError(error, 'Error al obtener pacientes para historias clínicas');
   }
 };
 
@@ -467,7 +462,7 @@ export const createPatient = async (req, res, prisma) => {
     });
     res.status(201).json(patient);
   } catch (error) {
-    res.status(500).json({ error: 'Error al crear paciente', message: error.message });
+    throw createInternalError(error, 'Error al crear paciente');
   }
 };
 
@@ -541,7 +536,7 @@ export const updatePatient = async (req, res, prisma) => {
     });
     res.status(200).json(patient);
   } catch (error) {
-    res.status(error.statusCode || 500).json({ error: 'Error al actualizar', message: error.message });
+    throw createInternalError(error, 'Error al actualizar el paciente');
   }
 };
 
@@ -573,7 +568,7 @@ export const deletePatient = async (req, res, prisma) => {
     });
     res.status(200).json({ message: 'Eliminado exitosamente' });
   } catch (error) {
-    res.status(500).json({ error: 'Error al eliminar', message: error.message });
+    throw createInternalError(error, 'Error al eliminar el paciente');
   }
 };
 
@@ -608,7 +603,7 @@ export const getPatientById = async (req, res, prisma) => {
     });
     res.status(200).json(patientWithDocuments);
   } catch (error) {
-    res.status(500).json({ error: 'Error al obtener', message: error.message });
+    throw createInternalError(error, 'Error al obtener el paciente');
   }
 };
 
@@ -645,8 +640,7 @@ export const getPatientHistoryByDni = async (req, res, prisma) => {
     });
     res.status(200).json(patientWithDocuments);
   } catch (error) {
-    console.error('❌ Error en getPatientHistoryByDni:', error);
-    res.status(500).json({ error: 'Error al obtener historial', message: error.message });
+    throw createInternalError(error, 'Error al obtener el historial del paciente');
   }
 };
 
@@ -681,8 +675,7 @@ export const getFutureAppointments = async (req, res, prisma) => {
     });
     res.status(200).json(appointments);
   } catch (error) {
-    console.error('❌ Error in getFutureAppointments:', error);
-    res.status(500).json({ error: 'Error fetching future appointments', message: error.message });
+    throw createInternalError(error, 'Error al obtener turnos futuros');
   }
 };
 
@@ -736,8 +729,7 @@ export const getSessionCycles = async (req, res, prisma) => {
     });
     res.status(200).json(result);
   } catch (error) {
-    console.error('Error in getSessionCycles:', error);
-    res.status(500).json({ error: 'Error fetching session cycles', message: error.message });
+    throw createInternalError(error, 'Error al obtener ciclos de sesiones');
   }
 };
 
@@ -782,7 +774,6 @@ export const renumberAllPatients = async (req, res, prisma) => {
     });
     res.status(200).json({ message: `Re-numerados ${patients.length} pacientes correctamente` });
   } catch (error) {
-    console.error('Error en renumberAllPatients:', error);
-    res.status(500).json({ error: 'Error al re-numerar', message: error.message });
+    throw createInternalError(error, 'Error al re-numerar pacientes');
   }
 };

@@ -13,6 +13,7 @@ import { normalizePhone } from '../utils/phone.js';
 import { transcribeAudioBuffer } from '../services/audioTranscription.js';
 import { sendNotificationToAll } from './notifications.controller.js';
 import { findInMemoryWhatsAppCoverageByInput } from '../utils/whatsappCoverageCatalog.js';
+import { createInternalError } from '../errors/AppError.js';
 
 const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
 const WELCOME_TEMPLATE = process.env.WHATSAPP_WELCOME_TEMPLATE || 'bienvenida_kareh';
@@ -1671,8 +1672,7 @@ export const pauseConversationBot = async (req, res, prisma) => {
 
     res.json({ success: true, currentState: FLOW_STATES.HUMAN_HANDOFF });
   } catch (error) {
-    console.error('ERROR PAUSANDO BOT:', error);
-    res.status(500).json({ message: 'No se pudo pausar el bot en esta conversación.' });
+    throw createInternalError(error, 'No se pudo pausar el bot en esta conversación.');
   }
 };
 
@@ -1687,8 +1687,7 @@ export const resumeConversationBot = async (req, res, prisma) => {
 
     res.json({ success: true, currentState: FLOW_STATES.WELCOME });
   } catch (error) {
-    console.error('ERROR REACTIVANDO BOT:', error);
-    res.status(500).json({ message: 'No se pudo reactivar el bot en esta conversación.' });
+    throw createInternalError(error, 'No se pudo reactivar el bot en esta conversación.');
   }
 };
 
@@ -1699,8 +1698,7 @@ export const deleteConversation = async (req, res, prisma) => {
     await prisma.whatsAppConversation.delete({ where: { id } });
     res.json({ success: true });
   } catch (error) {
-    console.error('ERROR AL ELIMINAR:', error);
-    res.status(500).json({ message: 'Error al eliminar la conversación' });
+    throw createInternalError(error, 'Error al eliminar la conversación');
   }
 };
 
@@ -1787,8 +1785,7 @@ export const sendConversationMessage = async (req, res, prisma) => {
 
     res.json({ success: true, messages: createdMessages });
   } catch (error) {
-    console.error('ERROR ENVIANDO MENSAJE:', error);
-    res.status(500).json({ message: 'Error al enviar' });
+    throw createInternalError(error, 'Error al enviar');
   }
 };
 
@@ -1824,7 +1821,6 @@ export const sendWelcomeTemplate = async (req, res, prisma) => {
 
     res.json({ success: true, type: result.outboundType });
   } catch (error) {
-    console.error('ERROR ENVIANDO WELCOME TEMPLATE:', error);
-    res.status(500).json({ message: 'Error al enviar saludo' });
+    throw createInternalError(error, 'Error al enviar saludo');
   }
 };

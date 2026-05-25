@@ -9,6 +9,7 @@ import {
   apiLimiter,
   authLimiter,
   otpLimiter,
+  refreshLimiter,
   uploadLimiter,
   strictLimiter,
   searchLimiter,
@@ -36,6 +37,11 @@ describe('Rate Limiting Configuration', () => {
       expect(typeof uploadLimiter).toBe('function');
     });
 
+    it('should have refreshLimiter configured', () => {
+      expect(refreshLimiter).toBeDefined();
+      expect(typeof refreshLimiter).toBe('function');
+    });
+
     it('should have strictLimiter configured', () => {
       expect(strictLimiter).toBeDefined();
       expect(typeof strictLimiter).toBe('function');
@@ -53,6 +59,7 @@ describe('Rate Limiting Configuration', () => {
         apiLimiter,
         authLimiter,
         otpLimiter,
+        refreshLimiter,
         uploadLimiter,
         strictLimiter,
         searchLimiter,
@@ -82,12 +89,13 @@ describe('Rate Limiting Configuration', () => {
         apiLimiter,
         authLimiter,
         otpLimiter,
+        refreshLimiter,
         uploadLimiter,
         strictLimiter,
         searchLimiter,
       ];
 
-      expect(limiters.length).toBe(6);
+      expect(limiters.length).toBe(7);
       limiters.forEach((limiter) => {
         expect(typeof limiter).toBe('function');
       });

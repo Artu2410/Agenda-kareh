@@ -1,7 +1,6 @@
 import axios from 'axios';
 import { API_BASE_URL } from './apiBase';
 import { ensureCsrfToken } from './csrf';
-import { clearClientSession } from './session';
 import * as authStore from '../stores/auth';
 /**
  * CONFIGURACIÓN DE URL
@@ -16,7 +15,11 @@ const api = axios.create({
   }
 });
 
-const shouldLogRequests = import.meta.env.DEV && import.meta.env.VITE_API_DEBUG !== '0';
+const isDebugEnabled = import.meta.env.DEV && import.meta.env.MODE !== 'test';
+const shouldLogRequests = isDebugEnabled && import.meta.env.VITE_API_DEBUG !== '0';
+let isRefreshing = false;
+let failedQueue = [];
+
 const isRefreshableAuthError = (response) => {
   const status = response?.status;
   if (status === 401) return true;
@@ -24,27 +27,58 @@ const isRefreshableAuthError = (response) => {
   const message = String(response?.data?.message || '').toLowerCase();
   return message.includes('token');
 };
+const shouldSkipAuthRefresh = (config) => Boolean(config?.skipAuthRefresh);
 const buildRequestUrl = (config) => {
   const baseURL = String(config.baseURL || '');
   const url = String(config.url || '');
+  const normalizedBase = baseURL.replace(/\/+$/, '');
+  const normalizedUrl = url.replace(/^\/+/, '');
 
-  try {
-    return new URL(url, baseURL || window.location.origin).toString();
-  } catch {
-    return `${baseURL}${url}`;
-  }
+  if (!normalizedBase) return normalizedUrl ? `/${normalizedUrl}` : url;
+  if (/^https?:\/\//i.test(url)) return url;
+  if (!normalizedUrl) return normalizedBase;
+
+  return `${normalizedBase}/${normalizedUrl}`;
 };
+
+const processQueue = (err, token = null) => {
+  const queue = failedQueue;
+  failedQueue = [];
+
+  if (isDebugEnabled) {
+    console.debug('[api] processQueue', { err: !!err, token, queued: queue.length });
+  }
+
+  queue.forEach(({ resolve, reject }) => {
+    if (err) reject(err);
+    else resolve(token);
+  });
+};
+
+export const resetApiClientState = () => {
+  isRefreshing = false;
+  failedQueue = [];
+  delete api.defaults.headers.common.Authorization;
+};
+
+export const getApiClientState = () => ({
+  isRefreshing,
+  failedQueueLength: failedQueue.length,
+});
 
 // Interceptor para logging/debug
 api.interceptors.request.use(
   async (config) => {
+    config.headers = config.headers || {};
+
     // Añadimos Authorization desde el store en memoria (no localStorage)
     const token = authStore.getAccessToken();
     if (token) {
-      config.headers = config.headers || {};
       config.headers.Authorization = `Bearer ${token}`;
+    } else if (config.headers.Authorization) {
+      delete config.headers.Authorization;
     }
-    if (import.meta.env.DEV) console.debug('[api] request', config.method, config.url, { hasAuth: !!token });
+    if (isDebugEnabled) console.debug('[api] request', config.method, config.url, { hasAuth: !!token });
     const method = (config.method || 'get').toLowerCase();
     const isMutating = ['post', 'put', 'delete', 'patch'].includes(method);
     const isCsrfEndpoint = String(config.url || '').includes('/csrf-token');
@@ -89,6 +123,9 @@ api.interceptors.response.use(
         // Si no se puede regenerar, dejamos que caiga el error
       }
     }
+    if (shouldSkipAuthRefresh(originalRequest)) {
+      return Promise.reject({ ...error, friendlyMessage: message });
+    }
     // Manejo de refresh con queue/dedupe — accessToken en memoria, refresh en cookie httpOnly
     if (isRefreshableAuthError(error.response) && originalRequest && !originalRequest._retry) {
       originalRequest._retry = true;
@@ -96,22 +133,10 @@ api.interceptors.response.use(
       if (isRefreshCall) return Promise.reject(error);
 
       // Queue/dedupe
-      if (!api.isRefreshing) api.isRefreshing = false;
-      if (!api.failedQueue) api.failedQueue = [];
-
-      const processQueue = (err, token = null) => {
-        if (import.meta.env.DEV) console.debug('[api] processQueue', { err: !!err, token });
-        api.failedQueue.forEach((prom) => {
-          if (err) prom.reject(err);
-          else prom.resolve(token);
-        });
-        api.failedQueue = [];
-      };
-
-      if (api.isRefreshing) {
-        if (import.meta.env.DEV) console.debug('[api] request queued while refreshing', originalRequest.url);
+      if (isRefreshing) {
+        if (isDebugEnabled) console.debug('[api] request queued while refreshing', originalRequest.url);
         return new Promise((resolve, reject) => {
-          api.failedQueue.push({ resolve, reject });
+          failedQueue.push({ resolve, reject });
         })
           .then((token) => {
             originalRequest.headers = originalRequest.headers || {};
@@ -121,45 +146,43 @@ api.interceptors.response.use(
           .catch((err) => Promise.reject(err));
       }
 
-      api.isRefreshing = true;
+      isRefreshing = true;
 
-      return new Promise(async (resolve, reject) => {
+      return (async () => {
         try {
-          if (import.meta.env.DEV) console.debug('[api] starting refresh');
+          if (isDebugEnabled) console.debug('[api] starting refresh');
           const refreshResponse = await api.post('/auth/refresh', null, { withCredentials: true });
           const newToken = refreshResponse?.data?.accessToken;
           if (!newToken) throw new Error('No accessToken on refresh');
 
           // actualizar token en memoria
-          if (import.meta.env.DEV) console.debug('[api] refresh success, updating token');
+          if (isDebugEnabled) console.debug('[api] refresh success, updating token');
           authStore.setAccessToken(newToken);
-          api.defaults.headers.common.Authorization = `Bearer ${newToken}`;
 
           processQueue(null, newToken);
-          resolve(api(originalRequest));
+          return api(originalRequest);
         } catch (err) {
-          if (import.meta.env.DEV) console.debug('[api] refresh failed', err?.message || err);
+          if (isDebugEnabled) console.debug('[api] refresh failed', err?.message || err);
           processQueue(err, null);
           // Limpieza global: clear session + logout
           try {
             authStore.clearAuth();
             // intentamos logout en backend para limpiar cookie si es posible
-            await api.post('/auth/logout', null).catch(() => {});
-            if (import.meta.env.DEV) console.debug('[api] triggered backend logout');
-          } catch (e) {
+            await api.post('/auth/logout', null, { skipAuthRefresh: true }).catch(() => {});
+            if (isDebugEnabled) console.debug('[api] triggered backend logout');
+          } catch {
             // ignore
           }
-          clearClientSession();
           // redirigir a login (behaviour global)
           if (typeof window !== 'undefined') {
-            if (import.meta.env.DEV) console.debug('[api] redirecting to /login');
+            if (isDebugEnabled) console.debug('[api] redirecting to /login');
             window.location.href = '/login';
           }
-          reject(err);
+          throw err;
         } finally {
-          api.isRefreshing = false;
+          isRefreshing = false;
         }
-      });
+      })();
     }
     return Promise.reject({ ...error, friendlyMessage: message });
   }

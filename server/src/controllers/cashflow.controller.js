@@ -1,4 +1,5 @@
 import { appointmentBaseSelect } from '../prisma/selects.js';
+import { createInternalError } from '../errors/AppError.js';
 
 const DEFAULT_CATEGORY = 'GENERAL';
 const BONOS_QR_CATEGORY = 'BONOS_QR';
@@ -136,11 +137,7 @@ export const getTransactions = async (req, res, prisma) => {
     });
     res.status(200).json(transactions);
   } catch (error) {
-    console.error("❌ Error fetching transactions:", error);
-    res.status(500).json({ 
-      error: 'Error al obtener transacciones',
-      message: error.message 
-    });
+    throw createInternalError(error, 'Error al obtener transacciones');
   }
 };
 
@@ -158,8 +155,7 @@ export const createTransaction = async (req, res, prisma) => {
     });
     res.status(201).json(transaction);
   } catch (error) {
-    console.error("❌ Error creating transaction:", error);
-    res.status(500).json({ error: 'Error al crear la transacción', message: error.message });
+    throw createInternalError(error, 'Error al crear la transacción');
   }
 };
 
@@ -190,8 +186,7 @@ export const updateTransaction = async (req, res, prisma) => {
     });
     res.status(200).json(updated);
   } catch (error) {
-    console.error("❌ Error updating transaction:", error);
-    res.status(500).json({ error: 'Error al actualizar la transacción', message: error.message });
+    throw createInternalError(error, 'Error al actualizar la transacción');
   }
 };
 
@@ -205,7 +200,6 @@ export const deleteTransaction = async (req, res, prisma) => {
     });
     res.status(200).json({ message: 'Transacción eliminada con éxito' });
   } catch (error) {
-    console.error("❌ Error deleting transaction:", error);
-    res.status(500).json({ error: 'Error al eliminar la transacción', message: error.message });
+    throw createInternalError(error, 'Error al eliminar la transacción');
   }
 };

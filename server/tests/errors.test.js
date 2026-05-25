@@ -1,4 +1,11 @@
-import { AppError, ValidationError, ConflictError, NotFoundError } from '../src/errors/AppError.js';
+import {
+  AppError,
+  ValidationError,
+  ConflictError,
+  NotFoundError,
+  createInternalError,
+  createPublicError,
+} from '../src/errors/AppError.js';
 
 describe('Error Classes', () => {
   describe('AppError', () => {
@@ -8,6 +15,7 @@ describe('Error Classes', () => {
       expect(error.statusCode).toBe(400);
       expect(error.status).toBe('fail');
       expect(error.isOperational).toBe(true);
+      expect(error.publicMessage).toBe('Test error');
     });
 
     it('should classify 4xx errors as "fail"', () => {
@@ -48,6 +56,36 @@ describe('Error Classes', () => {
       const error = new NotFoundError('User not found');
       expect(error.statusCode).toBe(404);
       expect(error.status).toBe('fail');
+    });
+  });
+
+  describe('Error helpers', () => {
+    it('should sanitize internal errors with a public message', () => {
+      const originalError = new Error('Prisma failed with secret SQL');
+      const error = createInternalError(originalError, 'Error al guardar');
+
+      expect(error).toBeInstanceOf(AppError);
+      expect(error.statusCode).toBe(500);
+      expect(error.message).toBe('Prisma failed with secret SQL');
+      expect(error.publicMessage).toBe('Error al guardar');
+    });
+
+    it('should preserve 4xx messages when wrapping operational errors', () => {
+      const originalError = new Error('Turno no encontrado');
+      originalError.statusCode = 404;
+
+      const error = createInternalError(originalError, 'Error interno');
+
+      expect(error.statusCode).toBe(404);
+      expect(error.publicMessage).toBe('Turno no encontrado');
+    });
+
+    it('should create explicit public errors', () => {
+      const error = createPublicError(503, 'Servicio no disponible', new Error('DB down'));
+
+      expect(error.statusCode).toBe(503);
+      expect(error.publicMessage).toBe('Servicio no disponible');
+      expect(error.message).toBe('DB down');
     });
   });
 });

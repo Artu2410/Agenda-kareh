@@ -1,3 +1,5 @@
+import { createInternalError } from '../errors/AppError.js';
+
 const DEFAULT_NOTE_TITLE = 'Nota sin titulo';
 
 const normalizeNoteInput = (note = {}, index = 0) => {
@@ -28,8 +30,7 @@ export const listNotes = async (req, res, prisma) => {
     const notes = await getOrderedNotes(prisma);
     return res.json(notes);
   } catch (error) {
-    console.error('ERROR LISTANDO NOTAS:', error);
-    return res.status(500).json({ message: 'No se pudieron cargar las notas.' });
+    throw createInternalError(error, 'No se pudieron cargar las notas.');
   }
 };
 
@@ -81,7 +82,6 @@ export const syncNotes = async (req, res, prisma) => {
     const notes = await getOrderedNotes(prisma);
     return res.json(notes);
   } catch (error) {
-    console.error('ERROR SINCRONIZANDO NOTAS:', error);
-    return res.status(500).json({ message: 'No se pudieron guardar las notas.' });
+    throw createInternalError(error, 'No se pudieron guardar las notas.');
   }
 };
