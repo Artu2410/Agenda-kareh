@@ -22,14 +22,16 @@ const DURATION_UNITS_MS = {
   d: 24 * 60 * 60 * 1000,
 };
 
-export const USER_ROLES = ['SUPER_USER', 'ADMIN', 'PROFESSIONAL'];
+export const USER_ROLES = ['SUPER_USER', 'ADMIN', 'PROFESSIONAL', 'SECRETARIA'];
 
 const normalizeBootstrapRole = (value = '') => {
   const normalizedRole = String(value || '').trim().toUpperCase();
 
   if (normalizedRole === 'DOCTOR') return 'PROFESSIONAL';
-  if (normalizedRole === 'RECEPTIONIST' || normalizedRole === 'PATIENT') return 'ADMIN';
+  if (normalizedRole === 'RECEPTIONIST') return 'SECRETARIA';
+  if (normalizedRole === 'PATIENT') return 'ADMIN';
   if (normalizedRole === 'SUPERUSER') return 'SUPER_USER';
+  if (normalizedRole === 'KINESIOLOGO') return 'PROFESSIONAL';
 
   return normalizedRole;
 };
