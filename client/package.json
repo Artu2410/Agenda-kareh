@@ -9,6 +9,8 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
+    "test": "vitest",
+    "test:unit": "vitest run",
     "preview": "vite preview"
   },
   "engines": {
@@ -41,6 +43,14 @@
     "postcss": "^8.5.14",
     "tailwindcss": "^4.1.18",
     "vite": "^8.0.8"
+  },
+  "dependenciesMeta": {},
+  "devDependencies": {
+    "vitest": "^0.34.2",
+    "@testing-library/react": "^14.0.0",
+    "@testing-library/jest-dom": "^6.0.0",
+    "msw": "^1.2.1",
+    "whatwg-fetch": "^3.6.2"
   },
   "overrides": {
     "ajv": "^6.14.0",
