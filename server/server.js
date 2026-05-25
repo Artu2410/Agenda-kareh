@@ -5,17 +5,42 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import { PrismaClient } from '@prisma/client';
 import dns from 'node:dns';
+import logger, { createRequestLogger } from './src/config/logger.js';
+import { validateEnv } from './src/config/env.js';
+
+// Phase 2: Swagger, Rate Limiting, Session Management
+import swaggerUi from 'swagger-ui-express';
+import { swaggerSpec } from './src/config/swagger.js';
+import {
+  apiLimiter,
+  authLimiter,
+  otpLimiter,
+  uploadLimiter,
+  searchLimiter,
+} from './src/config/rateLimits.js';
+import SessionManager from './src/utils/sessionManager.js';
+import {
+  sessionValidationMiddleware,
+  deviceDetectionMiddleware,
+  sessionCleanupMiddleware,
+} from './src/middlewares/sessionMiddleware.js';
 
 dns.setDefaultResultOrder('ipv4first');
 dotenv.config();
 
-if (!process.env.JWT_SECRET) {
-    console.error('❌ FATAL: JWT_SECRET no configurado');
-    process.exit(1);
-}
+// Validar variables de entorno antes de iniciar
+const env = validateEnv();
 
 const prisma = new PrismaClient();
 const app = express();
+
+// Phase 2: Initialize SessionManager
+const sessionManager = new SessionManager(prisma);
+
+// Periodic session cleanup every 1 hour
+setInterval(() => {
+  sessionManager.cleanupExpiredSessions();
+}, 60 * 60 * 1000);
 
 import createAuthRoutes from './src/routes/auth.routes.js';
 import createAppointmentRoutes from './src/routes/appointments.routes.js';
@@ -34,6 +59,7 @@ import createNotificationsRoutes from './src/routes/notifications.routes.js';
 import createObrasSocialesRoutes from './src/routes/obrasSociales.routes.js';
 import createUsersRoutes from './src/routes/users.routes.js';
 import createAuditRoutes from './src/routes/audit.routes.js';
+import createSessionsRoutes from './src/routes/sessions.routes.js';
 import { verifyWhatsAppWebhook, handleWhatsAppWebhook } from './src/controllers/whatsapp.controller.js';
 import { authMiddleware } from './src/middlewares/authMiddleware.js';
 import { csrfProtection, getCsrfToken } from './src/middlewares/csrfMiddleware.js';
@@ -112,13 +138,27 @@ const syncBootstrapUsers = async () => {
 
 app.set('trust proxy', 1);
 
+// Agregar timestamp a cada request
+app.use((req, res, next) => {
+    req.startTime = Date.now();
+    next();
+});
+
+// Request logger
+app.use(createRequestLogger);
+
+// Phase 2: Session Management Middleware
+app.use(sessionValidationMiddleware);
+app.use(deviceDetectionMiddleware);
+app.use(sessionCleanupMiddleware(sessionManager));
+
 app.use(cors({
     origin: (origin, callback) => {
         if (isAllowedOrigin(origin)) {
             return callback(null, true);
         }
 
-        console.error('❌ Error de CORS para el origen:', origin);
+        logger.error('CORS origin no permitido', { origin });
         return callback(new Error(`Origin no permitido por CORS: ${origin}`));
     },
     credentials: true,
@@ -219,7 +259,7 @@ app.use((req, res, next) => {
 // ==========================================
 
 // Auth Pública y Verificación
-app.use('/api/auth', createAuthRoutes(prisma));
+app.use('/api/auth', apiLimiter, createAuthRoutes(prisma));
 
 // Diagnóstico WhatsApp temporal (público)
 app.get('/api/whatsapp-config', (req, res) => {
@@ -239,15 +279,26 @@ app.get('/api/whatsapp-config', (req, res) => {
   res.json({ whatsappConfig: config });
 });
 
+// Phase 2: Swagger API Documentation
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.get('/api/swagger.json', (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerSpec);
+});
+
+// ==========================================
+// RUTAS PROTEGIDAS
+// ==========================================
+
 // Rutas protegidas
 app.use('/api/appointments', authMiddleware, createAppointmentRoutes(prisma));
-app.use('/api/patients', authMiddleware, createPatientRoutes(prisma));
+app.use('/api/patients', authMiddleware, searchLimiter, createPatientRoutes(prisma));
 app.use('/api/cashflow', authMiddleware, createCashflowRoutes(prisma));
 app.use('/api/clinical-history', authMiddleware, createClinicalHistoryRoutes(prisma));
 app.use('/api/metrics', authMiddleware, createMetricsRoutes(prisma));
 app.use('/api/notes', authMiddleware, createNotesRoutes(prisma));
 app.use('/api/professionals', authMiddleware, createProfessionalRoutes(prisma));
-app.use('/api/uploads', authMiddleware, createUploadRoutes());
+app.use('/api/uploads', authMiddleware, uploadLimiter, createUploadRoutes());
 app.use('/api/transcription', authMiddleware, createTranscriptionRoutes());
 app.use('/api/whatsapp', authMiddleware, createWhatsAppRoutes(prisma));
 app.use('/api/agenda', authMiddleware, createAgendaRoutes(prisma));
@@ -255,9 +306,17 @@ app.use('/api/notifications', authMiddleware, createNotificationsRoutes(prisma))
 app.use('/api/obras-sociales', authMiddleware, createObrasSocialesRoutes(prisma));
 app.use('/api/users', authMiddleware, createUsersRoutes(prisma));
 app.use('/api/audit', authMiddleware, createAuditRoutes(prisma));
+app.use('/api/sessions', authMiddleware, createSessionsRoutes(prisma, sessionManager));
 
 // Utilidades
 app.get('/api/health', (req, res) => res.status(200).json({ status: 'ok' }));
+
+// Phase 2: Swagger API Documentation
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.get('/api/swagger.json', (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerSpec);
+});
 
 // ==========================================
 // MANEJO DE ERRORES (JSON SIEMPRE)

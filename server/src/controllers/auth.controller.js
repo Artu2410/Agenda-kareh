@@ -26,6 +26,7 @@ import {
   wantsFallbackToken,
 } from '../utils/auth.js';
 import { auditActions, safeWriteAuditLog } from '../utils/audit.js';
+import SessionManager from '../utils/sessionManager.js';
 
 const getResendClient = () => {
   const apiKey = process.env.RESEND_API_KEY;
@@ -413,10 +414,9 @@ export const verifyOTP = async (req, res) => {
       return res.status(401).json({ message: 'Código incorrecto' });
     }
 
-    const sessionId = generateTokenId();
-    const { accessToken, refreshToken, accessTokenId, refreshExpiresAt } = buildLoginTokens(user, sessionId);
     const now = new Date();
 
+    // Mark challenge consumed and cleanup previous challenges + reset counters
     await prisma.$transaction(async (tx) => {
       await tx.authOtpChallenge.update({
         where: { id: challenge.id },
@@ -441,20 +441,16 @@ export const verifyOTP = async (req, res) => {
           lastLoginAt: now,
         },
       });
-
-      await tx.authSession.create({
-        data: {
-          id: sessionId,
-          userId: user.id,
-          refreshTokenHash: hashToken(refreshToken),
-          accessTokenJti: accessTokenId,
-          ipAddress: getRequestIp(req),
-          userAgent: getRequestUserAgent(req),
-          expiresAt: refreshExpiresAt,
-          lastUsedAt: now,
-        },
-      });
     });
+
+    // Create session via SessionManager
+    const sessionManager = new SessionManager(prisma);
+    const { refreshToken, accessToken, sessionId: createdSessionId } = await sessionManager.createSession(
+      user.id,
+      getRequestIp(req),
+      getRequestUserAgent(req),
+      user.role,
+    );
 
     setAuthCookies(res, accessToken, refreshToken);
 
@@ -473,7 +469,7 @@ export const verifyOTP = async (req, res) => {
       details: {
         email: normalizedEmail,
         role: user.role,
-        sessionId,
+        sessionId: createdSessionId,
       },
     });
 
@@ -519,41 +515,30 @@ export const logout = async (req, res) => {
   const accessToken = extractBearerToken(req);
 
   try {
-    if (prisma && refreshToken) {
-      const decoded = jwt.verify(refreshToken, getRefreshSecret());
-      if (decoded?.sid) {
-        await prisma.authSession.updateMany({
-          where: {
-            id: decoded.sid,
-            revokedAt: null,
-          },
-          data: {
-            revokedAt: new Date(),
-            revokedReason: 'LOGOUT',
-          },
-        });
+    if (prisma && (refreshToken || accessToken)) {
+      const sessionManager = new SessionManager(prisma);
 
-        await safeWriteAuditLog(prisma, req, {
-          userId: decoded.sub || null,
-          action: auditActions.authLogout,
-          resource: 'AUTH',
-          resourceId: decoded.sid,
-          details: { reason: 'REFRESH_TOKEN' },
-        });
-      }
-    } else if (prisma && accessToken) {
-      const decoded = jwt.verify(accessToken, getJwtSecret());
-      if (decoded?.sid) {
-        await prisma.authSession.updateMany({
-          where: {
-            id: decoded.sid,
-            revokedAt: null,
-          },
-          data: {
-            revokedAt: new Date(),
-            revokedReason: 'LOGOUT',
-          },
-        });
+      if (refreshToken) {
+        try {
+          const decoded = jwt.verify(refreshToken, getRefreshSecret());
+          if (decoded?.sid) {
+            await sessionManager.revokeSession(decoded.sub, decoded.sid);
+            await safeWriteAuditLog(prisma, req, {
+              userId: decoded.sub || null,
+              action: auditActions.authLogout,
+              resource: 'AUTH',
+              resourceId: decoded.sid,
+              details: { reason: 'REFRESH_TOKEN' },
+            });
+          }
+        } catch {}
+      } else if (accessToken) {
+        try {
+          const decoded = jwt.verify(accessToken, getJwtSecret());
+          if (decoded?.sid) {
+            await sessionManager.revokeSession(decoded.sub, decoded.sid);
+          }
+        } catch {}
       }
     }
   } catch {
@@ -583,76 +568,28 @@ export const refreshToken = async (req, res) => {
       return res.status(401).json({ message: 'Refresh token inválido' });
     }
 
-    const session = await prisma.authSession.findUnique({
-      where: { id: decoded.sid },
-      include: { user: true },
-    });
+    const sessionManager = new SessionManager(prisma);
+    const currentHash = hashToken(token);
 
-    if (!session || session.userId !== decoded.sub) {
-      return res.status(401).json({ message: 'Sesión no encontrada' });
-    }
+    const { accessToken: newAccessToken, refreshToken: newRefreshToken } = await sessionManager.rotateTokens(
+      decoded.sub,
+      currentHash,
+      decoded.role || 'USER',
+    );
 
-    if (session.revokedAt || session.expiresAt <= new Date()) {
-      return res.status(401).json({ message: 'Refresh token expirado o revocado' });
-    }
-
-    if (session.refreshTokenHash !== hashToken(token)) {
-      await prisma.authSession.updateMany({
-        where: {
-          id: session.id,
-          revokedAt: null,
-        },
-        data: {
-          revokedAt: new Date(),
-          revokedReason: 'REFRESH_TOKEN_REUSE_DETECTED',
-        },
-      });
-
-      await safeWriteAuditLog(prisma, req, {
-        userId: session.userId,
-        action: auditActions.authRefreshFailed,
-        resource: 'AUTH',
-        resourceId: session.id,
-        details: { reason: 'REFRESH_TOKEN_REUSE_DETECTED' },
-      });
-
-      clearAuthCookies(res);
-      return res.status(401).json({ message: 'Refresh token inválido' });
-    }
-
-    if (!session.user?.isActive) {
-      return res.status(403).json({ message: 'Usuario deshabilitado' });
-    }
-
-    if (isUserLocked(session.user)) {
-      return res.status(423).json({ message: 'Cuenta temporalmente bloqueada' });
-    }
-
-    const { accessToken, refreshToken: newRefreshToken, accessTokenId, refreshExpiresAt } = buildLoginTokens(session.user, session.id);
-
-    await prisma.authSession.update({
-      where: { id: session.id },
-      data: {
-        refreshTokenHash: hashToken(newRefreshToken),
-        accessTokenJti: accessTokenId,
-        expiresAt: refreshExpiresAt,
-        lastUsedAt: new Date(),
-      },
-    });
-
-    setAuthCookies(res, accessToken, newRefreshToken);
+    setAuthCookies(res, newAccessToken, newRefreshToken);
 
     await safeWriteAuditLog(prisma, req, {
-      userId: session.userId,
+      userId: decoded.sub,
       action: auditActions.authRefreshSucceeded,
       resource: 'AUTH',
-      resourceId: session.id,
-      details: { role: session.user.role },
+      resourceId: decoded.sid,
+      details: { role: decoded.role || 'USER' },
     });
 
     const payload = { success: true };
     if (allowHeaderFallback() && wantsFallbackToken(req)) {
-      payload.accessToken = accessToken;
+      payload.accessToken = newAccessToken;
     }
 
     return res.json(payload);
