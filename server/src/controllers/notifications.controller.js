@@ -1,4 +1,6 @@
 import webpush from 'web-push';
+import logger from '../config/logger.js';
+import { createInternalError } from '../errors/AppError.js';
 
 const publicKey = process.env.VAPID_PUBLIC_KEY;
 const privateKey = process.env.VAPID_PRIVATE_KEY;
@@ -43,8 +45,7 @@ export const subscribe = async (req, res, prisma) => {
 
     res.status(201).json({ success: true });
   } catch (error) {
-    console.error('Error saving subscription:', error);
-    res.status(500).json({ error: 'Internal Server Error' });
+    throw createInternalError(error, 'Internal server error');
   }
 };
 
@@ -56,8 +57,7 @@ export const unsubscribe = async (req, res, prisma) => {
     });
     res.status(200).json({ success: true });
   } catch (error) {
-    console.error('Error deleting subscription:', error);
-    res.status(500).json({ error: 'Internal Server Error' });
+    throw createInternalError(error, 'Internal server error');
   }
 };
 
@@ -76,10 +76,10 @@ export const sendNotificationToAll = async (prisma, payload) => {
     return webpush.sendNotification(pushSubscription, JSON.stringify(payload))
       .catch(async (err) => {
         if (err.statusCode === 404 || err.statusCode === 410) {
-          console.log('Subscription expired or no longer valid:', sub.endpoint);
+          logger.info('Subscription expired or no longer valid', { endpoint: sub.endpoint });
           await prisma.pushSubscription.delete({ where: { id: sub.id } });
         } else {
-          console.error('Error sending notification:', err);
+          logger.error('Error sending notification', { errorMessage: err.message, statusCode: err.statusCode });
         }
       });
   });

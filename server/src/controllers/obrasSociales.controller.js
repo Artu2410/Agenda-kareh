@@ -3,6 +3,7 @@
 // ---------------------------------------------------------
 import { getCokibaSyncStatus, runCokibaSync } from '../services/cokibaSync.js';
 import { auditActions, safeWriteAuditLog } from '../utils/audit.js';
+import { createInternalError, createPublicError } from '../errors/AppError.js';
 
 let activeCokibaSync = null;
 
@@ -88,11 +89,7 @@ export const getObrasSociales = async (req, res, prisma) => {
 
     res.status(200).json(obrasSociales);
   } catch (error) {
-    console.error('❌ Error fetching obras sociales:', error);
-    res.status(500).json({
-      error: 'Error al obtener obras sociales',
-      message: error.message,
-    });
+    throw createInternalError(error, 'Error al obtener obras sociales');
   }
 };
 
@@ -106,11 +103,7 @@ export const getObrasSocialesStatus = async (req, res, prisma) => {
       syncing: Boolean(activeCokibaSync),
     });
   } catch (error) {
-    console.error('❌ Error fetching COKIBA status:', error);
-    res.status(500).json({
-      error: 'Error al obtener el estado de sincronización',
-      message: error.message,
-    });
+    throw createInternalError(error, 'Error al obtener el estado de sincronización');
   }
 };
 
@@ -131,14 +124,12 @@ export const syncObrasSociales = async (req, res, prisma) => {
       ...result,
     });
   } catch (error) {
-    console.error('❌ Error syncing obras sociales:', error);
     const status =
       /credenciales|placeholder/i.test(String(error.message || '')) ? 400 : 500;
-
-    res.status(status).json({
-      error: 'No se pudo sincronizar con COKIBA',
-      message: error.message,
-    });
+    const publicMessage = status === 400
+      ? 'Configuración de COKIBA inválida o incompleta'
+      : 'No se pudo sincronizar con COKIBA';
+    throw createPublicError(status, publicMessage, error);
   } finally {
     activeCokibaSync = null;
   }
@@ -159,11 +150,7 @@ export const getObraSocial = async (req, res, prisma) => {
 
     res.status(200).json(obraSocial);
   } catch (error) {
-    console.error('❌ Error fetching obra social:', error);
-    res.status(500).json({
-      error: 'Error al obtener obra social',
-      message: error.message,
-    });
+    throw createInternalError(error, 'Error al obtener obra social');
   }
 };
 
@@ -230,11 +217,7 @@ export const createObraSocial = async (req, res, prisma) => {
     if (error.code === 'P2002') {
       return res.status(409).json({ error: 'Ya existe una obra social con ese código COKIBA' });
     }
-    console.error('❌ Error creating obra social:', error);
-    res.status(500).json({
-      error: 'Error al crear obra social',
-      message: error.message,
-    });
+    throw createInternalError(error, 'Error al crear obra social');
   }
 };
 
@@ -320,11 +303,7 @@ export const updateObraSocial = async (req, res, prisma) => {
     if (error.code === 'P2025') {
       return res.status(404).json({ error: 'Obra social no encontrada' });
     }
-    console.error('❌ Error updating obra social:', error);
-    res.status(500).json({
-      error: 'Error al actualizar obra social',
-      message: error.message,
-    });
+    throw createInternalError(error, 'Error al actualizar obra social');
   }
 };
 
@@ -377,11 +356,7 @@ export const deleteObraSocial = async (req, res, prisma) => {
     if (error.code === 'P2025') {
       return res.status(404).json({ error: 'Obra social no encontrada' });
     }
-    console.error('❌ Error deleting obra social:', error);
-    res.status(500).json({
-      error: 'Error al eliminar obra social',
-      message: error.message,
-    });
+    throw createInternalError(error, 'Error al eliminar obra social');
   }
 };
 
@@ -397,11 +372,7 @@ export const getObrasSocialesStats = async (req, res, prisma) => {
 
     res.status(200).json({ total, activas, sanMiguel, requierenAutorizacion });
   } catch (error) {
-    console.error('❌ Error fetching OS stats:', error);
-    res.status(500).json({
-      error: 'Error al obtener estadísticas',
-      message: error.message,
-    });
+    throw createInternalError(error, 'Error al obtener estadísticas');
   }
 };
 
@@ -458,9 +429,6 @@ export const getCoinsuranceReport = async (req, res, prisma) => {
       rows,
     });
   } catch (error) {
-    res.status(500).json({
-      error: 'Error al obtener el reporte de coseguros',
-      message: error.message,
-    });
+    throw createInternalError(error, 'Error al obtener el reporte de coseguros');
   }
 };

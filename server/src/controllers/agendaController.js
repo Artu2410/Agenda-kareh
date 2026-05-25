@@ -1,3 +1,5 @@
+import { createInternalError } from '../errors/AppError.js';
+
 const DEFAULT_AGENDA_CONFIG = {
   weekdayStartTime: '08:00',
   weekdayEndTime: '18:00',
@@ -164,7 +166,7 @@ export const getAgendaConfig = async (req, res, prisma) => {
     }
     res.status(200).json(config);
   } catch (error) {
-    res.status(500).json({ message: 'Error fetching agenda config', error: error.message });
+    throw createInternalError(error, 'Error al obtener configuración de agenda');
   }
 };
 
@@ -194,7 +196,7 @@ export const updateAgendaConfig = async (req, res, prisma) => {
     });
     res.status(200).json(updatedConfig);
   } catch (error) {
-    res.status(500).json({ message: 'Error updating agenda config', error: error.message });
+    throw createInternalError(error, 'Error al actualizar configuración de agenda');
   }
 };
 
@@ -219,8 +221,7 @@ export const getAgendaTimers = async (req, res, prisma) => {
 
     return res.json({ timers });
   } catch (error) {
-    console.error('ERROR OBTENIENDO CRONOMETROS:', error);
-    return res.status(500).json({ message: 'No se pudieron cargar los cronómetros.' });
+    throw createInternalError(error, 'No se pudieron cargar los cronómetros.');
   }
 };
 
@@ -292,8 +293,7 @@ export const toggleAgendaTimer = async (req, res, prisma) => {
     const timer = serializeTimerRecord(normalizeTimerRecord(saved, defaultDurationSeconds, now));
     return res.json({ timer });
   } catch (error) {
-    console.error('ERROR ACTUALIZANDO CRONOMETRO:', error);
-    return res.status(500).json({ message: 'No se pudo actualizar el cronómetro.' });
+    throw createInternalError(error, 'No se pudo actualizar el cronómetro.');
   }
 };
 
@@ -335,7 +335,6 @@ export const resetAgendaTimer = async (req, res, prisma) => {
     const timer = serializeTimerRecord(normalizeTimerRecord(saved, defaultDurationSeconds, now));
     return res.json({ timer });
   } catch (error) {
-    console.error('ERROR REINICIANDO CRONOMETRO:', error);
-    return res.status(500).json({ message: 'No se pudo reiniciar el cronómetro.' });
+    throw createInternalError(error, 'No se pudo reiniciar el cronómetro.');
   }
 };

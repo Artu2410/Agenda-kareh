@@ -1,3 +1,4 @@
+import 'express-async-errors';
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -13,8 +14,6 @@ import swaggerUi from 'swagger-ui-express';
 import { swaggerSpec } from './src/config/swagger.js';
 import {
   apiLimiter,
-  authLimiter,
-  otpLimiter,
   uploadLimiter,
   searchLimiter,
 } from './src/config/rateLimits.js';
@@ -66,6 +65,8 @@ import { checkRole } from './src/middlewares/rbacMiddleware.js';
 import { ROLES } from './src/constants/roles.js';
 import { csrfProtection, getCsrfToken } from './src/middlewares/csrfMiddleware.js';
 import { getBootstrapUsers } from './src/utils/auth.js';
+import { NotFoundError } from './src/errors/AppError.js';
+import { errorHandler } from './src/middlewares/errorHandler.js';
 
 const isProduction = process.env.NODE_ENV === 'production';
 
@@ -78,8 +79,10 @@ const allowedOrigins = new Set([
     'https://agenda-kareh.vercel.app',
     'https://kareh-salud.vercel.app',
     'https://agenda.kareh.com.ar',
+    'https://kareh.com.ar',
     'http://localhost:5173',
     'http://localhost:5174',
+    process.env.CLIENT_URL,
     process.env.FRONTEND_URL,
     ...additionalAllowedOrigins,
 ].filter(Boolean));
@@ -114,7 +117,7 @@ const syncBootstrapUsers = async () => {
     const bootstrapUsers = getBootstrapUsers();
 
     if (bootstrapUsers.length === 0) {
-        console.warn('⚠️ No hay usuarios bootstrap configurados');
+        logger.warn('No hay usuarios bootstrap configurados');
         return;
     }
 
@@ -209,17 +212,21 @@ app.use('/api', (req, res, next) => {
 app.use('/api/webhooks/whatsapp', (req, res, next) => {
     const body = req.body || {};
     const entryCount = Array.isArray(body.entry) ? body.entry.length : 0;
-    console.log(`📨 WhatsApp webhook ${req.method}`, { object: body.object, entryCount });
+    (req.logger || logger).info('WhatsApp webhook recibido', {
+        object: body.object,
+        entryCount,
+        method: req.method,
+    });
     next();
 });
 
 prisma.$connect()
   .then(async () => {
-    console.log('✅ DB conectada');
+    logger.info('DB conectada');
     await syncBootstrapUsers();
   })
   .catch((error) => {
-    console.error('❌ Error de conexión DB:', error.message);
+    logger.error('Error de conexión DB', { errorMessage: error.message });
   });
 
 app.use((req, res, next) => {
@@ -245,14 +252,17 @@ app.post('/api/cron/whatsapp-reminders', async (req, res) => {
         const result = await runWhatsappReminders(prisma);
         return res.json({ success: true, ...result });
     } catch (error) {
-        console.error('❌ Error cron WhatsApp:', error);
+        logger.error('Error cron WhatsApp', { errorMessage: error.message });
         return res.status(500).json({ message: 'Error en cron WhatsApp' });
     }
 });
 
 // Logs para depuración
 app.use((req, res, next) => {
-    console.log(`📡 ${req.method} ${req.originalUrl}`);
+    (req.logger || logger).debug('Incoming request', {
+        method: req.method,
+        url: req.originalUrl,
+    });
     next();
 });
 
@@ -311,14 +321,8 @@ app.use('/api/audit', authMiddleware, createAuditRoutes(prisma));
 app.use('/api/sessions', authMiddleware, createSessionsRoutes(prisma, sessionManager));
 
 // Utilidades
+app.get('/health', (req, res) => res.status(200).json({ status: 'ok' }));
 app.get('/api/health', (req, res) => res.status(200).json({ status: 'ok' }));
-
-// Phase 2: Swagger API Documentation
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
-app.get('/api/swagger.json', (req, res) => {
-  res.setHeader('Content-Type', 'application/json');
-  res.send(swaggerSpec);
-});
 
 // ==========================================
 // MANEJO DE ERRORES (JSON SIEMPRE)
@@ -327,26 +331,18 @@ app.get('/api/swagger.json', (req, res) => {
 // Catch-all para cualquier ruta que NO sea /api (evita devolver HTML)
 app.use((req, res, next) => {
     if (!req.url.startsWith('/api')) {
-        return res.status(404).json({ error: "Ruta no encontrada. Recuerda usar el prefijo /api" });
+        return next(new NotFoundError('Ruta no encontrada. Recuerda usar el prefijo /api'));
     }
     next();
 });
 
-app.all('/api/*', (req, res) => {
-    res.status(404).json({ error: "Endpoint no encontrado en la API", path: req.originalUrl });
+app.all('/api/*', (req, res, next) => {
+    next(new NotFoundError(`Endpoint no encontrado en la API: ${req.originalUrl}`));
 });
 
-app.use((err, req, res, next) => {
-    if (err?.code === 'EBADCSRFTOKEN') {
-        return res.status(403).json({ message: 'CSRF token inválido o faltante', code: 'EBADCSRFTOKEN' });
-    }
-    console.error('❌ Error:', err.stack || err);
-    const status = err?.statusCode && Number.isInteger(err.statusCode) ? err.statusCode : 500;
-    const message = err?.message || "Error interno del servidor";
-    res.status(status).json({ message, error: message });
-});
+app.use(errorHandler);
 
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Servidor Kareh Pro en puerto ${PORT}`);
+    logger.info('Servidor Kareh Pro iniciado', { port: PORT });
 });

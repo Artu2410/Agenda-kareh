@@ -2,6 +2,7 @@
 // Exports: getAccessToken, setAccessToken, clearAuth, logout
 
 import { clearClientSession } from '../services/session';
+import { getApiUrl } from '../services/apiBase';
 
 let accessToken = null;
 const listeners = new Set();
@@ -11,17 +12,17 @@ export const getAccessToken = () => accessToken;
 export const setAccessToken = (token) => {
   accessToken = token || null;
   listeners.forEach((fn) => {
-    try { fn(accessToken); } catch (e) { /* ignore */ }
+    try { fn(accessToken); } catch { /* ignore */ }
   });
 };
 
 export const clearAuth = () => {
   accessToken = null;
   listeners.forEach((fn) => {
-    try { fn(accessToken); } catch (e) { /* ignore */ }
+    try { fn(accessToken); } catch { /* ignore */ }
   });
   // clear persisted user/session info (keeps cookies untouched)
-  try { clearClientSession(); } catch (e) { /* ignore */ }
+  try { clearClientSession(); } catch { /* ignore */ }
 };
 
 export const subscribe = (fn) => {
@@ -32,8 +33,8 @@ export const subscribe = (fn) => {
 export const logout = async () => {
   try {
     // try to call backend logout to clear refresh cookie
-    await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }).catch(() => {});
-  } catch (e) {
+    await fetch(getApiUrl('/auth/logout'), { method: 'POST', credentials: 'include' }).catch(() => {});
+  } catch {
     // ignore
   }
   clearAuth();

@@ -20,7 +20,7 @@ export const apiLimiter = rateLimit({
       method: req.method,
     });
     res.status(429).json({
-      status: 'fail',
+      success: false,
       message: 'Demasiadas requests, intenta más tarde',
     });
   },
@@ -39,7 +39,7 @@ export const authLimiter = rateLimit({
     logger.warn('Auth rate limit exceeded', { ip, endpoint: req.path });
 
     res.status(429).json({
-      status: 'fail',
+      success: false,
       message: 'Demasiados intentos fallidos. Intenta en 15 minutos',
     });
   },
@@ -56,8 +56,24 @@ export const otpLimiter = rateLimit({
   handler: (req, res) => {
     logger.warn('OTP rate limit exceeded', { ip: req.ip });
     res.status(429).json({
-      status: 'fail',
+      success: false,
       message: 'Demasiados intentos. Intenta en 15 minutos',
+    });
+  },
+});
+
+export const refreshLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 10, // máx 10 refresh por IP
+  message: 'Demasiados intentos de refrescar la sesión',
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => process.env.NODE_ENV === 'test',
+  handler: (req, res) => {
+    logger.warn('Refresh rate limit exceeded', { ip: req.ip, endpoint: req.path });
+    res.status(429).json({
+      success: false,
+      message: 'Demasiados intentos de refrescar la sesión. Intenta en 15 minutos',
     });
   },
 });
@@ -73,7 +89,7 @@ export const uploadLimiter = rateLimit({
   handler: (req, res) => {
     logger.warn('Upload rate limit exceeded', { ip: req.ip, userId: req.user?.id });
     res.status(429).json({
-      status: 'fail',
+      success: false,
       message: 'Límite de uploads por hora excedido',
     });
   },
@@ -90,7 +106,7 @@ export const strictLimiter = rateLimit({
   handler: (req, res) => {
     logger.warn('Strict rate limit exceeded', { ip: req.ip, userId: req.user?.id });
     res.status(429).json({
-      status: 'fail',
+      success: false,
       message: 'Límite de solicitudes muy frecuentes excedido',
     });
   },
@@ -107,7 +123,7 @@ export const searchLimiter = rateLimit({
   handler: (req, res) => {
     logger.warn('Search rate limit exceeded', { ip: req.ip });
     res.status(429).json({
-      status: 'fail',
+      success: false,
       message: 'Demasiadas búsquedas. Espera un momento',
     });
   },
@@ -117,6 +133,7 @@ export default {
   apiLimiter,
   authLimiter,
   otpLimiter,
+  refreshLimiter,
   uploadLimiter,
   strictLimiter,
   searchLimiter,

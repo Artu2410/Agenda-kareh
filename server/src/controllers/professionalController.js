@@ -6,6 +6,7 @@ import {
 } from '../prisma/selects.js';
 import { assertScopedProfessionalId } from '../utils/accessScope.js';
 import { auditActions, safeWriteAuditLog } from '../utils/audit.js';
+import { createInternalError } from '../errors/AppError.js';
 
 const PROFESSIONALS_CACHE_KEY = 'professionals:all';
 const PROFESSIONALS_CACHE_TTL_MS = 60_000; // 1 min
@@ -78,7 +79,7 @@ export const getAllProfessionals = async (req, res, prisma) => {
     }
     res.status(200).json(professionals);
   } catch (error) {
-    res.status(500).json({ message: 'Error fetching professionals', error: error.message });
+    throw createInternalError(error, 'Error al obtener profesionales');
   }
 };
 
@@ -106,7 +107,7 @@ export const createProfessional = async (req, res, prisma) => {
     });
     res.status(201).json(newProfessional);
   } catch (error) {
-    res.status(500).json({ message: 'Error creating professional', error: error.message });
+    throw createInternalError(error, 'Error al crear profesional');
   }
 };
 
@@ -138,7 +139,7 @@ export const updateProfessional = async (req, res, prisma) => {
     });
     res.status(200).json(updatedProfessional);
   } catch (error) {
-    res.status(500).json({ message: `Error updating professional ${id}`, error: error.message });
+    throw createInternalError(error, 'Error al actualizar profesional');
   }
 };
 
@@ -156,7 +157,7 @@ export const getWorkSchedule = async (req, res, prisma) => {
     });
     res.status(200).json(workSchedule);
   } catch (error) {
-    res.status(500).json({ message: `Error fetching work schedule for professional ${id}`, error: error.message });
+    throw createInternalError(error, 'Error al obtener cronograma profesional');
   }
 };
 
@@ -192,7 +193,7 @@ export const archiveProfessional = async (req, res, prisma) => {
     });
     res.status(200).json(updatedProfessional);
   } catch (error) {
-    res.status(500).json({ message: `Error archiving professional ${id}`, error: error.message });
+    throw createInternalError(error, 'Error al archivar profesional');
   }
 };
 
@@ -255,7 +256,7 @@ export const deleteProfessional = async (req, res, prisma) => {
     });
     res.status(200).json({ message: 'Profesional eliminado exitosamente' });
   } catch (error) {
-    res.status(500).json({ message: `Error deleting professional ${id}`, error: error.message });
+    throw createInternalError(error, 'Error al eliminar profesional');
   }
 };
 
@@ -286,6 +287,6 @@ export const upsertWorkSchedule = async (req, res, prisma) => {
 
     res.status(201).json({ message: 'Work schedule updated successfully', count: result.count });
   } catch (error) {
-    res.status(500).json({ message: `Error updating work schedule for professional ${id}`, error: error.message });
+    throw createInternalError(error, 'Error al actualizar cronograma profesional');
   }
 };

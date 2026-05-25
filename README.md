@@ -72,3 +72,10 @@ The frontend will be running on `http://localhost:5173`.
 -   `npm run dev`: Starts the client in development mode.
 -   `npm run build`: Builds the client for production.
 -   `npm run preview`: Previews the production build locally.
+
+## Ops Runbooks
+
+-   Staging: [ops/STAGING_RUNBOOK.md](/d:/Agenda-kareh/ops/STAGING_RUNBOOK.md:1)
+-   Manual QA: [ops/MANUAL_QA_CHECKLIST.md](/d:/Agenda-kareh/ops/MANUAL_QA_CHECKLIST.md:1)
+-   Backups and restore: [ops/BACKUP_RESTORE_RUNBOOK.md](/d:/Agenda-kareh/ops/BACKUP_RESTORE_RUNBOOK.md:1)
+-   Release readiness: [ops/RELEASE_READINESS.md](/d:/Agenda-kareh/ops/RELEASE_READINESS.md:1)

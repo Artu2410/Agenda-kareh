@@ -5,6 +5,7 @@
  * sin necesidad de tener un servidor real corriendo.
  */
 
+import 'express-async-errors';
 import request from 'supertest';
 import express from 'express';
 import errorHandler from '../src/middlewares/errorHandler.js';
@@ -39,6 +40,10 @@ const createTestApp = () => {
     });
   });
 
+  app.get('/api/test/unexpected-error', async () => {
+    throw new Error('Database connection failed: secret details');
+  });
+
   // Error handler
   app.use(errorHandler);
 
@@ -71,7 +76,7 @@ describe('API Integration Tests', () => {
         .expect(400);
 
       expect(response.body).toEqual({
-        status: 'fail',
+        success: false,
         message: 'Email inválido',
       });
     });
@@ -82,9 +87,25 @@ describe('API Integration Tests', () => {
         .expect(404);
 
       expect(response.body).toEqual({
-        status: 'fail',
+        success: false,
         message: 'Usuario no encontrado',
       });
+    });
+
+    it('should sanitize unexpected errors in production', async () => {
+      const originalEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
+
+      const response = await request(app)
+        .get('/api/test/unexpected-error')
+        .expect(500);
+
+      expect(response.body).toEqual({
+        success: false,
+        message: 'Internal server error',
+      });
+
+      process.env.NODE_ENV = originalEnv;
     });
 
     it('should return 405 for unsupported methods', async () => {

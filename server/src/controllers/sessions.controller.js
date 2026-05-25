@@ -1,4 +1,5 @@
 import SessionManager from '../utils/sessionManager.js';
+import { createInternalError } from '../errors/AppError.js';
 
 export const createSessionsController = (prisma, sessionManager = new SessionManager(prisma)) => ({
   getActiveSessions: async (req, res) => {
@@ -7,8 +8,7 @@ export const createSessionsController = (prisma, sessionManager = new SessionMan
       const sessions = await sessionManager.getActiveSessions(userId);
       return res.json({ success: true, sessions });
     } catch (error) {
-      console.error('Error getting active sessions', error);
-      return res.status(500).json({ message: 'Error al obtener sesiones' });
+      throw createInternalError(error, 'Error al obtener sesiones');
     }
   },
 
@@ -26,8 +26,7 @@ export const createSessionsController = (prisma, sessionManager = new SessionMan
       await sessionManager.revokeSession(userId, sessionId);
       return res.json({ success: true, message: 'Sesión revocada' });
     } catch (error) {
-      console.error('Error revoking session', error);
-      return res.status(500).json({ message: 'Error al revocar sesión' });
+      throw createInternalError(error, 'Error al revocar sesión');
     }
   },
 
@@ -37,8 +36,7 @@ export const createSessionsController = (prisma, sessionManager = new SessionMan
       await sessionManager.revokeAllSessions(userId, 'User requested revoke all');
       return res.json({ success: true, message: 'Todas las sesiones han sido revocadas' });
     } catch (error) {
-      console.error('Error revoking all sessions', error);
-      return res.status(500).json({ message: 'Error al revocar sesiones' });
+      throw createInternalError(error, 'Error al revocar sesiones');
     }
   },
 });

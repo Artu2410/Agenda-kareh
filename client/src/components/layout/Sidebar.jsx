@@ -5,8 +5,9 @@ import toast, { showSuccessToast } from '../toastHelpers';
 import { useConfirmModal } from '../../hooks/useConfirmModal';
 import { APP_ROUTES } from '../../utils/appRoutes';
 import api from '../../services/api';
-import { clearClientSession, getStoredUser } from '../../services/session';
+import { getStoredUser } from '../../services/session';
 import { hasAnyRole } from '../../utils/roles';
+import * as authStore from '../../stores/auth';
 
 const SIDEBAR_WEATHER = {
   latitude: -34.5644444444,
@@ -71,11 +72,11 @@ const Sidebar = ({ onToggle, onLogout, onNavigate, isMobile = false }) => {
       icon: LogOut,
       onConfirm: async () => {
         try {
-          await api.post('/auth/logout');
+          await api.post('/auth/logout', null, { skipAuthRefresh: true });
         } catch {
           // Si falla, igual dejamos al cliente sin sesión activa.
         }
-        clearClientSession();
+        authStore.clearAuth();
         onLogout?.();
         showSuccessToast('Sesión cerrada correctamente');
       },

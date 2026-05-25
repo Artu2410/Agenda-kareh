@@ -27,6 +27,7 @@ import {
 } from '../utils/auth.js';
 import { auditActions, safeWriteAuditLog } from '../utils/audit.js';
 import SessionManager from '../utils/sessionManager.js';
+import { createInternalError, createPublicError } from '../errors/AppError.js';
 
 const getResendClient = () => {
   const apiKey = process.env.RESEND_API_KEY;
@@ -222,7 +223,7 @@ const validateAccessSession = async (prisma, decodedToken) => {
 export const requestOTP = async (req, res) => {
   const prisma = getPrismaFromRequest(req);
   if (!prisma) {
-    return res.status(500).json({ message: 'Base de datos no disponible para autenticación' });
+    throw createPublicError(503, 'Servicio de autenticación no disponible', new Error('Base de datos no disponible para autenticación'));
   }
 
   try {
@@ -314,15 +315,14 @@ export const requestOTP = async (req, res) => {
       devOtp: emailResult.devOtp,
     });
   } catch (error) {
-    console.error('❌ Error en requestOTP:', error);
-    return res.status(500).json({ message: error.message || 'Error interno' });
+    throw createInternalError(error, 'No se pudo solicitar el código OTP');
   }
 };
 
 export const verifyOTP = async (req, res) => {
   const prisma = getPrismaFromRequest(req);
   if (!prisma) {
-    return res.status(500).json({ message: 'Base de datos no disponible para autenticación' });
+    throw createPublicError(503, 'Servicio de autenticación no disponible', new Error('Base de datos no disponible para autenticación'));
   }
 
   try {
@@ -475,8 +475,7 @@ export const verifyOTP = async (req, res) => {
 
     return res.json(buildAuthSuccessPayload(req, freshUser, accessToken));
   } catch (error) {
-    console.error('❌ Error en verifyOTP:', error);
-    return res.status(500).json({ message: 'Error en la verificación' });
+    throw createInternalError(error, 'Error en la verificación');
   }
 };
 
@@ -489,7 +488,7 @@ export const verifyToken = async (req, res) => {
   }
 
   if (!prisma) {
-    return res.status(500).json({ valid: false, message: 'Base de datos no disponible para autenticación' });
+    throw createPublicError(503, 'Servicio de autenticación no disponible', new Error('Base de datos no disponible para autenticación'));
   }
 
   try {
@@ -559,7 +558,7 @@ export const refreshToken = async (req, res) => {
   }
 
   if (!prisma) {
-    return res.status(500).json({ message: 'Base de datos no disponible para autenticación' });
+    throw createPublicError(503, 'Servicio de autenticación no disponible', new Error('Base de datos no disponible para autenticación'));
   }
 
   try {
