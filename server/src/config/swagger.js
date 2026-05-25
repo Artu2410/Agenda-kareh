@@ -44,15 +44,15 @@ const options = {
         Error: {
           type: 'object',
           properties: {
-            status: {
-              type: 'string',
-              enum: ['fail', 'error'],
+            success: {
+              type: 'boolean',
+              example: false,
             },
             message: {
               type: 'string',
             },
           },
-          required: ['status', 'message'],
+          required: ['success', 'message'],
         },
         User: {
           type: 'object',
@@ -69,7 +69,7 @@ const options = {
             },
             role: {
               type: 'string',
-              enum: ['SUPER_USER', 'ADMIN', 'PROFESSIONAL'],
+              enum: ['SUPER_USER', 'ADMIN', 'PROFESSIONAL', 'SECRETARIA'],
             },
             isActive: {
               type: 'boolean',

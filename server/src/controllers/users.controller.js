@@ -1,5 +1,5 @@
 import { safeWriteAuditLog, auditActions } from '../utils/audit.js';
-import { canAssignRole, isSuperUser, normalizeUserRole } from '../utils/roles.js';
+import { canAssignRole, isAdminManagedRole, isSuperUser, normalizeUserRole } from '../utils/roles.js';
 import { createInternalError } from '../errors/AppError.js';
 
 const userSelect = {
@@ -29,7 +29,9 @@ const buildUserListWhere = (currentUser) => {
   if (isSuperUser(currentUser)) return {};
 
   return {
-    role: 'PROFESSIONAL',
+    role: {
+      in: ['PROFESSIONAL', 'SECRETARIA'],
+    },
   };
 };
 
@@ -109,7 +111,7 @@ export const updateUser = async (req, res, prisma) => {
       return res.status(404).json({ message: 'Usuario no encontrado' });
     }
 
-    if (!isSuperUser(req.user) && currentUserRecord.role !== 'PROFESSIONAL') {
+    if (!isSuperUser(req.user) && !isAdminManagedRole(currentUserRecord.role)) {
       return res.status(403).json({ message: 'No autorizado para editar este usuario' });
     }
 
@@ -161,6 +163,10 @@ export const updateUserRole = async (req, res, prisma) => {
       return res.status(404).json({ message: 'Usuario no encontrado' });
     }
 
+    if (!isSuperUser(req.user) && !isAdminManagedRole(currentUserRecord.role)) {
+      return res.status(403).json({ message: 'No autorizado para editar este usuario' });
+    }
+
     const nextRole = validateUserPayload({
       role: req.body.role,
       professionalId: req.body.professionalId ?? currentUserRecord.professionalId,
@@ -206,7 +212,7 @@ export const deleteUser = async (req, res, prisma) => {
       return res.status(404).json({ message: 'Usuario no encontrado' });
     }
 
-    if (!isSuperUser(req.user) && currentUserRecord.role !== 'PROFESSIONAL') {
+    if (!isSuperUser(req.user) && !isAdminManagedRole(currentUserRecord.role)) {
       return res.status(403).json({ message: 'No autorizado para eliminar este usuario' });
     }
 

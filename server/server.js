@@ -303,10 +303,10 @@ app.get('/api/swagger.json', (req, res) => {
 // ==========================================
 
 // Rutas protegidas
-app.use('/api/appointments', authMiddleware, checkRole(ROLES.ADMIN, ROLES.KINESIOLOGO, ROLES.SECRETARIA), createAppointmentRoutes(prisma));
-app.use('/api/patients', authMiddleware, checkRole(ROLES.ADMIN, ROLES.KINESIOLOGO, ROLES.SECRETARIA), searchLimiter, createPatientRoutes(prisma));
-app.use('/api/cashflow', authMiddleware, checkRole(ROLES.ADMIN, ROLES.SECRETARIA), createCashflowRoutes(prisma));
-app.use('/api/clinical-history', authMiddleware, createClinicalHistoryRoutes(prisma));
+app.use('/api/appointments', authMiddleware, checkRole(ROLES.SUPER_USER, ROLES.ADMIN, ROLES.PROFESSIONAL, ROLES.SECRETARIA), createAppointmentRoutes(prisma));
+app.use('/api/patients', authMiddleware, checkRole(ROLES.SUPER_USER, ROLES.ADMIN, ROLES.PROFESSIONAL, ROLES.SECRETARIA), searchLimiter, createPatientRoutes(prisma));
+app.use('/api/cashflow', authMiddleware, checkRole(ROLES.SUPER_USER, ROLES.ADMIN, ROLES.SECRETARIA), createCashflowRoutes(prisma));
+app.use('/api/clinical-history', authMiddleware, checkRole(ROLES.SUPER_USER, ROLES.ADMIN, ROLES.PROFESSIONAL), createClinicalHistoryRoutes(prisma));
 app.use('/api/metrics', authMiddleware, createMetricsRoutes(prisma));
 app.use('/api/notes', authMiddleware, createNotesRoutes(prisma));
 app.use('/api/professionals', authMiddleware, createProfessionalRoutes(prisma));
@@ -316,7 +316,7 @@ app.use('/api/whatsapp', authMiddleware, createWhatsAppRoutes(prisma));
 app.use('/api/agenda', authMiddleware, createAgendaRoutes(prisma));
 app.use('/api/notifications', authMiddleware, createNotificationsRoutes(prisma));
 app.use('/api/obras-sociales', authMiddleware, createObrasSocialesRoutes(prisma));
-app.use('/api/users', authMiddleware, checkRole(ROLES.SUPER_ADMIN, ROLES.ADMIN), createUsersRoutes(prisma));
+app.use('/api/users', authMiddleware, checkRole(ROLES.SUPER_USER, ROLES.ADMIN), createUsersRoutes(prisma));
 app.use('/api/audit', authMiddleware, createAuditRoutes(prisma));
 app.use('/api/sessions', authMiddleware, createSessionsRoutes(prisma, sessionManager));
 

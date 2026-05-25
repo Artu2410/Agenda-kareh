@@ -4,7 +4,7 @@ import { Check, Clock, Edit, Loader2, Plus } from 'lucide-react';
 import ProfessionalModal from '../components/settings/ProfessionalModal';
 import ScheduleModal from '../components/settings/ScheduleModal';
 import { getStoredUser } from '../services/session';
-import { isSuperUser, isAdmin } from '../utils/roles';
+import { formatRoleLabel, getAssignableRoleOptions, isSuperUser, isAdmin } from '../utils/roles';
 
 const DEFAULT_TIMER_DURATION_MINUTES = 25;
 const normalizePositiveInteger = (value, fallbackValue = 1) => Math.max(1, parseInt(value, 10) || fallbackValue);
@@ -58,6 +58,7 @@ const SettingsPage = () => {
   const currentUser = getStoredUser();
   const canManageUsers = isAdmin(currentUser.role);
   const canManageAdminRoles = isSuperUser(currentUser.role);
+  const assignableRoleOptions = getAssignableRoleOptions({ canManageAdminRoles });
 
   const fetchProfessionals = async () => {
     try {
@@ -185,7 +186,7 @@ const SettingsPage = () => {
     setUserForm({
       email: '',
       fullName: '',
-      role: canManageAdminRoles ? 'PROFESSIONAL' : 'PROFESSIONAL',
+      role: 'PROFESSIONAL',
       professionalId: '',
       isActive: true,
     });
@@ -493,8 +494,11 @@ const SettingsPage = () => {
                     onChange={(event) => setUserForm((prev) => ({ ...prev, role: event.target.value }))}
                     className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-teal-200"
                   >
-                    <option value="PROFESSIONAL">PROFESSIONAL</option>
-                    {canManageAdminRoles && <option value="ADMIN">ADMIN</option>}
+                    {assignableRoleOptions.map((roleOption) => (
+                      <option key={roleOption.value} value={roleOption.value}>
+                        {roleOption.label}
+                      </option>
+                    ))}
                   </select>
                   <select
                     value={userForm.professionalId}
@@ -535,19 +539,22 @@ const SettingsPage = () => {
                           <p className="text-base font-black text-slate-800">{user.fullName}</p>
                           <p className="text-sm font-semibold text-slate-500">{user.email}</p>
                           <p className="mt-1 text-xs font-bold uppercase tracking-[0.18em] text-teal-600">
-                            {user.role}
+                            {formatRoleLabel(user.role)}
                             {user.professional?.fullName ? ` · ${user.professional.fullName}` : ''}
                           </p>
                         </div>
                         <div className="flex flex-col gap-2 sm:flex-row">
-                          {canManageAdminRoles && (
+                          {canManageUsers && (
                             <select
                               value={user.role}
                               onChange={(event) => handleChangeUserRole(user, event.target.value)}
                               className="min-h-11 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold outline-none"
                             >
-                              <option value="PROFESSIONAL">PROFESSIONAL</option>
-                              <option value="ADMIN">ADMIN</option>
+                              {assignableRoleOptions.map((roleOption) => (
+                                <option key={roleOption.value} value={roleOption.value}>
+                                  {roleOption.label}
+                                </option>
+                              ))}
                             </select>
                           )}
                           <button

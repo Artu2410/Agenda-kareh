@@ -16,12 +16,12 @@ import AuditoriaPage from './pages/AuditoriaPage';
 import AutorizacionesPage from './pages/AutorizacionesPage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import Sidebar from './components/layout/Sidebar';
+import RequireRole from './components/auth/RequireRole';
 import api from './services/api';
 import { initializeCsrf } from './services/csrf';
 import { clearClientSession, getStoredUser, storeAuthenticatedUser } from './services/session';
 import { registerServiceWorker, subscribeToPushNotifications, playNotificationSound } from './services/notifications';
 import { APP_ROUTES, getDocumentTitle } from './utils/appRoutes';
-import { hasAnyRole } from './utils/roles';
 import { ChevronLeft, ChevronRight, Menu } from 'lucide-react';
 
 const isMobileViewport = () => {
@@ -183,14 +183,6 @@ function App() {
     setSidebarOpen((prev) => !prev);
   }, []);
 
-  const renderRoleRoute = useCallback((element, allowedRoles = null) => {
-    if (!allowedRoles || hasAnyRole(currentUser?.role, allowedRoles)) {
-      return element;
-    }
-
-    return <Navigate to={APP_ROUTES.dashboard} replace />;
-  }, [currentUser?.role]);
-
   if (loading) return <AppBootSplash />;
 
   return (
@@ -259,26 +251,107 @@ function App() {
               <>
                 <Route path="/" element={<Navigate to={APP_ROUTES.dashboard} replace />} />
                 <Route path={APP_ROUTES.dashboard} element={<DashboardPage />} />
-                <Route path={APP_ROUTES.appointments} element={<AppointmentsPage />} />
-                <Route path={APP_ROUTES.patients} element={<PatientsPage />} />
-                <Route path={APP_ROUTES.clinicalHistories} element={<ClinicalHistoriesPage />} />
+                <Route
+                  path={APP_ROUTES.appointments}
+                  element={(
+                    <RequireRole role={currentUser?.role} roles={['SUPER_USER', 'ADMIN', 'PROFESSIONAL', 'SECRETARIA']}>
+                      <AppointmentsPage />
+                    </RequireRole>
+                  )}
+                />
+                <Route
+                  path={APP_ROUTES.patients}
+                  element={(
+                    <RequireRole role={currentUser?.role} roles={['SUPER_USER', 'ADMIN', 'PROFESSIONAL', 'SECRETARIA']}>
+                      <PatientsPage />
+                    </RequireRole>
+                  )}
+                />
+                <Route
+                  path={APP_ROUTES.clinicalHistories}
+                  element={(
+                    <RequireRole role={currentUser?.role} roles={['SUPER_USER', 'ADMIN', 'PROFESSIONAL']}>
+                      <ClinicalHistoriesPage />
+                    </RequireRole>
+                  )}
+                />
                 <Route
                   path={`${APP_ROUTES.clinicalHistoryDetailBase}/:patientSlug`}
-                  element={<ClinicalHistoryPage />}
+                  element={(
+                    <RequireRole role={currentUser?.role} roles={['SUPER_USER', 'ADMIN', 'PROFESSIONAL']}>
+                      <ClinicalHistoryPage />
+                    </RequireRole>
+                  )}
                 />
-                <Route path={APP_ROUTES.cashflow} element={renderRoleRoute(<CashflowPage />, ['SUPER_USER', 'ADMIN'])} />
-                <Route path={APP_ROUTES.notes} element={renderRoleRoute(<NotesPage />, ['SUPER_USER', 'ADMIN'])} />
-                <Route path={APP_ROUTES.whatsapp} element={renderRoleRoute(<WhatsAppPage />, ['SUPER_USER', 'ADMIN'])} />
-                <Route path={APP_ROUTES.settings} element={renderRoleRoute(<SettingsPage />, ['SUPER_USER', 'ADMIN'])} />
-                <Route path={APP_ROUTES.obrasSociales} element={renderRoleRoute(<ObrasSocialesPage />, ['SUPER_USER', 'ADMIN'])} />
-                <Route path={APP_ROUTES.audit} element={renderRoleRoute(<AuditoriaPage />, ['SUPER_USER', 'ADMIN'])} />
-                <Route path={APP_ROUTES.authorizations} element={renderRoleRoute(<AutorizacionesPage />, ['SUPER_USER', 'ADMIN'])} />
+                <Route
+                  path={APP_ROUTES.cashflow}
+                  element={(
+                    <RequireRole role={currentUser?.role} roles={['SUPER_USER', 'ADMIN', 'SECRETARIA']}>
+                      <CashflowPage />
+                    </RequireRole>
+                  )}
+                />
+                <Route
+                  path={APP_ROUTES.notes}
+                  element={(
+                    <RequireRole role={currentUser?.role} roles={['SUPER_USER', 'ADMIN']}>
+                      <NotesPage />
+                    </RequireRole>
+                  )}
+                />
+                <Route
+                  path={APP_ROUTES.whatsapp}
+                  element={(
+                    <RequireRole role={currentUser?.role} roles={['SUPER_USER', 'ADMIN']}>
+                      <WhatsAppPage />
+                    </RequireRole>
+                  )}
+                />
+                <Route
+                  path={APP_ROUTES.settings}
+                  element={(
+                    <RequireRole role={currentUser?.role} roles={['SUPER_USER', 'ADMIN']}>
+                      <SettingsPage />
+                    </RequireRole>
+                  )}
+                />
+                <Route
+                  path={APP_ROUTES.obrasSociales}
+                  element={(
+                    <RequireRole role={currentUser?.role} roles={['SUPER_USER', 'ADMIN']}>
+                      <ObrasSocialesPage />
+                    </RequireRole>
+                  )}
+                />
+                <Route
+                  path={APP_ROUTES.audit}
+                  element={(
+                    <RequireRole role={currentUser?.role} roles={['SUPER_USER', 'ADMIN']}>
+                      <AuditoriaPage />
+                    </RequireRole>
+                  )}
+                />
+                <Route
+                  path={APP_ROUTES.authorizations}
+                  element={(
+                    <RequireRole role={currentUser?.role} roles={['SUPER_USER', 'ADMIN']}>
+                      <AutorizacionesPage />
+                    </RequireRole>
+                  )}
+                />
 
                 <Route path="/dashboard" element={<Navigate to={APP_ROUTES.dashboard} replace />} />
                 <Route path="/appointments" element={<Navigate to={APP_ROUTES.appointments} replace />} />
                 <Route path="/patients" element={<Navigate to={APP_ROUTES.patients} replace />} />
                 <Route path="/clinical-histories" element={<Navigate to={APP_ROUTES.clinicalHistories} replace />} />
-                <Route path="/clinical-history/:legacyPatientId" element={<ClinicalHistoryPage />} />
+                <Route
+                  path="/clinical-history/:legacyPatientId"
+                  element={(
+                    <RequireRole role={currentUser?.role} roles={['SUPER_USER', 'ADMIN', 'PROFESSIONAL']}>
+                      <ClinicalHistoryPage />
+                    </RequireRole>
+                  )}
+                />
                 <Route path="/cashflow" element={<Navigate to={APP_ROUTES.cashflow} replace />} />
                 <Route path="/notes" element={<Navigate to={APP_ROUTES.notes} replace />} />
                 <Route path="/whatsapp" element={<Navigate to={APP_ROUTES.whatsapp} replace />} />
