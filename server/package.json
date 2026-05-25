@@ -7,6 +7,9 @@
   "scripts": {
     "start": "node scripts/bootstrap-production.js",
     "dev": "nodemon server.js",
+    "test": "jest --coverage",
+    "test:watch": "jest --watch",
+    "test:debug": "node --inspect-brk node_modules/.bin/jest --runInBand",
     "prisma:generate": "prisma generate",
     "prisma:migrate:deploy": "prisma migrate deploy",
     "check:auth": "node scripts/check-auth-config.js",
@@ -32,6 +35,7 @@
     "date-fns": "^3.6.0",
     "dotenv": "^17.2.3",
     "express": "^4.22.1",
+    "express-async-errors": "^3.1.1",
     "express-rate-limit": "^8.5.1",
     "helmet": "^8.1.0",
     "joi": "^18.0.2",
@@ -39,13 +43,22 @@
     "multer": "^2.1.1",
     "p-queue": "^8.1.1",
     "pdfkit": "^0.15.2",
+    "puppeteer": "^24.9.0",
     "resend": "^6.9.3",
+    "swagger-jsdoc": "^6.3.0",
+    "swagger-ui-express": "^5.0.1",
     "web-push": "^3.6.7",
-    "puppeteer": "^24.9.0"
+    "winston": "^3.19.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@babel/preset-env": "^7.29.7",
+    "@types/jest": "^30.0.0",
+    "babel-jest": "^30.4.1",
+    "jest": "^30.4.2",
     "nodemon": "^3.1.0",
-    "prisma": "^5.22.0"
+    "prisma": "^5.22.0",
+    "supertest": "^7.2.2"
   },
   "overrides": {
     "brace-expansion": "^1.1.13",

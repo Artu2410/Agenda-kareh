@@ -11,6 +11,12 @@ server/node_modules/
 dist/
 build/
 
+# Logs and coverage
+server/logs/
+server/coverage/
+coverage/
+*.log
+
 # IDE and OS specific
 .DS_Store
 .vscode/
