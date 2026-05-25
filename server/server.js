@@ -62,6 +62,8 @@ import createAuditRoutes from './src/routes/audit.routes.js';
 import createSessionsRoutes from './src/routes/sessions.routes.js';
 import { verifyWhatsAppWebhook, handleWhatsAppWebhook } from './src/controllers/whatsapp.controller.js';
 import { authMiddleware } from './src/middlewares/authMiddleware.js';
+import { checkRole } from './src/middlewares/rbacMiddleware.js';
+import { ROLES } from './src/constants/roles.js';
 import { csrfProtection, getCsrfToken } from './src/middlewares/csrfMiddleware.js';
 import { getBootstrapUsers } from './src/utils/auth.js';
 
@@ -291,9 +293,9 @@ app.get('/api/swagger.json', (req, res) => {
 // ==========================================
 
 // Rutas protegidas
-app.use('/api/appointments', authMiddleware, createAppointmentRoutes(prisma));
-app.use('/api/patients', authMiddleware, searchLimiter, createPatientRoutes(prisma));
-app.use('/api/cashflow', authMiddleware, createCashflowRoutes(prisma));
+app.use('/api/appointments', authMiddleware, checkRole(ROLES.ADMIN, ROLES.KINESIOLOGO, ROLES.SECRETARIA), createAppointmentRoutes(prisma));
+app.use('/api/patients', authMiddleware, checkRole(ROLES.ADMIN, ROLES.KINESIOLOGO, ROLES.SECRETARIA), searchLimiter, createPatientRoutes(prisma));
+app.use('/api/cashflow', authMiddleware, checkRole(ROLES.ADMIN, ROLES.SECRETARIA), createCashflowRoutes(prisma));
 app.use('/api/clinical-history', authMiddleware, createClinicalHistoryRoutes(prisma));
 app.use('/api/metrics', authMiddleware, createMetricsRoutes(prisma));
 app.use('/api/notes', authMiddleware, createNotesRoutes(prisma));
@@ -304,7 +306,7 @@ app.use('/api/whatsapp', authMiddleware, createWhatsAppRoutes(prisma));
 app.use('/api/agenda', authMiddleware, createAgendaRoutes(prisma));
 app.use('/api/notifications', authMiddleware, createNotificationsRoutes(prisma));
 app.use('/api/obras-sociales', authMiddleware, createObrasSocialesRoutes(prisma));
-app.use('/api/users', authMiddleware, createUsersRoutes(prisma));
+app.use('/api/users', authMiddleware, checkRole(ROLES.SUPER_ADMIN, ROLES.ADMIN), createUsersRoutes(prisma));
 app.use('/api/audit', authMiddleware, createAuditRoutes(prisma));
 app.use('/api/sessions', authMiddleware, createSessionsRoutes(prisma, sessionManager));
 
