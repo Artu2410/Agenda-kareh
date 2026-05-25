@@ -44,6 +44,7 @@ api.interceptors.request.use(
       config.headers = config.headers || {};
       config.headers.Authorization = `Bearer ${token}`;
     }
+    if (import.meta.env.DEV) console.debug('[api] request', config.method, config.url, { hasAuth: !!token });
     const method = (config.method || 'get').toLowerCase();
     const isMutating = ['post', 'put', 'delete', 'patch'].includes(method);
     const isCsrfEndpoint = String(config.url || '').includes('/csrf-token');
@@ -99,6 +100,7 @@ api.interceptors.response.use(
       if (!api.failedQueue) api.failedQueue = [];
 
       const processQueue = (err, token = null) => {
+        if (import.meta.env.DEV) console.debug('[api] processQueue', { err: !!err, token });
         api.failedQueue.forEach((prom) => {
           if (err) prom.reject(err);
           else prom.resolve(token);
@@ -107,6 +109,7 @@ api.interceptors.response.use(
       };
 
       if (api.isRefreshing) {
+        if (import.meta.env.DEV) console.debug('[api] request queued while refreshing', originalRequest.url);
         return new Promise((resolve, reject) => {
           api.failedQueue.push({ resolve, reject });
         })
@@ -122,29 +125,34 @@ api.interceptors.response.use(
 
       return new Promise(async (resolve, reject) => {
         try {
+          if (import.meta.env.DEV) console.debug('[api] starting refresh');
           const refreshResponse = await api.post('/auth/refresh', null, { withCredentials: true });
           const newToken = refreshResponse?.data?.accessToken;
           if (!newToken) throw new Error('No accessToken on refresh');
 
           // actualizar token en memoria
+          if (import.meta.env.DEV) console.debug('[api] refresh success, updating token');
           authStore.setAccessToken(newToken);
           api.defaults.headers.common.Authorization = `Bearer ${newToken}`;
 
           processQueue(null, newToken);
           resolve(api(originalRequest));
         } catch (err) {
+          if (import.meta.env.DEV) console.debug('[api] refresh failed', err?.message || err);
           processQueue(err, null);
           // Limpieza global: clear session + logout
           try {
             authStore.clearAuth();
             // intentamos logout en backend para limpiar cookie si es posible
             await api.post('/auth/logout', null).catch(() => {});
+            if (import.meta.env.DEV) console.debug('[api] triggered backend logout');
           } catch (e) {
             // ignore
           }
           clearClientSession();
           // redirigir a login (behaviour global)
           if (typeof window !== 'undefined') {
+            if (import.meta.env.DEV) console.debug('[api] redirecting to /login');
             window.location.href = '/login';
           }
           reject(err);
