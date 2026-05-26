@@ -15,6 +15,7 @@ import {
 import { sendNotificationToEmails } from '../services/pushNotifications.js';
 import { withProfessionalScope, assertScopedProfessionalId } from '../utils/accessScope.js';
 import { calculatePatientCharge, buildDocumentChecklist, isInactiveInsurance } from '../utils/insurance.js';
+import { buildStoredFinancialSnapshot } from '../utils/appointmentFinancialSnapshot.js';
 import { normalizePhone } from '../utils/phone.js';
 import { auditActions, safeWriteAuditLog } from '../utils/audit.js';
 import logger from '../config/logger.js';
@@ -258,9 +259,15 @@ const prepareReusedDocuments = async (tx, patientId, checklist = null) => {
   return nextChecklist;
 };
 
-const buildAppointmentWritePayload = async (tx, patient, payload = {}) => {
+const buildAppointmentWritePayload = async (tx, patient, payload = {}, options = {}) => {
+  const { currentAppointment = null } = options;
   const insuranceContext = await getAppointmentInsuranceContext(tx, patient, payload);
   const hydratedChecklist = await prepareReusedDocuments(tx, patient.id, insuranceContext.documentsChecklist);
+  const financialSnapshot = buildStoredFinancialSnapshot({
+    currentAppointment,
+    nextObraSocialId: insuranceContext.obraSocialId,
+    nextCharge: insuranceContext.charge,
+  });
 
   return {
     obraSocialId: insuranceContext.obraSocialId,
@@ -269,9 +276,9 @@ const buildAppointmentWritePayload = async (tx, patient, payload = {}) => {
     authorizationNumber: payload.authorizationNumber || null,
     authorizationFileUrl: payload.authorizationFileUrl || null,
     documentsChecklist: hydratedChecklist,
-    coinsuranceAmount: insuranceContext.charge.total,
-    patientChargeAmount: insuranceContext.charge.total,
-    coinsuranceDetails: insuranceContext.charge,
+    coinsuranceAmount: financialSnapshot.coinsuranceAmount,
+    patientChargeAmount: financialSnapshot.patientChargeAmount,
+    coinsuranceDetails: financialSnapshot.coinsuranceDetails,
     paidInAdvance: Boolean(payload.paidInAdvance),
     sessionToken: payload.sessionToken || null,
   };
@@ -596,6 +603,8 @@ export const updateEvolution = async (req, res, prisma) => {
         authorizationFileUrl,
         paidInAdvance: paidInAdvance ?? currentApt.paidInAdvance,
         sessionToken: sessionToken ?? currentApt.sessionToken,
+      }, {
+        currentAppointment: currentApt,
       });
 
       const updatedAppointment = await tx.appointment.update({
@@ -751,6 +760,8 @@ export const updateAppointment = async (req, res, prisma) => {
         authorizationFileUrl,
         paidInAdvance: paidInAdvance ?? currentAppointment.paidInAdvance,
         sessionToken: sessionToken ?? currentAppointment.sessionToken,
+      }, {
+        currentAppointment: currentAppointment,
       });
 
       // Actualizar datos del paciente

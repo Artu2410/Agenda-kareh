@@ -1,12 +1,9 @@
-const MONTHLY_HONORARIOS_EXCLUDED_PATTERN = /\b(PAMI|OSDE)\b/i;
+import { resolveStoredHonorarioAmount } from './appointmentFinancialSnapshot.js';
 
+const MONTHLY_HONORARIOS_EXCLUDED_PATTERN = /\b(PAMI|OSDE)\b/i;
 const roundCurrency = (value) => Math.round((Number(value) || 0) * 100) / 100;
 
-export const resolveAppointmentHonorario = (appointment = {}) => {
-  const storedHonorario = roundCurrency(appointment?.coinsuranceDetails?.honorario);
-  if (storedHonorario > 0) return storedHonorario;
-  return roundCurrency(appointment?.obraSocial?.honorarioEstimado);
-};
+export const resolveAppointmentHonorario = (appointment = {}) => resolveStoredHonorarioAmount(appointment);
 
 export const isAgreementInsuranceForMonthlyHonorarios = (appointment = {}) => {
   const obraSocial = appointment?.obraSocial;
