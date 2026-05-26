@@ -145,7 +145,6 @@ model Patient {
   dni                       String            @unique
   fullName                  String
   clinicalRecordNumber      Int               @unique @default(autoincrement())
-  folio                     Int?
   email                     String?
   birthDate                 DateTime
   healthInsurance           String?

@@ -14,11 +14,10 @@ import api from '../services/api';
 import { buildClinicalHistoryPath, persistClinicalHistoryContext } from '../utils/appRoutes';
 import { getCoverageLabel, isParticularCoverage } from '../utils/coverage';
 
-const formatClinicalRecordNumber = (value, folio) => {
+const formatClinicalRecordNumber = (value) => {
   const numericValue = Number(value);
   if (!Number.isInteger(numericValue) || numericValue <= 0) return 'Pendiente';
-  const hc = `HC ${String(numericValue).padStart(4, '0')}`;
-  return folio ? `${hc} / Folio ${folio}` : hc;
+  return `HC ${String(numericValue).padStart(4, '0')}`;
 };
 
 const getLocalDateInputValue = (date = new Date()) => {
@@ -257,7 +256,7 @@ export default function ClinicalHistoriesPage() {
                   <div className="mb-3 flex items-start justify-between gap-4">
                     <div className="flex-1">
                       <p className="mb-2 inline-flex rounded-full bg-slate-100 px-3 py-1 text-[11px] font-black uppercase tracking-[0.22em] text-slate-500">
-                        {formatClinicalRecordNumber(patient.clinicalRecordNumber, patient.folio)}
+                        {formatClinicalRecordNumber(patient.clinicalRecordNumber)}
                       </p>
                       <h3 className="text-lg font-bold uppercase text-slate-900 group-hover:text-teal-700">
                         {patient.fullName}

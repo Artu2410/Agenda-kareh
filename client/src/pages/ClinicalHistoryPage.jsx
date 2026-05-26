@@ -19,11 +19,10 @@ import {
   normalizeClinicalRichTextHtml,
 } from '../utils/clinicalRichText';
 
-const formatClinicalRecordNumber = (value, folio) => {
+const formatClinicalRecordNumber = (value) => {
   const numericValue = Number(value);
   if (!Number.isInteger(numericValue) || numericValue <= 0) return 'Pendiente';
-  const hc = `HC ${String(numericValue).padStart(4, '0')}`;
-  return folio ? `${hc} / Folio ${folio}` : hc;
+  return `HC ${String(numericValue).padStart(4, '0')}`;
 };
 
 const escapePrintHtml = (value) => String(value || '')
@@ -928,7 +927,7 @@ const ClinicalHistoryPage = () => {
 
     const patientSummary = {
       fullName: escapePrintHtml(patient?.fullName || 'Paciente sin nombre'),
-      recordNumber: escapePrintHtml(formatClinicalRecordNumber(patient?.clinicalRecordNumber, patient?.folio)),
+      recordNumber: escapePrintHtml(formatClinicalRecordNumber(patient?.clinicalRecordNumber)),
       dni: escapePrintHtml(patient?.dni || 'Sin dato'),
       birthDate: escapePrintHtml(formatDisplayDate(patient?.birthDate || '')),
       age: escapePrintHtml(String(calculateAge(patient?.birthDate))),
@@ -1046,7 +1045,7 @@ const ClinicalHistoryPage = () => {
               <div className="min-w-0">
                 <h1 className="text-[11px] font-black text-teal-600 uppercase tracking-[0.3em] mb-2">KAREH · Historia Clínica</h1>
                 <p className="mb-3 inline-flex rounded-full bg-slate-100 px-4 py-2 text-[11px] font-black uppercase tracking-[0.24em] text-slate-500">
-                  {formatClinicalRecordNumber(patient?.clinicalRecordNumber, patient?.folio)}
+                  {formatClinicalRecordNumber(patient?.clinicalRecordNumber)}
                 </p>
                 <h2 className="text-4xl md:text-5xl font-black text-slate-800 uppercase italic tracking-tighter">
                   {patient?.fullName}
@@ -1062,7 +1061,7 @@ const ClinicalHistoryPage = () => {
                 <section className="bg-slate-50 p-6 rounded-4xl border border-slate-100 shadow-sm">
                   <h3 className="text-[10px] font-black text-slate-400 uppercase mb-4 tracking-widest">Ficha Base</h3>
                   <div className="space-y-3 text-[11px]">
-                    <p className="flex justify-between border-b border-slate-200 pb-2"><b>HC:</b> <span>{formatClinicalRecordNumber(patient?.clinicalRecordNumber, patient?.folio)}</span></p>
+                    <p className="flex justify-between border-b border-slate-200 pb-2"><b>HC:</b> <span>{formatClinicalRecordNumber(patient?.clinicalRecordNumber)}</span></p>
                     <p className="flex justify-between border-b border-slate-200 pb-2"><b>DNI:</b> <span>{patient?.dni}</span></p>
 
                     <div className="border-b border-slate-200 pb-2">
@@ -1340,7 +1339,7 @@ const ClinicalHistoryPage = () => {
             <header className="print-header mb-8 border-b border-slate-300 pb-6">
               <div className="mb-3 text-[11px] font-black uppercase tracking-[0.35em] text-teal-600">Kareh · Historia Clínica</div>
               <div className="mb-3 inline-flex rounded-full border border-slate-300 bg-slate-100 px-4 py-2 text-[11px] font-black uppercase tracking-[0.24em] text-slate-500">
-                {formatClinicalRecordNumber(patient?.clinicalRecordNumber, patient?.folio)}
+                {formatClinicalRecordNumber(patient?.clinicalRecordNumber)}
               </div>
               <h1 className="text-5xl font-black uppercase italic tracking-tighter text-slate-800">{patient?.fullName}</h1>
             </header>
@@ -1352,7 +1351,7 @@ const ClinicalHistoryPage = () => {
                   <div className="space-y-4 text-[12px]">
                     <div className="border-b border-slate-300 pb-3">
                       <div className="mb-1 text-[9px] font-black uppercase tracking-widest text-slate-400">Historia Clínica</div>
-                      <div className="font-black text-slate-800">{formatClinicalRecordNumber(patient?.clinicalRecordNumber, patient?.folio)}</div>
+                      <div className="font-black text-slate-800">{formatClinicalRecordNumber(patient?.clinicalRecordNumber)}</div>
                     </div>
                     <div className="border-b border-slate-300 pb-3">
                       <div className="mb-1 text-[9px] font-black uppercase tracking-widest text-slate-400">DNI</div>
