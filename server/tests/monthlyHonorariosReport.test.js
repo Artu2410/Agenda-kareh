@@ -12,6 +12,13 @@ describe('monthly honorarios report', () => {
     })).toBe(2400);
   });
 
+  it('does not fallback to the current obra social amount when no snapshot exists', () => {
+    expect(resolveAppointmentHonorario({
+      coinsuranceDetails: null,
+      obraSocial: { honorarioEstimado: 1800 },
+    })).toBe(0);
+  });
+
   it('filters out PAMI, OSDE and inactive insurances', () => {
     expect(isAgreementInsuranceForMonthlyHonorarios({
       obraSocial: { nombreOs: 'PAMI', isActive: true, isArchived: false, honorarioEstimado: 1000 },
@@ -49,16 +56,6 @@ describe('monthly honorarios report', () => {
         },
       },
       {
-        obraSocialId: 'os-2',
-        coinsuranceDetails: null,
-        obraSocial: {
-          nombreOs: 'SWISS MEDICAL',
-          honorarioEstimado: 1500,
-          isActive: true,
-          isArchived: false,
-        },
-      },
-      {
         obraSocialId: 'os-3',
         coinsuranceDetails: { honorario: 3000 },
         obraSocial: {
@@ -76,12 +73,6 @@ describe('monthly honorarios report', () => {
         obraSocialName: 'IOMA',
         totalAmount: 4000,
         appointmentCount: 2,
-      },
-      {
-        obraSocialId: 'os-2',
-        obraSocialName: 'SWISS MEDICAL',
-        totalAmount: 1500,
-        appointmentCount: 1,
       },
     ]);
   });
