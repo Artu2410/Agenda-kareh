@@ -11,6 +11,8 @@ import {
   XCircle,
   RefreshCw,
   Filter,
+  ChevronLeft,
+  ChevronRight,
   ChevronDown,
   ChevronUp,
   Banknote,
@@ -34,6 +36,18 @@ const formatDateTime = (value) => {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return 'Nunca';
   return parsed.toLocaleString('es-AR');
+};
+
+const getMonthInputValue = (date = new Date()) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+
+const shiftMonthValue = (monthValue, delta) => {
+  const [year, month] = String(monthValue || '').split('-').map(Number);
+  const baseDate = Number.isFinite(year) && Number.isFinite(month)
+    ? new Date(year, month - 1 + delta, 1)
+    : new Date();
+
+  return getMonthInputValue(baseDate);
 };
 
 const getCokibaDetails = (obraSocial) => {
@@ -465,7 +479,9 @@ const ObrasSocialesPage = () => {
   const [filtroEstado, setFiltroEstado] = useState('active');
   const [filtroZona, setFiltroZona] = useState('');
   const [stats, setStats] = useState({ total: 0, activas: 0, sanMiguel: 0 });
+  const [selectedReportMonth, setSelectedReportMonth] = useState(() => getMonthInputValue());
   const [coinsuranceReport, setCoinsuranceReport] = useState({ month: '', totalAmount: 0, rows: [] });
+  const [reportLoading, setReportLoading] = useState(false);
   const [syncStatus, setSyncStatus] = useState({
     total: 0,
     activas: 0,
@@ -507,20 +523,15 @@ const ObrasSocialesPage = () => {
 
       if (filtroZona === 'san-miguel') params.zona = 'san-miguel';
 
-      const currentMonth = new Date();
-      const month = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}`;
-
-      const [osRes, statsRes, syncStatusRes, reportRes] = await Promise.all([
+      const [osRes, statsRes, syncStatusRes] = await Promise.all([
         instance.get('/obras-sociales', { params }),
         instance.get('/obras-sociales/stats'),
         instance.get('/obras-sociales/status'),
-        instance.get('/obras-sociales/coinsurance-report', { params: { month } }),
       ]);
 
       setObrasSociales(osRes.data);
       setStats(statsRes.data);
       setSyncStatus(syncStatusRes.data);
-      setCoinsuranceReport(reportRes.data || { month, totalAmount: 0, rows: [] });
     } catch (error) {
       console.error('Error fetching obras sociales:', error);
       showErrorToast('No se pudieron cargar las obras sociales.');
@@ -532,6 +543,28 @@ const ObrasSocialesPage = () => {
   useEffect(() => {
     void fetchObrasSociales();
   }, [fetchObrasSociales]);
+
+  const fetchCoinsuranceReport = useCallback(async () => {
+    const month = selectedReportMonth || getMonthInputValue();
+
+    try {
+      setReportLoading(true);
+      const { data } = await instance.get('/obras-sociales/coinsurance-report', {
+        params: { month },
+      });
+      setCoinsuranceReport(data || { month, totalAmount: 0, rows: [] });
+    } catch (error) {
+      console.error('Error fetching monthly honorarios report:', error);
+      setCoinsuranceReport({ month, totalAmount: 0, rows: [] });
+      showErrorToast('No se pudo cargar el reporte mensual.');
+    } finally {
+      setReportLoading(false);
+    }
+  }, [selectedReportMonth]);
+
+  useEffect(() => {
+    void fetchCoinsuranceReport();
+  }, [fetchCoinsuranceReport]);
 
   const filtered = useMemo(() => {
     let list = [...obrasSociales];
@@ -781,6 +814,8 @@ const ObrasSocialesPage = () => {
   const hasSyncConfigurationIssue = !canSync;
   const syncInProgress = syncing || Boolean(syncStatus.syncing);
   const syncIsPublic = syncStatus.config?.accessMode === 'public';
+  const currentMonthValue = getMonthInputValue();
+  const canMoveReportForward = selectedReportMonth < currentMonthValue;
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 sm:p-6">
@@ -1063,24 +1098,63 @@ const ObrasSocialesPage = () => {
         )}
 
         <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">Reporte mensual de coseguros</p>
-              <p className="mt-1 text-sm font-semibold text-slate-500">Mes analizado: {coinsuranceReport.month || 'actual'}</p>
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">Honorarios por convenio</p>
+              <p className="mt-1 text-sm font-semibold text-slate-500">Mes analizado: {coinsuranceReport.month || selectedReportMonth || 'actual'}</p>
+              <p className="mt-1 text-xs font-semibold text-slate-400">Total estimado a cobrar. Excluye PAMI y OSDE.</p>
             </div>
-            <p className="text-2xl font-black text-teal-700">
-              {formatCurrency(coinsuranceReport.totalAmount || 0)}
-            </p>
+            <div className="flex flex-col gap-3 sm:items-end">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedReportMonth((current) => shiftMonthValue(current, -1))}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:border-teal-300 hover:text-teal-700"
+                  aria-label="Ver mes anterior"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <input
+                  type="month"
+                  value={selectedReportMonth}
+                  max={currentMonthValue}
+                  onChange={(event) => setSelectedReportMonth(event.target.value || currentMonthValue)}
+                  className="min-h-10 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 outline-none transition focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+                />
+                <button
+                  type="button"
+                  onClick={() => setSelectedReportMonth((current) => shiftMonthValue(current, 1))}
+                  disabled={!canMoveReportForward}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:border-teal-300 hover:text-teal-700 disabled:cursor-not-allowed disabled:opacity-40"
+                  aria-label="Ver mes siguiente"
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+              <p className="text-2xl font-black text-teal-700">
+                {formatCurrency(coinsuranceReport.totalAmount || 0)}
+              </p>
+            </div>
           </div>
-          {coinsuranceReport.rows?.length > 0 && (
+          {reportLoading ? (
+            <div className="mt-4 flex items-center gap-2 text-sm font-semibold text-slate-500">
+              <RefreshCw size={16} className="animate-spin text-teal-500" />
+              Cargando reporte mensual...
+            </div>
+          ) : coinsuranceReport.rows?.length > 0 ? (
             <div className="mt-4 grid gap-2 md:grid-cols-3">
               {coinsuranceReport.rows.slice(0, 6).map((row) => (
                 <div key={row.obraSocialId || row.obraSocialName} className="rounded-2xl bg-slate-50 p-3">
                   <p className="text-sm font-black text-slate-800">{row.obraSocialName}</p>
                   <p className="mt-1 text-xs font-semibold text-slate-500">{row.appointmentCount} turnos</p>
                   <p className="mt-2 text-sm font-black text-teal-700">{formatCurrency(row.totalAmount)}</p>
+                  <p className="mt-1 text-[11px] font-semibold text-slate-400">Honorarios estimados</p>
                 </div>
               ))}
+            </div>
+          ) : (
+            <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm font-semibold text-slate-500">
+              No hay honorarios por convenio registrados para {coinsuranceReport.month || selectedReportMonth}.
             </div>
           )}
         </div>

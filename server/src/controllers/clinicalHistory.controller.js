@@ -1,3 +1,5 @@
+import { createInternalError } from '../errors/AppError.js';
+
 // 1. CREAR ENTRADA EN HISTORIA CLÍNICA
 export const createClinicalHistory = async (req, res, prisma) => {
   const { 
@@ -50,11 +52,7 @@ export const createClinicalHistory = async (req, res, prisma) => {
 
     res.status(201).json(result);
   } catch (error) {
-    console.error("❌ Error de Prisma:", error);
-    res.status(500).json({ 
-      error: 'Error interno al guardar', 
-      details: error.message 
-    });
+    throw createInternalError(error, 'Error interno al guardar');
   }
 };
 
@@ -74,6 +72,6 @@ export const getHistoryByPatient = async (req, res, prisma) => {
 
     res.status(200).json(formattedHistory);
   } catch (error) {
-    res.status(500).json({ error: 'Error al obtener el historial' });
+    throw createInternalError(error, 'Error al obtener el historial');
   }
 };

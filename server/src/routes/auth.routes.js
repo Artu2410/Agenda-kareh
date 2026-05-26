@@ -1,8 +1,9 @@
 import { Router } from 'express';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { requestOTP, verifyOTP, verifyToken, logout, refreshToken } from '../controllers/auth.controller.js';
-import { validateBody } from '../middlewares/validate.js';
-import { requestOtpSchema, verifyOtpSchema } from '../schemas/auth.schema.js';
+import { validate } from '../middlewares/validate.js';
+import { refreshLimiter } from '../config/rateLimits.js';
+import { requestOtpBodySchema, verifyOtpBodySchema } from '../validations/authSchemas.js';
 
 export default function createAuthRoutes(prisma) {
   const router = Router();
@@ -29,11 +30,11 @@ export default function createAuthRoutes(prisma) {
     keyGenerator: keyFromRequest,
   });
 
-  router.post('/request-otp', requestOtpLimiter, validateBody(requestOtpSchema), requestOTP);
-  router.post('/verify-otp', verifyOtpLimiter, validateBody(verifyOtpSchema), verifyOTP);
+  router.post('/request-otp', requestOtpLimiter, validate({ body: requestOtpBodySchema }), requestOTP);
+  router.post('/verify-otp', verifyOtpLimiter, validate({ body: verifyOtpBodySchema }), verifyOTP);
   router.get('/verify', verifyToken);
   router.post('/logout', logout);
-  router.post('/refresh', refreshToken);
+  router.post('/refresh', refreshLimiter, refreshToken);
 
   return router;
 }

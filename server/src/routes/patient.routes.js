@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { 
-  searchPatientByDni, 
-  getAllPatients, 
+import {
+  searchPatientByDni,
+  getAllPatients,
   getClinicalHistoryPatients,
   createPatient, 
   updatePatient, 
@@ -12,9 +12,13 @@ import {
   getSessionCycles,
   renumberAllPatients
 } from '../controllers/patient.controller.js';
-import { validateBody } from '../middlewares/validate.js';
-import { createPatientSchema } from '../schemas/patient.schema.js';
+import { validate } from '../middlewares/validate.js';
 import { checkRole } from '../middlewares/authMiddleware.js';
+import {
+  createPatientBodySchema,
+  patientIdParamsSchema,
+  updatePatientBodySchema,
+} from '../validations/patientSchemas.js';
 
 export default function createPatientRoutes(prisma) {
   const router = Router();
@@ -29,10 +33,10 @@ export default function createPatientRoutes(prisma) {
   router.get('/:id', (req, res) => getPatientById(req, res, prisma));
   
   // Rutas POST/DELETE
-  router.post('/', validateBody(createPatientSchema), (req, res) => createPatient(req, res, prisma));
+  router.post('/', validate({ body: createPatientBodySchema }), (req, res) => createPatient(req, res, prisma));
   router.delete('/:id', (req, res) => deletePatient(req, res, prisma));
-  router.put('/:id', (req, res) => updatePatient(req, res, prisma));
-  router.patch('/:id', (req, res) => updatePatient(req, res, prisma));
+  router.put('/:id', validate({ params: patientIdParamsSchema, body: updatePatientBodySchema }), (req, res) => updatePatient(req, res, prisma));
+  router.patch('/:id', validate({ params: patientIdParamsSchema, body: updatePatientBodySchema }), (req, res) => updatePatient(req, res, prisma));
   router.post('/admin/renumber', checkRole('SUPER_USER', 'ADMIN'), (req, res) => renumberAllPatients(req, res, prisma));
 
   return router;

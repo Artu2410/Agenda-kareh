@@ -1,5 +1,6 @@
 import { safeWriteAuditLog, auditActions } from '../utils/audit.js';
-import { canAssignRole, isSuperUser, normalizeUserRole } from '../utils/roles.js';
+import { canAssignRole, isAdminManagedRole, isSuperUser, normalizeUserRole } from '../utils/roles.js';
+import { createInternalError } from '../errors/AppError.js';
 
 const userSelect = {
   id: true,
@@ -28,7 +29,9 @@ const buildUserListWhere = (currentUser) => {
   if (isSuperUser(currentUser)) return {};
 
   return {
-    role: 'PROFESSIONAL',
+    role: {
+      in: ['PROFESSIONAL', 'SECRETARIA'],
+    },
   };
 };
 
@@ -63,7 +66,7 @@ export const listUsers = async (req, res, prisma) => {
 
     res.json(users);
   } catch (error) {
-    res.status(500).json({ message: 'Error al obtener usuarios', error: error.message });
+    throw createInternalError(error, 'Error al obtener usuarios');
   }
 };
 
@@ -91,7 +94,7 @@ export const createUser = async (req, res, prisma) => {
 
     res.status(201).json(user);
   } catch (error) {
-    res.status(error.statusCode || 500).json({ message: 'Error al crear usuario', error: error.message });
+    throw createInternalError(error, 'Error al crear usuario');
   }
 };
 
@@ -108,7 +111,7 @@ export const updateUser = async (req, res, prisma) => {
       return res.status(404).json({ message: 'Usuario no encontrado' });
     }
 
-    if (!isSuperUser(req.user) && currentUserRecord.role !== 'PROFESSIONAL') {
+    if (!isSuperUser(req.user) && !isAdminManagedRole(currentUserRecord.role)) {
       return res.status(403).json({ message: 'No autorizado para editar este usuario' });
     }
 
@@ -139,7 +142,7 @@ export const updateUser = async (req, res, prisma) => {
 
     res.json(updatedUser);
   } catch (error) {
-    res.status(error.statusCode || 500).json({ message: 'Error al actualizar usuario', error: error.message });
+    throw createInternalError(error, 'Error al actualizar usuario');
   }
 };
 
@@ -158,6 +161,10 @@ export const updateUserRole = async (req, res, prisma) => {
 
     if (!currentUserRecord) {
       return res.status(404).json({ message: 'Usuario no encontrado' });
+    }
+
+    if (!isSuperUser(req.user) && !isAdminManagedRole(currentUserRecord.role)) {
+      return res.status(403).json({ message: 'No autorizado para editar este usuario' });
     }
 
     const nextRole = validateUserPayload({
@@ -184,7 +191,7 @@ export const updateUserRole = async (req, res, prisma) => {
 
     res.json(updatedUser);
   } catch (error) {
-    res.status(error.statusCode || 500).json({ message: 'Error al actualizar rol', error: error.message });
+    throw createInternalError(error, 'Error al actualizar rol');
   }
 };
 
@@ -205,7 +212,7 @@ export const deleteUser = async (req, res, prisma) => {
       return res.status(404).json({ message: 'Usuario no encontrado' });
     }
 
-    if (!isSuperUser(req.user) && currentUserRecord.role !== 'PROFESSIONAL') {
+    if (!isSuperUser(req.user) && !isAdminManagedRole(currentUserRecord.role)) {
       return res.status(403).json({ message: 'No autorizado para eliminar este usuario' });
     }
 
@@ -220,6 +227,6 @@ export const deleteUser = async (req, res, prisma) => {
 
     res.json({ success: true });
   } catch (error) {
-    res.status(error.statusCode || 500).json({ message: 'Error al eliminar usuario', error: error.message });
+    throw createInternalError(error, 'Error al eliminar usuario');
   }
 };

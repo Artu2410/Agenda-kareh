@@ -3,6 +3,7 @@ import multer from 'multer';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { uploadBufferToStorage } from '../services/storage.js';
+import { createInternalError, createPublicError } from '../errors/AppError.js';
 
 const MAX_UPLOAD_MB = Number(process.env.UPLOAD_MAX_MB || 25);
 const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
@@ -71,17 +72,10 @@ export default function createUploadRoutes() {
         size: req.file.size,
       });
     } catch (error) {
-      console.error('ERROR AL SUBIR ARCHIVO:', error);
       if (error?.message === 'Storage no configurado') {
-        return res.status(503).json({
-          message: 'Storage no configurado. Revisar variables de entorno.',
-          detail: error.message,
-        });
+        throw createPublicError(503, 'Storage no configurado. Revisar variables de entorno.', error);
       }
-      return res.status(500).json({
-        message: 'Error al subir archivo',
-        detail: error?.message,
-      });
+      throw createInternalError(error, 'Error al subir archivo');
     }
   });
 

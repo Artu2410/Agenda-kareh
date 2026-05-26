@@ -1,3 +1,5 @@
+import { createInternalError } from '../errors/AppError.js';
+
 const auditLogSelect = {
   id: true,
   userId: true,
@@ -52,7 +54,7 @@ export const listAuditLogs = async (req, res, prisma) => {
 
     res.json(logs);
   } catch (error) {
-    res.status(500).json({ message: 'Error al obtener auditoría', error: error.message });
+    throw createInternalError(error, 'Error al obtener auditoría');
   }
 };
 
@@ -73,6 +75,6 @@ export const cleanupAuditLogs = async (req, res, prisma) => {
       cutoffDate,
     });
   } catch (error) {
-    res.status(500).json({ message: 'Error al limpiar auditoría', error: error.message });
+    throw createInternalError(error, 'Error al limpiar auditoría');
   }
 };

@@ -9,6 +9,7 @@ import {
 } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { getCoverageLabel } from '../utils/coverage.js';
+import { createInternalError } from '../errors/AppError.js';
 
 const RESPIRATORY_BUCKET = 'PARTICULAR RESPIRATORIO';
 const IU_BUCKET = 'PARTICULAR IU';
@@ -236,7 +237,6 @@ export const getMetrics = async (req, res, prisma) => {
       monthlyTrend,
     });
   } catch (error) {
-    console.error('❌ Error en getMetrics:', error);
-    res.status(500).json({ message: 'Error al obtener métricas', error: error.message });
+    throw createInternalError(error, 'Error al obtener métricas');
   }
 };
