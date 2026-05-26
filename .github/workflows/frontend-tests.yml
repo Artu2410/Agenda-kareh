@@ -1,0 +1,36 @@
+name: Frontend Unit Tests
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ feature/**, main ]
+
+jobs:
+  client-tests:
+    name: Client unit tests (Vitest)
+    runs-on: ubuntu-latest
+    concurrency:
+      group: frontend-tests
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Cache node modules
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/client/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+      - name: Install client deps
+        run: |
+          cd client
+          npm ci --legacy-peer-deps
+      - name: Run client unit tests
+        run: |
+          cd client
+          npm run test:unit

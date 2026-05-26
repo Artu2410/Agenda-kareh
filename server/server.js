@@ -1,3 +1,4 @@
+import 'express-async-errors';
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -5,17 +6,40 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import { PrismaClient } from '@prisma/client';
 import dns from 'node:dns';
+import logger, { createRequestLogger } from './src/config/logger.js';
+import { validateEnv } from './src/config/env.js';
+
+// Phase 2: Swagger, Rate Limiting, Session Management
+import swaggerUi from 'swagger-ui-express';
+import { swaggerSpec } from './src/config/swagger.js';
+import {
+  apiLimiter,
+  uploadLimiter,
+  searchLimiter,
+} from './src/config/rateLimits.js';
+import SessionManager from './src/utils/sessionManager.js';
+import {
+  sessionValidationMiddleware,
+  deviceDetectionMiddleware,
+  sessionCleanupMiddleware,
+} from './src/middlewares/sessionMiddleware.js';
 
 dns.setDefaultResultOrder('ipv4first');
 dotenv.config();
 
-if (!process.env.JWT_SECRET) {
-    console.error('❌ FATAL: JWT_SECRET no configurado');
-    process.exit(1);
-}
+// Validar variables de entorno antes de iniciar
+const env = validateEnv();
 
 const prisma = new PrismaClient();
 const app = express();
+
+// Phase 2: Initialize SessionManager
+const sessionManager = new SessionManager(prisma);
+
+// Periodic session cleanup every 1 hour
+setInterval(() => {
+  sessionManager.cleanupExpiredSessions();
+}, 60 * 60 * 1000);
 
 import createAuthRoutes from './src/routes/auth.routes.js';
 import createAppointmentRoutes from './src/routes/appointments.routes.js';
@@ -34,10 +58,15 @@ import createNotificationsRoutes from './src/routes/notifications.routes.js';
 import createObrasSocialesRoutes from './src/routes/obrasSociales.routes.js';
 import createUsersRoutes from './src/routes/users.routes.js';
 import createAuditRoutes from './src/routes/audit.routes.js';
+import createSessionsRoutes from './src/routes/sessions.routes.js';
 import { verifyWhatsAppWebhook, handleWhatsAppWebhook } from './src/controllers/whatsapp.controller.js';
 import { authMiddleware } from './src/middlewares/authMiddleware.js';
+import { checkRole } from './src/middlewares/rbacMiddleware.js';
+import { ROLES } from './src/constants/roles.js';
 import { csrfProtection, getCsrfToken } from './src/middlewares/csrfMiddleware.js';
 import { getBootstrapUsers } from './src/utils/auth.js';
+import { NotFoundError } from './src/errors/AppError.js';
+import { errorHandler } from './src/middlewares/errorHandler.js';
 
 const isProduction = process.env.NODE_ENV === 'production';
 
@@ -50,8 +79,10 @@ const allowedOrigins = new Set([
     'https://agenda-kareh.vercel.app',
     'https://kareh-salud.vercel.app',
     'https://agenda.kareh.com.ar',
+    'https://kareh.com.ar',
     'http://localhost:5173',
     'http://localhost:5174',
+    process.env.CLIENT_URL,
     process.env.FRONTEND_URL,
     ...additionalAllowedOrigins,
 ].filter(Boolean));
@@ -86,7 +117,7 @@ const syncBootstrapUsers = async () => {
     const bootstrapUsers = getBootstrapUsers();
 
     if (bootstrapUsers.length === 0) {
-        console.warn('⚠️ No hay usuarios bootstrap configurados');
+        logger.warn('No hay usuarios bootstrap configurados');
         return;
     }
 
@@ -112,13 +143,27 @@ const syncBootstrapUsers = async () => {
 
 app.set('trust proxy', 1);
 
+// Agregar timestamp a cada request
+app.use((req, res, next) => {
+    req.startTime = Date.now();
+    next();
+});
+
+// Request logger
+app.use(createRequestLogger);
+
+// Phase 2: Session Management Middleware
+app.use(sessionValidationMiddleware);
+app.use(deviceDetectionMiddleware);
+app.use(sessionCleanupMiddleware(sessionManager));
+
 app.use(cors({
     origin: (origin, callback) => {
         if (isAllowedOrigin(origin)) {
             return callback(null, true);
         }
 
-        console.error('❌ Error de CORS para el origen:', origin);
+        logger.error('CORS origin no permitido', { origin });
         return callback(new Error(`Origin no permitido por CORS: ${origin}`));
     },
     credentials: true,
@@ -167,17 +212,21 @@ app.use('/api', (req, res, next) => {
 app.use('/api/webhooks/whatsapp', (req, res, next) => {
     const body = req.body || {};
     const entryCount = Array.isArray(body.entry) ? body.entry.length : 0;
-    console.log(`📨 WhatsApp webhook ${req.method}`, { object: body.object, entryCount });
+    (req.logger || logger).info('WhatsApp webhook recibido', {
+        object: body.object,
+        entryCount,
+        method: req.method,
+    });
     next();
 });
 
 prisma.$connect()
   .then(async () => {
-    console.log('✅ DB conectada');
+    logger.info('DB conectada');
     await syncBootstrapUsers();
   })
   .catch((error) => {
-    console.error('❌ Error de conexión DB:', error.message);
+    logger.error('Error de conexión DB', { errorMessage: error.message });
   });
 
 app.use((req, res, next) => {
@@ -203,14 +252,17 @@ app.post('/api/cron/whatsapp-reminders', async (req, res) => {
         const result = await runWhatsappReminders(prisma);
         return res.json({ success: true, ...result });
     } catch (error) {
-        console.error('❌ Error cron WhatsApp:', error);
+        logger.error('Error cron WhatsApp', { errorMessage: error.message });
         return res.status(500).json({ message: 'Error en cron WhatsApp' });
     }
 });
 
 // Logs para depuración
 app.use((req, res, next) => {
-    console.log(`📡 ${req.method} ${req.originalUrl}`);
+    (req.logger || logger).debug('Incoming request', {
+        method: req.method,
+        url: req.originalUrl,
+    });
     next();
 });
 
@@ -219,7 +271,7 @@ app.use((req, res, next) => {
 // ==========================================
 
 // Auth Pública y Verificación
-app.use('/api/auth', createAuthRoutes(prisma));
+app.use('/api/auth', apiLimiter, createAuthRoutes(prisma));
 
 // Diagnóstico WhatsApp temporal (público)
 app.get('/api/whatsapp-config', (req, res) => {
@@ -239,24 +291,37 @@ app.get('/api/whatsapp-config', (req, res) => {
   res.json({ whatsappConfig: config });
 });
 
+// Phase 2: Swagger API Documentation
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.get('/api/swagger.json', (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerSpec);
+});
+
+// ==========================================
+// RUTAS PROTEGIDAS
+// ==========================================
+
 // Rutas protegidas
-app.use('/api/appointments', authMiddleware, createAppointmentRoutes(prisma));
-app.use('/api/patients', authMiddleware, createPatientRoutes(prisma));
-app.use('/api/cashflow', authMiddleware, createCashflowRoutes(prisma));
-app.use('/api/clinical-history', authMiddleware, createClinicalHistoryRoutes(prisma));
+app.use('/api/appointments', authMiddleware, checkRole(ROLES.SUPER_USER, ROLES.ADMIN, ROLES.PROFESSIONAL, ROLES.SECRETARIA), createAppointmentRoutes(prisma));
+app.use('/api/patients', authMiddleware, checkRole(ROLES.SUPER_USER, ROLES.ADMIN, ROLES.PROFESSIONAL, ROLES.SECRETARIA), searchLimiter, createPatientRoutes(prisma));
+app.use('/api/cashflow', authMiddleware, checkRole(ROLES.SUPER_USER, ROLES.ADMIN, ROLES.SECRETARIA), createCashflowRoutes(prisma));
+app.use('/api/clinical-history', authMiddleware, checkRole(ROLES.SUPER_USER, ROLES.ADMIN, ROLES.PROFESSIONAL), createClinicalHistoryRoutes(prisma));
 app.use('/api/metrics', authMiddleware, createMetricsRoutes(prisma));
 app.use('/api/notes', authMiddleware, createNotesRoutes(prisma));
 app.use('/api/professionals', authMiddleware, createProfessionalRoutes(prisma));
-app.use('/api/uploads', authMiddleware, createUploadRoutes());
+app.use('/api/uploads', authMiddleware, uploadLimiter, createUploadRoutes());
 app.use('/api/transcription', authMiddleware, createTranscriptionRoutes());
 app.use('/api/whatsapp', authMiddleware, createWhatsAppRoutes(prisma));
 app.use('/api/agenda', authMiddleware, createAgendaRoutes(prisma));
 app.use('/api/notifications', authMiddleware, createNotificationsRoutes(prisma));
 app.use('/api/obras-sociales', authMiddleware, createObrasSocialesRoutes(prisma));
-app.use('/api/users', authMiddleware, createUsersRoutes(prisma));
+app.use('/api/users', authMiddleware, checkRole(ROLES.SUPER_USER, ROLES.ADMIN), createUsersRoutes(prisma));
 app.use('/api/audit', authMiddleware, createAuditRoutes(prisma));
+app.use('/api/sessions', authMiddleware, createSessionsRoutes(prisma, sessionManager));
 
 // Utilidades
+app.get('/health', (req, res) => res.status(200).json({ status: 'ok' }));
 app.get('/api/health', (req, res) => res.status(200).json({ status: 'ok' }));
 
 // ==========================================
@@ -266,26 +331,18 @@ app.get('/api/health', (req, res) => res.status(200).json({ status: 'ok' }));
 // Catch-all para cualquier ruta que NO sea /api (evita devolver HTML)
 app.use((req, res, next) => {
     if (!req.url.startsWith('/api')) {
-        return res.status(404).json({ error: "Ruta no encontrada. Recuerda usar el prefijo /api" });
+        return next(new NotFoundError('Ruta no encontrada. Recuerda usar el prefijo /api'));
     }
     next();
 });
 
-app.all('/api/*', (req, res) => {
-    res.status(404).json({ error: "Endpoint no encontrado en la API", path: req.originalUrl });
+app.all('/api/*', (req, res, next) => {
+    next(new NotFoundError(`Endpoint no encontrado en la API: ${req.originalUrl}`));
 });
 
-app.use((err, req, res, next) => {
-    if (err?.code === 'EBADCSRFTOKEN') {
-        return res.status(403).json({ message: 'CSRF token inválido o faltante', code: 'EBADCSRFTOKEN' });
-    }
-    console.error('❌ Error:', err.stack || err);
-    const status = err?.statusCode && Number.isInteger(err.statusCode) ? err.statusCode : 500;
-    const message = err?.message || "Error interno del servidor";
-    res.status(status).json({ message, error: message });
-});
+app.use(errorHandler);
 
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Servidor Kareh Pro en puerto ${PORT}`);
+    logger.info('Servidor Kareh Pro iniciado', { port: PORT });
 });

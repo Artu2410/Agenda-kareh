@@ -1,13 +1,12 @@
 import csrf from 'csurf';
-
-const isProduction = () => process.env.NODE_ENV === 'production';
+import { getCookieSameSite, shouldUseSecureCookies } from '../utils/auth.js';
 
 export const csrfProtection = csrf({
   cookie: {
     key: 'csrf_secret',
     httpOnly: true,
-    secure: isProduction(),
-    sameSite: isProduction() ? 'None' : 'Lax',
+    secure: shouldUseSecureCookies(),
+    sameSite: getCookieSameSite(),
     path: '/',
   },
 });

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { withProfessionalScope, assertScopedProfessionalId } from '../utils/accessScope.js';
 import { auditActions, safeWriteAuditLog } from '../utils/audit.js';
+import { createInternalError } from '../errors/AppError.js';
 
 export default function createClinicalHistoryRoutes(prisma) {
   const router = Router();
@@ -30,7 +31,7 @@ export default function createClinicalHistoryRoutes(prisma) {
       });
       res.json(history);
     } catch (error) {
-      res.status(500).json({ message: 'Error al obtener historial' });
+      throw createInternalError(error, 'Error al obtener historial');
     }
   });
 
@@ -86,8 +87,7 @@ export default function createClinicalHistoryRoutes(prisma) {
 
       res.status(201).json(result);
     } catch (error) {
-      console.error("ERROR EN POST HISTORIAL:", error);
-      res.status(500).json({ message: 'Error al guardar la sesión' });
+      throw createInternalError(error, 'Error al guardar la sesión');
     }
   });
 
@@ -131,11 +131,10 @@ export default function createClinicalHistoryRoutes(prisma) {
       });
       res.json(updated);
     } catch (error) {
-      console.error("ERROR EN PUT HISTORIAL:", error);
       if (error.code === 'P2025') {
         return res.status(404).json({ message: 'La entrada no existe' });
       }
-      res.status(500).json({ message: 'Error al actualizar la sesión' });
+      throw createInternalError(error, 'Error al actualizar la sesión');
     }
   });
 
@@ -170,7 +169,7 @@ export default function createClinicalHistoryRoutes(prisma) {
       if (error.code === 'P2025') {
         return res.status(404).json({ message: 'La entrada ya no existe' });
       }
-      res.status(500).json({ message: 'Error al eliminar' });
+      throw createInternalError(error, 'Error al eliminar');
     }
   });
 

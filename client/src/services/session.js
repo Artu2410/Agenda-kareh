@@ -1,3 +1,5 @@
+import { normalizeRole } from '../utils/roles';
+
 const SESSION_STORAGE_KEYS = [
   'userId',
   'userEmail',
@@ -21,7 +23,7 @@ export const storeAuthenticatedUser = (user = {}) => {
   const id = String(user.id || '').trim();
   const email = String(user.email || '').trim();
   const name = String(user.name || '').trim();
-  const role = String(user.role || '').trim();
+  const role = normalizeRole(user.role);
   const professionalId = String(user.professionalId || '').trim();
 
   if (id) {
@@ -49,6 +51,6 @@ export const getStoredUser = () => ({
   id: localStorage.getItem('userId') || '',
   name: localStorage.getItem('userName') || localStorage.getItem('user_name') || '',
   email: localStorage.getItem('userEmail') || localStorage.getItem('user_email') || '',
-  role: localStorage.getItem('userRole') || '',
+  role: normalizeRole(localStorage.getItem('userRole') || ''),
   professionalId: localStorage.getItem('userProfessionalId') || '',
 });

@@ -1,8 +1,7 @@
 import axios from 'axios';
 import { API_BASE_URL } from './apiBase';
 import { ensureCsrfToken } from './csrf';
-import { clearClientSession } from './session';
-
+import * as authStore from '../stores/auth';
 /**
  * CONFIGURACIÓN DE URL
  * Forzamos que la base siempre incluya /api para que todas las llamadas 
@@ -16,11 +15,11 @@ const api = axios.create({
   }
 });
 
-const getFallbackToken = () => localStorage.getItem('auth_fallback_token');
-const isFallbackMode = () => localStorage.getItem('auth_fallback') === '1';
-const enableFallbackMode = () => localStorage.setItem('auth_fallback', '1');
-const clearFallbackMode = () => localStorage.removeItem('auth_fallback');
-const shouldLogRequests = import.meta.env.DEV && import.meta.env.VITE_API_DEBUG !== '0';
+const isDebugEnabled = import.meta.env.DEV && import.meta.env.MODE !== 'test';
+const shouldLogRequests = isDebugEnabled && import.meta.env.VITE_API_DEBUG !== '0';
+let isRefreshing = false;
+let failedQueue = [];
+
 const isRefreshableAuthError = (response) => {
   const status = response?.status;
   if (status === 401) return true;
@@ -28,26 +27,58 @@ const isRefreshableAuthError = (response) => {
   const message = String(response?.data?.message || '').toLowerCase();
   return message.includes('token');
 };
+const shouldSkipAuthRefresh = (config) => Boolean(config?.skipAuthRefresh);
 const buildRequestUrl = (config) => {
   const baseURL = String(config.baseURL || '');
   const url = String(config.url || '');
+  const normalizedBase = baseURL.replace(/\/+$/, '');
+  const normalizedUrl = url.replace(/^\/+/, '');
 
-  try {
-    return new URL(url, baseURL || window.location.origin).toString();
-  } catch {
-    return `${baseURL}${url}`;
-  }
+  if (!normalizedBase) return normalizedUrl ? `/${normalizedUrl}` : url;
+  if (/^https?:\/\//i.test(url)) return url;
+  if (!normalizedUrl) return normalizedBase;
+
+  return `${normalizedBase}/${normalizedUrl}`;
 };
+
+const processQueue = (err, token = null) => {
+  const queue = failedQueue;
+  failedQueue = [];
+
+  if (isDebugEnabled) {
+    console.debug('[api] processQueue', { err: !!err, token, queued: queue.length });
+  }
+
+  queue.forEach(({ resolve, reject }) => {
+    if (err) reject(err);
+    else resolve(token);
+  });
+};
+
+export const resetApiClientState = () => {
+  isRefreshing = false;
+  failedQueue = [];
+  delete api.defaults.headers.common.Authorization;
+};
+
+export const getApiClientState = () => ({
+  isRefreshing,
+  failedQueueLength: failedQueue.length,
+});
 
 // Interceptor para logging/debug
 api.interceptors.request.use(
   async (config) => {
-    if (isFallbackMode()) {
-      const token = getFallbackToken();
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
+    config.headers = config.headers || {};
+
+    // Añadimos Authorization desde el store en memoria (no localStorage)
+    const token = authStore.getAccessToken();
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    } else if (config.headers.Authorization) {
+      delete config.headers.Authorization;
     }
+    if (isDebugEnabled) console.debug('[api] request', config.method, config.url, { hasAuth: !!token });
     const method = (config.method || 'get').toLowerCase();
     const isMutating = ['post', 'put', 'delete', 'patch'].includes(method);
     const isCsrfEndpoint = String(config.url || '').includes('/csrf-token');
@@ -92,37 +123,66 @@ api.interceptors.response.use(
         // Si no se puede regenerar, dejamos que caiga el error
       }
     }
+    if (shouldSkipAuthRefresh(originalRequest)) {
+      return Promise.reject({ ...error, friendlyMessage: message });
+    }
+    // Manejo de refresh con queue/dedupe — accessToken en memoria, refresh en cookie httpOnly
     if (isRefreshableAuthError(error.response) && originalRequest && !originalRequest._retry) {
       originalRequest._retry = true;
       const isRefreshCall = String(originalRequest.url || '').includes('/auth/refresh');
-      if (!isRefreshCall && !isFallbackMode()) {
-        try {
-          const refreshResponse = await api.post('/auth/refresh', null, {
-            headers: { 'X-Auth-Fallback': '1' }
-          });
-          if (refreshResponse.data?.accessToken) {
-            localStorage.setItem('auth_fallback_token', refreshResponse.data.accessToken);
-          }
-          return api(originalRequest);
-        } catch {
-          const fallbackToken = getFallbackToken();
-          if (fallbackToken) {
-            enableFallbackMode();
+      if (isRefreshCall) return Promise.reject(error);
+
+      // Queue/dedupe
+      if (isRefreshing) {
+        if (isDebugEnabled) console.debug('[api] request queued while refreshing', originalRequest.url);
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        })
+          .then((token) => {
             originalRequest.headers = originalRequest.headers || {};
-            originalRequest.headers.Authorization = `Bearer ${fallbackToken}`;
+            originalRequest.headers.Authorization = `Bearer ${token}`;
             return api(originalRequest);
-          }
-          clearFallbackMode();
-          clearClientSession();
-        }
-      } else if (isFallbackMode()) {
-        const fallbackToken = getFallbackToken();
-        if (fallbackToken) {
-          originalRequest.headers = originalRequest.headers || {};
-          originalRequest.headers.Authorization = `Bearer ${fallbackToken}`;
-          return api(originalRequest);
-        }
+          })
+          .catch((err) => Promise.reject(err));
       }
+
+      isRefreshing = true;
+
+      return (async () => {
+        try {
+          if (isDebugEnabled) console.debug('[api] starting refresh');
+          const refreshResponse = await api.post('/auth/refresh', null, { withCredentials: true });
+          const newToken = refreshResponse?.data?.accessToken;
+          if (!newToken) throw new Error('No accessToken on refresh');
+
+          // actualizar token en memoria
+          if (isDebugEnabled) console.debug('[api] refresh success, updating token');
+          authStore.setAccessToken(newToken);
+
+          processQueue(null, newToken);
+          return api(originalRequest);
+        } catch (err) {
+          if (isDebugEnabled) console.debug('[api] refresh failed', err?.message || err);
+          processQueue(err, null);
+          // Limpieza global: clear session + logout
+          try {
+            authStore.clearAuth();
+            // intentamos logout en backend para limpiar cookie si es posible
+            await api.post('/auth/logout', null, { skipAuthRefresh: true }).catch(() => {});
+            if (isDebugEnabled) console.debug('[api] triggered backend logout');
+          } catch {
+            // ignore
+          }
+          // redirigir a login (behaviour global)
+          if (typeof window !== 'undefined') {
+            if (isDebugEnabled) console.debug('[api] redirecting to /login');
+            window.location.href = '/login';
+          }
+          throw err;
+        } finally {
+          isRefreshing = false;
+        }
+      })();
     }
     return Promise.reject({ ...error, friendlyMessage: message });
   }

@@ -5,8 +5,9 @@ import toast, { showSuccessToast } from '../toastHelpers';
 import { useConfirmModal } from '../../hooks/useConfirmModal';
 import { APP_ROUTES } from '../../utils/appRoutes';
 import api from '../../services/api';
-import { clearClientSession, getStoredUser } from '../../services/session';
+import { getStoredUser } from '../../services/session';
 import { hasAnyRole } from '../../utils/roles';
+import * as authStore from '../../stores/auth';
 
 const SIDEBAR_WEATHER = {
   latitude: -34.5644444444,
@@ -49,15 +50,15 @@ const Sidebar = ({ onToggle, onLogout, onNavigate, isMobile = false }) => {
 
   const { name: userName, email: userEmail, role: userRole } = getStoredUser();
   const menuItems = [
-    { icon: BarChart3, label: 'Panel', path: APP_ROUTES.dashboard, roles: ['SUPER_USER', 'ADMIN', 'PROFESSIONAL'] },
-    { icon: Calendar, label: 'Agenda', path: APP_ROUTES.appointments, roles: ['SUPER_USER', 'ADMIN', 'PROFESSIONAL'] },
-    { icon: Users, label: 'Pacientes', path: APP_ROUTES.patients, roles: ['SUPER_USER', 'ADMIN', 'PROFESSIONAL'] },
+    { icon: BarChart3, label: 'Panel', path: APP_ROUTES.dashboard, roles: ['SUPER_USER', 'ADMIN', 'PROFESSIONAL', 'SECRETARIA'] },
+    { icon: Calendar, label: 'Agenda', path: APP_ROUTES.appointments, roles: ['SUPER_USER', 'ADMIN', 'PROFESSIONAL', 'SECRETARIA'] },
+    { icon: Users, label: 'Pacientes', path: APP_ROUTES.patients, roles: ['SUPER_USER', 'ADMIN', 'PROFESSIONAL', 'SECRETARIA'] },
     { icon: FileText, label: 'Historias Clínicas', path: APP_ROUTES.clinicalHistories, roles: ['SUPER_USER', 'ADMIN', 'PROFESSIONAL'] },
     { icon: ClipboardCheck, label: 'Autorizaciones', path: APP_ROUTES.authorizations, roles: ['SUPER_USER', 'ADMIN'] },
     { icon: ShieldCheck, label: 'Auditoría', path: APP_ROUTES.audit, roles: ['SUPER_USER', 'ADMIN'] },
     { icon: NotebookPen, label: 'Notas', path: APP_ROUTES.notes, roles: ['SUPER_USER', 'ADMIN'] },
     { icon: MessageCircle, label: 'WhatsApp', path: APP_ROUTES.whatsapp, roles: ['SUPER_USER', 'ADMIN'] },
-    { icon: DollarSign, label: 'Caja', path: APP_ROUTES.cashflow, roles: ['SUPER_USER', 'ADMIN'] },
+    { icon: DollarSign, label: 'Caja', path: APP_ROUTES.cashflow, roles: ['SUPER_USER', 'ADMIN', 'SECRETARIA'] },
     { icon: Building2, label: 'Obras Sociales', path: APP_ROUTES.obrasSociales, roles: ['SUPER_USER', 'ADMIN'] },
     { icon: Settings, label: 'Configuración', path: APP_ROUTES.settings, roles: ['SUPER_USER', 'ADMIN'] },
   ].filter((item) => hasAnyRole(userRole, item.roles));
@@ -71,11 +72,11 @@ const Sidebar = ({ onToggle, onLogout, onNavigate, isMobile = false }) => {
       icon: LogOut,
       onConfirm: async () => {
         try {
-          await api.post('/auth/logout');
+          await api.post('/auth/logout', null, { skipAuthRefresh: true });
         } catch {
           // Si falla, igual dejamos al cliente sin sesión activa.
         }
-        clearClientSession();
+        authStore.clearAuth();
         onLogout?.();
         showSuccessToast('Sesión cerrada correctamente');
       },

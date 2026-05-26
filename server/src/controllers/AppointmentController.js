@@ -15,8 +15,11 @@ import {
 import { sendNotificationToEmails } from '../services/pushNotifications.js';
 import { withProfessionalScope, assertScopedProfessionalId } from '../utils/accessScope.js';
 import { calculatePatientCharge, buildDocumentChecklist, isInactiveInsurance } from '../utils/insurance.js';
+import { buildStoredFinancialSnapshot } from '../utils/appointmentFinancialSnapshot.js';
 import { normalizePhone } from '../utils/phone.js';
 import { auditActions, safeWriteAuditLog } from '../utils/audit.js';
+import logger from '../config/logger.js';
+import { createInternalError, createPublicError } from '../errors/AppError.js';
 
 // Helper para evitar corrimientos de fecha por zona horaria.
 // Si la fecha viene en formato 'YYYY-MM-DD' la dejamos a mediodía local (12:00)
@@ -256,9 +259,15 @@ const prepareReusedDocuments = async (tx, patientId, checklist = null) => {
   return nextChecklist;
 };
 
-const buildAppointmentWritePayload = async (tx, patient, payload = {}) => {
+const buildAppointmentWritePayload = async (tx, patient, payload = {}, options = {}) => {
+  const { currentAppointment = null } = options;
   const insuranceContext = await getAppointmentInsuranceContext(tx, patient, payload);
   const hydratedChecklist = await prepareReusedDocuments(tx, patient.id, insuranceContext.documentsChecklist);
+  const financialSnapshot = buildStoredFinancialSnapshot({
+    currentAppointment,
+    nextObraSocialId: insuranceContext.obraSocialId,
+    nextCharge: insuranceContext.charge,
+  });
 
   return {
     obraSocialId: insuranceContext.obraSocialId,
@@ -267,9 +276,9 @@ const buildAppointmentWritePayload = async (tx, patient, payload = {}) => {
     authorizationNumber: payload.authorizationNumber || null,
     authorizationFileUrl: payload.authorizationFileUrl || null,
     documentsChecklist: hydratedChecklist,
-    coinsuranceAmount: insuranceContext.charge.total,
-    patientChargeAmount: insuranceContext.charge.total,
-    coinsuranceDetails: insuranceContext.charge,
+    coinsuranceAmount: financialSnapshot.coinsuranceAmount,
+    patientChargeAmount: financialSnapshot.patientChargeAmount,
+    coinsuranceDetails: financialSnapshot.coinsuranceDetails,
     paidInAdvance: Boolean(payload.paidInAdvance),
     sessionToken: payload.sessionToken || null,
   };
@@ -323,7 +332,7 @@ export const getWeekAppointments = async (req, res, prisma) => {
     });
     res.json(appointments);
   } catch (error) {
-    res.status(500).json({ message: "Error al cargar agenda", error: error.message });
+    throw createInternalError(error, 'Error al cargar agenda');
   }
 };
 
@@ -541,7 +550,7 @@ export const createAppointment = async (req, res, prisma) => {
 
     res.status(201).json({ success: true, appointments: result.appointments });
   } catch (error) {
-    res.status(error.statusCode || 500).json({ message: "Error al crear", error: error.message });
+    throw createInternalError(error, 'Error al crear el turno');
   }
 };
 
@@ -594,6 +603,8 @@ export const updateEvolution = async (req, res, prisma) => {
         authorizationFileUrl,
         paidInAdvance: paidInAdvance ?? currentApt.paidInAdvance,
         sessionToken: sessionToken ?? currentApt.sessionToken,
+      }, {
+        currentAppointment: currentApt,
       });
 
       const updatedAppointment = await tx.appointment.update({
@@ -688,8 +699,7 @@ export const updateEvolution = async (req, res, prisma) => {
 
     res.json({ success: true, appointment: result.appointment });
   } catch (error) {
-    console.error("❌ Error en sincronización:", error);
-    res.status(error.statusCode || 500).json({ message: "Error al guardar cambios", error: error.message });
+    throw createInternalError(error, 'Error al guardar cambios');
   }
 };
 
@@ -750,6 +760,8 @@ export const updateAppointment = async (req, res, prisma) => {
         authorizationFileUrl,
         paidInAdvance: paidInAdvance ?? currentAppointment.paidInAdvance,
         sessionToken: sessionToken ?? currentAppointment.sessionToken,
+      }, {
+        currentAppointment: currentAppointment,
       });
 
       // Actualizar datos del paciente
@@ -839,8 +851,7 @@ export const updateAppointment = async (req, res, prisma) => {
 
     res.json({ success: true, appointment: result.appointment });
   } catch (error) {
-    console.error("Error al actualizar cita:", error);
-    res.status(error.statusCode || 500).json({ message: error.message || "Error al actualizar", error: error.message });
+    throw createInternalError(error, 'Error al actualizar el turno');
   }
 };
 
@@ -851,7 +862,7 @@ const APPOINTMENT_ORDER = [
 ];
 
 const resequencePatientAppointments = async (tx, patientId) => {
-  console.log(`[Resequencing] Patient ${patientId}`);
+  logger.debug('Resequencing patient appointments', { patientId });
   const appointments = await tx.appointment.findMany({
     where: {
       patientId,
@@ -861,7 +872,7 @@ const resequencePatientAppointments = async (tx, patientId) => {
     select: { id: true, isFirstSession: true, date: true },
   });
 
-  console.log(`[Resequencing] Found ${appointments.length} appointments`);
+  logger.debug('Resequencing appointments fetched', { patientId, count: appointments.length });
 
   let currentNumber = 1;
   for (const [index, appointment] of appointments.entries()) {
@@ -939,13 +950,8 @@ export const sendWhatsAppTicket = async (req, res, prisma) => {
     await sendWhatsAppTicketForAppointment({ prisma, appointmentId: id });
     return res.status(200).json({ success: true });
   } catch (error) {
-    console.error('❌ ERROR WHATSAPP TICKET LINK:', error);
-    console.error('Stack:', error.stack);
-    console.error('Detail:', error.detail);
-
     let statusCode = 500;
     let userMessage = 'Error al enviar WhatsApp';
-    let userDetail = error.detail || error.stack || error.message || String(error);
 
     if (error.statusCode) {
       statusCode = error.statusCode;
@@ -953,19 +959,12 @@ export const sendWhatsAppTicket = async (req, res, prisma) => {
 
     if (error.message?.includes('Template')) {
       userMessage = 'Error con el template de WhatsApp';
-      userDetail = 'El template especificado no existe o no está aprobado en WhatsApp Business. Verifica el nombre del template.';
     } else if (error.message?.includes('access token')) {
       userMessage = 'Error de autenticación de WhatsApp';
-      userDetail = 'El token de acceso de WhatsApp no es válido o ha expirado.';
     } else if (error.message?.includes('phone number')) {
       userMessage = 'Error con el número de teléfono de WhatsApp';
-      userDetail = 'El ID del número de teléfono de WhatsApp no es válido.';
     }
-
-    return res.status(statusCode).json({
-      message: userMessage,
-      detail: userDetail,
-    });
+    throw createPublicError(statusCode, userMessage, error);
   }
 };
 
@@ -973,7 +972,7 @@ export const sendWhatsAppTicketDocument = async (req, res, prisma) => {
   const { id } = req.params;
 
   try {
-    console.log('🔄 Iniciando envío de ticket como documento para appointment:', id);
+    logger.info('Iniciando envío de ticket por documento', { appointmentId: id });
 
     const appointment = await prisma.appointment.findUnique({
       where: { id },
@@ -981,17 +980,22 @@ export const sendWhatsAppTicketDocument = async (req, res, prisma) => {
     });
 
     if (!appointment) {
-      console.log('❌ Appointment no encontrado:', id);
+      logger.warn('Appointment no encontrado para ticket documento', { appointmentId: id });
       return res.status(404).json({ message: 'Turno no encontrado' });
     }
 
     const phone = normalizePhone(appointment.patient?.phone);
     if (!phone) {
-      console.log('❌ Paciente sin teléfono válido:', appointment.patient?.phone);
+      logger.warn('Paciente sin teléfono válido para ticket documento', {
+        appointmentId: id,
+        phone: appointment.patient?.phone || null,
+      });
       return res.status(400).json({ message: 'El paciente no tiene teléfono válido' });
     }
-
-    console.log('📄 Generando PDF para paciente:', appointment.patient?.fullName);
+    logger.info('Generando PDF de ticket', {
+      appointmentId: id,
+      patientName: appointment.patient?.fullName || null,
+    });
 
     const batch = await prisma.appointment.findMany({
       where: {
@@ -1011,7 +1015,7 @@ export const sendWhatsAppTicketDocument = async (req, res, prisma) => {
       diagnosis: appointment.diagnosis,
     });
 
-    console.log('📤 Subiendo PDF a WhatsApp Cloud API...');
+    logger.info('Subiendo PDF de ticket a WhatsApp', { appointmentId: id });
 
     const filename = `ticket-${appointment.id}.pdf`;
     const uploadResult = await uploadMedia({
@@ -1022,11 +1026,14 @@ export const sendWhatsAppTicketDocument = async (req, res, prisma) => {
 
     const mediaId = uploadResult?.id;
     if (!mediaId) {
-      console.log('❌ No se obtuvo mediaId de WhatsApp:', uploadResult);
+      logger.error('No se obtuvo mediaId de WhatsApp para ticket documento', {
+        appointmentId: id,
+        uploadResult,
+      });
       throw new Error('No se obtuvo mediaId de WhatsApp');
     }
 
-    console.log('📨 Enviando documento a WhatsApp:', phone);
+    logger.info('Enviando ticket documento a WhatsApp', { appointmentId: id, phone });
 
     await sendDocumentMessage({
       to: phone,
@@ -1040,16 +1047,10 @@ export const sendWhatsAppTicketDocument = async (req, res, prisma) => {
       select: { id: true },
     });
 
-    console.log('✅ Ticket enviado exitosamente como documento');
+    logger.info('Ticket documento enviado por WhatsApp', { appointmentId: id });
     return res.status(200).json({ success: true });
   } catch (error) {
-    console.error('❌ ERROR WHATSAPP TICKET DOCUMENT:', error);
-    console.error('Stack:', error.stack);
-    console.error('Detail:', error.detail);
-    return res.status(500).json({
-      message: 'Error al enviar WhatsApp',
-      detail: error.detail || error.stack || error.message || String(error),
-    });
+    throw createInternalError(error, 'Error al enviar WhatsApp');
   }
 };
 
@@ -1152,7 +1153,7 @@ export const deleteAppointment = async (req, res, prisma) => {
 
     res.status(200).json({ success: true, count: result.count });
   } catch (error) {
-    res.status(error.statusCode || 500).json({ message: "Error al eliminar", error: error.message });
+    throw createInternalError(error, 'Error al eliminar el turno');
   }
 };
 
@@ -1170,7 +1171,7 @@ export const cancelFutureAppointments = async (req, res, prisma) => {
     });
     res.json({ success: true, count: result.count });
   } catch (error) {
-    res.status(500).json({ message: "Error al cancelar" });
+    throw createInternalError(error, 'Error al cancelar turnos futuros');
   }
 };
 
@@ -1197,7 +1198,7 @@ export const getAppointmentBatch = async (req, res, prisma) => {
     });
     res.json(batch);
   } catch (error) {
-    res.status(500).json({ message: "Error al obtener sesiones para ticket" });
+    throw createInternalError(error, 'Error al obtener sesiones para ticket');
   }
 };
 
@@ -1234,7 +1235,7 @@ export const getAppointmentAuthorizations = async (req, res, prisma) => {
 
     res.json(appointments);
   } catch (error) {
-    res.status(500).json({ message: 'Error al obtener autorizaciones', error: error.message });
+    throw createInternalError(error, 'Error al obtener autorizaciones');
   }
 };
 
@@ -1293,7 +1294,7 @@ export const reviewAppointmentAuthorization = async (req, res, prisma) => {
 
     res.json({ success: true, appointment: result.appointment });
   } catch (error) {
-    res.status(error.statusCode || 500).json({ message: 'Error al revisar autorización', error: error.message });
+    throw createInternalError(error, 'Error al revisar autorización');
   }
 };
 // 7. ENVIAR TICKET COMO IMAGEN POR WHATSAPP (CAPTURADO CON HTML2CANVAS)
@@ -1301,11 +1302,11 @@ export const sendWhatsAppTicketImage = async (req, res, prisma) => {
   const { id } = req.params;
 
   try {
-    console.log('🖼️ Iniciando envío de ticket como imagen para appointment:', id);
+    logger.info('Iniciando envío de ticket por imagen', { appointmentId: id });
 
     // Validar que se subió archivo
     if (!req.file) {
-      console.log('❌ Archivo de imagen no proporcionado');
+      logger.warn('Archivo de imagen no proporcionado para ticket', { appointmentId: id });
       return res.status(400).json({ message: 'Imagen requerida' });
     }
 
@@ -1315,22 +1316,27 @@ export const sendWhatsAppTicketImage = async (req, res, prisma) => {
     });
 
     if (!appointment) {
-      console.log('❌ Appointment no encontrado:', id);
+      logger.warn('Appointment no encontrado para ticket imagen', { appointmentId: id });
       return res.status(404).json({ message: 'Turno no encontrado' });
     }
 
     const phone = normalizePhone(appointment.patient?.phone, true);
     if (!phone) {
-      console.log('❌ Paciente sin teléfono válido:', appointment.patient?.phone);
+      logger.warn('Paciente sin teléfono válido para ticket imagen', {
+        appointmentId: id,
+        phone: appointment.patient?.phone || null,
+      });
       return res.status(400).json({ message: 'El paciente no tiene teléfono válido' });
     }
-
-    console.log('📤 Subiendo imagen a WhatsApp Cloud API...');
+    logger.info('Subiendo ticket imagen a WhatsApp', { appointmentId: id });
 
     // Validar MIME type
     const validMimes = ['image/jpeg', 'image/png'];
     if (!validMimes.includes(req.file.mimetype)) {
-      console.log('❌ Tipo de archivo inválido:', req.file.mimetype);
+      logger.warn('Tipo de archivo inválido para ticket imagen', {
+        appointmentId: id,
+        mimetype: req.file.mimetype,
+      });
       return res.status(400).json({ message: 'Solo se permiten imágenes JPEG o PNG' });
     }
 
@@ -1338,9 +1344,12 @@ export const sendWhatsAppTicketImage = async (req, res, prisma) => {
     const s3Key = `thermal-tickets/appointment-${appointment.id}-${Date.now()}.jpg`;
     try {
       await uploadBufferToStorage(req.file.buffer, s3Key);
-      console.log('✅ Imagen almacenada en S3:', s3Key);
+      logger.info('Imagen de ticket almacenada', { appointmentId: id, storageKey: s3Key });
     } catch (s3Error) {
-      console.warn('⚠️ Advertencia: No se pudo almacenar en S3:', s3Error.message);
+      logger.warn('No se pudo almacenar ticket imagen', {
+        appointmentId: id,
+        message: s3Error.message,
+      });
       // Continuamos sin fallar, ya que lo importante es enviar por WhatsApp
     }
 
@@ -1354,11 +1363,14 @@ export const sendWhatsAppTicketImage = async (req, res, prisma) => {
 
     const mediaId = uploadResult?.id;
     if (!mediaId) {
-      console.log('❌ No se obtuvo mediaId de WhatsApp:', uploadResult);
+      logger.error('No se obtuvo mediaId de WhatsApp para ticket imagen', {
+        appointmentId: id,
+        uploadResult,
+      });
       throw new Error('No se obtuvo mediaId de WhatsApp');
     }
 
-    console.log('📨 Enviando imagen a WhatsApp:', phone);
+    logger.info('Enviando ticket imagen a WhatsApp', { appointmentId: id, phone });
 
     // Enviar imagen
     const caption = `🏥 Ticket - ${appointment.patient?.fullName || 'Paciente'}`;
@@ -1375,16 +1387,11 @@ export const sendWhatsAppTicketImage = async (req, res, prisma) => {
       select: { id: true },
     });
 
-    console.log('✅ Ticket enviado exitosamente como imagen');
+    logger.info('Ticket imagen enviado por WhatsApp', { appointmentId: id });
     return res.status(200).json({ success: true, message: 'Imagen enviada por WhatsApp' });
   } catch (error) {
-    console.error('❌ ERROR WHATSAPP TICKET IMAGE:', error);
-    console.error('Stack:', error.stack);
-    console.error('Detail:', error.detail);
-
     let statusCode = 500;
     let userMessage = 'Error al enviar WhatsApp';
-    let userDetail = error.detail || error.stack || error.message || String(error);
 
     if (error.statusCode) {
       statusCode = error.statusCode;
@@ -1392,15 +1399,9 @@ export const sendWhatsAppTicketImage = async (req, res, prisma) => {
 
     if (error.message?.includes('phone number')) {
       userMessage = 'Error con el número de teléfono de WhatsApp';
-      userDetail = 'El número de teléfono no es válido.';
     } else if (error.message?.includes('token')) {
       userMessage = 'Error de autenticación de WhatsApp';
-      userDetail = 'El token de acceso no es válido o ha expirado.';
     }
-
-    return res.status(statusCode).json({
-      message: userMessage,
-      detail: userDetail,
-    });
+    throw createPublicError(statusCode, userMessage, error);
   }
 };

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
-import { 
-  getWeekAppointments, 
+import {
+  getWeekAppointments,
   createAppointment, 
   updateAppointment,
   deleteAppointment, 
@@ -15,6 +15,14 @@ import {
   sendWhatsAppTicketImage
 } from '../controllers/AppointmentController.js';
 import { checkRole } from '../middlewares/authMiddleware.js';
+import { validate } from '../middlewares/validate.js';
+import {
+  appointmentIdParamsSchema,
+  appointmentWeekQuerySchema,
+  createAppointmentBodySchema,
+  updateAppointmentBodySchema,
+  updateAppointmentEvolutionBodySchema,
+} from '../validations/appointmentSchemas.js';
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -32,7 +40,7 @@ const createRouter = (prisma) => {
   const router = Router();
 
   // 1. Obtener turnos de la semana
-  router.get('/week', (req, res) => getWeekAppointments(req, res, prisma));
+  router.get('/week', validate({ query: appointmentWeekQuerySchema }), (req, res) => getWeekAppointments(req, res, prisma));
 
   // 2. Ticket: Obtener lote de 10 sesiones
   router.get('/:id/batch', (req, res) => getAppointmentBatch(req, res, prisma));
@@ -51,13 +59,13 @@ const createRouter = (prisma) => {
   router.post('/:id/whatsapp-ticket-document', (req, res) => sendWhatsAppTicketDocument(req, res, prisma));
 
   // 3. Crear citas (Ciclo completo)
-  router.post('/', (req, res) => createAppointment(req, res, prisma));
+  router.post('/', validate({ body: createAppointmentBodySchema }), (req, res) => createAppointment(req, res, prisma));
 
   // 4. Actualizar cita y datos del paciente
-  router.put('/:id', (req, res) => updateAppointment(req, res, prisma));
+  router.put('/:id', validate({ params: appointmentIdParamsSchema, body: updateAppointmentBodySchema }), (req, res) => updateAppointment(req, res, prisma));
 
   // 5. Actualizar evolución (Sincronización total con Paciente e Historia)
-  router.patch('/:id/evolution', (req, res) => updateEvolution(req, res, prisma));
+  router.patch('/:id/evolution', validate({ params: appointmentIdParamsSchema, body: updateAppointmentEvolutionBodySchema }), (req, res) => updateEvolution(req, res, prisma));
 
   // 6. Eliminar cita única
   router.delete('/:id', (req, res) => deleteAppointment(req, res, prisma));

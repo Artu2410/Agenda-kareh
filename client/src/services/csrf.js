@@ -1,4 +1,4 @@
-import { API_BASE_URL } from './apiBase';
+import { getApiUrl } from './apiBase';
 
 const CSRF_STORAGE_KEY = 'csrfToken';
 let csrfPromise = null;
@@ -16,7 +16,7 @@ export const clearCsrfToken = () => {
 };
 
 export const fetchCsrfToken = async () => {
-  const response = await fetch(`${API_BASE_URL}/csrf-token`, {
+  const response = await fetch(getApiUrl('/csrf-token'), {
     credentials: 'include',
   });
   if (!response.ok) {

@@ -22,19 +22,23 @@ const DURATION_UNITS_MS = {
   d: 24 * 60 * 60 * 1000,
 };
 
-export const USER_ROLES = ['SUPER_USER', 'ADMIN', 'PROFESSIONAL'];
+export const USER_ROLES = ['SUPER_USER', 'ADMIN', 'PROFESSIONAL', 'SECRETARIA'];
 
 const normalizeBootstrapRole = (value = '') => {
   const normalizedRole = String(value || '').trim().toUpperCase();
 
   if (normalizedRole === 'DOCTOR') return 'PROFESSIONAL';
-  if (normalizedRole === 'RECEPTIONIST' || normalizedRole === 'PATIENT') return 'ADMIN';
+  if (normalizedRole === 'RECEPTIONIST') return 'SECRETARIA';
+  if (normalizedRole === 'PATIENT') return 'ADMIN';
   if (normalizedRole === 'SUPERUSER') return 'SUPER_USER';
+  if (normalizedRole === 'KINESIOLOGO') return 'PROFESSIONAL';
 
   return normalizedRole;
 };
 
 export const isProduction = () => process.env.NODE_ENV === 'production';
+export const shouldUseSecureCookies = () => process.env.COOKIE_SECURE === 'true' || isProduction();
+export const getCookieSameSite = () => (shouldUseSecureCookies() ? 'None' : 'Lax');
 
 export const normalizeEmail = (value = '') => String(value).trim().toLowerCase();
 
@@ -46,7 +50,11 @@ export const getJwtSecret = () => {
   return secret;
 };
 
-export const getRefreshSecret = () => process.env.REFRESH_TOKEN_SECRET || getJwtSecret();
+export const getRefreshSecret = () => (
+  process.env.JWT_REFRESH_SECRET
+  || process.env.REFRESH_TOKEN_SECRET
+  || getJwtSecret()
+);
 
 const getHashPepper = () => process.env.AUTH_HASH_PEPPER || getJwtSecret();
 const getOtpPepper = () => process.env.OTP_PEPPER || getHashPepper();
@@ -103,8 +111,8 @@ export const getAccountLockDurationMs = () => {
 
 export const buildCookieOptions = (maxAgeMs) => ({
   httpOnly: true,
-  secure: isProduction(),
-  sameSite: isProduction() ? 'None' : 'Lax',
+  secure: shouldUseSecureCookies(),
+  sameSite: getCookieSameSite(),
   maxAge: maxAgeMs,
   path: '/',
 });

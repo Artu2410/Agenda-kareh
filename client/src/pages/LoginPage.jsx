@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { showErrorToast, showSuccessToast, showLoadingToast } from '../components/toastHelpers';
 import { storeAuthenticatedUser } from '../services/session';
+import * as authStore from '../stores/auth';
 import { APP_ROUTES } from '../utils/appRoutes';
 
 // ✅ IMPORTACIÓN CORREGIDA: Usamos las funciones de tu api.js
@@ -89,8 +90,8 @@ export default function LoginPage({ onLoginSuccess }) {
           role: response.data.user?.role || '',
         });
         if (response.data.accessToken) {
-          localStorage.setItem('auth_fallback_token', response.data.accessToken);
-          localStorage.removeItem('auth_fallback');
+          // Guardamos el accessToken SOLO en memoria (no localStorage)
+          authStore.setAccessToken(response.data.accessToken);
         }
         
         showSuccessToast('✅ ¡Acceso Concedido!');
