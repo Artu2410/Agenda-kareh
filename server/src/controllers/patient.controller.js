@@ -420,10 +420,6 @@ export const createPatient = async (req, res, prisma) => {
     });
     const nextHC = (lastPatient?.clinicalRecordNumber || 0) + 1;
 
-    // Calcular folio (2026=1, 2027=2, etc)
-    const currentYear = new Date().getFullYear();
-    const folio = Math.max(1, currentYear - 2025);
-
     const patient = await prisma.patient.create({
       data: {
         fullName, dni, phone, email, address,
@@ -431,7 +427,6 @@ export const createPatient = async (req, res, prisma) => {
         healthInsurance: insuranceData.healthInsurance,
         obraSocialId: insuranceData.obraSocialId,
         clinicalRecordNumber: nextHC,
-        folio,
         treatAsParticular: insuranceData.treatAsParticular ?? !!treatAsParticular,
         affiliateNumber,
         emergencyPhone,
@@ -738,7 +733,7 @@ export const renumberAllPatients = async (req, res, prisma) => {
   try {
     const patients = await prisma.patient.findMany({
       orderBy: { createdAt: 'asc' },
-      select: { id: true, createdAt: true }
+      select: { id: true }
     });
 
     await prisma.$transaction(async (tx) => {
@@ -750,15 +745,12 @@ export const renumberAllPatients = async (req, res, prisma) => {
         });
       }
 
-      // 2. Numeración final y folios
+      // 2. Numeración final
       for (let i = 0; i < patients.length; i++) {
-        const year = new Date(patients[i].createdAt).getFullYear();
-        const folio = Math.max(1, year - 2025);
         await tx.patient.update({
           where: { id: patients[i].id },
           data: { 
-            clinicalRecordNumber: i + 1,
-            folio: folio
+            clinicalRecordNumber: i + 1
           }
         });
       }
