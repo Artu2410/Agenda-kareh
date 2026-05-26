@@ -4,6 +4,7 @@
 import { getCokibaSyncStatus, runCokibaSync } from '../services/cokibaSync.js';
 import { auditActions, safeWriteAuditLog } from '../utils/audit.js';
 import { createInternalError, createPublicError } from '../errors/AppError.js';
+import { buildMonthlyHonorariosReport } from '../utils/monthlyHonorariosReport.js';
 
 let activeCokibaSync = null;
 
@@ -390,38 +391,22 @@ export const getCoinsuranceReport = async (req, res, prisma) => {
         status: { not: 'CANCELLED' },
       },
       select: {
-        patientChargeAmount: true,
+        coinsuranceDetails: true,
         obraSocialId: true,
         obraSocial: {
           select: {
             nombreOs: true,
+            honorarioEstimado: true,
+            isActive: true,
+            isArchived: true,
+            statusManualOverride: true,
+            cokibaDetails: true,
           },
         },
       },
     });
 
-    const byInsurance = new Map();
-
-    appointments.forEach((appointment) => {
-      const key = appointment.obraSocialId || 'sin-obra-social';
-      const current = byInsurance.get(key) || {
-        obraSocialId: appointment.obraSocialId,
-        obraSocialName: appointment.obraSocial?.nombreOs || 'Sin obra social',
-        totalAmount: 0,
-        appointmentCount: 0,
-      };
-
-      current.totalAmount += Number(appointment.patientChargeAmount || 0);
-      current.appointmentCount += 1;
-      byInsurance.set(key, current);
-    });
-
-    const rows = [...byInsurance.values()]
-      .map((row) => ({
-        ...row,
-        totalAmount: Number(row.totalAmount.toFixed(2)),
-      }))
-      .sort((a, b) => b.totalAmount - a.totalAmount);
+    const rows = buildMonthlyHonorariosReport(appointments);
 
     res.status(200).json({
       month: `${year}-${String(monthNumber || 1).padStart(2, '0')}`,
