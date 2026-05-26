@@ -140,7 +140,11 @@ api.interceptors.response.use(
         })
           .then((token) => {
             originalRequest.headers = originalRequest.headers || {};
-            originalRequest.headers.Authorization = `Bearer ${token}`;
+            if (token) {
+              originalRequest.headers.Authorization = `Bearer ${token}`;
+            } else {
+              delete originalRequest.headers.Authorization;
+            }
             return api(originalRequest);
           })
           .catch((err) => Promise.reject(err));
@@ -152,14 +156,18 @@ api.interceptors.response.use(
         try {
           if (isDebugEnabled) console.debug('[api] starting refresh');
           const refreshResponse = await api.post('/auth/refresh', null, { withCredentials: true });
-          const newToken = refreshResponse?.data?.accessToken;
-          if (!newToken) throw new Error('No accessToken on refresh');
+          const newToken = refreshResponse?.data?.accessToken || null;
 
-          // actualizar token en memoria
-          if (isDebugEnabled) console.debug('[api] refresh success, updating token');
+          if (isDebugEnabled) console.debug('[api] refresh success, updating auth mode', { hasAccessToken: Boolean(newToken) });
           authStore.setAccessToken(newToken);
 
           processQueue(null, newToken);
+          originalRequest.headers = originalRequest.headers || {};
+          if (newToken) {
+            originalRequest.headers.Authorization = `Bearer ${newToken}`;
+          } else {
+            delete originalRequest.headers.Authorization;
+          }
           return api(originalRequest);
         } catch (err) {
           if (isDebugEnabled) console.debug('[api] refresh failed', err?.message || err);
@@ -199,8 +207,7 @@ export default api;
 export const requestOTP = (email) => api.post('/auth/request-otp', { email });
 export const verifyOTP = (email, otp) => api.post(
   '/auth/verify-otp',
-  { email, otp },
-  { headers: { 'X-Auth-Fallback': '1' } }
+  { email, otp }
 );
 
 // Appointments

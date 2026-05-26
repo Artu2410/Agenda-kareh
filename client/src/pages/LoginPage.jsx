@@ -89,10 +89,7 @@ export default function LoginPage({ onLoginSuccess }) {
           name: response.data.user?.name || 'Administrador',
           role: response.data.user?.role || '',
         });
-        if (response.data.accessToken) {
-          // Guardamos el accessToken SOLO en memoria (no localStorage)
-          authStore.setAccessToken(response.data.accessToken);
-        }
+        authStore.setAccessToken(null);
         
         showSuccessToast('✅ ¡Acceso Concedido!');
         

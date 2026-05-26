@@ -130,7 +130,7 @@ function App() {
     if (!isAuthenticated) return;
 
     const intervalId = setInterval(() => {
-      api.post('/auth/refresh', null, { headers: { 'X-Auth-Fallback': '1' } }).catch(() => {
+      api.post('/auth/refresh').catch(() => {
         // Ignorar errores, se manejarán al intentar usar la app.
       });
     }, 6 * 60 * 60 * 1000); // refrescar cada 6 horas
