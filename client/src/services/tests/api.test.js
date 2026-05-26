@@ -30,14 +30,18 @@ describe('Axios interceptor refresh flow', () => {
     authStore.setAccessToken('old-token');
 
     let protectedCalls = 0;
+    let refreshCompleted = false;
     server.use(
       rest.get(protectedUrl, (req, res, ctx) => {
         protectedCalls++;
         const auth = req.headers.get('authorization') || '';
-        if (auth === 'Bearer new-token') return res(ctx.status(200), ctx.json({ data: 'ok' }));
+        if (refreshCompleted && !auth) return res(ctx.status(200), ctx.json({ data: 'ok' }));
         return res(ctx.status(401), ctx.json({ message: 'Unauthorized' }));
       }),
-      rest.post(refreshUrl, (req, res, ctx) => res(ctx.status(200), ctx.json({ accessToken: 'new-token' })))
+      rest.post(refreshUrl, (req, res, ctx) => {
+        refreshCompleted = true;
+        return res(ctx.status(200), ctx.json({ success: true }));
+      })
     );
 
     const response = await api.get('/protected');
@@ -45,7 +49,7 @@ describe('Axios interceptor refresh flow', () => {
     expect(response.status).toBe(200);
     expect(response.data.data).toBe('ok');
     expect(protectedCalls).toBe(2);
-    expect(authStore.getAccessToken()).toBe('new-token');
+    expect(authStore.getAccessToken()).toBeNull();
     expect(getApiClientState()).toEqual({ isRefreshing: false, failedQueueLength: 0 });
   });
 
@@ -53,15 +57,17 @@ describe('Axios interceptor refresh flow', () => {
     authStore.setAccessToken('old-token');
 
     let refreshCalls = 0;
+    let refreshCompleted = false;
     server.use(
       rest.get(protectedUrl, (req, res, ctx) => {
         const auth = req.headers.get('authorization') || '';
-        if (auth === 'Bearer new-token') return res(ctx.status(200), ctx.json({ data: 'ok' }));
+        if (refreshCompleted && !auth) return res(ctx.status(200), ctx.json({ data: 'ok' }));
         return res(ctx.status(401), ctx.json({ message: 'Unauthorized' }));
       }),
       rest.post(refreshUrl, (req, res, ctx) => {
         refreshCalls++;
-        return res(ctx.delay(50), ctx.status(200), ctx.json({ accessToken: 'new-token' }));
+        refreshCompleted = true;
+        return res(ctx.delay(50), ctx.status(200), ctx.json({ success: true }));
       })
     );
 
@@ -69,7 +75,7 @@ describe('Axios interceptor refresh flow', () => {
     const results = await Promise.all(promises);
 
     results.forEach((r) => expect(r.status).toBe(200));
-    expect(authStore.getAccessToken()).toBe('new-token');
+    expect(authStore.getAccessToken()).toBeNull();
     await waitFor(() => {
       expect(refreshCalls).toBe(1);
       expect(getApiClientState()).toEqual({ isRefreshing: false, failedQueueLength: 0 });
@@ -125,7 +131,7 @@ describe('Axios interceptor refresh flow', () => {
       }),
       rest.post(refreshUrl, (req, res, ctx) => {
         refreshCalls++;
-        return res(ctx.status(200), ctx.json({ accessToken: 'new-token' }));
+        return res(ctx.status(200), ctx.json({ success: true }));
       })
     );
 
@@ -133,6 +139,31 @@ describe('Axios interceptor refresh flow', () => {
 
     expect(protectedCalls).toBe(2);
     expect(refreshCalls).toBe(1);
+    expect(getApiClientState()).toEqual({ isRefreshing: false, failedQueueLength: 0 });
+  });
+
+  it('debe seguir soportando refresh con accessToken explícito si el backend aún lo envía', async () => {
+    authStore.setAccessToken('old-token');
+
+    let refreshCompleted = false;
+    server.use(
+      rest.get(protectedUrl, (req, res, ctx) => {
+        const auth = req.headers.get('authorization') || '';
+        if (refreshCompleted && auth === 'Bearer new-token') {
+          return res(ctx.status(200), ctx.json({ data: 'ok' }));
+        }
+        return res(ctx.status(401), ctx.json({ message: 'Unauthorized' }));
+      }),
+      rest.post(refreshUrl, (req, res, ctx) => {
+        refreshCompleted = true;
+        return res(ctx.status(200), ctx.json({ accessToken: 'new-token' }));
+      })
+    );
+
+    const response = await api.get('/protected');
+
+    expect(response.status).toBe(200);
+    expect(authStore.getAccessToken()).toBe('new-token');
     expect(getApiClientState()).toEqual({ isRefreshing: false, failedQueueLength: 0 });
   });
 });

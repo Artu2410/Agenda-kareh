@@ -183,9 +183,6 @@ export const getRequestIp = (req) => {
 
 export const getRequestUserAgent = (req) => String(req.headers['user-agent'] || '').slice(0, 1024) || null;
 
-export const allowHeaderFallback = () => process.env.ALLOW_AUTH_HEADER_FALLBACK !== 'false';
-export const wantsFallbackToken = (req) => String(req.headers['x-auth-fallback'] || '').toLowerCase() === '1';
-
 const parseBootstrapUsersFromJson = (rawValue) => {
   if (!rawValue) return [];
 

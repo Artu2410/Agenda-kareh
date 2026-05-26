@@ -1,7 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { Resend } from 'resend';
 import {
-  allowHeaderFallback,
   clearAuthCookies,
   extractBearerToken,
   extractRefreshToken,
@@ -23,7 +22,6 @@ import {
   normalizeEmail,
   serializeUser,
   setAuthCookies,
-  wantsFallbackToken,
 } from '../utils/auth.js';
 import { auditActions, safeWriteAuditLog } from '../utils/audit.js';
 import SessionManager from '../utils/sessionManager.js';
@@ -132,18 +130,11 @@ const buildLoginTokens = (user, sessionId) => {
   };
 };
 
-const buildAuthSuccessPayload = (req, user, accessToken) => {
-  const payload = {
-    success: true,
-    user: serializeUser(user),
-  };
-
-  if (allowHeaderFallback() && wantsFallbackToken(req)) {
-    payload.accessToken = accessToken;
-  }
-
-  return payload;
-};
+const buildAuthSuccessPayload = (user, accessToken) => ({
+  success: true,
+  user: serializeUser(user),
+  accessToken,
+});
 
 const sendOtpEmail = async (email, otp) => {
   const resend = getResendClient();
@@ -473,7 +464,7 @@ export const verifyOTP = async (req, res) => {
       },
     });
 
-    return res.json(buildAuthSuccessPayload(req, freshUser, accessToken));
+    return res.json(buildAuthSuccessPayload(freshUser, accessToken));
   } catch (error) {
     throw createInternalError(error, 'Error en la verificación');
   }
@@ -586,12 +577,10 @@ export const refreshToken = async (req, res) => {
       details: { role: decoded.role || 'USER' },
     });
 
-    const payload = { success: true };
-    if (allowHeaderFallback() && wantsFallbackToken(req)) {
-      payload.accessToken = newAccessToken;
-    }
-
-    return res.json(payload);
+    return res.json({
+      success: true,
+      accessToken: newAccessToken,
+    });
   } catch (error) {
     await safeWriteAuditLog(prisma, req, {
       action: auditActions.authRefreshFailed,

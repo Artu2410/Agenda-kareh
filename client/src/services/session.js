@@ -8,13 +8,18 @@ const SESSION_STORAGE_KEYS = [
   'userProfessionalId',
   'user_email',
   'user_name',
-  'auth_fallback',
-  'auth_fallback_token',
   'csrfToken',
 ];
 
+const LEGACY_SESSION_STORAGE_KEYS = [
+  // Compatibilidad de limpieza para instalaciones que todavía tengan residuos
+  // del flujo legado de auth fallback en localStorage.
+  'auth_fallback',
+  'auth_fallback_token',
+];
+
 export const clearClientSession = () => {
-  SESSION_STORAGE_KEYS.forEach((key) => {
+  [...SESSION_STORAGE_KEYS, ...LEGACY_SESSION_STORAGE_KEYS].forEach((key) => {
     localStorage.removeItem(key);
   });
 };

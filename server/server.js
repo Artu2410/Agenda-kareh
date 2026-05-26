@@ -168,7 +168,7 @@ app.use(cors({
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Auth-Fallback', 'X-CSRF-Token']
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token']
 }));
 
 app.use(cookieParser());

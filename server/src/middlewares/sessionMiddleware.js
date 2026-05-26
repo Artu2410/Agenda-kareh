@@ -1,29 +1,49 @@
 import jwt from 'jsonwebtoken';
 import logger from '../config/logger.js';
+import { extractBearerToken, getJwtSecret } from '../utils/auth.js';
+
+const buildSessionUser = (decoded = {}) => {
+  const userId = decoded.sub || decoded.userId || null;
+  if (!userId) {
+    return null;
+  }
+
+  return {
+    userId,
+    email: decoded.email || null,
+    role: decoded.role || null,
+    sessionId: decoded.sid || null,
+    tokenId: decoded.jti || null,
+  };
+};
 
 /**
- * Middleware para validar tokens JWT y sesiones
+ * Middleware global no bloqueante: adjunta contexto de sesión cuando existe
+ * un access token válido, pero no intercepta rutas públicas.
  */
 export const sessionValidationMiddleware = async (req, res, next) => {
+  const requestLogger = req.logger || logger;
+
   try {
-    const token = req.headers.authorization?.split(' ')[1] || req.cookies?.authToken;
+    const token = extractBearerToken(req);
 
     if (!token) {
-      return res.status(401).json({
-        status: 'fail',
-        message: 'Token no proporcionado',
-      });
+      return next();
     }
 
-    // Verificar token JWT
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, getJwtSecret());
+    const sessionUser = buildSessionUser(decoded);
 
-    // Si tenemos sesión en BD, validarla
-    if (req.prisma && decoded.jti) {
+    if (!sessionUser) {
+      return next();
+    }
+
+    if (req.prisma && sessionUser.tokenId && sessionUser.sessionId) {
       const session = await req.prisma.authSession.findFirst({
         where: {
-          userId: decoded.userId,
-          accessTokenJti: decoded.jti,
+          id: sessionUser.sessionId,
+          userId: sessionUser.userId,
+          accessTokenJti: sessionUser.tokenId,
           revokedAt: null,
           expiresAt: {
             gt: new Date(),
@@ -32,13 +52,13 @@ export const sessionValidationMiddleware = async (req, res, next) => {
       });
 
       if (!session) {
-        return res.status(401).json({
-          status: 'fail',
-          message: 'Sesión inválida o expirada',
+        requestLogger.debug('Session context skipped: no active session found', {
+          userId: sessionUser.userId,
+          sessionId: sessionUser.sessionId,
         });
+        return next();
       }
 
-      // Actualizar lastUsedAt
       await req.prisma.authSession.update({
         where: { id: session.id },
         data: { lastUsedAt: new Date() },
@@ -47,24 +67,18 @@ export const sessionValidationMiddleware = async (req, res, next) => {
       req.session = session;
     }
 
-    req.user = decoded;
-    req.logger?.info('Session validated', { userId: decoded.userId });
-
-    next();
-  } catch (error) {
-    if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({
-        status: 'fail',
-        message: 'Token expirado',
-      });
-    }
-
-    logger.warn('Token validation failed', { error: error.message });
-
-    res.status(401).json({
-      status: 'fail',
-      message: 'Token inválido',
+    req.user = sessionUser;
+    requestLogger.debug('Session context attached', {
+      userId: sessionUser.userId,
+      sessionId: sessionUser.sessionId,
     });
+
+    return next();
+  } catch (error) {
+    requestLogger.debug('Session context skipped: invalid token', {
+      reason: error.name,
+    });
+    return next();
   }
 };
 
