@@ -3,7 +3,12 @@ import request from 'supertest';
 import { validate } from '../src/middlewares/validate.js';
 import { requestOtpBodySchema } from '../src/validations/authSchemas.js';
 import { createPatientBodySchema, patientIdParamsSchema, updatePatientBodySchema } from '../src/validations/patientSchemas.js';
-import { appointmentWeekQuerySchema, createAppointmentBodySchema } from '../src/validations/appointmentSchemas.js';
+import {
+  appointmentIdParamsSchema,
+  appointmentWeekQuerySchema,
+  createAppointmentBodySchema,
+  updateAppointmentEvolutionBodySchema,
+} from '../src/validations/appointmentSchemas.js';
 import { createCashflowBodySchema } from '../src/validations/cashflowSchemas.js';
 
 const createValidationApp = ({ method = 'post', path = '/', schema }) => {
@@ -153,6 +158,96 @@ describe('centralized zod validation middleware', () => {
       endDate: '2026-05-07',
       professionalId: 'c1234567890',
     });
+  });
+
+  it('accepts evolution payloads with empty optional insurance fields', async () => {
+    const app = createValidationApp({
+      method: 'patch',
+      path: '/appointments/:id/evolution',
+      schema: { params: appointmentIdParamsSchema, body: updateAppointmentEvolutionBodySchema },
+    });
+
+    const response = await request(app)
+      .patch('/appointments/c1234567890/evolution')
+      .send({
+        diagnosis: 'Control',
+        status: 'COMPLETED',
+        patientData: {
+          healthInsurance: 'OSDE',
+          obraSocialId: '',
+          treatAsParticular: false,
+          affiliateNumber: '',
+          birthDate: '',
+          hasCancer: false,
+          hasMarcapasos: false,
+          usesEA: false,
+          usesWheelchair: false,
+          isRespiratory: false,
+          isIU: false,
+        },
+        documentsChecklist: { documents: [], additionalInfo: '' },
+        authorizationNumber: '',
+        authorizationFileUrl: '',
+        paidInAdvance: false,
+        sessionToken: '',
+        evolution: 'Seguimiento',
+        isFirstSession: false,
+      })
+      .expect(200);
+
+    expect(response.body.params).toEqual({ id: 'c1234567890' });
+    expect(response.body.body.patientData).toEqual({
+      healthInsurance: 'OSDE',
+      treatAsParticular: false,
+      hasCancer: false,
+      hasMarcapasos: false,
+      usesEA: false,
+      usesWheelchair: false,
+      isRespiratory: false,
+      isIU: false,
+    });
+    expect(response.body.body.sessionToken).toBeUndefined();
+    expect(response.body.body.authorizationNumber).toBeUndefined();
+    expect(response.body.body.authorizationFileUrl).toBeUndefined();
+  });
+
+  it('preserves valid session tokens in evolution payloads', async () => {
+    const app = createValidationApp({
+      method: 'patch',
+      path: '/appointments/:id/evolution',
+      schema: { params: appointmentIdParamsSchema, body: updateAppointmentEvolutionBodySchema },
+    });
+
+    const response = await request(app)
+      .patch('/appointments/c1234567890/evolution')
+      .send({
+        diagnosis: 'Control',
+        status: 'COMPLETED',
+        patientData: {
+          healthInsurance: 'OSDE',
+          obraSocialId: 'c1234567890',
+          treatAsParticular: false,
+          affiliateNumber: '12345',
+          hasCancer: false,
+          hasMarcapasos: false,
+          usesEA: false,
+          usesWheelchair: false,
+          isRespiratory: false,
+          isIU: false,
+        },
+        documentsChecklist: { documents: [], additionalInfo: '' },
+        authorizationNumber: 'AUTH-42',
+        authorizationFileUrl: 'https://example.com/auth.pdf',
+        paidInAdvance: false,
+        sessionToken: 'TOKEN-123',
+        evolution: 'Seguimiento',
+        isFirstSession: false,
+      })
+      .expect(200);
+
+    expect(response.body.body.sessionToken).toBe('TOKEN-123');
+    expect(response.body.body.authorizationNumber).toBe('AUTH-42');
+    expect(response.body.body.authorizationFileUrl).toBe('https://example.com/auth.pdf');
   });
 
   it('rejects invalid cashflow payloads', async () => {
