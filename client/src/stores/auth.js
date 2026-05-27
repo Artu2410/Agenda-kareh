@@ -3,6 +3,14 @@
 
 import { clearClientSession } from '../services/session';
 import { getApiUrl } from '../services/apiBase';
+import { APP_ROUTES } from '../utils/appRoutes';
+
+const isLoginPath = () => {
+  if (typeof window === 'undefined') return false;
+
+  const { pathname } = window.location;
+  return pathname === APP_ROUTES.login || pathname === '/login';
+};
 
 let accessToken = null;
 const listeners = new Set();
@@ -38,7 +46,9 @@ export const logout = async () => {
     // ignore
   }
   clearAuth();
-  if (typeof window !== 'undefined') window.location.href = '/login';
+  if (typeof window !== 'undefined' && import.meta.env.MODE !== 'test' && !isLoginPath()) {
+    window.location.replace(APP_ROUTES.login);
+  }
 };
 
 export default {

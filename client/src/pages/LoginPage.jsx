@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { 
   Mail, 
   Lock, 
   Loader, 
   CheckCircle, 
-  AlertCircle,
   ArrowRight 
 } from 'lucide-react';
 import { showErrorToast, showSuccessToast, showLoadingToast } from '../components/toastHelpers';
@@ -19,6 +19,7 @@ import { requestOTP, verifyOTP } from '../services/api';
 export default function LoginPage({ onLoginSuccess }) {
   const MotionDiv = motion.div;
   const MotionForm = motion.form;
+  const navigate = useNavigate();
   const [step, setStep] = useState('email'); // 'email' | 'otp'
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
@@ -95,7 +96,7 @@ export default function LoginPage({ onLoginSuccess }) {
         
         setTimeout(() => {
           onLoginSuccess?.();
-          window.location.href = APP_ROUTES.dashboard;
+          navigate(APP_ROUTES.dashboard, { replace: true });
         }, 800);
       }
     } catch (err) {

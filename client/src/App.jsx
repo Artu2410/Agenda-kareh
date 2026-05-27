@@ -18,8 +18,8 @@ import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import Sidebar from './components/layout/Sidebar';
 import RequireRole from './components/auth/RequireRole';
 import api from './services/api';
-import { initializeCsrf } from './services/csrf';
-import { clearClientSession, getStoredUser, storeAuthenticatedUser } from './services/session';
+import { bootstrapAuthSession } from './services/authBootstrap';
+import { getStoredUser } from './services/session';
 import { registerServiceWorker, subscribeToPushNotifications, playNotificationSound } from './services/notifications';
 import { APP_ROUTES, getDocumentTitle } from './utils/appRoutes';
 import { ChevronLeft, ChevronRight, Menu } from 'lucide-react';
@@ -70,35 +70,17 @@ function App() {
   useEffect(() => {
     let isMounted = true;
 
-    initializeCsrf();
-
     const timeoutId = window.setTimeout(() => {
       void (async () => {
-        let validSession = false;
-
         try {
-          const response = await api.get('/auth/verify');
-          validSession = Boolean(response.data?.valid);
-          if (validSession && response.data?.user) {
-            storeAuthenticatedUser(response.data.user);
-            setCurrentUser(response.data.user);
-          }
-        } catch {
-          // Si el token expira, el interceptor de axios intentará refrescarlo.
-          // Si aún así falla, no será válido.
+          const session = await bootstrapAuthSession();
+          if (!isMounted) return;
+
+          setCurrentUser(session.user);
+          setIsAuthenticated(session.isAuthenticated);
+        } finally {
+          if (isMounted) setLoading(false);
         }
-
-        if (!isMounted) return;
-
-        if (validSession) {
-          setIsAuthenticated(true);
-        } else {
-          clearClientSession();
-          setCurrentUser(getStoredUser());
-          setIsAuthenticated(false);
-        }
-
-        setLoading(false);
       })();
     }, 0);
 
