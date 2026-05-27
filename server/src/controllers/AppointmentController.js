@@ -137,6 +137,31 @@ const resolvePatientInsurancePayload = async (tx, payload = {}) => {
   };
 };
 
+const normalizeInsuranceValue = (value) => {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== 'string') return value;
+
+  const trimmedValue = value.trim();
+  return trimmedValue === '' ? null : trimmedValue;
+};
+
+const hasInsurancePayloadChanged = (currentPatient = {}, payload = {}) => {
+  const currentObraSocialId = normalizeInsuranceValue(currentPatient.obraSocialId);
+  const nextObraSocialId = normalizeInsuranceValue(payload.obraSocialId);
+  const currentHealthInsurance = normalizeInsuranceValue(currentPatient.healthInsurance);
+  const nextHealthInsurance = normalizeInsuranceValue(payload.healthInsurance);
+  const currentTreatAsParticular = Boolean(currentPatient.treatAsParticular);
+  const nextTreatAsParticular = payload.treatAsParticular === undefined
+    ? currentTreatAsParticular
+    : Boolean(payload.treatAsParticular);
+
+  const obraSocialChanged = nextObraSocialId !== null && nextObraSocialId !== currentObraSocialId;
+  const healthInsuranceChanged = nextHealthInsurance !== null && nextHealthInsurance !== currentHealthInsurance;
+  const treatAsParticularChanged = nextTreatAsParticular !== currentTreatAsParticular;
+
+  return obraSocialChanged || healthInsuranceChanged || treatAsParticularChanged;
+};
+
 const getAppointmentInsuranceContext = async (tx, patient, payload = {}) => {
   const treatAsParticular = Boolean(payload.treatAsParticular ?? patient?.treatAsParticular);
   const requestedObraSocialId = payload.obraSocialId === undefined ? patient?.obraSocialId : payload.obraSocialId;
@@ -260,7 +285,24 @@ const prepareReusedDocuments = async (tx, patientId, checklist = null) => {
 };
 
 const buildAppointmentWritePayload = async (tx, patient, payload = {}, options = {}) => {
-  const { currentAppointment = null } = options;
+  const { currentAppointment = null, preserveCurrentInsurance = false } = options;
+
+  if (preserveCurrentInsurance && currentAppointment) {
+    return {
+      obraSocialId: currentAppointment.obraSocialId ?? null,
+      status: payload.status || currentAppointment.status || 'SCHEDULED',
+      authorizationStatus: payload.authorizationStatus || currentAppointment.authorizationStatus || 'NOT_REQUIRED',
+      authorizationNumber: payload.authorizationNumber || null,
+      authorizationFileUrl: payload.authorizationFileUrl || null,
+      documentsChecklist: payload.documentsChecklist ?? currentAppointment.documentsChecklist ?? { documents: [], additionalInfo: '' },
+      coinsuranceAmount: currentAppointment.coinsuranceAmount === undefined ? null : currentAppointment.coinsuranceAmount,
+      patientChargeAmount: currentAppointment.patientChargeAmount === undefined ? null : currentAppointment.patientChargeAmount,
+      coinsuranceDetails: currentAppointment.coinsuranceDetails ?? null,
+      paidInAdvance: payload.paidInAdvance ?? currentAppointment.paidInAdvance,
+      sessionToken: payload.sessionToken || null,
+    };
+  }
+
   const insuranceContext = await getAppointmentInsuranceContext(tx, patient, payload);
   const hydratedChecklist = await prepareReusedDocuments(tx, patient.id, insuranceContext.documentsChecklist);
   const financialSnapshot = buildStoredFinancialSnapshot({
@@ -589,8 +631,20 @@ export const updateEvolution = async (req, res, prisma) => {
       if (!currentApt) throw new Error("Cita no encontrada");
       ensureAppointmentScope(req, currentApt.professionalId);
 
+      const insuranceHasChanged = patientData
+        ? hasInsurancePayloadChanged(currentApt.patient, patientData)
+        : false;
+
       const nextPatientInsurance = patientData
-        ? await resolvePatientInsurancePayload(tx, patientData)
+        ? (
+          insuranceHasChanged
+            ? await resolvePatientInsurancePayload(tx, patientData)
+            : {
+                obraSocialId: currentApt.patient.obraSocialId ?? null,
+                healthInsurance: currentApt.patient.healthInsurance ?? null,
+                treatAsParticular: Boolean(currentApt.patient.treatAsParticular),
+              }
+        )
         : null;
 
       const appointmentWritePayload = await buildAppointmentWritePayload(tx, currentApt.patient, {
@@ -605,6 +659,7 @@ export const updateEvolution = async (req, res, prisma) => {
         sessionToken: sessionToken ?? currentApt.sessionToken,
       }, {
         currentAppointment: currentApt,
+        preserveCurrentInsurance: !insuranceHasChanged,
       });
 
       const updatedAppointment = await tx.appointment.update({
