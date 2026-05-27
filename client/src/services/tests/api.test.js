@@ -2,13 +2,14 @@ import { waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { delay, http, HttpResponse } from 'msw';
 import { server } from '../../tests/msw/server';
-import api, { getApiClientState, resetApiClientState } from '../api';
+import api, { getApiClientState, resetApiClientState, verifyOTP } from '../api';
 import { getApiUrl } from '../apiBase';
 import * as authStore from '../../stores/auth';
 
 const protectedUrl = getApiUrl('/protected');
 const refreshUrl = getApiUrl('/auth/refresh');
 const logoutUrl = getApiUrl('/auth/logout');
+const verifyOtpUrl = getApiUrl('/auth/verify-otp');
 
 describe('Axios interceptor refresh flow', () => {
   beforeEach(() => {
@@ -147,6 +148,24 @@ describe('Axios interceptor refresh flow', () => {
 
     expect(response.status).toBe(200);
     expect(authStore.getAccessToken()).toBe('new-token');
+    expect(getApiClientState()).toEqual({ isRefreshing: false, failedQueueLength: 0 });
+  });
+
+  it('no debe intentar refresh al fallar verifyOTP en login', async () => {
+    let refreshCalls = 0;
+    server.use(
+      http.post(verifyOtpUrl, () => HttpResponse.json({ message: 'Código incorrecto' }, { status: 401 })),
+      http.post(refreshUrl, () => {
+        refreshCalls++;
+        return HttpResponse.json({ success: true }, { status: 200 });
+      })
+    );
+
+    await expect(verifyOTP('admin@kareh.com', '123456')).rejects.toMatchObject({
+      friendlyMessage: 'Código incorrecto',
+    });
+
+    expect(refreshCalls).toBe(0);
     expect(getApiClientState()).toEqual({ isRefreshing: false, failedQueueLength: 0 });
   });
 });

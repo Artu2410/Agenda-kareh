@@ -2,6 +2,7 @@ import axios from 'axios';
 import { API_BASE_URL } from './apiBase';
 import { ensureCsrfToken } from './csrf';
 import * as authStore from '../stores/auth';
+import { APP_ROUTES } from '../utils/appRoutes';
 /**
  * CONFIGURACIÓN DE URL
  * Forzamos que la base siempre incluya /api para que todas las llamadas 
@@ -28,6 +29,12 @@ const isRefreshableAuthError = (response) => {
   return message.includes('token');
 };
 const shouldSkipAuthRefresh = (config) => Boolean(config?.skipAuthRefresh);
+const isLoginPath = () => {
+  if (typeof window === 'undefined') return false;
+
+  const { pathname } = window.location;
+  return pathname === APP_ROUTES.login || pathname === '/login';
+};
 const buildRequestUrl = (config) => {
   const baseURL = String(config.baseURL || '');
   const url = String(config.url || '');
@@ -182,9 +189,9 @@ api.interceptors.response.use(
             // ignore
           }
           // redirigir a login (behaviour global)
-          if (typeof window !== 'undefined') {
+          if (typeof window !== 'undefined' && import.meta.env.MODE !== 'test' && !isLoginPath()) {
             if (isDebugEnabled) console.debug('[api] redirecting to /login');
-            window.location.href = '/login';
+            window.location.replace(APP_ROUTES.login);
           }
           throw err;
         } finally {
@@ -204,10 +211,11 @@ export default api;
  */
 
 // Auth
-export const requestOTP = (email) => api.post('/auth/request-otp', { email });
+export const requestOTP = (email) => api.post('/auth/request-otp', { email }, { skipAuthRefresh: true });
 export const verifyOTP = (email, otp) => api.post(
   '/auth/verify-otp',
-  { email, otp }
+  { email, otp },
+  { skipAuthRefresh: true }
 );
 
 // Appointments
