@@ -250,6 +250,50 @@ describe('centralized zod validation middleware', () => {
     expect(response.body.body.authorizationFileUrl).toBe('https://example.com/auth.pdf');
   });
 
+  it('accepts long document names in evolution payloads', async () => {
+    const app = createValidationApp({
+      method: 'patch',
+      path: '/appointments/:id/evolution',
+      schema: { params: appointmentIdParamsSchema, body: updateAppointmentEvolutionBodySchema },
+    });
+
+    const longDocumentName = 'Documento requerido por obra social con nombre extenso '.padEnd(200, 'x');
+
+    const response = await request(app)
+      .patch('/appointments/c1234567890/evolution')
+      .send({
+        diagnosis: 'Control',
+        status: 'COMPLETED',
+        patientData: {
+          healthInsurance: 'OSDE',
+          obraSocialId: 'c1234567890',
+          treatAsParticular: false,
+          affiliateNumber: '12345',
+          hasCancer: false,
+          hasMarcapasos: false,
+          usesEA: false,
+          usesWheelchair: false,
+          isRespiratory: false,
+          isIU: false,
+        },
+        documentsChecklist: {
+          documents: [
+            { name: longDocumentName },
+          ],
+          additionalInfo: '',
+        },
+        authorizationNumber: 'AUTH-42',
+        authorizationFileUrl: 'https://example.com/auth.pdf',
+        paidInAdvance: false,
+        sessionToken: 'TOKEN-123',
+        evolution: 'Seguimiento',
+        isFirstSession: false,
+      })
+      .expect(200);
+
+    expect(response.body.body.documentsChecklist.documents[0].name).toBe(longDocumentName);
+  });
+
   it('rejects invalid cashflow payloads', async () => {
     const app = createValidationApp({
       schema: { body: createCashflowBodySchema },
