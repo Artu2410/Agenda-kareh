@@ -542,7 +542,6 @@ const PrintSessions = ({ isOpen, onClose, appointments, patientData, diagnosis, 
       alert('✓ PDF enviado por WhatsApp exitosamente');
       onClose();
     } catch (error) {
-      console.error('Error al enviar PDF por WhatsApp:', error);
       const serverMessage = error?.response?.data?.message;
       const serverDetail = error?.response?.data?.detail;
       alert(

@@ -66,9 +66,8 @@ const SettingsPage = () => {
       const response = await instance.get('/professionals');
       setProfessionals(response.data);
       setError(null);
-    } catch (err) {
+    } catch {
       setError('No se pudo cargar la lista de profesionales.');
-      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -81,8 +80,8 @@ const SettingsPage = () => {
       setUsersLoading(true);
       const response = await instance.get('/users');
       setUsers(response.data || []);
-    } catch (err) {
-      console.error('Error al cargar usuarios:', err);
+    } catch {
+      return;
     } finally {
       setUsersLoading(false);
     }
@@ -93,8 +92,8 @@ const SettingsPage = () => {
       setConfigLoading(true);
       const response = await instance.get('/agenda/config');
       setAgendaConfig(normalizeAgendaConfig(response.data));
-    } catch (err) {
-      console.error('Error al cargar configuración de agenda:', err);
+    } catch {
+      return;
     } finally {
       setConfigLoading(false);
     }
@@ -117,7 +116,6 @@ const SettingsPage = () => {
       const response = await instance.put('/agenda/config', payload);
       setAgendaConfig(normalizeAgendaConfig(response.data));
     } catch (err) {
-      console.error('Error al actualizar configuración:', err);
       alert(err.response?.data?.message || 'Error al guardar la configuración');
     } finally {
       setAgendaSaving(false);
@@ -170,7 +168,6 @@ const SettingsPage = () => {
       await fetchProfessionals();
       return true;
     } catch (err) {
-      console.error(err);
       setError(err.response?.data?.message || 'No se pudo guardar el profesional.');
       return false;
     }
@@ -199,7 +196,6 @@ const SettingsPage = () => {
       resetUserForm();
       await fetchUsers();
     } catch (err) {
-      console.error('Error al crear usuario:', err);
       alert(err.response?.data?.message || 'No se pudo crear el usuario');
     } finally {
       setUserSaving(false);
@@ -214,7 +210,6 @@ const SettingsPage = () => {
       });
       await fetchUsers();
     } catch (err) {
-      console.error('Error actualizando usuario:', err);
       alert(err.response?.data?.message || 'No se pudo actualizar el usuario');
     }
   };
@@ -227,7 +222,6 @@ const SettingsPage = () => {
       });
       await fetchUsers();
     } catch (err) {
-      console.error('Error cambiando rol:', err);
       alert(err.response?.data?.message || 'No se pudo cambiar el rol');
     }
   };
@@ -240,7 +234,6 @@ const SettingsPage = () => {
       await instance.delete(`/users/${user.id}`);
       await fetchUsers();
     } catch (err) {
-      console.error('Error eliminando usuario:', err);
       alert(err.response?.data?.message || 'No se pudo eliminar el usuario');
     }
   };
@@ -611,3 +604,4 @@ const SettingsPage = () => {
 };
 
 export default SettingsPage;
+

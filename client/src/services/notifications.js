@@ -23,12 +23,7 @@ async function fetchPushConfig() {
     pushConfigPromise = api
       .get('/notifications/config')
       .then((response) => response.data || { enabled: false, publicKey: null })
-      .catch((error) => {
-        if (import.meta.env.DEV) {
-          console.warn('No se pudo cargar la configuración push:', error?.message || error);
-        }
-        return { enabled: false, publicKey: null };
-      })
+      .catch(() => ({ enabled: false, publicKey: null }))
       .finally(() => {
         pushConfigPromise = null;
       });
@@ -60,27 +55,19 @@ export async function registerServiceWorker() {
 
   try {
     const registration = await navigator.serviceWorker.register('/sw.js');
-    console.log('Service Worker registrado:', registration);
     return registration;
-  } catch (error) {
-    console.error('Error al registrar Service Worker:', error);
+  } catch {
     return null;
   }
 }
 
 export async function subscribeToPushNotifications() {
   if (!isPushSupported()) {
-    if (import.meta.env.DEV) {
-      console.warn('Notificaciones Push no soportadas');
-    }
     return null;
   }
 
   const pushConfig = await fetchPushConfig();
   if (!pushConfig?.enabled || !pushConfig?.publicKey) {
-    if (import.meta.env.DEV) {
-      console.info('Notificaciones Push deshabilitadas: VAPID no configurado en backend');
-    }
     return null;
   }
 
@@ -99,9 +86,6 @@ export async function subscribeToPushNotifications() {
       : currentPermission;
 
     if (permission !== 'granted') {
-      if (import.meta.env.DEV) {
-        console.warn('Permiso de notificación no concedido');
-      }
       return null;
     }
 
@@ -111,7 +95,6 @@ export async function subscribeToPushNotifications() {
     });
 
     await syncSubscription(subscription);
-    console.log('Suscrito a notificaciones Push');
     return subscription;
   } catch (error) {
     const errorName = String(error?.name || '');
@@ -122,18 +105,16 @@ export async function subscribeToPushNotifications() {
       errorMessage.toLowerCase().includes('push service');
 
     if (isRecoverable) {
-      console.warn('No se pudo activar Push en este dispositivo o navegador:', errorMessage || errorName);
       return null;
     }
 
-    console.error('Error al suscribirse a notificaciones Push:', error);
     return null;
   }
 }
 
 export function playNotificationSound() {
   const audio = new Audio('/notification-sound.mp3');
-  audio.play().catch((error) => console.warn('Error al reproducir sonido:', error));
+  audio.play().catch(() => {});
 }
 
 export function updateAppBadge(count) {
@@ -145,3 +126,4 @@ export function updateAppBadge(count) {
     }
   }
 }
+

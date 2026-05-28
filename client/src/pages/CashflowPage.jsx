@@ -31,8 +31,7 @@ const CashflowPage = () => {
       setLoading(true);
       const response = await instance.get('/cashflow');
       setTransactions(response.data);
-    } catch (error) {
-      console.error("Error fetching transactions:", error);
+    } catch {
       if (!silent) {
         showErrorToast('No se pudieron cargar los movimientos de caja.');
       }
@@ -60,7 +59,6 @@ const CashflowPage = () => {
       closeModal();
       showSuccessToast(transactionData.id ? 'Movimiento actualizado.' : 'Movimiento guardado.');
     } catch (error) {
-      console.error("Error saving transaction:", error);
       const backendMessage = error?.response?.data?.error || error?.response?.data?.message;
       showErrorToast(backendMessage || 'Error al guardar el movimiento.');
     } finally {
@@ -82,8 +80,7 @@ const CashflowPage = () => {
           await instance.delete(`/cashflow/${id}`);
           setTransactions((prev) => prev.filter((transaction) => transaction.id !== id));
           showSuccessToast('Movimiento eliminado.');
-        } catch (error) {
-          console.error('Error al eliminar:', error);
+        } catch {
           showErrorToast('No se pudo eliminar el movimiento.');
         }
       },
@@ -622,3 +619,4 @@ const CashflowPage = () => {
 };
 
 export default CashflowPage;
+

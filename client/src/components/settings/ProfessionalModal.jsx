@@ -111,7 +111,6 @@ const ProfessionalModal = ({ isOpen, onClose, onSave, onDeleted, professional })
 
       await patchProfessionalField(field, response.data?.url || '');
     } catch (uploadError) {
-      console.error(uploadError);
       alert(uploadError?.response?.data?.message || 'No se pudo subir el archivo.');
     } finally {
       setUploadingField('');
@@ -127,7 +126,6 @@ const ProfessionalModal = ({ isOpen, onClose, onSave, onDeleted, professional })
       setUploadingField(field);
       await patchProfessionalField(field, null);
     } catch (removeError) {
-      console.error(removeError);
       alert(removeError?.response?.data?.message || 'No se pudo quitar el archivo.');
     } finally {
       setUploadingField('');
