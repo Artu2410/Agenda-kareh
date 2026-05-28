@@ -180,8 +180,8 @@ const WhatsAppPage = () => {
         areConversationListsEqual(previous, nextConversations) ? previous : nextConversations
       ));
       syncSelectedConversation(nextConversations);
-    } catch (error) {
-      console.error('Error cargando conversaciones:', error);
+    } catch {
+      return;
     } finally {
       if (!silent) setLoadingConversations(false);
     }
@@ -206,8 +206,8 @@ const WhatsAppPage = () => {
         shouldStickToBottomRef.current = shouldStickToBottom || nextMessages.length > previous.length;
         return nextMessages;
       });
-    } catch (error) {
-      console.error('Error cargando mensajes:', error);
+    } catch {
+      return;
     } finally {
       if (!silent) setLoadingMessages(false);
     }
@@ -327,8 +327,7 @@ const WhatsAppPage = () => {
     try {
       await api.post(`/whatsapp/conversations/${conversation.id}/pause-bot`);
       await loadConversations();
-    } catch (error) {
-      console.error('Error tomando control de la conversación:', error);
+    } catch {
       await loadConversations();
     } finally {
       takeoverInFlightConversationIdRef.current = null;
@@ -678,3 +677,4 @@ const WhatsAppPage = () => {
 };
 
 export default WhatsAppPage;
+

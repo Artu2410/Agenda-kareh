@@ -44,7 +44,8 @@ export const ensureCsrfToken = async () => {
 export const initializeCsrf = async () => {
   try {
     await ensureCsrfToken();
-  } catch (error) {
-    console.warn('CSRF init failed:', error?.message || error);
+  } catch {
+    return;
   }
 };
+

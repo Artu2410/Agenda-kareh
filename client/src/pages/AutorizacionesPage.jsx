@@ -31,8 +31,8 @@ const AuthorizationsPage = () => {
         params: filters,
       });
       setAppointments(response.data || []);
-    } catch (error) {
-      console.error('Error cargando autorizaciones:', error);
+    } catch {
+      return;
     } finally {
       setLoading(false);
     }
@@ -53,8 +53,8 @@ const AuthorizationsPage = () => {
       setSavingId(appointmentId);
       await api.patch(`/appointments/${appointmentId}/authorization`, { decision });
       await fetchAppointments();
-    } catch (error) {
-      console.error('Error revisando autorización:', error);
+    } catch {
+      return;
     } finally {
       setSavingId('');
     }
@@ -217,3 +217,4 @@ const AuthorizationsPage = () => {
 };
 
 export default AuthorizationsPage;
+

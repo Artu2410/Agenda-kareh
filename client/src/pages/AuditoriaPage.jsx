@@ -31,8 +31,8 @@ const AuditPage = () => {
 
       setLogs(logsResponse.data || []);
       setUsers(usersResponse.data || []);
-    } catch (error) {
-      console.error('Error cargando auditoría:', error);
+    } catch {
+      return;
     } finally {
       setLoading(false);
     }

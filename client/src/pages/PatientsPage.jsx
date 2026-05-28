@@ -104,8 +104,8 @@ export default function PatientsPage() {
       setLoading(true);
       const response = await api.get('/patients/all');
       setPatients(sortPatientsAlphabetically(response.data || []));
-    } catch (error) {
-      console.error('Error cargando pacientes:', error);
+    } catch {
+      return;
     } finally {
       setLoading(false);
     }
@@ -117,8 +117,8 @@ export default function PatientsPage() {
         params: { includeInactive: '1', includeArchived: '1' },
       });
       setObrasSociales(response.data || []);
-    } catch (error) {
-      console.error('Error cargando obras sociales:', error);
+    } catch {
+      return;
     }
   }, []);
 
@@ -216,7 +216,6 @@ export default function PatientsPage() {
 
       await patchPatientField(field, response.data?.url || '');
     } catch (error) {
-      console.error('Error subiendo documento:', error);
       alert(error?.response?.data?.message || 'No se pudo subir el archivo.');
     } finally {
       setUploadingField('');
@@ -232,7 +231,6 @@ export default function PatientsPage() {
       setUploadingField(field);
       await patchPatientField(field, null);
     } catch (error) {
-      console.error('Error quitando documento:', error);
       alert(error?.response?.data?.message || 'No se pudo quitar el archivo.');
     } finally {
       setUploadingField('');

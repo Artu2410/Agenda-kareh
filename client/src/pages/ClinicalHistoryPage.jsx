@@ -626,8 +626,8 @@ const ClinicalHistoryPage = () => {
         window.open(blobUrl, '_blank', 'noopener,noreferrer');
         setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
         return;
-      } catch (error) {
-        console.error('Error abriendo archivo:', error);
+      } catch {
+        return;
       }
     }
 
@@ -722,8 +722,7 @@ const ClinicalHistoryPage = () => {
       await api.patch(`/patients/${activePatientId}`, { [field]: value });
       setPatient(prev => ({ ...prev, [field]: value }));
       toast.success("Ficha actualizada");
-    } catch (err) {
-      console.error("Error al actualizar paciente:", err);
+    } catch {
       toast.error("Error al actualizar la ficha");
     }
   };
@@ -893,7 +892,6 @@ const ClinicalHistoryPage = () => {
       }
       toast.success('Archivo guardado', { id: 'uploading' });
     } catch (error) {
-      console.error('Error subiendo archivo:', error);
       const message = error?.response?.data?.message || error?.response?.data?.detail || 'No se pudo subir el archivo.';
       toast.error(message, { id: 'uploading' });
     } finally {

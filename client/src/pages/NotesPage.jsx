@@ -224,8 +224,7 @@ export default function NotesPage() {
       const seededNotes = initialState.notes.length > 0 ? initialState.notes.map(normalizeNote) : [createNote({ title: 'Notas internas' })];
       await syncNotesToServer(seededNotes, { showRefreshing: false });
       return seededNotes;
-    } catch (error) {
-      console.error('Error syncing notes:', error);
+    } catch {
       setSyncStatus('Trabajando con cache local');
       return initialState.notes;
     } finally {
@@ -248,8 +247,7 @@ export default function NotesPage() {
     setSyncStatus('Guardando cambios...');
 
     const timeoutId = window.setTimeout(() => {
-      syncNotesToServer(notes).catch((error) => {
-        console.error('Error saving notes:', error);
+      syncNotesToServer(notes).catch(() => {
         setSyncStatus('No se pudo sincronizar. Se mantiene la copia local.');
       });
     }, 500);
@@ -497,3 +495,4 @@ export default function NotesPage() {
     </div>
   );
 }
+

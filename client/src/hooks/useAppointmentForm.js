@@ -166,8 +166,8 @@ export const useAppointmentForm = ({
     try {
       const { data } = await api.get(`/patients/${appointment.patientId}/future-appointments`);
       setFutureAppointments(data || []);
-    } catch (error) {
-      console.error(error);
+    } catch {
+      return;
     }
   }, [appointment?.patientId]);
 
@@ -180,8 +180,8 @@ export const useAppointmentForm = ({
     try {
       const { data } = await api.get(`/patients/${appointment.patientId}/session-cycles`);
       setSessionCycles(data || []);
-    } catch (error) {
-      console.error(error);
+    } catch {
+      return;
     }
   }, [appointment?.patientId]);
 
@@ -191,8 +191,8 @@ export const useAppointmentForm = ({
         params: { includeInactive: '1', includeArchived: '1' },
       });
       setObrasSociales(data || []);
-    } catch (error) {
-      console.error(error);
+    } catch {
+      return;
     }
   }, []);
 
@@ -384,7 +384,6 @@ export const useAppointmentForm = ({
       const fileUrl = await uploadDocumentToStorage(file, 'appointment-authorization');
       setAuthorizationFileUrl(fileUrl);
     } catch (error) {
-      console.error(error);
       alert(error?.response?.data?.message || 'No se pudo subir el archivo de autorización.');
     } finally {
       setUploadingAuthorization(false);

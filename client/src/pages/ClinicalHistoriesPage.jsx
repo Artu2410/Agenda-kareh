@@ -89,12 +89,11 @@ export default function ClinicalHistoriesPage() {
         setSelectedDate(response.data.selectedDate);
       }
       setError(null);
-    } catch (err) {
+    } catch {
       if (requestId !== requestIdRef.current) {
         return;
       }
 
-      console.error('Error al cargar historias clínicas:', err);
       setError('No se pudieron cargar las historias clínicas');
     } finally {
       if (requestId === requestIdRef.current) {
@@ -120,8 +119,7 @@ export default function ClinicalHistoriesPage() {
       await api.post('/patients/admin/renumber');
       toast.success('Pacientes renumerados correctamente');
       await fetchPatients();
-    } catch (err) {
-      console.error(err);
+    } catch {
       toast.error('Error al renumerar');
       setLoading(false);
     }
@@ -299,3 +297,4 @@ export default function ClinicalHistoriesPage() {
     </div>
   );
 }
+

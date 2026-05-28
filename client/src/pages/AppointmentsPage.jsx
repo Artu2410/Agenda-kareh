@@ -96,8 +96,7 @@ const AppointmentsPage = () => {
         const exists = list.some((professional) => professional.id === currentId);
         return exists ? currentId : fallbackProfessional.id;
       });
-    } catch (error) {
-      console.error('Error fetching professionals:', error);
+    } catch {
       toast.error('No se pudo cargar el staff profesional');
     }
   }, []);
@@ -109,8 +108,7 @@ const AppointmentsPage = () => {
         ...previous,
         ...(response.data || {}),
       }));
-    } catch (error) {
-      console.error('Error fetching agenda config:', error);
+    } catch {
       toast.error('No se pudo cargar la configuración de agenda');
     }
   }, []);
@@ -130,8 +128,7 @@ const AppointmentsPage = () => {
       });
       
       setAppointments(response.data || []);
-    } catch (error) {
-      console.error("Error fetching appointments:", error);
+    } catch {
       toast.error("Error al cargar agenda");
     } finally { setLoading(false); }
   }, [selectedProfessionalId, viewMode]);
@@ -351,3 +348,4 @@ const AppointmentsPage = () => {
 };
 
 export default AppointmentsPage;
+

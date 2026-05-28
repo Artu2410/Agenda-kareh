@@ -225,7 +225,7 @@ const SlotTimersPanel = ({ currentTime, appointments = [], agendaConfig = null }
     );
   }, [timerDefaultSecondsBySlot]);
 
-  const fetchTimerSnapshot = useCallback(async ({ silent = false } = {}) => {
+  const fetchTimerSnapshot = useCallback(async () => {
     try {
       const response = await api.get('/agenda/timers', {
         params: {
@@ -236,10 +236,8 @@ const SlotTimersPanel = ({ currentTime, appointments = [], agendaConfig = null }
 
       applyServerSnapshot(response.data?.timers || []);
       hasHydratedTimersRef.current = true;
-    } catch (error) {
-      if (!silent) {
-        console.error('Error fetching timers:', error);
-      }
+    } catch {
+      return;
     }
   }, [applyServerSnapshot, viewSlotTime, todayKey]);
 
@@ -363,8 +361,7 @@ const SlotTimersPanel = ({ currentTime, appointments = [], agendaConfig = null }
         timer.slotNumber === slotNumber ? serverTimer : timer
       )));
       toast.success(`Cronómetro ${slotNumber} reiniciado`);
-    } catch (error) {
-      console.error('Error resetting timer:', error);
+    } catch {
       toast.error('No se pudo reiniciar el cronómetro');
     } finally {
       setPendingSlots((prev) => prev.filter((value) => value !== slotNumber));
@@ -389,8 +386,7 @@ const SlotTimersPanel = ({ currentTime, appointments = [], agendaConfig = null }
       setTimerRecords((previous) => previous.map((timer) => (
         timer.slotNumber === slotNumber ? serverTimer : timer
       )));
-    } catch (error) {
-      console.error('Error toggling timer:', error);
+    } catch {
       toast.error('No se pudo actualizar el cronómetro');
     } finally {
       setPendingSlots((prev) => prev.filter((value) => value !== slotNumber));
@@ -460,3 +456,4 @@ const SlotTimersPanel = ({ currentTime, appointments = [], agendaConfig = null }
 };
 
 export default SlotTimersPanel;
+
