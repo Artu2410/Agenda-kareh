@@ -8,7 +8,6 @@ const SESSION_STORAGE_KEYS = [
   'userProfessionalId',
   'user_email',
   'user_name',
-  'csrfToken',
 ];
 
 const LEGACY_SESSION_STORAGE_KEYS = [
@@ -16,12 +15,15 @@ const LEGACY_SESSION_STORAGE_KEYS = [
   // del flujo legado de auth fallback en localStorage.
   'auth_fallback',
   'auth_fallback_token',
+  'csrfToken',
 ];
 
 export const clearClientSession = () => {
   [...SESSION_STORAGE_KEYS, ...LEGACY_SESSION_STORAGE_KEYS].forEach((key) => {
     localStorage.removeItem(key);
   });
+
+  sessionStorage.removeItem('csrfToken');
 };
 
 export const storeAuthenticatedUser = (user = {}) => {
