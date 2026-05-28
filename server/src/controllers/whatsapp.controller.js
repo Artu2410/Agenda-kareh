@@ -15,6 +15,15 @@ import { sendNotificationToAll } from './notifications.controller.js';
 import { findInMemoryWhatsAppCoverageByInput } from '../utils/whatsappCoverageCatalog.js';
 import { createInternalError } from '../errors/AppError.js';
 import logger from '../config/logger.js';
+import {
+  buildFlowState,
+  createWhatsAppLogger,
+  getFileExtension,
+  getFlowStateBase,
+  getFlowStateMeta,
+  normalizeOutgoingText,
+  sanitizeFilename,
+} from './whatsapp/message.helpers.js';
 
 const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
 const WELCOME_TEMPLATE = process.env.WHATSAPP_WELCOME_TEMPLATE || 'bienvenida_kareh';
@@ -42,34 +51,6 @@ const FLOW_META = Object.freeze({
   ART: 'art',
 });
 const CLINIC_LOCATION_MAPS_URL = 'https://maps.app.goo.gl/ChIJccvYOMO9vJURBOmqm_VIytA';
-
-const createWhatsAppLogger = (baseLogger = logger, context = {}) => {
-  const meta = {};
-
-  if (context.requestId) meta.requestId = context.requestId;
-  if (context.patientId) meta.patientId = context.patientId;
-  if (context.phone) meta.phone = context.phone;
-  if (context.messageType) meta.messageType = context.messageType;
-  if (context.conversationId) meta.conversationId = context.conversationId;
-
-  return baseLogger.child(meta);
-};
-
-const FLOW_STATE_SEPARATOR = '::';
-
-const buildFlowState = (baseState, ...metaParts) => [
-  baseState,
-  ...metaParts.map((part) => String(part || '').trim()).filter(Boolean),
-].join(FLOW_STATE_SEPARATOR);
-
-const getFlowStateBase = (state) => String(state || FLOW_STATES.WELCOME)
-  .split(FLOW_STATE_SEPARATOR)
-  .filter(Boolean)[0] || FLOW_STATES.WELCOME;
-
-const getFlowStateMeta = (state) => String(state || '')
-  .split(FLOW_STATE_SEPARATOR)
-  .slice(1)
-  .filter(Boolean);
 
 const DEFAULT_WELCOME_TEXT = [
   'Hola{{name_suffix}} 😊',
@@ -403,27 +384,8 @@ const sendWelcomeReply = async ({
   }
 };
 
-const normalizeOutgoingText = (value) => String(value || '')
-  .replace(/\r\n/g, '\n')
-  .replace(/\r/g, '\n')
-  .trim();
-
-const sanitizeFilename = (value, fallback = 'archivo') => {
-  const normalized = String(value || fallback)
-    .replace(/[^\w.\-() ]+/g, '_')
-    .trim();
-  return normalized || fallback;
-};
-
-const getFileExtension = (filename, mimeType) => {
-  const ext = path.extname(filename || '').toLowerCase();
-  if (ext) return ext;
-  const mimeExt = MIME_EXTENSION[mimeType];
-  return mimeExt ? `.${mimeExt}` : '.bin';
-};
-
 const storeOutboundMedia = async ({ conversationId, file }) => {
-  const extension = getFileExtension(file.originalname, file.mimetype);
+  const extension = getFileExtension(file.originalname, file.mimetype, MIME_EXTENSION);
   const baseName = sanitizeFilename(path.basename(file.originalname || `archivo${extension}`, extension), 'archivo');
   const key = `whatsapp/${conversationId}/outbound/${Date.now()}-${baseName}${extension}`;
 
