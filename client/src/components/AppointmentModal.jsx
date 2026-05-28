@@ -3,7 +3,7 @@ import { Calendar as CalendarIcon, Printer, Loader2, Trash2, History, Pencil, Ch
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import api from '@/services/api';
-import { getCoverageLabel, isParticularCoverage } from '@/utils/coverage';
+import { getCoverageLabel, isParticularCoverage, resolveCoveragePayload } from '@/utils/coverage';
 import PrintSessions from './PrintSessions';
 import { useConfirmModal } from '../hooks/useConfirmModal';
 
@@ -217,8 +217,8 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
       return PARTICULAR_OPTION_VALUE;
     }
 
-    return patientData.obraSocialId || '';
-  }, [patientData.obraSocialId, patientData.treatAsParticular]);
+    return patientData.obraSocialId || selectedObraSocial?.id || '';
+  }, [patientData.obraSocialId, patientData.treatAsParticular, selectedObraSocial?.id]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -400,6 +400,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
 
     setLoading(true);
     try {
+      const normalizedCoverage = resolveCoveragePayload(patientData, selectedObraSocial);
       const payload = {
         diagnosis,
         status,
@@ -411,6 +412,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
         isFirstSession,
         patientData: {
           ...patientData,
+          ...normalizedCoverage,
           fullName,
           birthDate: patientData.birthDate ? new Date(patientData.birthDate).toISOString() : null
         }
