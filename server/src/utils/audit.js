@@ -1,4 +1,7 @@
 import { getRequestIp, getRequestUserAgent } from './auth.js';
+import logger from '../config/logger.js';
+
+const auditLogger = logger.child({ service: 'audit' });
 
 export const auditActions = {
   authOtpRequested: 'AUTH_OTP_REQUESTED',
@@ -98,6 +101,8 @@ export const safeWriteAuditLog = async (prisma, req, entry = {}) => {
   try {
     await writeAuditLog(prisma, req, entry);
   } catch (error) {
-    console.error('❌ Error registrando auditoría:', error.message);
+    auditLogger.error('Error registrando auditoría', {
+      errorMessage: error.message,
+    });
   }
 };

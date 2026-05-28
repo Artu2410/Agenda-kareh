@@ -26,6 +26,9 @@ import {
 import { auditActions, safeWriteAuditLog } from '../utils/audit.js';
 import SessionManager from '../utils/sessionManager.js';
 import { createInternalError, createPublicError } from '../errors/AppError.js';
+import logger from '../config/logger.js';
+
+const authLogger = logger.child({ service: 'auth' });
 
 const getResendClient = () => {
   const apiKey = process.env.RESEND_API_KEY;
@@ -144,7 +147,7 @@ const sendOtpEmail = async (email, otp) => {
       throw new Error('Servicio de correo no configurado');
     }
 
-    console.warn(`⚠️ [DEV] OTP local para ${email}: ${otp}`);
+    authLogger.warn('OTP local en desarrollo', { email });
     return { delivered: false, devOtp: otp };
   }
 

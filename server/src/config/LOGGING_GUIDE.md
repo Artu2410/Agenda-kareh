@@ -104,7 +104,7 @@ logger.error('Failed to create user', {
 
 ```javascript
 logger.error(error); // Solo el error object
-console.log('something'); // console.log en producción
+// No usar console.log en producción.
 logger.info('a'); // Mensaje muy vago
 ```
 
