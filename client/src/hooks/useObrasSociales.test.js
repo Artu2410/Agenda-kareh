@@ -167,4 +167,86 @@ describe('useObrasSociales', () => {
     expect(result.current.obrasSociales[0].nombreOs).toBe('IOMA');
     expect(result.current.filtered[0].nombreOs).toBe('IOMA');
   });
+
+  it('maneja respuestas vacías sin romper filtros ni estado derivado', async () => {
+    server.use(
+      http.get(getApiUrl('/obras-sociales'), () => HttpResponse.json([])),
+      http.get(getApiUrl('/obras-sociales/stats'), () => HttpResponse.json({
+        total: 0,
+        activas: 0,
+        sanMiguel: 0,
+        requierenAutorizacion: 0,
+      })),
+      http.get(getApiUrl('/obras-sociales/status'), () => HttpResponse.json({
+        total: 0,
+        activas: 0,
+        lastSyncAt: null,
+        syncing: false,
+        lastSyncedRecord: null,
+        config: {
+          configured: false,
+          canSync: false,
+          missingFields: [],
+          placeholderFields: [],
+          accessMode: 'private',
+        },
+      })),
+      http.get(getApiUrl('/obras-sociales/coinsurance-report'), ({ request }) => {
+        const url = new URL(request.url);
+        return HttpResponse.json({
+          month: url.searchParams.get('month') || '2026-05',
+          totalAmount: 0,
+          rows: [],
+        });
+      })
+    );
+
+    const { result } = renderHook(() => useObrasSociales());
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.obrasSociales).toEqual([]);
+    expect(result.current.filtered).toEqual([]);
+    expect(result.current.stats.total).toBe(0);
+    expect(result.current.syncStatus.config.configured).toBe(false);
+  });
+
+  it('deja la grilla vacía cuando falla la carga principal', async () => {
+    server.use(
+      http.get(getApiUrl('/obras-sociales'), () => HttpResponse.json({ message: 'error' }, { status: 500 })),
+      http.get(getApiUrl('/obras-sociales/stats'), () => HttpResponse.json({
+        total: 0,
+        activas: 0,
+        sanMiguel: 0,
+        requierenAutorizacion: 0,
+      })),
+      http.get(getApiUrl('/obras-sociales/status'), () => HttpResponse.json({
+        total: 0,
+        activas: 0,
+        lastSyncAt: null,
+        syncing: false,
+        lastSyncedRecord: null,
+        config: {
+          configured: true,
+          canSync: true,
+          missingFields: [],
+          placeholderFields: [],
+          accessMode: 'private',
+        },
+      })),
+      http.get(getApiUrl('/obras-sociales/coinsurance-report'), ({ request }) => {
+        const url = new URL(request.url);
+        return HttpResponse.json({
+          month: url.searchParams.get('month') || '2026-05',
+          totalAmount: 0,
+          rows: [],
+        });
+      })
+    );
+
+    const { result } = renderHook(() => useObrasSociales());
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.obrasSociales).toEqual([]);
+    expect(result.current.filtered).toEqual([]);
+  });
 });
