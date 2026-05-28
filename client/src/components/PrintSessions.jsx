@@ -3,8 +3,8 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { X, Printer, Download, Loader2, Send } from 'lucide-react';
 import html2canvas from 'html2canvas';
-import api from '@/services/api';
-import { getCoverageLabel, isParticularCoverage } from '@/utils/coverage';
+import api from '../services/api';
+import { getCoverageLabel, isParticularCoverage } from '../utils/coverage';
 
 const UNKNOWN_BIRTHDATE = '1900-01-01';
 const THERMAL_WIDTH_MM = 48; // 48mm = 32 caracteres por línea (fuente monoespaciada)
