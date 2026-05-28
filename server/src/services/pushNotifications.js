@@ -1,4 +1,7 @@
 import webpush from 'web-push';
+import logger from '../config/logger.js';
+
+const pushLogger = logger.child({ service: 'push-notifications' });
 
 const publicKey = process.env.VAPID_PUBLIC_KEY;
 const privateKey = process.env.VAPID_PRIVATE_KEY;
@@ -29,7 +32,10 @@ const sendToSubscriptions = async (prisma, subscriptions, payload) => Promise.al
         return;
       }
 
-      console.error('Error enviando notificación push:', error);
+      pushLogger.error('Error enviando notificación push', {
+        subscriptionId: subscription.id,
+        errorMessage: error.message,
+      });
     }
   }),
 );

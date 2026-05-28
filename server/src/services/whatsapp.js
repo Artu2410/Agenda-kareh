@@ -1,9 +1,13 @@
+import logger from '../config/logger.js';
+
 const {
   WHATSAPP_ACCESS_TOKEN,
   WHATSAPP_PHONE_NUMBER_ID,
   WHATSAPP_API_VERSION = 'v20.0',
   WHATSAPP_TEMPLATE_LANGUAGE = 'es_AR',
 } = process.env;
+
+const whatsappLogger = logger.child({ service: 'whatsapp' });
 
 const assertWhatsappConfig = () => {
   if (!WHATSAPP_ACCESS_TOKEN || !WHATSAPP_PHONE_NUMBER_ID) {
@@ -15,7 +19,10 @@ const buildEndpoint = () => `https://graph.facebook.com/${WHATSAPP_API_VERSION}/
 
 const sendMessage = async (payload) => {
   assertWhatsappConfig();
-  console.log('🌐 Enviando mensaje a WhatsApp:', payload);
+  whatsappLogger.info('Enviando mensaje a WhatsApp', {
+    to: payload?.to,
+    type: payload?.type,
+  });
 
   const response = await fetch(buildEndpoint(), {
     method: 'POST',
@@ -27,17 +34,25 @@ const sendMessage = async (payload) => {
   });
 
   const data = await response.json().catch(() => ({}));
-  console.log('📥 Respuesta de WhatsApp:', { status: response.status, data });
+  whatsappLogger.info('Respuesta de WhatsApp', {
+    status: response.status,
+    messageId: data?.messages?.[0]?.id,
+  });
 
   if (!response.ok) {
     const errorMessage = data?.error?.message || 'Error al enviar WhatsApp';
-    console.error('❌ Error en sendMessage:', errorMessage, data);
+    whatsappLogger.error('Error en sendMessage', {
+      errorMessage,
+      status: response.status,
+    });
     const error = new Error(errorMessage);
     error.detail = data;
     throw error;
   }
 
-  console.log('✅ Mensaje enviado exitosamente');
+  whatsappLogger.info('Mensaje enviado exitosamente', {
+    messageId: data?.messages?.[0]?.id,
+  });
   return data;
 };
 
@@ -53,7 +68,12 @@ export const sendTemplateMessage = async ({ to, name, language, components }) =>
     template.components = components;
   }
 
-  console.log('📨 Enviando template WhatsApp:', { to, name, language, components: template.components });
+  whatsappLogger.info('Enviando template WhatsApp', {
+    to,
+    name,
+    language: language || WHATSAPP_TEMPLATE_LANGUAGE,
+    hasComponents: Array.isArray(template.components),
+  });
   return sendMessage({
     messaging_product: 'whatsapp',
     to,
@@ -74,7 +94,11 @@ export const sendTextMessage = async ({ to, text }) => (
 export const uploadMedia = async ({ buffer, filename, mimeType }) => {
   assertWhatsappConfig();
 
-  console.log('📤 Subiendo media a WhatsApp:', { filename, mimeType, bufferSize: buffer.length });
+  whatsappLogger.info('Subiendo media a WhatsApp', {
+    filename,
+    mimeType,
+    bufferSize: buffer.length,
+  });
 
   // Node puede no exponer FormData global en versiones antiguas.
   // Intentamos usar el global, y si no está disponible, usamos la librería "form-data".
@@ -94,7 +118,7 @@ export const uploadMedia = async ({ buffer, filename, mimeType }) => {
   }
   formData.append('type', mimeType);
 
-  console.log('🌐 Enviando request a WhatsApp media endpoint...');
+  whatsappLogger.info('Enviando request a WhatsApp media endpoint');
 
   const response = await fetch(buildGraphUrl(`${WHATSAPP_PHONE_NUMBER_ID}/media`), {
     method: 'POST',
@@ -105,22 +129,33 @@ export const uploadMedia = async ({ buffer, filename, mimeType }) => {
   });
 
   const data = await response.json().catch(() => ({}));
-  console.log('📥 Respuesta de WhatsApp media:', { status: response.status, data });
+  whatsappLogger.info('Respuesta de WhatsApp media', {
+    status: response.status,
+    mediaId: data?.id,
+  });
 
   if (!response.ok) {
     const errorMessage = data?.error?.message || 'Error al subir media a WhatsApp';
-    console.error('❌ Error en uploadMedia:', errorMessage, data);
+    whatsappLogger.error('Error en uploadMedia', {
+      errorMessage,
+      status: response.status,
+    });
     const error = new Error(errorMessage);
     error.detail = data;
     throw error;
   }
 
-  console.log('✅ Media subida exitosamente:', data.id);
+  whatsappLogger.info('Media subida exitosamente', { mediaId: data?.id });
   return data;
 };
 
 export const sendDocumentMessage = async ({ to, mediaId, filename, caption }) => {
-  console.log('📨 Enviando documento WhatsApp:', { to, mediaId, filename, hasCaption: Boolean(caption) });
+  whatsappLogger.info('Enviando documento WhatsApp', {
+    to,
+    mediaId,
+    filename,
+    hasCaption: Boolean(caption),
+  });
   return sendMessage({
     messaging_product: 'whatsapp',
     to,
@@ -134,7 +169,11 @@ export const sendDocumentMessage = async ({ to, mediaId, filename, caption }) =>
 };
 
 export const sendImageMessage = async ({ to, mediaId, caption }) => {
-  console.log('📨 Enviando imagen WhatsApp:', { to, mediaId, hasCaption: Boolean(caption) });
+  whatsappLogger.info('Enviando imagen WhatsApp', {
+    to,
+    mediaId,
+    hasCaption: Boolean(caption),
+  });
   return sendMessage({
     messaging_product: 'whatsapp',
     to,

@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import puppeteer from 'puppeteer';
 import { loadSupplementalCokibaCatalog, matchSupplementalCokibaEntry } from './cokibaTextCatalog.js';
+import logger from '../config/logger.js';
 
 const COKIBA_OS_URL = 'https://autogestion.cokiba.org.ar/web/?q=form_os';
 
@@ -973,11 +974,7 @@ const synchronizeRows = async (prisma, obrasSociales, logger) => {
   return { created, updated, total: obrasSociales.length };
 };
 
-const defaultLogger = {
-  info: console.log,
-  warn: console.warn,
-  error: console.error,
-};
+const defaultLogger = logger.child({ service: 'cokiba-sync' });
 
 export const getCokibaSyncStatus = async (prisma) => {
   const config = buildConfigStatus();

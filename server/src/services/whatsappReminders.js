@@ -1,6 +1,9 @@
 import { addHours, addMinutes } from 'date-fns';
 import { sendWhatsAppReminder } from '../controllers/AppointmentController.js';
 import { appointmentSelect } from '../prisma/selects.js';
+import logger from '../config/logger.js';
+
+const reminderLogger = logger.child({ service: 'whatsapp-reminders' });
 
 const WINDOW_MINUTES = Number(process.env.WHATSAPP_REMINDER_WINDOW_MINUTES || 60);
 
@@ -54,7 +57,10 @@ export const runWhatsappReminders = async (prisma) => {
         sent += 1;
       }
     } catch (error) {
-      console.error('ERROR REMINDER:', appointment.id, error.message);
+      reminderLogger.error('Error enviando recordatorio de WhatsApp', {
+        appointmentId: appointment.id,
+        errorMessage: error.message,
+      });
     }
   }
 

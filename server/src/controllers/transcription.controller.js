@@ -1,5 +1,8 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { AppError } from '../errors/AppError.js';
+import logger from '../config/logger.js';
+
+const transcriptionLogger = logger.child({ service: 'transcription' });
 
 const buildPrompt = () => `
 Eres un asistente experto en transcripcion de documentos medicos y farmaceuticos.
@@ -54,7 +57,9 @@ const callGemini = async (imageBuffer, mimeType) => {
   try {
     return JSON.parse(text);
   } catch (err) {
-    console.error('No se pudo parsear el JSON devuelto por Gemini:', text);
+    transcriptionLogger.error('No se pudo parsear el JSON devuelto por Gemini', {
+      model: GEMINI_MODEL,
+    });
     throw new AppError('La respuesta de la IA no es un JSON valido.', 502);
   }
 };
@@ -68,8 +73,10 @@ export const processMedicalRecipe = async (req, res) => {
     const transcription = await callGemini(req.file.buffer, req.file.mimetype);
     return res.status(200).json(transcription);
   } catch (error) {
-    // Log detalle y devuelvo mensaje legible
-    console.error(`Error procesando transcripcion (modelo ${GEMINI_MODEL}):`, error);
+    transcriptionLogger.error('Error procesando transcripcion', {
+      model: GEMINI_MODEL,
+      errorMessage: error.message,
+    });
     const status = error?.statusCode || 500;
     const message = error?.message || 'Error interno al procesar la transcripcion.';
     return res.status(status).json({ message });

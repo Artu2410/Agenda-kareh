@@ -1,13 +1,19 @@
 import { enqueueJob } from '../services/jobQueue.js';
 import { sendWhatsAppTicketForAppointment } from '../services/whatsappTicket.js';
+import logger from '../config/logger.js';
+
+const jobLogger = logger.child({ job: 'sendWhatsAppTicket' });
 
 export const enqueueSendWhatsAppTicket = async ({ prisma, appointmentId }) => {
   return enqueueJob(async () => {
     try {
       await sendWhatsAppTicketForAppointment({ prisma, appointmentId });
-      console.log('✅ WhatsApp ticket job completed for appointment', appointmentId);
+      jobLogger.info('WhatsApp ticket job completed', { appointmentId });
     } catch (error) {
-      console.error('❌ WhatsApp ticket job failed for appointment', appointmentId, error);
+      jobLogger.error('WhatsApp ticket job failed', {
+        appointmentId,
+        errorMessage: error.message,
+      });
     }
   });
 };
