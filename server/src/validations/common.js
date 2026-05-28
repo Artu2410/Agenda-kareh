@@ -127,7 +127,7 @@ export const dayOfWeekSchema = z.number().int().min(0, 'Día inválido').max(6, 
 export const urlLikeString = (field = 'URL') => optionalString(field, { max: 2000 });
 
 const checklistDocumentSchema = z.object({
-  name: requiredString('Nombre del documento', { max: 120 }),
+  name: requiredString('Nombre del documento', { max: 255 }),
   mandatory: z.boolean().optional(),
   presented: z.boolean().optional(),
   fileUrl: urlLikeString('Archivo del documento'),
