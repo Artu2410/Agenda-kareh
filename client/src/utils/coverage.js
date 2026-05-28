@@ -9,9 +9,23 @@ export const getCoverageLabel = (value, treatAsParticular = false) => (
   isParticularCoverage(value, treatAsParticular) ? 'PARTICULAR' : normalizeCoverage(value).toUpperCase()
 );
 
+export const resolveCoverageSelectionId = (patientData = {}, selectedObraSocial = null) => {
+  const explicitObraSocialId = normalizeCoverage(patientData.obraSocialId);
+
+  if (explicitObraSocialId) {
+    return explicitObraSocialId;
+  }
+
+  if (selectedObraSocial?.isActive) {
+    return normalizeCoverage(selectedObraSocial.id);
+  }
+
+  return '';
+};
+
 export const resolveCoveragePayload = (patientData = {}, selectedObraSocial = null) => {
   const resolvedHealthInsurance = normalizeCoverage(patientData.healthInsurance || selectedObraSocial?.nombreOs);
-  const resolvedObraSocialId = normalizeCoverage(patientData.obraSocialId || selectedObraSocial?.id);
+  const resolvedObraSocialId = resolveCoverageSelectionId(patientData, selectedObraSocial);
 
   if (patientData.treatAsParticular) {
     return {

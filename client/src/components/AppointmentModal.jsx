@@ -3,7 +3,7 @@ import { Calendar as CalendarIcon, Printer, Loader2, Trash2, History, Pencil, Ch
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import api from '@/services/api';
-import { getCoverageLabel, isParticularCoverage, resolveCoveragePayload } from '@/utils/coverage';
+import { getCoverageLabel, isParticularCoverage, resolveCoveragePayload, resolveCoverageSelectionId } from '@/utils/coverage';
 import PrintSessions from './PrintSessions';
 import { useConfirmModal } from '../hooks/useConfirmModal';
 
@@ -217,8 +217,8 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
       return PARTICULAR_OPTION_VALUE;
     }
 
-    return patientData.obraSocialId || selectedObraSocial?.id || '';
-  }, [patientData.obraSocialId, patientData.treatAsParticular, selectedObraSocial?.id]);
+    return resolveCoverageSelectionId(patientData, selectedObraSocial);
+  }, [patientData, selectedObraSocial]);
 
   useEffect(() => {
     if (!isOpen) return;
