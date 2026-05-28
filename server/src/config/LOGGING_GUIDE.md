@@ -146,20 +146,9 @@ jest.mock('../src/config/logger', () => ({
 
 Para producción, puedes conectar a servicios como:
 
-- **Sentry** - Error tracking
 - **DataDog** - Monitoring
 - **New Relic** - APM
 - **Loggly** - Log aggregation
-
-Ejemplo con Sentry:
-
-```javascript
-import * as Sentry from "@sentry/node";
-
-Sentry.init({ dsn: process.env.SENTRY_DSN });
-
-app.use(Sentry.Handlers.errorHandler());
-```
 
 ## Troubleshooting
 
@@ -177,7 +166,6 @@ app.use(Sentry.Handlers.errorHandler());
 
 ## Próximos pasos
 
-- [ ] Integrar Sentry para error tracking
 - [ ] Crear dashboard en DataDog
 - [ ] Implementar alerts basados en logs
 - [ ] Setup log aggregation en producción
