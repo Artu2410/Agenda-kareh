@@ -165,7 +165,7 @@ const SlotTimersPanel = ({ currentTime, appointments = [], agendaConfig = null }
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [pendingSlots, setPendingSlots] = useState([]);
   const [viewSlotTime, setViewSlotTime] = useState(currentSlotTime);
-  const [isAutoSwitchEnabled, setIsAutoSwitchEnabled] = useState(true);
+  const [isAutoSwitchEnabled] = useState(true);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
