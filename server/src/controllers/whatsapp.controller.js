@@ -14,6 +14,7 @@ import { transcribeAudioBuffer } from '../services/audioTranscription.js';
 import { sendNotificationToAll } from './notifications.controller.js';
 import { findInMemoryWhatsAppCoverageByInput } from '../utils/whatsappCoverageCatalog.js';
 import { createInternalError } from '../errors/AppError.js';
+import logger from '../config/logger.js';
 
 const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
 const WELCOME_TEMPLATE = process.env.WHATSAPP_WELCOME_TEMPLATE || 'bienvenida_kareh';
@@ -41,6 +42,18 @@ const FLOW_META = Object.freeze({
   ART: 'art',
 });
 const CLINIC_LOCATION_MAPS_URL = 'https://maps.app.goo.gl/ChIJccvYOMO9vJURBOmqm_VIytA';
+
+const createWhatsAppLogger = (baseLogger = logger, context = {}) => {
+  const meta = {};
+
+  if (context.requestId) meta.requestId = context.requestId;
+  if (context.patientId) meta.patientId = context.patientId;
+  if (context.phone) meta.phone = context.phone;
+  if (context.messageType) meta.messageType = context.messageType;
+  if (context.conversationId) meta.conversationId = context.conversationId;
+
+  return baseLogger.child(meta);
+};
 
 const FLOW_STATE_SEPARATOR = '::';
 
@@ -339,10 +352,12 @@ const sendWelcomeReply = async ({
   patientName,
   templateName = WELCOME_TEMPLATE,
   replyKind = 'welcome',
+  baseLogger = logger,
 }) => {
   const replyConfig = getReplyConfig({ replyKind, templateName });
   const outboundText = buildReplyText(replyConfig.textTemplate, patientName);
   const fallbackText = buildWelcomeFallbackText(patientName, replyConfig.textTemplate);
+  const replyLogger = createWhatsAppLogger(baseLogger);
 
   if (replyConfig.mode !== 'template') {
     const response = await sendTextMessage({
@@ -373,9 +388,9 @@ const sendWelcomeReply = async ({
       throw error;
     }
 
-    console.warn('⚠️ Template automático rechazado por WhatsApp. Se enviará saludo de texto.', {
+    replyLogger.warn('Template automático rechazado por WhatsApp. Se enviará saludo de texto.', {
       templateName: replyConfig.templateName,
-      detail: error?.detail?.error?.error_data?.details || error.message,
+      errorMessage: error?.detail?.error?.error_data?.details || error.message,
     });
 
     const response = await sendTextMessage({ to, text: outboundText || fallbackText });
@@ -1421,6 +1436,8 @@ export const handleWhatsAppWebhook = async (req, res, prisma) => {
     const body = req.body;
     if (!body || body.object !== 'whatsapp_business_account') return res.sendStatus(404);
 
+    const requestLogger = req.logger || logger;
+
     const entries = body.entry || [];
     for (const entry of entries) {
       for (const change of entry.changes || []) {
@@ -1437,6 +1454,11 @@ export const handleWhatsAppWebhook = async (req, res, prisma) => {
             waId: message.from,
             profileName: incomingProfileName,
             phone: message.from,
+          });
+          const whatsappLogger = createWhatsAppLogger(requestLogger, {
+            conversationId: conversation.id,
+            phone: conversation.phone || conversation.waId || message.from,
+            messageType: message.type,
           });
 
           const now = new Date();
@@ -1473,7 +1495,9 @@ export const handleWhatsAppWebhook = async (req, res, prisma) => {
                 mimeType: mediaMimeType,
               });
             } catch (transcriptionError) {
-              console.error('Error transcribiendo audio de WhatsApp:', transcriptionError);
+              whatsappLogger.error('Error transcribiendo audio de WhatsApp', {
+                errorMessage: transcriptionError.message,
+              });
             }
           }
 
@@ -1554,7 +1578,9 @@ export const handleWhatsAppWebhook = async (req, res, prisma) => {
               }
             });
           } catch (pushError) {
-            console.error('Error enviando notificación push:', pushError);
+            whatsappLogger.error('Error enviando notificación push', {
+              errorMessage: pushError.message,
+            });
           }
 
           if (autoReply && !shouldSkipAutoReply) {
@@ -1569,6 +1595,7 @@ export const handleWhatsAppWebhook = async (req, res, prisma) => {
                 const welcomeResult = await sendWelcomeReply({
                   to: conversation.waId,
                   patientName: nextProfileName,
+                  baseLogger: whatsappLogger,
                 });
 
                 response = welcomeResult.response;
@@ -1601,18 +1628,21 @@ export const handleWhatsAppWebhook = async (req, res, prisma) => {
                 },
               });
 
-              console.log('[WA AUTO REPLY]', {
+              whatsappLogger.info('WA auto reply sent', {
                 conversationId: conversation.id,
                 currentState: effectiveState,
                 nextState: nextConversationState,
                 inboundText,
                 outboundText,
+                outboundType,
               });
             } catch (err) {
-              console.error('Error enviando respuesta automática:', err);
+              whatsappLogger.error('Error enviando respuesta automática', {
+                errorMessage: err.message,
+              });
             }
           } else if (autoReply && shouldSkipAutoReply) {
-            console.log('[WA AUTO REPLY SKIPPED]', {
+            whatsappLogger.info('WA auto reply skipped', {
               conversationId: conversation.id,
               currentState: effectiveState,
               nextState: nextConversationState,
@@ -1634,7 +1664,9 @@ export const handleWhatsAppWebhook = async (req, res, prisma) => {
     }
     return res.sendStatus(200);
   } catch (error) {
-    console.error('ERROR WHATSAPP WEBHOOK:', error);
+    (req.logger || logger).error('ERROR WHATSAPP WEBHOOK', {
+      errorMessage: error.message,
+    });
     return res.sendStatus(200);
   }
 };
@@ -1793,12 +1825,17 @@ export const sendWelcomeTemplate = async (req, res, prisma) => {
   const { id } = req.params;
   const conversation = await prisma.whatsAppConversation.findUnique({ where: { id } });
   if (!conversation) return res.status(404).json({ message: 'Conversación no encontrada' });
+  const conversationLogger = createWhatsAppLogger(req.logger || logger, {
+    conversationId: conversation.id,
+    phone: conversation.waId,
+  });
 
   try {
     const result = await sendWelcomeReply({
       to: conversation.waId,
       patientName: conversation.profileName,
       templateName: WELCOME_TEMPLATE,
+      baseLogger: conversationLogger,
     });
 
     const waMessageId = result.response?.messages?.[0]?.id;
