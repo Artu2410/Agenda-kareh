@@ -1,7 +1,10 @@
 import winston from 'winston';
 import path from 'path';
+import fs from 'node:fs';
 
-const isProduction = process.env.NODE_ENV === 'production';
+const runtimeEnv = process.env.NODE_ENV || 'development';
+const isServerlessEnvironment = ['production', 'staging'].includes(runtimeEnv);
+const shouldWriteToFiles = !isServerlessEnvironment;
 
 const logDir = path.join(process.cwd(), 'logs');
 
@@ -13,7 +16,7 @@ const customFormat = winston.format.combine(
 );
 
 const logger = winston.createLogger({
-  level: isProduction ? 'info' : 'debug',
+  level: isServerlessEnvironment ? 'info' : 'debug',
   format: customFormat,
   defaultMeta: { service: 'kareh-backend' },
   transports: [
@@ -29,23 +32,25 @@ const logger = winston.createLogger({
         )
       ),
     }),
-
-    // Error file
-    new winston.transports.File({
-      filename: path.join(logDir, 'error.log'),
-      level: 'error',
-      maxsize: 5242880, // 5MB
-      maxFiles: 5,
-    }),
-
-    // Combined file
-    new winston.transports.File({
-      filename: path.join(logDir, 'combined.log'),
-      maxsize: 5242880, // 5MB
-      maxFiles: 10,
-    }),
   ],
 });
+
+if (shouldWriteToFiles) {
+  fs.mkdirSync(logDir, { recursive: true });
+
+  logger.add(new winston.transports.File({
+    filename: path.join(logDir, 'error.log'),
+    level: 'error',
+    maxsize: 5242880,
+    maxFiles: 5,
+  }));
+
+  logger.add(new winston.transports.File({
+    filename: path.join(logDir, 'combined.log'),
+    maxsize: 5242880,
+    maxFiles: 10,
+  }));
+}
 
 /**
  * Wrapper para capturar contexto adicional en logs
