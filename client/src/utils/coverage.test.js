@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { getCoverageLabel, isParticularCoverage, resolveCoveragePayload } from './coverage';
+import {
+  getCoverageLabel,
+  isParticularCoverage,
+  resolveCoveragePayload,
+  resolveCoverageSelectionId,
+} from './coverage';
 
 describe('coverage utilities', () => {
   it('labels particular coverage consistently', () => {
@@ -18,12 +23,28 @@ describe('coverage utilities', () => {
       {
         id: 'osde-123',
         nombreOs: 'OSDE',
+        isActive: true,
       },
     )).toEqual({
       obraSocialId: 'osde-123',
       healthInsurance: 'OSDE',
       treatAsParticular: false,
     });
+  });
+
+  it('does not infer inactive obra social ids when the patient has no explicit id', () => {
+    expect(resolveCoverageSelectionId(
+      {
+        healthInsurance: 'OSDE',
+        obraSocialId: '',
+        treatAsParticular: false,
+      },
+      {
+        id: 'osde-123',
+        nombreOs: 'OSDE',
+        isActive: false,
+      },
+    )).toBe('');
   });
 
   it('keeps particular payloads controlled even when a coverage was loaded', () => {
@@ -36,6 +57,7 @@ describe('coverage utilities', () => {
       {
         id: 'osde-123',
         nombreOs: 'OSDE',
+        isActive: true,
       },
     )).toEqual({
       obraSocialId: '',
