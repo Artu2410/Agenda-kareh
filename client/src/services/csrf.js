@@ -3,16 +3,16 @@ import { getApiUrl } from './apiBase';
 const CSRF_STORAGE_KEY = 'csrfToken';
 let csrfPromise = null;
 
-export const getStoredCsrfToken = () => localStorage.getItem(CSRF_STORAGE_KEY);
+export const getStoredCsrfToken = () => sessionStorage.getItem(CSRF_STORAGE_KEY);
 
 export const setStoredCsrfToken = (token) => {
   if (token) {
-    localStorage.setItem(CSRF_STORAGE_KEY, token);
+    sessionStorage.setItem(CSRF_STORAGE_KEY, token);
   }
 };
 
 export const clearCsrfToken = () => {
-  localStorage.removeItem(CSRF_STORAGE_KEY);
+  sessionStorage.removeItem(CSRF_STORAGE_KEY);
 };
 
 export const fetchCsrfToken = async () => {

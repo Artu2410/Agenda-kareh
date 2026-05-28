@@ -9,12 +9,14 @@ describe('auth store', () => {
 
   it('clearAuth limpia token y datos persistidos', () => {
     localStorage.setItem('userId', '123');
+    sessionStorage.setItem('csrfToken', 'csrf-token');
     authStore.setAccessToken('token-inicial');
 
     authStore.clearAuth();
 
     expect(authStore.getAccessToken()).toBeNull();
     expect(localStorage.getItem('userId')).toBeNull();
+    expect(sessionStorage.getItem('csrfToken')).toBeNull();
   });
 
   it('subscribe devuelve unsubscribe y evita listeners colgados', () => {
