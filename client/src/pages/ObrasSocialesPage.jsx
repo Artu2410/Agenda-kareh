@@ -1,5 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import instance from '../api/axios';
+import React from 'react';
 import {
   Building2,
   Search,
@@ -24,7 +23,8 @@ import {
   Plus,
   Trash2,
 } from 'lucide-react';
-import { showErrorToast, showSuccessToast } from '../components/toastHelpers';
+import { useObrasSociales, createEmptyManualForm, shiftMonthValue } from '../hooks/useObrasSociales';
+import { getCokibaDetails } from '../utils/obrasSociales';
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(
@@ -36,61 +36,6 @@ const formatDateTime = (value) => {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return 'Nunca';
   return parsed.toLocaleString('es-AR');
-};
-
-const getMonthInputValue = (date = new Date()) =>
-  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-
-const shiftMonthValue = (monthValue, delta) => {
-  const [year, month] = String(monthValue || '').split('-').map(Number);
-  const baseDate = Number.isFinite(year) && Number.isFinite(month)
-    ? new Date(year, month - 1 + delta, 1)
-    : new Date();
-
-  return getMonthInputValue(baseDate);
-};
-
-const getCokibaDetails = (obraSocial) => {
-  const details =
-    obraSocial?.cokibaDetails && typeof obraSocial.cokibaDetails === 'object'
-      ? obraSocial.cokibaDetails
-      : {};
-
-  const linkMap = new Map();
-  const pushLink = (href, label) => {
-    const normalizedHref = String(href || '').trim();
-    if (!normalizedHref) return;
-    if (!linkMap.has(normalizedHref)) {
-      linkMap.set(normalizedHref, {
-        href: normalizedHref,
-        label: String(label || normalizedHref).trim(),
-      });
-    }
-  };
-
-  if (Array.isArray(details.links)) {
-    details.links.forEach((link) => pushLink(link?.href, link?.text));
-  }
-
-  pushLink(details.convenioUrl, details.convenioLabel || 'Convenio');
-  pushLink(details.validacionUrl, 'Validación afiliatoria');
-  pushLink(details.autorizacionUrl, 'Autorización');
-
-  return {
-    arancelVigenteDesde: details.arancelVigenteDesde || '',
-    cuit: details.cuit || '',
-    areaCobertura: details.areaCobertura || '',
-    coseguroTexto: details.coseguroTexto || '',
-    observaciones: details.observaciones || '',
-    numeroPrestador: details.numeroPrestador || '',
-    authorizationNote: details.authorizationNote || '',
-    norms: Array.isArray(details.norms) ? details.norms : [],
-    tariffRows: Array.isArray(details.tariffRows) ? details.tariffRows : [],
-    honorarioReferenciaPrestacion: details.honorarioReferenciaPrestacion || '',
-    honorarioBasicaReferencia: parseFloat(details.honorarioBasicaReferencia) || 0,
-    coinsuranceReliable: details.coinsuranceReliable !== false,
-    links: [...linkMap.values()],
-  };
 };
 
 const getCoverageHighlights = (areaCobertura = '') => {
@@ -167,104 +112,6 @@ const formatLinkLabel = (link) => {
   if (/manual/.test(text)) return 'Manual';
   if (label && !/^https?:\/\//i.test(label)) return label;
   return 'Abrir link';
-};
-
-const createEmptyManualForm = () => ({
-  nombreOs: '',
-  codigoCokiba: '',
-  coseguroValor: 0,
-  coseguroTexto: '',
-  honorarioEstimado: 0,
-  percentageCoinsurance: 0,
-  fixedCopay: 0,
-  plazoPago: 60,
-  areaCobertura: '',
-  documentLines: '',
-  additionalDocumentInfo: '',
-  usefulLinks: '',
-  atendibleSanMiguel: false,
-  isActive: true,
-  requiresAuthorization: false,
-  statusManualOverride: true,
-});
-
-const parseTextareaLines = (value = '') =>
-  String(value || '')
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean);
-
-const buildDocumentPayload = (documentLines = '', additionalInfo = '') => {
-  const documents = parseTextareaLines(documentLines).map((line) => {
-    const validityMatch = line.match(/\(?(\d+)\s*d[ií]as\)?/i);
-    const name = line
-      .replace(/\(?\d+\s*d[ií]as\)?/gi, '')
-      .replace(/[():-]+$/g, '')
-      .trim();
-
-    return {
-      name: name || line.trim(),
-      mandatory: true,
-      validityDays: validityMatch ? Number.parseInt(validityMatch[1], 10) : null,
-    };
-  });
-
-  const normalizedAdditionalInfo = String(additionalInfo || '').trim();
-  if (!documents.length && !normalizedAdditionalInfo) {
-    return null;
-  }
-
-  return {
-    documents,
-    additionalInfo: normalizedAdditionalInfo,
-  };
-};
-
-const guessLinkLabel = (href = '') => {
-  const normalized = String(href || '').toLowerCase();
-  if (/autoriz/.test(normalized)) return 'Autorización';
-  if (/valid|directconnection|prestador|afiliatoria/.test(normalized)) return 'Validación';
-  if (/convenio/.test(normalized)) return 'Convenio';
-  if (/manual/.test(normalized)) return 'Manual';
-  return 'Link útil';
-};
-
-const buildLinksPayload = (value = '') => {
-  const seen = new Set();
-
-  return parseTextareaLines(value)
-    .filter((line) => /^https?:\/\//i.test(line))
-    .filter((line) => {
-      const key = line.toLowerCase();
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    })
-    .map((href) => ({
-      href,
-      text: guessLinkLabel(href),
-    }));
-};
-
-const buildCokibaDetailsPayload = (currentDetails = {}, form = {}) => {
-  const links = buildLinksPayload(form.usefulLinks);
-  const convenioLink = links.find((link) => /convenio/i.test(link.text) || /convenio/i.test(link.href));
-  const validacionLink = links.find((link) => /valid|directconnection|prestador|afiliatoria/i.test(`${link.text} ${link.href}`));
-  const autorizacionLink = links.find((link) => /autoriz/i.test(`${link.text} ${link.href}`));
-
-  return {
-    ...currentDetails,
-    areaCobertura: String(form.areaCobertura || '').trim(),
-    coseguroTexto: String(form.coseguroTexto || '').trim(),
-    authorizationNote:
-      currentDetails?.authorizationNote
-      || (form.requiresAuthorization ? 'Requiere autorización previa' : 'Sin autorización previa'),
-    convenioUrl: convenioLink?.href || '',
-    convenioLabel: convenioLink?.text || '',
-    validacionUrl: validacionLink?.href || '',
-    autorizacionUrl: autorizacionLink?.href || '',
-    links,
-  };
 };
 
 const ObraSocialSupplementalEditor = ({ form, setForm, showName = false, showCode = false }) => (
@@ -472,301 +319,61 @@ const ObraSocialDetailPanel = ({ obraSocial }) => {
 };
 
 const ObrasSocialesPage = () => {
-  const [obrasSociales, setObrasSociales] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
-  const [search, setSearch] = useState('');
-  const [filtroEstado, setFiltroEstado] = useState('active');
-  const [filtroZona, setFiltroZona] = useState('');
-  const [stats, setStats] = useState({ total: 0, activas: 0, sanMiguel: 0 });
-  const [selectedReportMonth, setSelectedReportMonth] = useState(() => getMonthInputValue());
-  const [coinsuranceReport, setCoinsuranceReport] = useState({ month: '', totalAmount: 0, rows: [] });
-  const [reportLoading, setReportLoading] = useState(false);
-  const [syncStatus, setSyncStatus] = useState({
-    total: 0,
-    activas: 0,
-    lastSyncAt: null,
-    syncing: false,
-    config: {
-      configured: false,
-      canSync: false,
-      missingFields: [],
-      placeholderFields: [],
-    },
-  });
-  const [expandedId, setExpandedId] = useState(null);
-  const [editingId, setEditingId] = useState(null);
-  const [editForm, setEditForm] = useState({});
-  const [savingId, setSavingId] = useState(null);
-  const [deletingId, setDeletingId] = useState(null);
-  const [showCreateForm, setShowCreateForm] = useState(false);
-  const [createForm, setCreateForm] = useState(createEmptyManualForm);
-  const [creating, setCreating] = useState(false);
-  const [sortField, setSortField] = useState('nombreOs');
-  const [sortDir, setSortDir] = useState('asc');
+  const {
+    obrasSociales,
+    loading,
+    search,
+    setSearch,
+    filtroEstado,
+    setFiltroEstado,
+    filtroZona,
+    setFiltroZona,
+    stats,
+    selectedReportMonth,
+    setSelectedReportMonth,
+    coinsuranceReport,
+    reportLoading,
+    syncStatus,
+    expandedId,
+    setExpandedId,
+    editingId,
+    editForm,
+    setEditForm,
+    savingId,
+    deletingId,
+    showCreateForm,
+    setShowCreateForm,
+    createForm,
+    setCreateForm,
+    creating,
+    sortField,
+    sortDir,
+    filtered,
+    handleSort,
+    fetchObrasSociales,
+    startEdit,
+    cancelEdit,
+    saveEdit,
+    createManualObraSocial,
+    removeFromGrid,
+    handleSync,
+    currentMonthValue,
+    canMoveReportForward,
+    missingCredentialFields,
+    placeholderCredentialFields,
+    canSync,
+    hasSyncConfigurationIssue,
+    syncInProgress,
+    syncIsPublic,
+  } = useObrasSociales();
 
-  const fetchObrasSociales = useCallback(async () => {
-    try {
-      setLoading(true);
-      const params = {};
-      if (filtroEstado === 'active') {
-        params.isActive = 'true';
-      } else if (filtroEstado === 'inactive') {
-        params.isActive = 'false';
-      } else {
-        params.includeInactive = '1';
-      }
-
-      if (filtroEstado === 'requires-auth') {
-        params.requiresAuthorization = 'true';
-      }
-
-      if (filtroZona === 'san-miguel') params.zona = 'san-miguel';
-
-      const [osRes, statsRes, syncStatusRes] = await Promise.all([
-        instance.get('/obras-sociales', { params }),
-        instance.get('/obras-sociales/stats'),
-        instance.get('/obras-sociales/status'),
-      ]);
-
-      setObrasSociales(osRes.data);
-      setStats(statsRes.data);
-      setSyncStatus(syncStatusRes.data);
-    } catch (error) {
-      console.error('Error fetching obras sociales:', error);
-      showErrorToast('No se pudieron cargar las obras sociales.');
-    } finally {
-      setLoading(false);
-    }
-  }, [filtroEstado, filtroZona]);
-
-  useEffect(() => {
-    void fetchObrasSociales();
-  }, [fetchObrasSociales]);
-
-  const fetchCoinsuranceReport = useCallback(async () => {
-    const month = selectedReportMonth || getMonthInputValue();
-
-    try {
-      setReportLoading(true);
-      const { data } = await instance.get('/obras-sociales/coinsurance-report', {
-        params: { month },
-      });
-      setCoinsuranceReport(data || { month, totalAmount: 0, rows: [] });
-    } catch (error) {
-      console.error('Error fetching monthly honorarios report:', error);
-      setCoinsuranceReport({ month, totalAmount: 0, rows: [] });
-      showErrorToast('No se pudo cargar el reporte mensual.');
-    } finally {
-      setReportLoading(false);
-    }
-  }, [selectedReportMonth]);
-
-  useEffect(() => {
-    void fetchCoinsuranceReport();
-  }, [fetchCoinsuranceReport]);
-
-  const filtered = useMemo(() => {
-    let list = [...obrasSociales];
-
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      list = list.filter(
-        (os) =>
-          os.nombreOs.toLowerCase().includes(q) ||
-          os.codigoCokiba.toLowerCase().includes(q)
-      );
-    }
-
-    list.sort((a, b) => {
-      let valA = a[sortField];
-      let valB = b[sortField];
-
-      if (sortField === 'coseguroValor' || sortField === 'honorarioEstimado') {
-        valA = parseFloat(valA) || 0;
-        valB = parseFloat(valB) || 0;
-      } else {
-        valA = String(valA || '').toLowerCase();
-        valB = String(valB || '').toLowerCase();
-      }
-
-      if (valA < valB) return sortDir === 'asc' ? -1 : 1;
-      if (valA > valB) return sortDir === 'asc' ? 1 : -1;
-      return 0;
-    });
-
-    return list;
-  }, [obrasSociales, search, sortField, sortDir]);
-
-  const handleSort = (field) => {
-    if (sortField === field) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortField(field);
-      setSortDir('asc');
-    }
-  };
-
-  const SortIcon = ({ field }) => {
+  const renderSortIcon = (field) => {
     if (sortField !== field) return null;
     return sortDir === 'asc' ? (
       <ChevronUp size={14} className="inline ml-1" />
     ) : (
       <ChevronDown size={14} className="inline ml-1" />
     );
-  };
-
-  const startEdit = (os) => {
-    const details = getCokibaDetails(os);
-    const documents = Array.isArray(os?.requiredDocuments?.documents)
-      ? os.requiredDocuments.documents
-      : [];
-
-    setEditingId(os.id);
-    setExpandedId(os.id);
-    setEditForm({
-      nombreOs: os.nombreOs || '',
-      coseguroValor: parseFloat(os.coseguroValor) || 0,
-      coseguroTexto: details.coseguroTexto || '',
-      honorarioEstimado: parseFloat(os.honorarioEstimado) || 0,
-      percentageCoinsurance: parseFloat(os.percentageCoinsurance) || 0,
-      fixedCopay: parseFloat(os.fixedCopay) || 0,
-      plazoPago: os.plazoPago || 60,
-      areaCobertura: details.areaCobertura || '',
-      documentLines: documents
-        .map((document) => (
-          document?.validityDays
-            ? `${document.name} (${document.validityDays} días)`
-            : document?.name
-        ))
-        .filter(Boolean)
-        .join('\n'),
-      additionalDocumentInfo: String(os?.requiredDocuments?.additionalInfo || '').trim(),
-      usefulLinks: (details.links || []).map((link) => link.href).filter(Boolean).join('\n'),
-      atendibleSanMiguel: os.atendibleSanMiguel || false,
-      isActive: os.isActive ?? true,
-      statusManualOverride: os.statusManualOverride ?? false,
-      requiresAuthorization: os.requiresAuthorization ?? false,
-    });
-  };
-
-  const cancelEdit = () => {
-    setEditingId(null);
-    setEditForm({});
-  };
-
-  const buildMutationPayload = (current, form, { includeCode = false } = {}) => {
-    const details = buildCokibaDetailsPayload(current?.cokibaDetails || {}, form);
-    const useManualStatus = current ? Boolean(form.statusManualOverride) : true;
-
-    return {
-      ...(includeCode && form.codigoCokiba ? { codigoCokiba: String(form.codigoCokiba).trim() } : {}),
-      nombreOs: String(form.nombreOs || current?.nombreOs || '').trim(),
-      coseguroValor: parseFloat(form.coseguroValor) || 0,
-      honorarioEstimado: parseFloat(form.honorarioEstimado) || 0,
-      percentageCoinsurance: parseFloat(form.percentageCoinsurance) || 0,
-      fixedCopay: parseFloat(form.fixedCopay) || 0,
-      plazoPago: parseInt(form.plazoPago, 10) || 60,
-      ...(useManualStatus
-        ? {
-            estado: form.isActive ? 'Activa' : 'Inactiva',
-            isActive: Boolean(form.isActive),
-          }
-        : {}),
-      ...(!current
-        ? {
-            detectedStatus: form.isActive ? 'Activa' : 'Inactiva',
-            detectedIsActive: Boolean(form.isActive),
-          }
-        : {}),
-      statusManualOverride: useManualStatus,
-      requiresAuthorization: Boolean(form.requiresAuthorization),
-      atendibleSanMiguel: Boolean(form.atendibleSanMiguel),
-      requiredDocuments: buildDocumentPayload(form.documentLines, form.additionalDocumentInfo),
-      cokibaDetails: details,
-      rawCategoria: current?.rawCategoria || 'Básica',
-    };
-  };
-
-  const saveEdit = async (os) => {
-    try {
-      setSavingId(os.id);
-      const payload = buildMutationPayload(os, editForm);
-      await instance.put(`/obras-sociales/${os.id}`, payload);
-      await fetchObrasSociales();
-      setEditingId(null);
-      setEditForm({});
-      showSuccessToast('Obra social actualizada.');
-    } catch (error) {
-      console.error('Error updating:', error);
-      showErrorToast('No se pudo actualizar la obra social.');
-    } finally {
-      setSavingId(null);
-    }
-  };
-
-  const createManualObraSocial = async () => {
-    if (!String(createForm.nombreOs || '').trim()) {
-      showErrorToast('Ingresá el nombre de la obra social.');
-      return;
-    }
-
-    try {
-      setCreating(true);
-      const payload = buildMutationPayload(null, createForm, { includeCode: true });
-      await instance.post('/obras-sociales', payload);
-      await fetchObrasSociales();
-      setCreateForm(createEmptyManualForm());
-      setShowCreateForm(false);
-      showSuccessToast('Obra social agregada a tu grilla.');
-    } catch (error) {
-      console.error('Error creating obra social:', error);
-      showErrorToast(error?.response?.data?.error || 'No se pudo crear la obra social.');
-    } finally {
-      setCreating(false);
-    }
-  };
-
-  const removeFromGrid = async (os) => {
-    const confirmed = window.confirm(`Quitar "${os.nombreOs}" de tu grilla?`);
-    if (!confirmed) return;
-
-    try {
-      setDeletingId(os.id);
-      await instance.delete(`/obras-sociales/${os.id}`);
-      await fetchObrasSociales();
-      if (expandedId === os.id) setExpandedId(null);
-      if (editingId === os.id) {
-        setEditingId(null);
-        setEditForm({});
-      }
-      showSuccessToast('Obra social quitada de tu grilla.');
-    } catch (error) {
-      console.error('Error removing obra social:', error);
-      showErrorToast(error?.response?.data?.error || 'No se pudo quitar la obra social.');
-    } finally {
-      setDeletingId(null);
-    }
-  };
-
-  const handleSync = async () => {
-    try {
-      setSyncing(true);
-      const response = await instance.post('/obras-sociales/sync');
-      await fetchObrasSociales();
-      showSuccessToast(
-        `Sincronización completada: ${response.data.total} registros, ${response.data.created} nuevas y ${response.data.updated} actualizadas.`
-      );
-    } catch (error) {
-      console.error('Error syncing obras sociales:', error);
-      const message =
-        error?.response?.data?.message ||
-        error?.friendlyMessage ||
-        'No se pudo sincronizar con COKIBA.';
-      showErrorToast(message);
-    } finally {
-      setSyncing(false);
-    }
   };
 
   const summaryCards = [
@@ -807,15 +414,6 @@ const ObrasSocialesPage = () => {
       valueClassName: 'text-amber-700',
     },
   ];
-
-  const missingCredentialFields = syncStatus.config?.missingFields || [];
-  const placeholderCredentialFields = syncStatus.config?.placeholderFields || [];
-  const canSync = Boolean(syncStatus.config?.canSync);
-  const hasSyncConfigurationIssue = !canSync;
-  const syncInProgress = syncing || Boolean(syncStatus.syncing);
-  const syncIsPublic = syncStatus.config?.accessMode === 'public';
-  const currentMonthValue = getMonthInputValue();
-  const canMoveReportForward = selectedReportMonth < currentMonthValue;
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 sm:p-6">
@@ -1193,19 +791,19 @@ const ObrasSocialesPage = () => {
                         className="cursor-pointer p-4 hover:text-slate-700"
                         onClick={() => handleSort('nombreOs')}
                       >
-                        Obra Social <SortIcon field="nombreOs" />
+                        Obra Social {renderSortIcon('nombreOs')}
                       </th>
                       <th
                         className="cursor-pointer p-4 text-right hover:text-slate-700"
                         onClick={() => handleSort('coseguroValor')}
                       >
-                        Coseguro <SortIcon field="coseguroValor" />
+                        Coseguro {renderSortIcon('coseguroValor')}
                       </th>
                       <th
                         className="cursor-pointer p-4 text-right hover:text-slate-700"
                         onClick={() => handleSort('honorarioEstimado')}
                       >
-                        Honorario <SortIcon field="honorarioEstimado" />
+                        Honorario {renderSortIcon('honorarioEstimado')}
                       </th>
                       <th className="p-4 text-right">Copago fijo</th>
                       <th className="p-4 text-center">Plazo</th>
