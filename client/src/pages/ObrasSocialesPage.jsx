@@ -547,6 +547,7 @@ const ObrasSocialesPage = () => {
             />
             <input
               type="text"
+              aria-label="Buscar obra social"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar obra social por nombre o código..."
@@ -555,6 +556,7 @@ const ObrasSocialesPage = () => {
           </div>
           <div className="flex gap-2">
             <select
+              aria-label="Filtro de estado"
               value={filtroEstado}
               onChange={(e) => setFiltroEstado(e.target.value)}
               className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-600 shadow-sm outline-none transition focus:border-teal-400"
@@ -565,6 +567,7 @@ const ObrasSocialesPage = () => {
               <option value="">Todas</option>
             </select>
             <select
+              aria-label="Filtro de zona"
               value={filtroZona}
               onChange={(e) => setFiltroZona(e.target.value)}
               className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-600 shadow-sm outline-none transition focus:border-teal-400"

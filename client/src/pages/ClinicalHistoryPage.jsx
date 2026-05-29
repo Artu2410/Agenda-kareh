@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Save, FileText, Eye, EyeOff, Trash2, AlertTriangle, PlusCircle,
@@ -634,11 +634,11 @@ const ClinicalHistoryPage = () => {
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
-  const createEntryClientKey = () => (
+  const createEntryClientKey = useCallback(() => (
     globalThis.crypto?.randomUUID?.() || `history-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
-  );
+  ), []);
 
-  const normalizeEntryState = (entry, fallbackClientKey = null) => ({
+  const normalizeEntryState = useCallback((entry, fallbackClientKey = null) => ({
     ...entry,
     clientKey: entry?.clientKey || fallbackClientKey || String(entry?.id || createEntryClientKey()),
     attachments: ensureArray(entry?.attachments),
@@ -646,7 +646,7 @@ const ClinicalHistoryPage = () => {
     evolution: normalizeClinicalRichTextHtml(entry?.evolution || ''),
     status: entry?.status || 'saved',
     isVisible: entry?.isVisible ?? true,
-  });
+  }), [createEntryClientKey]);
 
   const serializeEntrySnapshot = (entry) => JSON.stringify({
     diagnosis: String(entry?.diagnosis || ''),
@@ -706,7 +706,7 @@ const ClinicalHistoryPage = () => {
       }
     };
     fetchData();
-  }, [activePatientId, navigate]);
+  }, [activePatientId, navigate, normalizeEntryState]);
 
   useEffect(() => {
     if (patient?.fullName) {

@@ -149,6 +149,7 @@ export default function LoginPage({ onLoginSuccess }) {
                   <Mail className="absolute left-4 top-3.5 text-teal-600" size={20} />
                   <input
                     type="email"
+                    aria-label="Correo Electrónico"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="centrokareh@gmail.com"
@@ -183,6 +184,7 @@ export default function LoginPage({ onLoginSuccess }) {
                   <Lock className="absolute left-4 top-3.5 text-teal-600" size={20} />
                   <input
                     type="text"
+                    aria-label="Código OTP"
                     value={otp}
                     onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
                     placeholder="000000"

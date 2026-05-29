@@ -380,6 +380,8 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
 
                     {isWithinConfiguredSchedule && appsInSlot.length < capacityPerSlot && (
                       <button
+                        type="button"
+                        aria-label={`Agregar turno ${formattedDate} ${slotTime}`}
                         onClick={() => onSlotClick({ date: formattedDate, time: slotTime })}
                         className="mt-auto w-full py-3 rounded-xl opacity-0 group-hover:opacity-100 bg-slate-50 text-slate-300 hover:text-teal-600 border-2 border-dashed border-slate-200 hover:border-teal-500 transition-all flex items-center justify-center"
                       >
