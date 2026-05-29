@@ -7,7 +7,7 @@ Validar en producción que auth, agenda, WhatsApp y cashflow siguen operativos d
 - Frontend: `https://agenda.kareh.com.ar`
 - Backend: `https://kareh-backend.onrender.com`
 - Navegador recomendado: incógnito limpio
-- Release esperado: commit `6133966` (`docs(release): add release candidate checklist`) o el commit que se esté promoviendo en ese momento.
+- Release esperado: el commit de código que se esté promoviendo; hoy el candidato funcional es `6133966` y el commit `e84bdf0` es sólo documentación, sin impacto runtime.
 
 ## Preparación
 - Abrir una ventana de incógnito.
