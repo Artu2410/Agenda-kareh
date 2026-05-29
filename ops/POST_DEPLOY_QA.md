@@ -64,8 +64,8 @@ Validar en producción que auth, agenda, WhatsApp y cashflow siguen operativos d
 - `/api/version`, `/api/health` y `/metrics` devuelven lo esperado en producción.
 
 ## Parity y rollback
-1. Consultar `GET /api/version` y verificar que `version` y `commit` coincidan con el release esperado.
-2. Abrir `https://agenda.kareh.com.ar` y confirmar que el badge de versión muestra el mismo `version` / `commit`.
+1. Consultar `GET /api/version` y verificar que `version`, `commit`, `environment` y `deployedAt` coincidan con el release esperado.
+2. Abrir `https://agenda.kareh.com.ar` y confirmar que el badge de versión muestra el mismo `version` / `commit` / `environment`.
 3. Verificar `GET /api/health` y `GET /health`.
 4. Verificar `GET /metrics` y confirmar que sólo expone métricas agregadas, sin PII ni tokens.
 5. Si el commit no coincide, bloquear promoción y redeployar manualmente el backend correcto.

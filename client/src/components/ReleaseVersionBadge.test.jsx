@@ -22,7 +22,7 @@ describe('ReleaseVersionBadge', () => {
 
     expect(badge).toHaveAttribute(
       'aria-label',
-      'UI 2026.05.28-rc1 · d2275a3 | API 2026.05.28-rc1 · cb5f418 · test'
+      'UI 2026.05.28-rc1 · d2275a3 | API 2026.05.28-rc1 · cb5f418 · test · 2026-05-28T22:00:00.000Z'
     );
   });
 });

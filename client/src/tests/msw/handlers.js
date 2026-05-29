@@ -15,6 +15,7 @@ export const createHandlers = ({
         version: '2026.05.28-rc1',
         commit: 'cb5f418',
         environment: 'test',
+        deployedAt: '2026-05-28T22:00:00.000Z',
       }, { status: 200 })
     ),
     http.get(getApiUrl('/csrf-token'), () =>

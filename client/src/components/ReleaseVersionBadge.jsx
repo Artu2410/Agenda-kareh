@@ -8,6 +8,7 @@ const initialRuntimeInfo = {
   version: '…',
   commit: '',
   environment: '',
+  deployedAt: '',
 };
 
 export default function ReleaseVersionBadge({ className = '' }) {
@@ -24,6 +25,7 @@ export default function ReleaseVersionBadge({ className = '' }) {
           version: info?.version || 'n/a',
           commit: info?.commit || '',
           environment: info?.environment || '',
+          deployedAt: info?.deployedAt || '',
         });
       })
       .catch(() => {
@@ -32,6 +34,7 @@ export default function ReleaseVersionBadge({ className = '' }) {
           version: 'n/a',
           commit: '',
           environment: '',
+          deployedAt: '',
         });
       });
 
@@ -43,7 +46,8 @@ export default function ReleaseVersionBadge({ className = '' }) {
   const clientCommit = shortenCommit(clientInfo.commit);
   const runtimeCommit = shortenCommit(runtimeInfo.commit);
   const runtimeLabel = runtimeInfo.environment ? `${runtimeInfo.version} · ${runtimeInfo.environment}` : runtimeInfo.version;
-  const title = `UI ${clientInfo.version}${clientCommit ? ` · ${clientCommit}` : ''} | API ${runtimeInfo.version}${runtimeCommit ? ` · ${runtimeCommit}` : ''}${runtimeInfo.environment ? ` · ${runtimeInfo.environment}` : ''}`;
+  const deployedAtLabel = runtimeInfo.deployedAt ? ` · ${runtimeInfo.deployedAt}` : '';
+  const title = `UI ${clientInfo.version}${clientCommit ? ` · ${clientCommit}` : ''} | API ${runtimeInfo.version}${runtimeCommit ? ` · ${runtimeCommit}` : ''}${runtimeInfo.environment ? ` · ${runtimeInfo.environment}` : ''}${deployedAtLabel}`;
 
   return (
     <div
