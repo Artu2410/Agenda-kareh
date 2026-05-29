@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import instance from '../api/axios';
 import { Check, Clock, Edit, Loader2, Plus } from 'lucide-react';
 import ProfessionalModal from '../components/settings/ProfessionalModal';
@@ -60,7 +60,7 @@ const SettingsPage = () => {
   const canManageAdminRoles = isSuperUser(currentUser.role);
   const assignableRoleOptions = getAssignableRoleOptions({ canManageAdminRoles });
 
-  const fetchProfessionals = async () => {
+  const fetchProfessionals = useCallback(async () => {
     try {
       setLoading(true);
       const response = await instance.get('/professionals');
@@ -71,9 +71,9 @@ const SettingsPage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     if (!canManageUsers) return;
 
     try {
@@ -85,9 +85,9 @@ const SettingsPage = () => {
     } finally {
       setUsersLoading(false);
     }
-  };
+  }, [canManageUsers]);
 
-  const fetchAgendaConfig = async () => {
+  const fetchAgendaConfig = useCallback(async () => {
     try {
       setConfigLoading(true);
       const response = await instance.get('/agenda/config');
@@ -97,7 +97,7 @@ const SettingsPage = () => {
     } finally {
       setConfigLoading(false);
     }
-  };
+  }, []);
 
   const updateAgendaConfig = async () => {
     if (!agendaConfig) return;
@@ -126,7 +126,7 @@ const SettingsPage = () => {
     fetchProfessionals();
     fetchAgendaConfig();
     fetchUsers();
-  }, []);
+  }, [fetchAgendaConfig, fetchProfessionals, fetchUsers]);
 
   const handleOpenProfessionalModal = (professional = null) => {
     setSelectedProfessional(professional);

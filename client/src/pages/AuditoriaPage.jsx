@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Download, FileText, Filter, RefreshCw, ShieldCheck } from 'lucide-react';
 import api from '../services/api';
 
@@ -21,7 +21,7 @@ const AuditPage = () => {
     dateTo: '',
   });
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const [logsResponse, usersResponse] = await Promise.all([
@@ -36,11 +36,11 @@ const AuditPage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters]);
 
   useEffect(() => {
     void fetchData();
-  }, []);
+  }, [fetchData]);
 
   const filteredLogs = useMemo(() => logs, [logs]);
 

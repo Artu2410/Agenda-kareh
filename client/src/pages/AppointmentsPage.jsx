@@ -231,6 +231,7 @@ const AppointmentsPage = () => {
           <div className="flex w-full items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 xl:w-auto">
             <UserRound size={16} className="text-teal-600" />
             <select
+              aria-label="Profesional"
               value={selectedProfessionalId}
               onChange={(e) => setSelectedProfessionalId(e.target.value)}
               className="min-w-0 flex-1 bg-transparent text-sm font-bold text-slate-700 outline-none"

@@ -182,11 +182,12 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-1">
                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">DNI del Paciente</label>
-                  <input className="w-full p-3 border rounded-2xl bg-slate-50 font-bold focus:ring-2 ring-teal-500 outline-none" value={patientData.dni} onChange={e => { setPatientData({ ...patientData, dni: e.target.value }); searchPatient('dni', e.target.value); }} />
+                  <input aria-label="DNI del Paciente" className="w-full p-3 border rounded-2xl bg-slate-50 font-bold focus:ring-2 ring-teal-500 outline-none" value={patientData.dni} onChange={e => { setPatientData({ ...patientData, dni: e.target.value }); searchPatient('dni', e.target.value); }} />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Obra Social</label>
                   <select
+                    aria-label="Obra Social"
                     className="w-full p-3 border rounded-2xl bg-slate-50 font-bold focus:ring-2 ring-teal-500 outline-none"
                     value={selectedCoverageValue}
                     onChange={(e) => {
@@ -226,11 +227,11 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                       ))}
                   </select>
                 </div>
-                <input placeholder="Apellido" className="p-3 border rounded-2xl bg-slate-50 font-bold" value={patientData.lastName} onChange={e => setPatientData({ ...patientData, lastName: e.target.value })} />
-                <input placeholder="Nombre" className="p-3 border rounded-2xl bg-slate-50 font-bold" value={patientData.firstName} onChange={e => setPatientData({ ...patientData, firstName: e.target.value })} />
+                <input aria-label="Apellido" placeholder="Apellido" className="p-3 border rounded-2xl bg-slate-50 font-bold" value={patientData.lastName} onChange={e => setPatientData({ ...patientData, lastName: e.target.value })} />
+                <input aria-label="Nombre" placeholder="Nombre" className="p-3 border rounded-2xl bg-slate-50 font-bold" value={patientData.firstName} onChange={e => setPatientData({ ...patientData, firstName: e.target.value })} />
                 <div className="space-y-1 sm:col-span-2">
                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">N° Afiliado</label>
-                  <input className="w-full p-3 border rounded-2xl bg-slate-50 font-bold focus:ring-2 ring-teal-500 outline-none" value={patientData.affiliateNumber || ''} onChange={e => setPatientData({ ...patientData, affiliateNumber: e.target.value })} />
+                  <input aria-label="Número de Afiliado" className="w-full p-3 border rounded-2xl bg-slate-50 font-bold focus:ring-2 ring-teal-500 outline-none" value={patientData.affiliateNumber || ''} onChange={e => setPatientData({ ...patientData, affiliateNumber: e.target.value })} />
                 </div>
                 <div className="sm:col-span-2 rounded-[1.6rem] border border-slate-200 bg-slate-50 px-4 py-3">
                   <div className="flex items-center justify-between gap-3">
@@ -359,6 +360,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                     <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto]">
                       <input
                         type="text"
+                        aria-label="Número de autorización"
                         placeholder="Número de autorización"
                         value={authorizationNumber}
                         onChange={(event) => setAuthorizationNumber(event.target.value)}
@@ -380,9 +382,10 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                 <div className="sm:col-span-2 rounded-[1.6rem] border border-orange-200 bg-orange-50 px-4 py-3">
                   <div className="flex flex-col gap-2">
                     <label className="text-[9px] font-black text-orange-700 uppercase tracking-widest ml-1">Token de Sesión (Obra Social)</label>
-                    <input
-                      type="text"
-                      placeholder="Ingrese el número de token / validación"
+                      <input
+                        type="text"
+                        aria-label="Token de Sesión (Obra Social)"
+                        placeholder="Ingrese el número de token / validación"
                       className="w-full p-3 border border-orange-200 rounded-2xl bg-white font-bold text-orange-800 focus:ring-2 ring-orange-500 outline-none"
                       value={sessionToken}
                       onChange={(e) => setSessionToken(e.target.value)}
@@ -394,17 +397,17 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Teléfono</label>
-                  <input type="tel" placeholder="+54 9 11 2345-6789" className="w-full p-3 border rounded-2xl bg-slate-50 font-bold focus:ring-2 ring-teal-500 outline-none" value={patientData.phone || ''} onChange={e => setPatientData({ ...patientData, phone: e.target.value })} />
+                  <input type="tel" aria-label="Teléfono" placeholder="+54 9 11 2345-6789" className="w-full p-3 border rounded-2xl bg-slate-50 font-bold focus:ring-2 ring-teal-500 outline-none" value={patientData.phone || ''} onChange={e => setPatientData({ ...patientData, phone: e.target.value })} />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Fecha de Nacimiento</label>
-                  <input type="date" className="w-full p-3 border rounded-2xl bg-slate-50 font-bold focus:ring-2 ring-teal-500 outline-none" value={patientData.birthDate || ''} onChange={e => setPatientData({ ...patientData, birthDate: e.target.value })} />
+                  <input type="date" aria-label="Fecha de Nacimiento" className="w-full p-3 border rounded-2xl bg-slate-50 font-bold focus:ring-2 ring-teal-500 outline-none" value={patientData.birthDate || ''} onChange={e => setPatientData({ ...patientData, birthDate: e.target.value })} />
                 </div>
               </div>
 
               <div className="space-y-1">
                 <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Diagnóstico / Evolución</label>
-                <textarea className="w-full p-4 border rounded-2xl bg-slate-50 h-24 outline-none resize-none font-semibold uppercase focus:ring-2 ring-teal-500" value={diagnosis} onChange={e => setDiagnosis(e.target.value)} />
+                  <textarea aria-label="Diagnóstico / Evolución" className="w-full p-4 border rounded-2xl bg-slate-50 h-24 outline-none resize-none font-semibold uppercase focus:ring-2 ring-teal-500" value={diagnosis} onChange={e => setDiagnosis(e.target.value)} />
               </div>
 
               {isEditMode && (

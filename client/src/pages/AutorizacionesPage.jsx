@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Clock3, FileText, RefreshCw, Search, XCircle } from 'lucide-react';
 import api from '../services/api';
 
@@ -24,7 +24,7 @@ const AuthorizationsPage = () => {
     search: '',
   });
 
-  const fetchAppointments = async () => {
+  const fetchAppointments = useCallback(async () => {
     try {
       setLoading(true);
       const response = await api.get('/appointments/authorizations/list', {
@@ -36,11 +36,11 @@ const AuthorizationsPage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters]);
 
   useEffect(() => {
     void fetchAppointments();
-  }, []);
+  }, [fetchAppointments]);
 
   const stats = useMemo(() => ({
     pending: appointments.filter((appointment) => appointment.authorizationStatus === 'PENDING').length,
