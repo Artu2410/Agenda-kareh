@@ -5,6 +5,13 @@ import { normalizePhone } from '../../utils/phone.js';
 import { sendTextMessage } from '../../services/whatsapp.js';
 import { recordWhatsAppMessage } from '../../lib/metrics.js';
 import {
+  parseWhatsAppWebhookBody,
+  parseWhatsAppWebhookChanges,
+  parseWhatsAppWebhookMessages,
+  parseWhatsAppWebhookStatuses,
+  parseWhatsAppWebhookValue,
+} from '../../controllers/whatsapp/dto/incomingMessage.dto.js';
+import {
   AUTO_REPLY_COOLDOWN_MS,
   AUTO_REPLY_MAX_DELAY_MS,
   AUTO_REPLY_MIN_DELAY_MS,
@@ -109,16 +116,15 @@ export const verifyWhatsAppWebhook = (req, res) => {
 
 export const handleWhatsAppWebhook = async (req, res, prisma) => {
   try {
-    const body = req.body;
-    if (!body || body.object !== 'whatsapp_business_account') return res.sendStatus(404);
+    const { object, entries } = parseWhatsAppWebhookBody(req.body);
+    if (object !== 'whatsapp_business_account') return res.sendStatus(404);
 
     const requestLogger = req.logger || logger;
 
-    const entries = body.entry || [];
     for (const entry of entries) {
-      for (const change of entry.changes || []) {
-        const value = change.value || {};
-        const messages = value.messages || [];
+      for (const change of parseWhatsAppWebhookChanges(entry)) {
+        const value = parseWhatsAppWebhookValue(change);
+        const messages = parseWhatsAppWebhookMessages(value);
 
         for (const message of messages) {
           const existing = await prisma.whatsAppMessage.findUnique({ where: { waMessageId: message.id } });
@@ -329,8 +335,9 @@ export const handleWhatsAppWebhook = async (req, res, prisma) => {
           }
         }
 
-        if (value.statuses) {
-          for (const status of value.statuses) {
+        const statuses = parseWhatsAppWebhookStatuses(value);
+        if (statuses.length > 0) {
+          for (const status of statuses) {
             await prisma.whatsAppMessage.updateMany({
               where: { waMessageId: status.id },
               data: { status: status.status },

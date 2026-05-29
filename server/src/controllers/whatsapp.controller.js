@@ -1,7 +1,7 @@
 export {
   verifyWhatsAppWebhook,
   handleWhatsAppWebhook,
-} from './whatsapp/webhook.handlers.js';
+} from '../services/whatsapp/webhook.service.js';
 
 export {
   listConversations,
@@ -12,4 +12,4 @@ export {
   resumeConversationBot,
   sendConversationMessage,
   sendWelcomeTemplate,
-} from './whatsapp/inbox.handlers.js';
+} from '../services/whatsapp/inbox.service.js';

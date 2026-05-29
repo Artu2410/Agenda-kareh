@@ -6,7 +6,8 @@ import {
   uploadMedia,
 } from '../../services/whatsapp.js';
 import { recordWhatsAppMessage } from '../../lib/metrics.js';
-import { createWhatsAppLogger, normalizeOutgoingText, sanitizeFilename } from './message.helpers.js';
+import { createWhatsAppLogger, sanitizeFilename } from './message.helpers.js';
+import { normalizeOutgoingConversationMessagePayload } from '../../controllers/whatsapp/dto/outgoingMessage.dto.js';
 import { storeOutboundMedia } from './media.handlers.js';
 import { sendWelcomeReply } from './chatbot.handlers.js';
 import {
@@ -80,7 +81,7 @@ export const deleteConversation = async (req, res, prisma) => {
 
 export const sendConversationMessage = async (req, res, prisma) => {
   const { id } = req.params;
-  const text = normalizeOutgoingText(req.body?.text);
+  const { text } = normalizeOutgoingConversationMessagePayload(req.body);
   const file = req.file;
 
   if (!text && !file) {
