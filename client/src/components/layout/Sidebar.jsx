@@ -7,6 +7,7 @@ import { APP_ROUTES } from '../../utils/appRoutes';
 import api from '../../services/api';
 import { getStoredUser } from '../../services/session';
 import { hasAnyRole } from '../../utils/roles';
+import ReleaseVersionBadge from '../ReleaseVersionBadge';
 import * as authStore from '../../stores/auth';
 
 const SIDEBAR_WEATHER = {
@@ -303,6 +304,9 @@ const Sidebar = ({ onToggle, onLogout, onNavigate, isMobile = false }) => {
               </p>
               <p className="text-[10px] text-slate-500 truncate">{userEmail || userName}</p>
             </div>
+          </div>
+          <div className="px-1 pt-1">
+            <ReleaseVersionBadge className="text-center sm:text-left" />
           </div>
           <button
             onClick={handleLogout}
