@@ -18,6 +18,7 @@ Use this checklist before promoting a new release candidate to production.
 - [ ] `npm run test:unit`
 - [ ] `npm run build`
 - [ ] `npm run test:e2e`
+- [ ] GitHub Actions `Frontend Unit Tests` job is green or the failure is documented as external billing lock
 - [ ] Login page renders version badge
 - [ ] Sidebar renders version badge
 - [ ] Settings page renders version badge
@@ -41,12 +42,16 @@ Use this checklist before promoting a new release candidate to production.
 ## Infra
 - [ ] Render deploy matches the expected commit SHA
 - [ ] Vercel deploy matches the expected release version
+- [ ] `GET /api/version` matches the deployed commit SHA
+- [ ] `GET /metrics` is available only on the deployed backend that was promoted
 - [ ] Backup exists and restore procedure is documented
 - [ ] Restore checklist has been reviewed
 - [ ] Critical env vars are configured
 - [ ] Health checks are green
 - [ ] `/api/version` and `/metrics` are verified in production
+- [ ] Rollback path for the previous release is known and documented
 
 ## Notes
 - `GET /api/version` is intentionally public and exposes only non-sensitive release metadata.
 - Any mismatch between UI version and API version is a deploy drift signal and should block release promotion.
+- If GitHub Actions fails immediately with `The job was not started because your account is locked due to a billing issue.`, it is an external platform issue, not a repo regression.
