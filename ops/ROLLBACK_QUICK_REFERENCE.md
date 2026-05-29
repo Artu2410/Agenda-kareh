@@ -14,7 +14,7 @@
 3. If main must be moved back, revert the release commit locally and push:
 
 ```bash
-git revert --no-edit 45e289a23059d8e1cad5f7c3cb91c30db1255554
+git revert --no-edit 232f8045d1c5ea4ed9b1c407f3d06b306ef7f2fe
 git push origin main
 ```
 
