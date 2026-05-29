@@ -10,6 +10,13 @@ export const createHandlers = ({
     http.get(getApiUrl('/protected'), ({ request, params, cookies }) =>
       protectedHandler({ request, params, cookies })
     ),
+    http.get(getApiUrl('/version'), () =>
+      HttpResponse.json({
+        version: '2026.05.28-rc1',
+        commit: 'cb5f418',
+        environment: 'test',
+      }, { status: 200 })
+    ),
     http.get(getApiUrl('/csrf-token'), () =>
       HttpResponse.json({ token: 'test-csrf-token' }, { status: 200 })
     ),

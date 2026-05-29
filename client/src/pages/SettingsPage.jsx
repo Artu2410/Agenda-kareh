@@ -3,6 +3,7 @@ import instance from '../api/axios';
 import { Check, Clock, Edit, Loader2, Plus } from 'lucide-react';
 import ProfessionalModal from '../components/settings/ProfessionalModal';
 import ScheduleModal from '../components/settings/ScheduleModal';
+import ReleaseVersionBadge from '../components/ReleaseVersionBadge';
 import { getStoredUser } from '../services/session';
 import { formatRoleLabel, getAssignableRoleOptions, isSuperUser, isAdmin } from '../utils/roles';
 
@@ -272,6 +273,9 @@ const SettingsPage = () => {
       <header className="mb-6 sm:mb-8">
         <h1 className="text-3xl font-bold text-slate-800">Configuración</h1>
         <p className="text-slate-500 font-medium">Gestiona el staff médico, sus datos y la disponibilidad de agenda.</p>
+        <div className="mt-2">
+          <ReleaseVersionBadge />
+        </div>
       </header>
 
       <main className="max-w-6xl">
