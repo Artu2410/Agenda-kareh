@@ -2,7 +2,8 @@
 
 ## Executive Summary
 
-- Runtime candidate SHA at audit generation: `3a8ce07fece011075a84064ee7cf40a8e69881ea` (`feat(observability): expose deploy timestamp in version endpoint`).
+- Final release candidate SHA on `main`: `45e289a23059d8e1cad5f7c3cb91c30db1255554` (`45e289a`).
+- Runtime codebase was already frozen at `3a8ce07fece011075a84064ee7cf40a8e69881ea`; the current HEAD is docs-only and keeps the same runtime behavior.
 - Codebase status: release-candidate ready.
 - Production status: **NO-GO** until Render is redeployed to the runtime candidate and authenticated QA is completed.
 - Main blocker: live Render backend still serves an older runtime; `/api/version` and `/metrics` are not exposed in production yet.
@@ -25,11 +26,35 @@
 ```json
 {
   "version": "2026.05.28-rc1",
-  "commit": "3a8ce07fece011075a84064ee7cf40a8e69881ea",
+  "commit": "45e289a23059d8e1cad5f7c3cb91c30db1255554",
   "environment": "production",
   "deployedAt": "2026-05-28T22:00:00.000Z"
 }
 ```
+
+## Parity Commands
+
+Run these immediately after the Render redeploy:
+
+| Check | Command | Expected | Rollback trigger |
+|---|---|---|---|
+| Health | `curl -i https://kareh-backend.onrender.com/health` | `200` and `{"status":"ok"}` | Non-200 or non-JSON |
+| API health | `curl -i https://kareh-backend.onrender.com/api/health` | `200` and `{"status":"ok"}` | Non-200 or non-JSON |
+| Metrics | `curl -i https://kareh-backend.onrender.com/metrics` | `200`, `Content-Type: text/plain; version=0.0.4; charset=utf-8`, Prometheus text (`# TYPE http_requests_total counter`) | `404`, HTML, or missing Prometheus text |
+| Auth metrics | `curl -i https://kareh-backend.onrender.com/api/metrics` | `401` without session; `200` with authenticated session | `200` without auth or `404` |
+| Version | `curl -i https://kareh-backend.onrender.com/api/version` | `200` JSON with `version`, `commit`, `environment`, `deployedAt`; commit must match the release candidate SHA | `404`, stale commit, missing fields, or `unknown` values |
+
+## Release Candidate Consistency
+
+| Field | Expected |
+|---|---|
+| Git commit candidate | `45e289a23059d8e1cad5f7c3cb91c30db1255554` |
+| Short commit | `45e289a` |
+| `APP_VERSION` | `2026.05.28-rc1` |
+| `COMMIT_SHA` | `45e289a23059d8e1cad5f7c3cb91c30db1255554` |
+| `deployedAt` | ISO timestamp of the actual Render boot time |
+| Frontend badge | `UI 2026.05.28-rc1 · 45e289a | API 2026.05.28-rc1 · production · 45e289a` |
+| API version body | `version`, `commit`, `environment`, `deployedAt` |
 
 ## Build and Start
 
@@ -218,4 +243,4 @@ Monitor the first 30 minutes after deploy:
 ## Go / No-Go
 
 - **Codebase:** GO
-- **Production release:** NO-GO until Render is redeployed to `3a8ce07fece011075a84064ee7cf40a8e69881ea` and authenticated QA completes successfully.
+- **Production release:** NO-GO until Render is redeployed to `45e289a23059d8e1cad5f7c3cb91c30db1255554` and authenticated QA completes successfully.
