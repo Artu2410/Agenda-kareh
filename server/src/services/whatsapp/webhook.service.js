@@ -1,5 +1,5 @@
 import logger from '../../config/logger.js';
-import { sendNotificationToAll } from '../notifications.controller.js';
+import { sendNotificationToAll } from '../../controllers/notifications.controller.js';
 import { transcribeAudioBuffer } from '../../services/audioTranscription.js';
 import { normalizePhone } from '../../utils/phone.js';
 import { sendTextMessage } from '../../services/whatsapp.js';
