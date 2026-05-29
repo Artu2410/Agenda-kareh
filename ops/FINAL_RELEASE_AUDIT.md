@@ -2,8 +2,8 @@
 
 ## Executive Summary
 
-- Final release candidate SHA on `main`: `45e289a23059d8e1cad5f7c3cb91c30db1255554` (`45e289a`).
-- Runtime codebase was already frozen at `3a8ce07fece011075a84064ee7cf40a8e69881ea`; the current HEAD is docs-only and keeps the same runtime behavior.
+- Final release candidate SHA on `main`: `232f8045d1c5ea4ed9b1c407f3d06b306ef7f2fe` (`232f804`).
+- Runtime behavior was frozen at `3a8ce07fece011075a84064ee7cf40a8e69881ea`; the commits `45e289a` and `232f804` are docs-only and keep the same runtime behavior.
 - Codebase status: release-candidate ready.
 - Production status: **NO-GO** until Render is redeployed to the runtime candidate and authenticated QA is completed.
 - Main blocker: live Render backend still serves an older runtime; `/api/version` and `/metrics` are not exposed in production yet.
@@ -26,7 +26,7 @@
 ```json
 {
   "version": "2026.05.28-rc1",
-  "commit": "45e289a23059d8e1cad5f7c3cb91c30db1255554",
+  "commit": "232f8045d1c5ea4ed9b1c407f3d06b306ef7f2fe",
   "environment": "production",
   "deployedAt": "2026-05-28T22:00:00.000Z"
 }
@@ -48,12 +48,12 @@ Run these immediately after the Render redeploy:
 
 | Field | Expected |
 |---|---|
-| Git commit candidate | `45e289a23059d8e1cad5f7c3cb91c30db1255554` |
-| Short commit | `45e289a` |
+| Git commit candidate | `232f8045d1c5ea4ed9b1c407f3d06b306ef7f2fe` |
+| Short commit | `232f804` |
 | `APP_VERSION` | `2026.05.28-rc1` |
-| `COMMIT_SHA` | `45e289a23059d8e1cad5f7c3cb91c30db1255554` |
+| `COMMIT_SHA` | `232f8045d1c5ea4ed9b1c407f3d06b306ef7f2fe` |
 | `deployedAt` | ISO timestamp of the actual Render boot time |
-| Frontend badge | `UI 2026.05.28-rc1 · 45e289a | API 2026.05.28-rc1 · production · 45e289a` |
+| Frontend badge | `UI 2026.05.28-rc1 · 232f804 | API 2026.05.28-rc1 · production · 232f804` |
 | API version body | `version`, `commit`, `environment`, `deployedAt` |
 
 ## Build and Start
@@ -243,4 +243,4 @@ Monitor the first 30 minutes after deploy:
 ## Go / No-Go
 
 - **Codebase:** GO
-- **Production release:** NO-GO until Render is redeployed to `45e289a23059d8e1cad5f7c3cb91c30db1255554` and authenticated QA completes successfully.
+- **Production release:** NO-GO until Render is redeployed to `232f8045d1c5ea4ed9b1c407f3d06b306ef7f2fe` and authenticated QA completes successfully.
