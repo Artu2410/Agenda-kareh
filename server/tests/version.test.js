@@ -5,6 +5,7 @@ import { getRuntimeVersionInfo, getStartupMetadata } from '../src/config/runtime
 
 describe('runtime version info', () => {
   const originalEnv = process.env;
+  const deployedAt = '2026-05-28T22:00:00.000Z';
 
   beforeEach(() => {
     process.env = {
@@ -13,6 +14,7 @@ describe('runtime version info', () => {
       COMMIT_SHA: 'cb5f418',
       NODE_ENV: 'production',
       PORT: '10000',
+      DEPLOYED_AT: deployedAt,
     };
   });
 
@@ -25,6 +27,7 @@ describe('runtime version info', () => {
       version: '2026.05.28-rc1',
       commit: 'cb5f418',
       environment: 'production',
+      deployedAt,
     });
   });
 
@@ -35,6 +38,7 @@ describe('runtime version info', () => {
       version: '2026.05.28-rc1',
       commit: 'cb5f418',
       environment: 'production',
+      deployedAt,
       port: 5000,
     });
     expect(metadata.startedAt).toEqual(expect.any(String));
@@ -53,6 +57,7 @@ describe('runtime version info', () => {
       version: '2026.05.28-rc1',
       commit: 'cb5f418',
       environment: 'production',
+      deployedAt,
     });
   });
 });

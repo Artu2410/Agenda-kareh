@@ -25,7 +25,7 @@ const getFirstNonEmptyValue = (...values) => {
   return UNKNOWN_VALUE;
 };
 
-export const getRuntimeVersionInfo = () => ({
+export const getRuntimeVersionInfo = ({ deployedAt } = {}) => ({
   version: getFirstNonEmptyValue(
     process.env.APP_VERSION,
     process.env.npm_package_version,
@@ -37,10 +37,15 @@ export const getRuntimeVersionInfo = () => ({
     process.env.VERCEL_GIT_COMMIT_SHA,
   ),
   environment: getFirstNonEmptyValue(process.env.NODE_ENV, 'development'),
+  deployedAt: getFirstNonEmptyValue(
+    process.env.DEPLOYED_AT,
+    process.env.RENDER_DEPLOY_TIMESTAMP,
+    deployedAt,
+  ),
 });
 
 export const getStartupMetadata = (port, startedAt = new Date().toISOString()) => ({
-  ...getRuntimeVersionInfo(),
+  ...getRuntimeVersionInfo({ deployedAt: startedAt }),
   startedAt,
   port: Number(port) || Number(process.env.PORT) || 0,
 });

@@ -277,7 +277,7 @@ app.use((req, res, next) => {
 
 // Auth Pública y Verificación
 app.use('/api/auth', apiLimiter, createAuthRoutes(prisma));
-app.use('/api', createVersionRoutes());
+app.use('/api', createVersionRoutes({ deployedAt: startedAt }));
 
 // Diagnóstico WhatsApp temporal (público)
 app.get('/api/whatsapp-config', (req, res) => {
