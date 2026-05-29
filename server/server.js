@@ -8,6 +8,7 @@ import { PrismaClient } from '@prisma/client';
 import dns from 'node:dns';
 import logger, { createRequestLogger } from './src/config/logger.js';
 import { validateEnv } from './src/config/env.js';
+import { createHttpMetricsMiddleware, renderPrometheusMetrics } from './src/lib/metrics.js';
 
 // Phase 2: Swagger, Rate Limiting, Session Management
 import swaggerUi from 'swagger-ui-express';
@@ -151,6 +152,7 @@ app.use((req, res, next) => {
 
 // Request logger
 app.use(createRequestLogger);
+app.use(createHttpMetricsMiddleware());
 
 // Phase 2: Session Management Middleware
 app.use(sessionValidationMiddleware);
@@ -321,6 +323,10 @@ app.use('/api/audit', authMiddleware, createAuditRoutes(prisma));
 app.use('/api/sessions', authMiddleware, createSessionsRoutes(prisma, sessionManager));
 
 // Utilidades
+app.get('/metrics', (req, res) => {
+    res.type('text/plain; version=0.0.4; charset=utf-8');
+    res.send(renderPrometheusMetrics());
+});
 app.get('/health', (req, res) => res.status(200).json({ status: 'ok' }));
 app.get('/api/health', (req, res) => res.status(200).json({ status: 'ok' }));
 

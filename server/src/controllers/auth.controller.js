@@ -27,6 +27,7 @@ import { auditActions, safeWriteAuditLog } from '../utils/audit.js';
 import SessionManager from '../utils/sessionManager.js';
 import { createInternalError, createPublicError } from '../errors/AppError.js';
 import logger from '../config/logger.js';
+import { recordLoginFailure } from '../lib/metrics.js';
 
 const authLogger = logger.child({ service: 'auth' });
 
@@ -223,6 +224,7 @@ export const requestOTP = async (req, res) => {
   try {
     const normalizedEmail = normalizeEmail(req.body?.email);
     if (!normalizedEmail || !normalizedEmail.includes('@')) {
+      recordLoginFailure({ step: 'request-otp', reason: 'INVALID_EMAIL' });
       return res.status(400).json({ message: 'Email inválido' });
     }
 
@@ -233,6 +235,7 @@ export const requestOTP = async (req, res) => {
         resource: 'AUTH',
         details: { email: normalizedEmail, reason: 'UNKNOWN_USER' },
       });
+      recordLoginFailure({ step: 'request-otp', reason: 'UNKNOWN_USER' });
       return res.status(403).json({
         message: 'Acceso denegado',
         detail: 'El correo no está habilitado para ingresar.',
@@ -247,6 +250,7 @@ export const requestOTP = async (req, res) => {
         resourceId: user.id,
         details: { email: normalizedEmail, reason: 'INACTIVE_USER' },
       });
+      recordLoginFailure({ step: 'request-otp', reason: 'INACTIVE_USER' });
       return res.status(403).json({ message: 'Usuario deshabilitado' });
     }
 
@@ -258,6 +262,7 @@ export const requestOTP = async (req, res) => {
         resourceId: user.id,
         details: { email: normalizedEmail, reason: 'ACCOUNT_LOCKED' },
       });
+      recordLoginFailure({ step: 'request-otp', reason: 'ACCOUNT_LOCKED' });
       return res.status(423).json({ message: 'Cuenta temporalmente bloqueada. Intenta nuevamente más tarde.' });
     }
 
@@ -330,6 +335,7 @@ export const verifyOTP = async (req, res) => {
         resource: 'AUTH',
         details: { email: normalizedEmail, reason: 'UNKNOWN_OR_DISABLED_USER' },
       });
+      recordLoginFailure({ step: 'verify-otp', reason: 'UNKNOWN_OR_DISABLED_USER' });
       return res.status(401).json({ message: 'Credenciales inválidas' });
     }
 
@@ -341,6 +347,7 @@ export const verifyOTP = async (req, res) => {
         resourceId: user.id,
         details: { email: normalizedEmail, reason: 'ACCOUNT_LOCKED' },
       });
+      recordLoginFailure({ step: 'verify-otp', reason: 'ACCOUNT_LOCKED' });
       return res.status(423).json({ message: 'Cuenta temporalmente bloqueada. Solicita un nuevo código más tarde.' });
     }
 
@@ -353,6 +360,7 @@ export const verifyOTP = async (req, res) => {
         resourceId: user.id,
         details: { email: normalizedEmail, reason: 'MISSING_OR_EXPIRED_OTP' },
       });
+      recordLoginFailure({ step: 'verify-otp', reason: 'MISSING_OR_EXPIRED_OTP' });
       return res.status(400).json({ message: 'No hay un código vigente para verificar.' });
     }
 
@@ -400,6 +408,7 @@ export const verifyOTP = async (req, res) => {
           attemptCount: challenge.attemptCount + 1,
         },
       });
+      recordLoginFailure({ step: 'verify-otp', reason: shouldLock ? 'OTP_ATTEMPTS_LOCKED' : 'INVALID_OTP' });
 
       if (shouldLock) {
         return res.status(423).json({ message: 'Cuenta bloqueada por demasiados intentos fallidos.' });
