@@ -27,9 +27,10 @@ import {
 
 dns.setDefaultResultOrder('ipv4first');
 dotenv.config();
+const startedAt = new Date().toISOString();
 
 // Validar variables de entorno antes de iniciar
-const env = validateEnv();
+validateEnv();
 
 const prisma = new PrismaClient();
 const app = express();
@@ -60,12 +61,14 @@ import createObrasSocialesRoutes from './src/routes/obrasSociales.routes.js';
 import createUsersRoutes from './src/routes/users.routes.js';
 import createAuditRoutes from './src/routes/audit.routes.js';
 import createSessionsRoutes from './src/routes/sessions.routes.js';
+import createVersionRoutes from './src/routes/version.routes.js';
 import { verifyWhatsAppWebhook, handleWhatsAppWebhook } from './src/controllers/whatsapp.controller.js';
 import { authMiddleware } from './src/middlewares/authMiddleware.js';
 import { checkRole } from './src/middlewares/rbacMiddleware.js';
 import { ROLES } from './src/constants/roles.js';
 import { csrfProtection, getCsrfToken } from './src/middlewares/csrfMiddleware.js';
 import { getBootstrapUsers } from './src/utils/auth.js';
+import { getStartupMetadata } from './src/config/runtimeInfo.js';
 import { NotFoundError } from './src/errors/AppError.js';
 import { errorHandler } from './src/middlewares/errorHandler.js';
 
@@ -274,6 +277,7 @@ app.use((req, res, next) => {
 
 // Auth Pública y Verificación
 app.use('/api/auth', apiLimiter, createAuthRoutes(prisma));
+app.use('/api', createVersionRoutes());
 
 // Diagnóstico WhatsApp temporal (público)
 app.get('/api/whatsapp-config', (req, res) => {
@@ -350,5 +354,5 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, '0.0.0.0', () => {
-    logger.info('Servidor Kareh Pro iniciado', { port: PORT });
+    logger.info('Servidor Kareh Pro iniciado', getStartupMetadata(PORT, startedAt));
 });

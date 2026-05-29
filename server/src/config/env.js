@@ -11,6 +11,8 @@ const envSchema = z.object({
 
   // Server
   PORT: z.coerce.number().default(5000),
+  APP_VERSION: z.string().default(''),
+  COMMIT_SHA: z.string().default(''),
   JWT_SECRET: z.string().min(32, 'JWT_SECRET debe tener al menos 32 caracteres'),
   JWT_REFRESH_SECRET: z.string().min(32, 'JWT_REFRESH_SECRET debe tener al menos 32 caracteres').optional(),
   REFRESH_TOKEN_SECRET: z.string().min(32, 'REFRESH_TOKEN_SECRET debe tener al menos 32 caracteres').optional(),
