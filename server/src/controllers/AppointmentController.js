@@ -1,7 +1,7 @@
 import { startOfWeek, endOfWeek, parseISO } from 'date-fns';
 import { uploadBufferToStorage } from '../services/storage.js';
 import { buildTicketPdf } from '../services/ticketPdf.js';
-import { uploadMedia, sendDocumentMessage, sendImageMessage } from '../services/whatsapp.js';
+import { uploadMedia, sendDocumentMessage, sendImageMessage, sendTemplateMessage } from '../services/whatsapp.js';
 import { sendWhatsAppTicketForAppointment } from '../services/whatsappTicket.js';
 import { enqueueSendWhatsAppTicket } from '../jobs/sendWhatsAppTicketJob.js';
 import {
