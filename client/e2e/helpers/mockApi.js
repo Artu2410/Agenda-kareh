@@ -129,6 +129,47 @@ const buildMetricsResponse = () => ({
       insuranceBreakdown: [{ name: 'PARTICULAR', count: 6 }],
     },
   ],
+  futureAgenda: {
+    farthestDate: '2026-08-05T12:00:00.000Z',
+    farthestLabel: 'miércoles 5 de agosto de 2026',
+    appointmentCount: 6,
+    patientCount: 4,
+    activePatients: {
+      total: 4,
+      new: 2,
+      recurrent: 2,
+    },
+    coverageByMonth: [
+      {
+        monthKey: '2026-05',
+        month: 'MAY 26',
+        label: 'Mayo 2026',
+        appointmentCount: 1,
+        patientCount: 1,
+      },
+      {
+        monthKey: '2026-06',
+        month: 'JUN 26',
+        label: 'Junio 2026',
+        appointmentCount: 2,
+        patientCount: 2,
+      },
+      {
+        monthKey: '2026-07',
+        month: 'JUL 26',
+        label: 'Julio 2026',
+        appointmentCount: 2,
+        patientCount: 1,
+      },
+      {
+        monthKey: '2026-08',
+        month: 'AGO 26',
+        label: 'Agosto 2026',
+        appointmentCount: 1,
+        patientCount: 1,
+      },
+    ],
+  },
 });
 
 const buildAuthUser = (role = 'SECRETARIA') => ({

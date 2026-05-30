@@ -30,16 +30,18 @@ const MobileMetricCard = ({ label, value, toneClassName, labelClassName }) => (
 const MonthlyRecordsSection = ({ monthlyRows }) => (
   <section className="rounded-4xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
     <div className="mb-6">
-      <p className="text-[11px] font-black uppercase tracking-[0.28em] text-slate-400">Mes a mes</p>
+      <p className="text-[11px] font-black uppercase tracking-[0.28em] text-slate-400">Mes a mes con actividad</p>
       <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-900">
         Registro mensual del consultorio
       </h2>
       <p className="mt-2 text-sm font-medium text-slate-500">
-        Últimos 12 meses con total de turnos, asistencias, inasistencias, pendientes y tasa de asistencia.
+        Meses con actividad real, total de turnos, asistencias, inasistencias, pendientes y tasa de asistencia.
       </p>
     </div>
 
-    <div className="hidden overflow-x-auto lg:block">
+    {monthlyRows.length > 0 ? (
+      <>
+        <div className="hidden overflow-x-auto lg:block">
       <table className="min-w-full text-left">
         <thead>
           <tr className="border-b border-slate-200 text-[11px] font-black uppercase tracking-[0.24em] text-slate-400">
@@ -81,66 +83,72 @@ const MonthlyRecordsSection = ({ monthlyRows }) => (
           ))}
         </tbody>
       </table>
-    </div>
+        </div>
 
-    <div className="grid gap-3 lg:hidden">
-      {monthlyRows.map((row, index) => (
-        <article
-          key={row.monthKey}
-          className={`rounded-[1.6rem] border px-4 py-4 ${
-            index === 0
-              ? 'border-teal-200 bg-teal-50/50'
-              : 'border-slate-200 bg-slate-50/60'
-          }`}
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-lg font-black capitalize text-slate-900">{row.label}</p>
-              <p className="mt-1 text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">
-                {index === 0 ? 'Mes actual' : 'Mes cerrado'}
-              </p>
-              <MobileInsuranceTags items={row.insuranceBreakdown} />
-            </div>
-            <div className={`rounded-xl px-3 py-2 text-xs font-black ${
-              (row.volumeChange ?? 0) >= 0 ? 'bg-green-100 text-green-700' : 'bg-rose-100 text-rose-700'
-            }`}
+        <div className="grid gap-3 lg:hidden">
+          {monthlyRows.map((row, index) => (
+            <article
+              key={row.monthKey}
+              className={`rounded-[1.6rem] border px-4 py-4 ${
+                index === 0
+                  ? 'border-teal-200 bg-teal-50/50'
+                  : 'border-slate-200 bg-slate-50/60'
+              }`}
             >
-              {formatVolumeChange(row.volumeChange)}
-            </div>
-          </div>
-          <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-            <MobileMetricCard
-              label="Turnos"
-              value={row.appointmentCount}
-              toneClassName="text-slate-900"
-              labelClassName="text-slate-400"
-            />
-            <MobileMetricCard
-              label="Asistieron"
-              value={row.completedCount}
-              toneClassName="text-emerald-700"
-              labelClassName="text-emerald-400"
-            />
-            <MobileMetricCard
-              label="Inasist."
-              value={row.noShowCount}
-              toneClassName="text-rose-700"
-              labelClassName="text-rose-400"
-            />
-            <MobileMetricCard
-              label="Pendientes"
-              value={row.scheduledCount}
-              toneClassName="text-amber-700"
-              labelClassName="text-amber-400"
-            />
-          </div>
-          <div className="mt-3 rounded-2xl bg-white px-4 py-3">
-            <p className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">Asistencia real</p>
-            <p className="mt-1 text-xl font-black text-slate-900">{formatRate(row.attendanceRate)}</p>
-          </div>
-        </article>
-      ))}
-    </div>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-lg font-black capitalize text-slate-900">{row.label}</p>
+                  <p className="mt-1 text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">
+                    {index === 0 ? 'Último mes con actividad' : 'Mes cerrado'}
+                  </p>
+                  <MobileInsuranceTags items={row.insuranceBreakdown} />
+                </div>
+                <div className={`rounded-xl px-3 py-2 text-xs font-black ${
+                  (row.volumeChange ?? 0) >= 0 ? 'bg-green-100 text-green-700' : 'bg-rose-100 text-rose-700'
+                }`}
+                >
+                  {formatVolumeChange(row.volumeChange)}
+                </div>
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                <MobileMetricCard
+                  label="Turnos"
+                  value={row.appointmentCount}
+                  toneClassName="text-slate-900"
+                  labelClassName="text-slate-400"
+                />
+                <MobileMetricCard
+                  label="Asistieron"
+                  value={row.completedCount}
+                  toneClassName="text-emerald-700"
+                  labelClassName="text-emerald-400"
+                />
+                <MobileMetricCard
+                  label="Inasist."
+                  value={row.noShowCount}
+                  toneClassName="text-rose-700"
+                  labelClassName="text-rose-400"
+                />
+                <MobileMetricCard
+                  label="Pendientes"
+                  value={row.scheduledCount}
+                  toneClassName="text-amber-700"
+                  labelClassName="text-amber-400"
+                />
+              </div>
+              <div className="mt-3 rounded-2xl bg-white px-4 py-3">
+                <p className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">Asistencia real</p>
+                <p className="mt-1 text-xl font-black text-slate-900">{formatRate(row.attendanceRate)}</p>
+              </div>
+            </article>
+          ))}
+        </div>
+      </>
+    ) : (
+      <div className="rounded-[1.75rem] border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center text-sm font-semibold text-slate-400">
+        No hay meses con actividad para mostrar.
+      </div>
+    )}
   </section>
 );
 

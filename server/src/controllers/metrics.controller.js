@@ -3,6 +3,7 @@ import {
   endOfWeek,
   format,
   startOfMonth,
+  startOfDay,
   startOfWeek,
   startOfYear,
   subMonths,
@@ -107,6 +108,103 @@ const buildMonthlySnapshot = async (prisma, baseDate) => {
   };
 };
 
+const formatFutureMonthLabel = (date) => format(date, 'MMM yy', { locale: es }).replace('.', '').toUpperCase();
+
+const buildFutureAgendaSnapshot = async (prisma, now) => {
+  const todayStart = startOfDay(now);
+
+  const [futureAppointments, firstAppointments] = await Promise.all([
+    prisma.appointment.findMany({
+      where: {
+        date: { gte: todayStart },
+        status: { not: 'CANCELLED' },
+      },
+      select: {
+        id: true,
+        date: true,
+        patientId: true,
+      },
+      orderBy: [
+        { date: 'asc' },
+        { time: 'asc' },
+        { slotNumber: 'asc' },
+      ],
+    }),
+    prisma.appointment.groupBy({
+      by: ['patientId'],
+      where: {
+        status: { not: 'CANCELLED' },
+      },
+      _min: {
+        date: true,
+      },
+    }),
+  ]);
+
+  const farthestAppointment = futureAppointments[futureAppointments.length - 1] || null;
+  const futurePatientIds = new Set();
+  const coverageMap = new Map();
+
+  futureAppointments.forEach((appointment) => {
+    if (appointment.patientId) {
+      futurePatientIds.add(appointment.patientId);
+    }
+
+    const monthKey = format(appointment.date, 'yyyy-MM');
+    const current = coverageMap.get(monthKey) || {
+      monthKey,
+      month: formatFutureMonthLabel(appointment.date),
+      label: format(appointment.date, 'MMMM yyyy', { locale: es }),
+      appointmentCount: 0,
+      patientIds: new Set(),
+    };
+
+    current.appointmentCount += 1;
+    if (appointment.patientId) {
+      current.patientIds.add(appointment.patientId);
+    }
+    coverageMap.set(monthKey, current);
+  });
+
+  const firstAppointmentByPatient = new Map(
+    firstAppointments.map((entry) => [entry.patientId, entry._min?.date || null]),
+  );
+
+  let newPatients = 0;
+  futurePatientIds.forEach((patientId) => {
+    const firstDate = firstAppointmentByPatient.get(patientId);
+    if (!firstDate) return;
+
+    const normalizedFirstDate = startOfDay(new Date(firstDate));
+    if (normalizedFirstDate >= todayStart) {
+      newPatients += 1;
+    }
+  });
+
+  const coverageByMonth = Array.from(coverageMap.values())
+    .map((item) => ({
+      monthKey: item.monthKey,
+      month: item.month,
+      label: item.label,
+      appointmentCount: item.appointmentCount,
+      patientCount: item.patientIds.size,
+    }))
+    .sort((a, b) => a.monthKey.localeCompare(b.monthKey));
+
+  return {
+    farthestDate: farthestAppointment?.date || null,
+    farthestLabel: farthestAppointment ? format(farthestAppointment.date, "EEEE d 'de' MMMM yyyy", { locale: es }) : null,
+    appointmentCount: futureAppointments.length,
+    patientCount: futurePatientIds.size,
+    activePatients: {
+      total: futurePatientIds.size,
+      new: newPatients,
+      recurrent: Math.max(futurePatientIds.size - newPatients, 0),
+    },
+    coverageByMonth,
+  };
+};
+
 export const getMetrics = async (req, res, prisma) => {
   try {
     const now = new Date();
@@ -146,6 +244,7 @@ export const getMetrics = async (req, res, prisma) => {
 
     const currentMonthSnapshot = await buildMonthlySnapshot(prisma, now);
     const previousMonthSnapshot = await buildMonthlySnapshot(prisma, subMonths(now, 1));
+    const futureAgendaSnapshot = await buildFutureAgendaSnapshot(prisma, now);
 
     const monthlyChange = previousMonthSnapshot.appointmentCount > 0
       ? Number((((currentMonthSnapshot.appointmentCount - previousMonthSnapshot.appointmentCount) / previousMonthSnapshot.appointmentCount) * 100).toFixed(1))
@@ -200,6 +299,7 @@ export const getMetrics = async (req, res, prisma) => {
         };
       }),
     );
+    const activeMonthlyTrend = monthlyTrend.filter((item) => item.appointmentCount > 0);
 
     res.json({
       weekly: {
@@ -234,7 +334,8 @@ export const getMetrics = async (req, res, prisma) => {
         completedCount: annualCompletedCount,
         noShowCount: annualNoShowCount,
       },
-      monthlyTrend,
+      monthlyTrend: activeMonthlyTrend,
+      futureAgenda: futureAgendaSnapshot,
     });
   } catch (error) {
     throw createInternalError(error, 'Error al obtener métricas');
