@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import DashboardHeader from '../components/dashboard/DashboardHeader';
+import FutureAgendaSection from '../components/dashboard/FutureAgendaSection';
 import InsuranceBreakdownSection from '../components/dashboard/InsuranceBreakdownSection';
 import MonthlyRecordsSection from '../components/dashboard/MonthlyRecordsSection';
 import MonthlyTrendSection from '../components/dashboard/MonthlyTrendSection';
@@ -58,6 +59,7 @@ const DashboardPage = () => {
 
   const currentMonthRow = monthlyRows[0] || null;
   const chartData = Array.isArray(metrics?.monthlyTrend) ? metrics.monthlyTrend : [];
+  const futureAgenda = metrics?.futureAgenda || null;
 
   if (loading) {
     return (
@@ -82,6 +84,7 @@ const DashboardPage = () => {
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 sm:gap-8">
         <DashboardHeader />
         <OverviewSection metrics={metrics} />
+        <FutureAgendaSection futureAgenda={futureAgenda} />
         <MonthlyTrendSection
           chartData={chartData}
           chartType={chartType}
