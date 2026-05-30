@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
+import AnnualSection from '../components/dashboard/AnnualSection';
+import CurrentMonthSection from '../components/dashboard/CurrentMonthSection';
 import DashboardHeader from '../components/dashboard/DashboardHeader';
 import FutureAgendaSection from '../components/dashboard/FutureAgendaSection';
-import InsuranceBreakdownSection from '../components/dashboard/InsuranceBreakdownSection';
+import FutureCoverageSection from '../components/dashboard/FutureCoverageSection';
 import MonthlyRecordsSection from '../components/dashboard/MonthlyRecordsSection';
 import MonthlyTrendSection from '../components/dashboard/MonthlyTrendSection';
-import OverviewSection from '../components/dashboard/OverviewSection';
 import api from '../services/api';
 
 const DashboardPage = () => {
@@ -57,7 +58,6 @@ const DashboardPage = () => {
     return rows.reverse();
   }, [metrics]);
 
-  const currentMonthRow = monthlyRows[0] || null;
   const chartData = Array.isArray(metrics?.monthlyTrend) ? metrics.monthlyTrend : [];
   const futureAgenda = metrics?.futureAgenda || null;
 
@@ -83,16 +83,17 @@ const DashboardPage = () => {
     <div className="min-h-full w-full overflow-auto bg-slate-50 p-4 sm:p-8">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 sm:gap-8">
         <DashboardHeader />
-        <OverviewSection metrics={metrics} />
         <FutureAgendaSection futureAgenda={futureAgenda} />
+        <FutureCoverageSection futureAgenda={futureAgenda} />
+        <CurrentMonthSection monthly={metrics.monthly} weekly={metrics.weekly} />
         <MonthlyTrendSection
           chartData={chartData}
           chartType={chartType}
-          currentMonthRow={currentMonthRow}
+          currentMonthRow={monthlyRows[0] || null}
           onChartTypeChange={setChartType}
         />
-        <InsuranceBreakdownSection monthly={metrics.monthly} />
         <MonthlyRecordsSection monthlyRows={monthlyRows} />
+        <AnnualSection annual={metrics.annual} />
       </div>
     </div>
   );

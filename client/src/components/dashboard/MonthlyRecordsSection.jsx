@@ -30,13 +30,16 @@ const MobileMetricCard = ({ label, value, toneClassName, labelClassName }) => (
 const MonthlyRecordsSection = ({ monthlyRows }) => (
   <section className="rounded-4xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
     <div className="mb-6">
-      <p className="text-[11px] font-black uppercase tracking-[0.28em] text-slate-400">Mes a mes con actividad</p>
+      <p className="text-[11px] font-black uppercase tracking-[0.28em] text-slate-400">Histórico de actividad</p>
       <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-900">
         Registro mensual del consultorio
       </h2>
       <p className="mt-2 text-sm font-medium text-slate-500">
         Meses con actividad real, total de turnos, asistencias, inasistencias, pendientes y tasa de asistencia.
       </p>
+      <div className="mt-3 inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.24em] text-slate-600">
+        Últimos 12 meses con actividad
+      </div>
     </div>
 
     {monthlyRows.length > 0 ? (
