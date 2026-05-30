@@ -126,15 +126,20 @@ const MonthlyTrendSection = ({ chartData, chartType, currentMonthRow, onChartTyp
   <section className="min-w-0 rounded-4xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
     <div className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
       <div>
-        <p className="text-[11px] font-black uppercase tracking-[0.28em] text-slate-400">Meses con actividad</p>
+        <p className="text-[11px] font-black uppercase tracking-[0.28em] text-slate-400">Histórico de actividad</p>
         <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-900">Evolución del consultorio</h2>
         <p className="mt-2 text-sm font-medium text-slate-500">
           Vista mensual de turnos con actividad real, asistencias, inasistencias y pendientes.
         </p>
       </div>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
+        <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.24em] text-slate-600">
+          Últimos 12 meses con actividad
+        </span>
+        <div className="flex flex-wrap gap-2">
         <ChartToggle selected={chartType} value="bar" onChange={onChartTypeChange}>Barras</ChartToggle>
         <ChartToggle selected={chartType} value="line" onChange={onChartTypeChange}>Líneas</ChartToggle>
+        </div>
       </div>
     </div>
 
