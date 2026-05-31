@@ -9,6 +9,11 @@ runCokibaSync()
     console.log(
       `   📊 Total sincronizadas: ${result.total} | Nuevas: ${result.created} | Actualizadas: ${result.updated}`
     );
+    if (result?.diffSummary) {
+      console.log(
+        `   🗓 Snapshot: ${result.snapshot?.dateKey || 'N/A'} | Cambios: ${result.diffSummary.totalChanges || 0} | Altas: ${result.diffSummary.addedCount || 0} | Bajas: ${result.diffSummary.removedCount || 0}`
+      );
+    }
   })
   .catch((error) => {
     console.error('\n❌ Error en el scraper COKIBA:', error.message);

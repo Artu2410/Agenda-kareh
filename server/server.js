@@ -9,6 +9,7 @@ import dns from 'node:dns';
 import logger, { createRequestLogger } from './src/config/logger.js';
 import { validateEnv } from './src/config/env.js';
 import { createHttpMetricsMiddleware, renderPrometheusMetrics } from './src/lib/metrics.js';
+import { scheduleCokibaDailySync, runCokibaSync } from './src/services/cokibaSync.js';
 
 // Phase 2: Swagger, Rate Limiting, Session Management
 import swaggerUi from 'swagger-ui-express';
@@ -206,7 +207,11 @@ app.use('/api', (req, res, next) => {
     }
 
     const path = req.path || '';
-    if (path.startsWith('/webhooks/whatsapp') || path.startsWith('/cron/whatsapp-reminders')) {
+    if (
+      path.startsWith('/webhooks/whatsapp')
+      || path.startsWith('/cron/whatsapp-reminders')
+      || path.startsWith('/cron/cokiba-sync')
+    ) {
         return next();
     }
 
@@ -229,6 +234,10 @@ prisma.$connect()
   .then(async () => {
     logger.info('DB conectada');
     await syncBootstrapUsers();
+
+    if (isProduction && process.env.COKIBA_DAILY_SYNC_ENABLED !== 'false') {
+      scheduleCokibaDailySync({ prisma, logger });
+    }
   })
   .catch((error) => {
     logger.error('Error de conexión DB', { errorMessage: error.message });
@@ -259,6 +268,24 @@ app.post('/api/cron/whatsapp-reminders', async (req, res) => {
     } catch (error) {
         logger.error('Error cron WhatsApp', { errorMessage: error.message });
         return res.status(500).json({ message: 'Error en cron WhatsApp' });
+  }
+});
+
+app.post('/api/cron/cokiba-sync', async (req, res) => {
+    const token = process.env.COKIBA_CRON_TOKEN;
+    const provided = req.headers['x-cron-token'] || req.query?.token;
+    if (!token) {
+        return res.status(500).json({ message: 'Cron token de COKIBA no configurado' });
+    }
+    if (token !== provided) {
+        return res.status(403).json({ message: 'No autorizado' });
+    }
+    try {
+        const result = await runCokibaSync({ prisma, trigger: 'cron-route' });
+        return res.json({ success: true, ...result });
+    } catch (error) {
+        logger.error('Error cron COKIBA', { errorMessage: error.message });
+        return res.status(500).json({ message: 'Error en cron COKIBA' });
     }
 });
 

@@ -36,6 +36,9 @@ export const auditActions = {
   obraSocialDeleted: 'OBRA_SOCIAL_DELETED',
   obraSocialAuthorized: 'OBRA_SOCIAL_AUTHORIZED',
   obraSocialAuthorizationRejected: 'OBRA_SOCIAL_AUTHORIZATION_REJECTED',
+  cokibaSyncSnapshot: 'COKIBA_SYNC_SNAPSHOT',
+  cokibaSyncDiff: 'COKIBA_SYNC_DIFF',
+  cokibaSyncAlert: 'COKIBA_SYNC_ALERT',
   auditCleanup: 'AUDIT_CLEANUP',
 };
 

@@ -398,6 +398,7 @@ model ObraSocial {
   statusManualOverride  Boolean       @default(false)
   isArchived            Boolean       @default(false)
   requiresAuthorization Boolean       @default(false)
+  authorizationType     String?
   atendibleSanMiguel    Boolean       @default(false)
   requiredDocuments     Json?
   cokibaDetails         Json?

@@ -52,6 +52,11 @@ const envSchema = z.object({
   // Google AI (Gemini)
   GOOGLE_AI_API_KEY: z.string().optional(),
 
+  // COKIBA sync
+  COKIBA_DAILY_SYNC_ENABLED: z.enum(['true', 'false']).default('true'),
+  COKIBA_DAILY_SYNC_TIME: z.string().regex(/^\d{1,2}:\d{2}$/).default('03:15'),
+  COKIBA_CRON_TOKEN: z.string().optional(),
+
   // Push notifications
   VAPID_PUBLIC_KEY: z.string().optional(),
   VAPID_PRIVATE_KEY: z.string().optional(),

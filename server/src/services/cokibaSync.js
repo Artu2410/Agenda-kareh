@@ -1,6 +1,17 @@
 import { PrismaClient } from '@prisma/client';
 import puppeteer from 'puppeteer';
 import { loadSupplementalCokibaCatalog, matchSupplementalCokibaEntry } from './cokibaTextCatalog.js';
+import { sendNotificationToAll } from '../controllers/notifications.controller.js';
+import { auditActions, safeWriteAuditLog } from '../utils/audit.js';
+import {
+  buildCokibaNotificationPayload,
+  buildCokibaSnapshotRecord,
+  computeCokibaDiff,
+  deriveCokibaAuthorizationType,
+  formatCokibaSyncDateKey,
+  getNextCokibaSyncRunAt,
+  summarizeCokibaDiff,
+} from './cokibaSyncHelpers.js';
 import logger from '../config/logger.js';
 
 const COKIBA_OS_URL = 'https://autogestion.cokiba.org.ar/web/?q=form_os';
@@ -616,6 +627,19 @@ const mergeSupplementalRecord = (record, option, supplementalCatalog) => {
     honorarioBasicaReferencia:
       baseDetails.honorarioBasicaReferencia || supplementalDetails.honorarioBasicaReferencia || 0,
     supplementalCatalogMatch: supplementalEntry.nombreOs,
+    authorizationType:
+      baseDetails.authorizationType
+      || supplementalDetails.authorizationType
+      || deriveCokibaAuthorizationType({
+        authorizationNote: baseDetails.authorizationNote || supplementalDetails.authorizationNote || '',
+        authorizationUrl: baseDetails.autorizacionUrl || supplementalDetails.autorizacionUrl || '',
+        validationUrl: baseDetails.validacionUrl || supplementalDetails.validacionUrl || '',
+        convenienceText: baseDetails.convenioTexto || supplementalDetails.convenioTexto || '',
+        additionalText: [
+          ...(baseDetails.norms || []),
+          ...(supplementalDetails.norms || []),
+        ].join(' '),
+      }),
   };
 
   const supplementalCoinsuranceRule = parseCoinsuranceRule(supplementalDetails.coseguroTexto || '');
@@ -650,6 +674,17 @@ const mergeSupplementalRecord = (record, option, supplementalCatalog) => {
       record.requiresAuthorization === null || record.requiresAuthorization === undefined
         ? supplementalEntry.requiresAuthorization
         : record.requiresAuthorization,
+    authorizationType:
+      record.authorizationType
+      || mergedDetails.authorizationType
+      || deriveCokibaAuthorizationType({
+        authorizationNote: mergedDetails.authorizationNote || '',
+        authorizationUrl: mergedDetails.autorizacionUrl || '',
+        validationUrl: mergedDetails.validacionUrl || '',
+        convenienceText: mergedDetails.convenioTexto || '',
+        additionalText: mergedDetails.observaciones || '',
+        lines: [...(mergedDetails.norms || []), ...(mergedDetails.extractedUrls || [])],
+      }),
     atendibleSanMiguel:
       record.atendibleSanMiguel ||
       computeAtendibleSanMiguel({
@@ -671,6 +706,17 @@ const mergeSupplementalRecord = (record, option, supplementalCatalog) => {
       coinsuranceReliable: shouldUseSupplementalCoinsurance
         ? supplementalCoinsuranceRule.isReliable
         : baseDetails.coinsuranceReliable,
+      authorizationType:
+        mergedDetails.authorizationType
+        || record.authorizationType
+        || deriveCokibaAuthorizationType({
+          authorizationNote: mergedDetails.authorizationNote || '',
+          authorizationUrl: mergedDetails.autorizacionUrl || '',
+          validationUrl: mergedDetails.validacionUrl || '',
+          convenienceText: mergedDetails.convenioTexto || '',
+          additionalText: mergedDetails.observaciones || '',
+          lines: [...(mergedDetails.norms || []), ...(mergedDetails.extractedUrls || [])],
+        }),
     },
   };
 };
@@ -713,6 +759,18 @@ const extractDetailRecord = (detail, option, plazoPago) => {
     postConventionLines,
     authorizationInfo,
   });
+  const authorizationType = deriveCokibaAuthorizationType({
+    authorizationNote: authorizationInfo.note,
+    authorizationUrl: cokibaDetails.autorizacionUrl,
+    validationUrl: cokibaDetails.validacionUrl,
+    convenienceText: cokibaDetails.convenioTexto,
+    additionalText: cokibaDetails.observaciones,
+    lines: [
+      ...lines.slice(0, 60),
+      ...(cokibaDetails.norms || []),
+      ...(cokibaDetails.extractedUrls || []),
+    ],
+  });
 
   return {
     codigoCokiba: option.value,
@@ -727,6 +785,7 @@ const extractDetailRecord = (detail, option, plazoPago) => {
     detectedStatus,
     detectedIsActive,
     requiresAuthorization: authorizationInfo.isReliable ? authorizationInfo.value : null,
+    authorizationType,
     atendibleSanMiguel: computeAtendibleSanMiguel({
       nombreOs,
       areaCobertura,
@@ -740,6 +799,7 @@ const extractDetailRecord = (detail, option, plazoPago) => {
       ...cokibaDetails,
       coinsuranceMode: coinsuranceRule.mode,
       coinsuranceReliable: coinsuranceRule.isReliable,
+      authorizationType,
     },
     rawCategoria: 'Básica',
   };
@@ -976,9 +1036,105 @@ const synchronizeRows = async (prisma, obrasSociales, logger) => {
 
 const defaultLogger = logger.child({ service: 'cokiba-sync' });
 
+const buildPreviousSnapshot = (auditLogEntry) => {
+  const records = auditLogEntry?.newValues?.records;
+  return Array.isArray(records) ? records : [];
+};
+
+const serializeCokibaStatus = (status = {}) => ({
+  ...status,
+  lastSyncAt: status.lastSyncAt ? new Date(status.lastSyncAt).toISOString() : null,
+  lastSnapshotAt: status.lastSnapshotAt ? new Date(status.lastSnapshotAt).toISOString() : null,
+  lastDiffAt: status.lastDiffAt ? new Date(status.lastDiffAt).toISOString() : null,
+});
+
+const getLatestCokibaAuditEntry = async (prisma, action) => prisma.auditLog.findFirst({
+  where: {
+    entityType: 'COKIBA_SYNC',
+    action,
+  },
+  orderBy: { createdAt: 'desc' },
+  select: {
+    createdAt: true,
+    newValues: true,
+    details: true,
+  },
+});
+
+const persistCokibaAuditArtifacts = async ({
+  prisma,
+  trigger,
+  snapshotRecords,
+  previousSnapshotRecords,
+  status,
+  logger: syncLogger,
+}) => {
+  const snapshotDateKey = formatCokibaSyncDateKey();
+  const diff = computeCokibaDiff(previousSnapshotRecords, snapshotRecords);
+  const diffSummary = summarizeCokibaDiff(diff);
+  const serializedStatus = serializeCokibaStatus(status);
+  const notificationPayload = buildCokibaNotificationPayload({
+    summary: serializedStatus,
+    diffSummary,
+    snapshotAt: new Date().toISOString(),
+  });
+
+  await safeWriteAuditLog(prisma, { headers: {}, user: null }, {
+    action: auditActions.cokibaSyncSnapshot,
+    entityType: 'COKIBA_SYNC',
+    entityId: snapshotDateKey,
+    newValues: {
+      records: snapshotRecords,
+      summary: serializedStatus,
+    },
+    details: {
+      trigger,
+      snapshotDateKey,
+      diffSummary,
+    },
+  });
+
+  if (diffSummary.hasChanges) {
+    await safeWriteAuditLog(prisma, { headers: {}, user: null }, {
+      action: auditActions.cokibaSyncDiff,
+      entityType: 'COKIBA_SYNC',
+      entityId: snapshotDateKey,
+      newValues: {
+        diff,
+        diffSummary,
+      },
+      details: {
+        trigger,
+        snapshotDateKey,
+      },
+    });
+
+    try {
+      await sendNotificationToAll(prisma, notificationPayload);
+    } catch (error) {
+      syncLogger.warn('⚠️ No se pudieron enviar notificaciones internas COKIBA', {
+        errorMessage: error.message,
+      });
+    }
+
+    await safeWriteAuditLog(prisma, { headers: {}, user: null }, {
+      action: auditActions.cokibaSyncAlert,
+      entityType: 'COKIBA_SYNC',
+      entityId: snapshotDateKey,
+      details: {
+        trigger,
+        snapshotDateKey,
+        notificationPayload,
+      },
+    });
+  }
+
+  return { diff, diffSummary, notificationPayload };
+};
+
 export const getCokibaSyncStatus = async (prisma) => {
   const config = buildConfigStatus();
-  const [total, activas, latest] = await Promise.all([
+  const [total, activas, latest, lastSnapshot, lastDiff] = await Promise.all([
     prisma.obraSocial.count({ where: { isArchived: false } }),
     prisma.obraSocial.count({ where: { isArchived: false, isActive: true } }),
     prisma.obraSocial.findFirst({
@@ -989,6 +1145,8 @@ export const getCokibaSyncStatus = async (prisma) => {
         nombreOs: true,
       },
     }),
+    getLatestCokibaAuditEntry(prisma, auditActions.cokibaSyncSnapshot),
+    getLatestCokibaAuditEntry(prisma, auditActions.cokibaSyncDiff),
   ]);
 
   return {
@@ -997,18 +1155,31 @@ export const getCokibaSyncStatus = async (prisma) => {
     activas,
     lastSyncAt: latest?.ultimaSync || null,
     lastSyncedRecord: latest?.nombreOs || null,
+    lastSnapshotAt: lastSnapshot?.createdAt || null,
+    lastSnapshotSummary: lastSnapshot?.newValues?.summary || null,
+    lastDiffAt: lastDiff?.createdAt || null,
+    lastDiffSummary: lastDiff?.newValues?.diffSummary || lastDiff?.details?.diffSummary || null,
     config,
   };
 };
 
-export const runCokibaSync = async ({ prisma, logger = defaultLogger } = {}) => {
+let activeCokibaSyncPromise = null;
+
+export const isCokibaSyncRunning = () => Boolean(activeCokibaSyncPromise);
+
+const runCokibaSyncInternal = async ({ prisma, logger: syncLogger = defaultLogger, trigger = 'manual' } = {}) => {
   const config = getCokibaConfig();
   const localPrisma = prisma || new PrismaClient();
   const ownsPrisma = !prisma;
   let browser = null;
 
   try {
-    logger.info('🚀 Iniciando sincronización COKIBA en modo público...');
+    syncLogger.info('🚀 Iniciando sincronización COKIBA en modo público...', {
+      trigger,
+    });
+
+    const previousSnapshotEntry = await getLatestCokibaAuditEntry(localPrisma, auditActions.cokibaSyncSnapshot);
+    const previousSnapshotRecords = buildPreviousSnapshot(previousSnapshotEntry);
 
     browser = await puppeteer.launch({
       headless: 'new',
@@ -1023,26 +1194,43 @@ export const runCokibaSync = async ({ prisma, logger = defaultLogger } = {}) => 
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     );
 
-    const obrasSociales = await collectObrasSociales(page, config.plazoPago, logger);
+    const obrasSociales = await collectObrasSociales(page, config.plazoPago, syncLogger);
 
     if (obrasSociales.length === 0) {
       throw new Error('No se pudieron extraer obras sociales desde COKIBA.');
     }
 
-    const syncResult = await synchronizeRows(localPrisma, obrasSociales, logger);
+    const syncResult = await synchronizeRows(localPrisma, obrasSociales, syncLogger);
+    const snapshotRecords = obrasSociales.map((obraSocial) => buildCokibaSnapshotRecord(obraSocial));
+    const preAuditStatus = await getCokibaSyncStatus(localPrisma);
+    const auditArtifacts = await persistCokibaAuditArtifacts({
+      prisma: localPrisma,
+      trigger,
+      snapshotRecords,
+      previousSnapshotRecords,
+      status: preAuditStatus,
+      logger: syncLogger,
+    });
     const status = await getCokibaSyncStatus(localPrisma);
 
     return {
       ...syncResult,
       extracted: obrasSociales.length,
       status,
+      snapshot: {
+        dateKey: formatCokibaSyncDateKey(),
+        records: snapshotRecords,
+        summary: status,
+      },
+      diff: auditArtifacts.diff,
+      diffSummary: auditArtifacts.diffSummary,
     };
   } finally {
     if (browser) {
       try {
         await browser.close();
       } catch (error) {
-        logger.warn(`⚠️ No se pudo cerrar el navegador de COKIBA: ${error.message}`);
+        syncLogger.warn(`⚠️ No se pudo cerrar el navegador de COKIBA: ${error.message}`);
       }
     }
 
@@ -1050,4 +1238,59 @@ export const runCokibaSync = async ({ prisma, logger = defaultLogger } = {}) => 
       await localPrisma.$disconnect();
     }
   }
+};
+
+export const runCokibaSync = async ({ prisma, logger = defaultLogger, trigger = 'manual' } = {}) => {
+  if (activeCokibaSyncPromise) {
+    return activeCokibaSyncPromise;
+  }
+
+  activeCokibaSyncPromise = runCokibaSyncInternal({ prisma, logger, trigger })
+    .finally(() => {
+      activeCokibaSyncPromise = null;
+    });
+
+  return activeCokibaSyncPromise;
+};
+
+export const scheduleCokibaDailySync = ({ prisma, logger: syncLogger = defaultLogger, enabled = true, scheduleTime = process.env.COKIBA_DAILY_SYNC_TIME || '03:15' } = {}) => {
+  if (!enabled) {
+    return null;
+  }
+
+  let timeoutId = null;
+
+  const scheduleNextRun = () => {
+    const nextRunAt = getNextCokibaSyncRunAt(scheduleTime, new Date());
+    const delayMs = Math.max(1000, nextRunAt.getTime() - Date.now());
+
+    syncLogger.info('🕒 COKIBA sync diario programado', {
+      nextRunAt: nextRunAt.toISOString(),
+      delayMs,
+      scheduleTime,
+    });
+
+    timeoutId = setTimeout(async () => {
+      try {
+        await runCokibaSync({ prisma, logger: syncLogger, trigger: 'scheduler' });
+      } catch (error) {
+        syncLogger.error('Error en sincronización automática COKIBA', {
+          errorMessage: error.message,
+        });
+      } finally {
+        scheduleNextRun();
+      }
+    }, delayMs);
+  };
+
+  scheduleNextRun();
+
+  return {
+    stop: () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+    },
+  };
 };
