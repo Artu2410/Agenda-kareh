@@ -1,12 +1,10 @@
 // ---------------------------------------------------------
 // Obras Sociales Controller (COKIBA)
 // ---------------------------------------------------------
-import { getCokibaSyncStatus, runCokibaSync } from '../services/cokibaSync.js';
+import { getCokibaSyncStatus, isCokibaSyncRunning, runCokibaSync } from '../services/cokibaSync.js';
 import { auditActions, safeWriteAuditLog } from '../utils/audit.js';
 import { createInternalError, createPublicError } from '../errors/AppError.js';
 import { buildMonthlyHonorariosReport } from '../utils/monthlyHonorariosReport.js';
-
-let activeCokibaSync = null;
 
 const parseBoolean = (value, fallbackValue = undefined) => {
   if (value === undefined || value === null || value === '') return fallbackValue;
@@ -101,7 +99,7 @@ export const getObrasSocialesStatus = async (req, res, prisma) => {
 
     res.status(200).json({
       ...status,
-      syncing: Boolean(activeCokibaSync),
+      syncing: isCokibaSyncRunning(),
     });
   } catch (error) {
     throw createInternalError(error, 'Error al obtener el estado de sincronización');
@@ -110,15 +108,14 @@ export const getObrasSocialesStatus = async (req, res, prisma) => {
 
 // 3. EJECUTAR SINCRONIZACIÓN COKIBA
 export const syncObrasSociales = async (req, res, prisma) => {
-  if (activeCokibaSync) {
+  if (isCokibaSyncRunning()) {
     return res.status(409).json({
       error: 'Ya hay una sincronización COKIBA en curso',
     });
   }
 
   try {
-    activeCokibaSync = runCokibaSync({ prisma });
-    const result = await activeCokibaSync;
+    const result = await runCokibaSync({ prisma, trigger: 'manual' });
 
     res.status(200).json({
       success: true,
@@ -131,8 +128,6 @@ export const syncObrasSociales = async (req, res, prisma) => {
       ? 'Configuración de COKIBA inválida o incompleta'
       : 'No se pudo sincronizar con COKIBA';
     throw createPublicError(status, publicMessage, error);
-  } finally {
-    activeCokibaSync = null;
   }
 };
 
