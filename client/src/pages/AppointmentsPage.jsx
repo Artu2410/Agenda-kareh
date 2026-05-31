@@ -173,6 +173,11 @@ const AppointmentsPage = () => {
       return direction > 0 ? addWeeks(previous, 1) : subWeeks(previous, 1);
     });
   }, [viewMode]);
+  const handleGoToToday = useCallback(() => {
+    setCurrentDate(new Date());
+    setViewMode(VIEW_MODE.week);
+  }, []);
+
 
   const handleMonthDayOpen = useCallback((date) => {
     setCurrentDate(date);
@@ -202,6 +207,13 @@ const AppointmentsPage = () => {
                 <span className="text-sm font-bold text-slate-700">{format(currentTime, 'hh:mm a', { locale: es })}</span>
               </div>
             </div>
+            <button
+              type="button"
+              onClick={handleGoToToday}
+              className="inline-flex min-h-11 items-center justify-center rounded-xl border border-teal-200 bg-teal-50 px-4 py-2 text-xs font-black uppercase tracking-wide text-teal-700 transition hover:bg-teal-100 sm:w-fit"
+            >
+              Hoy
+            </button>
             <div className="flex items-center justify-between rounded-lg bg-slate-100 p-1">
               <button type="button" onClick={() => navigatePeriod(-1)} className="rounded-md p-1.5 hover:bg-white"><ChevronLeft size={18} /></button>
               <h2 className="px-4 text-center text-sm font-bold capitalize">{currentRangeLabel}</h2>
