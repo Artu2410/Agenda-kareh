@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { format, startOfWeek, startOfMonth, endOfMonth, addDays, addWeeks, addMonths, subWeeks, subMonths, isValid, isSameDay, isToday } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Loader2, UserRound, CalendarClock, Clock, Banknote } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, UserRound, CalendarClock, Clock } from 'lucide-react';
 import WeeklyCalendarGrid from '../components/agenda/WeeklyCalendarGrid';
 import MonthlyCalendarGrid from '../components/agenda/MonthlyCalendarGrid';
+import { buildAppointmentDailyPresentation } from '../components/agenda/appointmentVisuals.jsx';
 import SlotTimersPanel from '../components/agenda/SlotTimersPanel';
 import AppointmentModal from '../components/AppointmentModal';
 import api from '../services/api'; 
 import toast from 'react-hot-toast';
-import { getCoverageLabel } from '../utils/coverage';
 
 const isMobileAgendaViewport = () => {
   if (typeof window === 'undefined') return false;
@@ -421,33 +421,55 @@ const AppointmentsPage = () => {
                 <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center text-sm font-semibold text-slate-400">
                   No hay turnos para este día.
                 </div>
-              ) : mobileDayAppointments.map((appointment) => (
-                <button
-                  key={appointment.id}
-                  type="button"
-                  onClick={() => handleSlotClick(appointment)}
-                  className="w-full rounded-[1.75rem] border border-slate-200 bg-white p-4 text-left shadow-sm"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-lg font-black text-slate-800">{appointment.patient?.fullName}</p>
-                      <p className="mt-1 text-sm font-semibold uppercase text-teal-700">
-                        {getCoverageLabel(appointment.patient?.healthInsurance, appointment.patient?.treatAsParticular) || 'Sin cobertura'}
-                      </p>
-                      {appointment.paidInAdvance && (
-                        <p className="mt-2 inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-700">
-                          <Banknote size={11} />
-                          Pago adelantado
-                        </p>
-                      )}
-                      <p className="mt-2 text-sm text-slate-500">{appointment.diagnosis || 'Sin diagnóstico'}</p>
+              ) : mobileDayAppointments.map((appointment) => {
+                const { statusMeta, badges, clinicalIcons } = buildAppointmentDailyPresentation(appointment);
+
+                return (
+                  <button
+                    key={appointment.id}
+                    type="button"
+                    onClick={() => handleSlotClick(appointment)}
+                    className={`w-full rounded-[1.75rem] border-l-4 p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${statusMeta.cardClass}`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-lg font-black text-slate-800">{appointment.patient?.fullName}</p>
+                      </div>
+                      <span className="inline-flex min-h-11 items-center rounded-2xl bg-white/80 px-3 py-2 text-sm font-black text-slate-700 shadow-sm">
+                        {appointment.time}
+                      </span>
                     </div>
-                    <span className="rounded-2xl bg-slate-100 px-3 py-2 text-sm font-black text-slate-700">
-                      {appointment.time}
-                    </span>
-                  </div>
-                </button>
-              ))}
+
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {badges.map((badge) => (
+                        <span
+                          key={`${appointment.id}-${badge.key}`}
+                          className={`inline-flex min-h-8 items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.16em] ${badge.className}`}
+                        >
+                          {badge.icon}
+                          <span>{badge.label}</span>
+                        </span>
+                      ))}
+                    </div>
+
+                    {appointment.diagnosis && (
+                      <p className="mt-3 rounded-2xl border border-white/70 bg-white/80 px-3 py-2 text-sm font-semibold text-slate-600">
+                        {appointment.diagnosis}
+                      </p>
+                    )}
+
+                    {clinicalIcons.length > 0 && (
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        {clinicalIcons.map((item) => (
+                          <span key={`${appointment.id}-${item.key}`} className="inline-flex items-center gap-1 rounded-full border border-white/70 bg-white/70 px-2 py-1 text-[11px] font-bold text-slate-600" title={item.title}>
+                            {item.icon}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
               </div>
             ) : viewMode === VIEW_MODE.week ? (
               <WeeklyCalendarGrid
