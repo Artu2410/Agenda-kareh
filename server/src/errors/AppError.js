@@ -44,6 +44,10 @@ const PRISMA_ERROR_MAP = {
     statusCode: 404,
     publicMessage: 'No se encontró el registro solicitado.',
   },
+  P2028: {
+    statusCode: 503,
+    publicMessage: 'La operación tardó demasiado. Intenta guardar el turno nuevamente.',
+  },
   P2034: {
     statusCode: 409,
     publicMessage: 'El turno se cruzó con otra operación. Intenta guardar nuevamente.',
