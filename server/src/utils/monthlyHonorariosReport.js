@@ -42,14 +42,6 @@ const getMonthKey = (date) => {
   return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}`;
 };
 
-const getNextMonthKey = (date) => {
-  const parsed = parseDateValue(date);
-  if (!parsed) return '';
-
-  const nextMonthDate = new Date(parsed.getFullYear(), parsed.getMonth() + 1, 1);
-  return getMonthKey(nextMonthDate);
-};
-
 const parseMonthWindow = (monthValue = '') => {
   const normalizedMonth = String(monthValue || '').trim();
   const match = normalizedMonth.match(/^(\d{4})-(\d{2})$/);
@@ -153,9 +145,51 @@ const extractBonusBreakdown = (obraSocial = {}) => {
   return bonusMatches;
 };
 
+const extractExplicitCopayAmount = (obraSocial = {}) => {
+  const details = obraSocial?.cokibaDetails || {};
+  const candidateTexts = [
+    details.observaciones,
+    details.coseguroTexto,
+    Array.isArray(details.norms) ? details.norms.join('\n') : '',
+  ];
+
+  for (const candidateText of candidateTexts) {
+    const text = String(candidateText || '').trim();
+    if (!text) continue;
+
+    const match = text.match(/\bcopago\b[^$\n]*\$\s*([\d.,]+)/i);
+    if (match) {
+      const amount = parseCurrencyLikeValue(match[1]);
+      if (amount > 0) {
+        return amount;
+      }
+    }
+  }
+
+  const directCopay = parseCurrencyLikeValue(obraSocial?.coseguroValor);
+  if (directCopay > 0) return directCopay;
+
+  const fixedCopay = parseCurrencyLikeValue(obraSocial?.fixedCopay);
+  if (fixedCopay > 0) return fixedCopay;
+
+  return 0;
+};
+
 export const resolveAppointmentHonorario = (appointment = {}) => resolveStoredHonorarioAmount(appointment);
 
 const resolveReportHonorario = (appointment = {}) => {
+  const explicitCopay = extractExplicitCopayAmount(appointment?.obraSocial);
+  const patientCharge = roundCurrency(
+    appointment?.patientChargeAmount ?? appointment?.coinsuranceAmount
+  );
+
+  if (patientCharge > 0 && explicitCopay > 0) {
+    const derivedHonorario = roundCurrency(patientCharge - explicitCopay);
+    if (derivedHonorario > 0) {
+      return derivedHonorario;
+    }
+  }
+
   const storedHonorario = resolveAppointmentHonorario(appointment);
   if (storedHonorario > 0) {
     return storedHonorario;
@@ -165,13 +199,7 @@ const resolveReportHonorario = (appointment = {}) => {
 };
 
 const resolveCycleHonorario = (appointment = {}) => {
-  const currentHonorario = roundCurrency(appointment?.obraSocial?.honorarioEstimado);
-  if (currentHonorario > 0) {
-    return currentHonorario;
-  }
-
-  const storedHonorario = resolveAppointmentHonorario(appointment);
-  return storedHonorario > 0 ? storedHonorario : 0;
+  return resolveReportHonorario(appointment);
 };
 
 export const isAgreementInsuranceForMonthlyHonorarios = (appointment = {}) => {
@@ -186,7 +214,7 @@ export const isAgreementInsuranceForMonthlyHonorarios = (appointment = {}) => {
     return false;
   }
 
-  return resolveAppointmentHonorario(appointment) > 0;
+  return resolveReportHonorario(appointment) > 0;
 };
 
 const isEligibleMonthlyInsurance = (appointment = {}) => {
@@ -324,7 +352,7 @@ const buildAppointmentCycles = (appointments = []) => {
       obraSocialId: firstAppointment.obraSocialId || null,
       obraSocialName: firstAppointment.obraSocial?.nombreOs || 'Sin obra social',
       bonusDetails: extractBonusBreakdown(firstAppointment.obraSocial),
-      billingMonth: getNextMonthKey(endDate),
+      billingMonth: getMonthKey(endDate),
       isComplete: cycleAppointments.length === 10,
     };
   });
@@ -380,7 +408,7 @@ const buildCycleAwareMonthlyHonorariosReport = (appointments = [], monthWindow) 
     }
 
     const appointmentDate = parseDateValue(appointment.date);
-    return Boolean(appointmentDate && appointmentDate < monthWindow.monthStart);
+    return Boolean(appointmentDate && appointmentDate < monthWindow.nextMonthStart);
   });
 
   const cycles = buildAppointmentCycles(cycleAppointments);
