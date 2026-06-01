@@ -107,5 +107,15 @@ describe('Error Classes', () => {
       expect(error.statusCode).toBe(409);
       expect(error.publicMessage).toBe('Ya existe un registro con esos datos.');
     });
+
+    it('should map Prisma transaction timeout errors to a retryable response', () => {
+      const originalError = new Error('Transaction already closed');
+      originalError.code = 'P2028';
+
+      const error = createInternalError(originalError, 'Error al crear el turno');
+
+      expect(error.statusCode).toBe(503);
+      expect(error.publicMessage).toBe('La operación tardó demasiado. Intenta guardar el turno nuevamente.');
+    });
   });
 });

@@ -93,6 +93,11 @@ const createHttpError = (message, statusCode) => {
   return error;
 };
 
+const APPOINTMENT_TRANSACTION_OPTIONS = {
+  maxWait: 10000,
+  timeout: 30000,
+};
+
 const resolvePatientInsurancePayload = async (tx, payload = {}) => {
   const normalizedObraSocialId = payload.obraSocialId === '' ? null : payload.obraSocialId;
   const treatAsParticular = payload.treatAsParticular === undefined ? false : Boolean(payload.treatAsParticular);
@@ -130,9 +135,7 @@ const resolvePatientInsurancePayload = async (tx, payload = {}) => {
         treatAsParticular: true,
       };
     }
-    const error = new Error('La obra social seleccionada no existe');
-    error.statusCode = 400;
-    throw error;
+    throw createHttpError('La obra social seleccionada no existe', 400);
   }
 
   return {
@@ -409,7 +412,6 @@ export const createAppointment = async (req, res, prisma) => {
   const phoneToUse = phone !== undefined ? phone : (patientData?.phone || null);
   const birthDateToUse = birthDate !== undefined ? birthDate : (patientData?.birthDate || null);
   
-  // Logging temporal para depuración de creación de turnos
   logger.info('Appointment creation request received', {
     userId: req.user?.userId || null,
     professionalId: professionalId || null,
@@ -419,8 +421,6 @@ export const createAppointment = async (req, res, prisma) => {
     hasPatientId: Boolean(patientId),
     sessionCount: sessionCount || null,
   });
-  console.log('Appointment creation request received');
-  console.log('Full appointment request body:', req.body);
 
   if ((!patientData && !patientId) || !date || !time) return res.status(400).json({ message: "Datos faltantes" });
 
@@ -587,7 +587,7 @@ export const createAppointment = async (req, res, prisma) => {
         professional: prof,
         appointments: appointmentsCreated,
       };
-    });
+    }, APPOINTMENT_TRANSACTION_OPTIONS);
 
     await Promise.all(
       result.appointments.map((appointment) => safeWriteAuditLog(prisma, req, {
@@ -611,8 +611,6 @@ export const createAppointment = async (req, res, prisma) => {
 
     res.status(201).json({ success: true, appointments: result.appointments });
   } catch (error) {
-    console.error('Appointment creation failed');
-    console.error(error);
     logger.error('Appointment creation failed', {
       errorMessage: error.message,
       errorCode: error.code || null,
@@ -627,14 +625,7 @@ export const createAppointment = async (req, res, prisma) => {
       date: date || null,
       time: time || null,
     });
-    const appError = createInternalError(error, 'Error al crear el turno');
-    return res.status(appError.statusCode || 500).json({
-      success: false,
-      message: appError.publicMessage || 'Error al crear el turno',
-      error: error.message,
-      code: error.code || null,
-      meta: error.meta || null,
-    });
+    throw createInternalError(error, 'Error al crear el turno');
   }
 };
 
@@ -784,7 +775,7 @@ export const updateEvolution = async (req, res, prisma) => {
         previousAppointment: currentApt,
         appointment: updatedAppointment,
       };
-    });
+    }, APPOINTMENT_TRANSACTION_OPTIONS);
 
     await safeWriteAuditLog(prisma, req, {
       action: auditActions.appointmentUpdated,
@@ -938,7 +929,7 @@ export const updateAppointment = async (req, res, prisma) => {
           select: appointmentSelect,
         }),
       };
-    });
+    }, APPOINTMENT_TRANSACTION_OPTIONS);
 
     await safeWriteAuditLog(prisma, req, {
       action: auditActions.appointmentUpdated,
@@ -1239,7 +1230,7 @@ export const deleteAppointment = async (req, res, prisma) => {
 
       await resequencePatientAppointments(tx, referenceAppointment.patientId);
       return { count: deleteResult.count, deletedAppointments: appointmentsToDelete };
-    });
+    }, APPOINTMENT_TRANSACTION_OPTIONS);
 
     await Promise.all(
       result.deletedAppointments.map((appointment) => safeWriteAuditLog(prisma, req, {
@@ -1377,7 +1368,7 @@ export const reviewAppointmentAuthorization = async (req, res, prisma) => {
         previousAppointment: currentAppointment,
         appointment: updatedAppointment,
       };
-    });
+    }, APPOINTMENT_TRANSACTION_OPTIONS);
 
     await safeWriteAuditLog(prisma, req, {
       action: normalizedDecision === 'AUTHORIZED'
