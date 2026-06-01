@@ -411,10 +411,13 @@ export const getCoinsuranceReport = async (req, res, prisma) => {
     });
 
     const rows = buildMonthlyHonorariosReport(appointments, { month });
+    const totalAmount = Number(rows.reduce((sum, row) => sum + (Number(row.totalAmount) || 0), 0).toFixed(2));
+    const copayTotal = Number(rows.reduce((sum, row) => sum + (Number(row.copayTotal) || 0), 0).toFixed(2));
 
     res.status(200).json({
       month: `${year}-${String(monthNumber || 1).padStart(2, '0')}`,
-      totalAmount: Number(rows.reduce((sum, row) => sum + row.totalAmount, 0).toFixed(2)),
+      totalAmount,
+      copayTotal,
       rows,
     });
   } catch (error) {

@@ -20,7 +20,7 @@ export const useObrasSociales = () => {
   const [filtroZona, setFiltroZona] = useState('');
   const [stats, setStats] = useState({ total: 0, activas: 0, sanMiguel: 0 });
   const [selectedReportMonth, setSelectedReportMonth] = useState(() => getMonthInputValue());
-  const [coinsuranceReport, setCoinsuranceReport] = useState({ month: '', totalAmount: 0, rows: [] });
+  const [coinsuranceReport, setCoinsuranceReport] = useState({ month: '', totalAmount: 0, copayTotal: 0, rows: [] });
   const [reportLoading, setReportLoading] = useState(false);
   const [syncStatus, setSyncStatus] = useState({
     total: 0,
@@ -91,9 +91,9 @@ export const useObrasSociales = () => {
       const { data } = await instance.get('/obras-sociales/coinsurance-report', {
         params: { month },
       });
-      setCoinsuranceReport(data || { month, totalAmount: 0, rows: [] });
+      setCoinsuranceReport(data || { month, totalAmount: 0, copayTotal: 0, rows: [] });
     } catch {
-      setCoinsuranceReport({ month, totalAmount: 0, rows: [] });
+      setCoinsuranceReport({ month, totalAmount: 0, copayTotal: 0, rows: [] });
       showErrorToast('No se pudo cargar el reporte mensual.');
     } finally {
       setReportLoading(false);

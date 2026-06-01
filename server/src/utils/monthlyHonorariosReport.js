@@ -175,10 +175,32 @@ const extractExplicitCopayAmount = (obraSocial = {}) => {
   return 0;
 };
 
+const hasStoredCopaySnapshot = (appointment = {}) => {
+  const details = appointment?.coinsuranceDetails;
+
+  return Boolean(
+    details && (
+      Object.prototype.hasOwnProperty.call(details, 'copayAmount')
+      || Object.prototype.hasOwnProperty.call(details, 'baseCopay')
+    )
+  );
+};
+
+const resolveStoredCopayAmount = (appointment = {}) =>
+  roundCurrency(appointment?.coinsuranceDetails?.copayAmount ?? appointment?.coinsuranceDetails?.baseCopay);
+
+const resolveAppointmentCopayAmount = (appointment = {}) => {
+  if (hasStoredCopaySnapshot(appointment)) {
+    return resolveStoredCopayAmount(appointment);
+  }
+
+  return extractExplicitCopayAmount(appointment?.obraSocial);
+};
+
 export const resolveAppointmentHonorario = (appointment = {}) => resolveStoredHonorarioAmount(appointment);
 
 const resolveReportHonorario = (appointment = {}) => {
-  const explicitCopay = extractExplicitCopayAmount(appointment?.obraSocial);
+  const explicitCopay = resolveAppointmentCopayAmount(appointment);
   const patientCharge = roundCurrency(
     appointment?.patientChargeAmount ?? appointment?.coinsuranceAmount
   );
@@ -242,6 +264,7 @@ const appendAppointmentToRow = (byInsurance, appointment, amount) => {
     obraSocialId: appointment.obraSocialId,
     obraSocialName: appointment.obraSocial?.nombreOs || 'Sin obra social',
     totalAmount: 0,
+    copayTotal: 0,
     appointmentCount: 0,
     bonusDetails: [],
   };
@@ -253,6 +276,11 @@ const appendAppointmentToRow = (byInsurance, appointment, amount) => {
 
   current.totalAmount += resolvedAmount;
   current.appointmentCount += 1;
+
+  const copayAmount = resolveAppointmentCopayAmount(appointment);
+  if (copayAmount > 0) {
+    current.copayTotal += copayAmount;
+  }
 
   if (current.bonusDetails.length === 0) {
     current.bonusDetails = extractBonusBreakdown(obraSocial);
@@ -281,6 +309,7 @@ const buildLegacyMonthlyHonorariosReport = (appointments = []) => {
     .map((row) => ({
       ...row,
       totalAmount: roundCurrency(row.totalAmount),
+      copayTotal: roundCurrency(row.copayTotal),
       bonusTotal: roundCurrency(
         Array.isArray(row.bonusDetails)
           ? row.bonusDetails.reduce((sum, bonus) => sum + (Number(bonus.amount) || 0), 0)
@@ -437,6 +466,7 @@ const buildCycleAwareMonthlyHonorariosReport = (appointments = [], monthWindow) 
     .map((row) => ({
       ...row,
       totalAmount: roundCurrency(row.totalAmount),
+      copayTotal: roundCurrency(row.copayTotal),
       bonusTotal: roundCurrency(
         Array.isArray(row.bonusDetails)
           ? row.bonusDetails.reduce((sum, bonus) => sum + (Number(bonus.amount) || 0), 0)
