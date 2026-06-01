@@ -379,7 +379,7 @@ describe('AppointmentController core flows', () => {
       where: { id: currentAppointment.id },
       data: expect.objectContaining({
         obraSocialId: 'os-1',
-        authorizationStatus: 'NOT_REQUIRED',
+        authorizationStatus: 'PENDING',
         paidInAdvance: true,
         sessionToken: 'TOKEN-1',
       }),
@@ -389,6 +389,112 @@ describe('AppointmentController core flows', () => {
       appointment: expect.objectContaining({
         obraSocialId: 'os-1',
         sessionToken: 'TOKEN-1',
+      }),
+    }));
+  });
+
+  it('recalculates the financial snapshot when the appointment is moved to another date', async () => {
+    const currentAppointment = buildAppointment({
+      date: new Date('2026-05-12T12:00:00.000Z'),
+      time: '09:00',
+      obraSocialId: 'os-1',
+      patient: buildPatient({
+        obraSocialId: 'os-1',
+        healthInsurance: 'IOMA',
+        treatAsParticular: false,
+        affiliateNumber: 'AFF-123',
+      }),
+      coinsuranceAmount: 135,
+      patientChargeAmount: 135,
+      coinsuranceDetails: {
+        baseCopay: 100,
+        honorario: 7000,
+        percentage: 10,
+        percentageAmount: 20,
+        fixedCopay: 15,
+        total: 135,
+      },
+      paidInAdvance: true,
+      sessionToken: 'TOKEN-1',
+    });
+    let updatedAppointment = currentAppointment;
+    const tx = {
+      agendaConfig: {
+        findFirst: jest.fn().mockResolvedValue({ capacityPerSlot: 2 }),
+      },
+      appointment: {
+        findUnique: jest.fn().mockImplementation(async () => updatedAppointment),
+        findMany: jest.fn().mockResolvedValue([]),
+        update: jest.fn().mockImplementation(async ({ data }) => {
+          updatedAppointment = {
+            ...currentAppointment,
+            ...data,
+            date: data.date || currentAppointment.date,
+            time: data.time || currentAppointment.time,
+            patient: currentAppointment.patient,
+          };
+
+          return updatedAppointment;
+        }),
+      },
+      patient: {
+        update: jest.fn(),
+      },
+      obraSocial: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'os-1',
+          nombreOs: 'IOMA',
+          isArchived: false,
+          isActive: true,
+          requiresAuthorization: false,
+          requiredDocuments: JSON.stringify({ documents: [], additionalInfo: '' }),
+          coseguroValor: 100,
+          honorarioEstimado: 2000,
+          percentageCoinsurance: 10,
+          fixedCopay: 25,
+        }),
+      },
+    };
+    const prisma = {
+      agendaConfig: {
+        findFirst: jest.fn().mockResolvedValue({ capacityPerSlot: 2 }),
+      },
+      $transaction: jest.fn(async (callback) => callback(tx)),
+    };
+    const req = {
+      params: { id: currentAppointment.id },
+      body: {
+        patientId: currentAppointment.patientId,
+        date: '2026-06-12',
+        time: '09:00',
+      },
+      user: { role: 'ADMIN' },
+    };
+    const res = createResponse();
+
+    await updateAppointment(req, res, prisma);
+
+    expect(tx.appointment.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: currentAppointment.id },
+      data: expect.objectContaining({
+        date: expect.any(Date),
+        obraSocialId: 'os-1',
+        coinsuranceAmount: 325,
+        patientChargeAmount: 325,
+        coinsuranceDetails: expect.objectContaining({
+          honorario: 2000,
+          total: 325,
+        }),
+      }),
+    }));
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      success: true,
+      appointment: expect.objectContaining({
+        date: expect.any(Date),
+        coinsuranceAmount: 325,
+        coinsuranceDetails: expect.objectContaining({
+          honorario: 2000,
+        }),
       }),
     }));
   });

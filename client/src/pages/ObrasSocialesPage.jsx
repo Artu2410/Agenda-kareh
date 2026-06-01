@@ -38,6 +38,27 @@ const formatDateTime = (value) => {
   return parsed.toLocaleString('es-AR');
 };
 
+const REPORT_ADJUSTMENTS_STORAGE_KEY = 'obras-sociales-report-adjustments';
+
+const readStoredReportAdjustments = () => {
+  if (typeof window === 'undefined') return {};
+
+  try {
+    const raw = window.localStorage.getItem(REPORT_ADJUSTMENTS_STORAGE_KEY);
+    if (!raw) return {};
+
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
+const parseReportAdjustmentValue = (value) => {
+  const parsed = Number.parseFloat(String(value || '').replace(',', '.'));
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
 const getCoverageHighlights = (areaCobertura = '') => {
   const text = String(areaCobertura || '');
   const hasProvincia = /provincia de buenos aires/i.test(text);
@@ -208,6 +229,7 @@ const ObraSocialDetailPanel = ({ obraSocial }) => {
     ? obraSocial.requiredDocuments.documents
     : [];
   const additionalDocumentInfo = String(obraSocial?.requiredDocuments?.additionalInfo || '').trim();
+  const bonusAmounts = Array.isArray(details.bonusAmounts) ? details.bonusAmounts : [];
   const { hasProvincia, hasSanMiguel, hasBellaVista } = getCoverageHighlights(details.areaCobertura);
   const importantLinks = getImportantLinks(details.links);
 
@@ -263,6 +285,27 @@ const ObraSocialDetailPanel = ({ obraSocial }) => {
                 {details.coseguroTexto || formatCurrency(obraSocial.coseguroValor)}
               </p>
             </div>
+
+            {bonusAmounts.length > 0 && (
+              <div className="rounded-2xl bg-amber-50 px-4 py-3">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">
+                  Bonos detectados
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {bonusAmounts.map((bonus) => (
+                    <span
+                      key={`${bonus.label}-${bonus.amount}`}
+                      className="rounded-full bg-white px-3 py-1.5 text-xs font-black uppercase tracking-[0.14em] text-amber-800"
+                    >
+                      {bonus.label}: {formatCurrency(bonus.amount)}
+                    </span>
+                  ))}
+                </div>
+                <p className="mt-2 text-xs font-semibold text-amber-700">
+                  Total bonos: {formatCurrency(details.bonusTotal || 0)}
+                </p>
+              </div>
+            )}
 
             <div>
               <p className="font-black uppercase tracking-[0.18em] text-slate-500">
@@ -375,6 +418,54 @@ const ObrasSocialesPage = () => {
       <ChevronDown size={14} className="inline ml-1" />
     );
   };
+
+  const [reportAdjustments, setReportAdjustments] = React.useState(readStoredReportAdjustments);
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    try {
+      if (Object.keys(reportAdjustments).length === 0) {
+        window.localStorage.removeItem(REPORT_ADJUSTMENTS_STORAGE_KEY);
+      } else {
+        window.localStorage.setItem(REPORT_ADJUSTMENTS_STORAGE_KEY, JSON.stringify(reportAdjustments));
+      }
+    } catch {
+      // Ignore storage errors in restricted environments.
+    }
+  }, [reportAdjustments]);
+
+  const reportMonthKey = selectedReportMonth || coinsuranceReport.month || currentMonthValue;
+  const reportMonthAdjustments = reportAdjustments[reportMonthKey] || {};
+  const reportAdjustmentTotal = Object.values(reportMonthAdjustments).reduce(
+    (sum, value) => sum + (Number(value) || 0),
+    0
+  );
+
+  const updateReportAdjustment = (rowKey, rawValue) => {
+    setReportAdjustments((current) => {
+      const nextMonthAdjustments = {
+        ...(current[reportMonthKey] || {}),
+      };
+
+      if (String(rawValue || '').trim() === '') {
+        delete nextMonthAdjustments[rowKey];
+      } else {
+        nextMonthAdjustments[rowKey] = parseReportAdjustmentValue(rawValue);
+      }
+
+      const nextAdjustments = { ...current };
+      if (Object.keys(nextMonthAdjustments).length > 0) {
+        nextAdjustments[reportMonthKey] = nextMonthAdjustments;
+      } else {
+        delete nextAdjustments[reportMonthKey];
+      }
+
+      return nextAdjustments;
+    });
+  };
+
+  const getReportRowKey = (row = {}) => String(row.obraSocialId || row.obraSocialName || 'sin-obra-social');
 
   const summaryCards = [
     {
@@ -733,8 +824,13 @@ const ObrasSocialesPage = () => {
                 </button>
               </div>
               <p className="text-2xl font-black text-teal-700">
-                {formatCurrency(coinsuranceReport.totalAmount || 0)}
+                {formatCurrency((coinsuranceReport.totalAmount || 0) + reportAdjustmentTotal)}
               </p>
+              {reportAdjustmentTotal !== 0 && (
+                <p className="text-[11px] font-semibold text-slate-400">
+                  Base: {formatCurrency(coinsuranceReport.totalAmount || 0)} · Ajustes: {formatCurrency(reportAdjustmentTotal)}
+                </p>
+              )}
             </div>
           </div>
           {reportLoading ? (
@@ -744,14 +840,51 @@ const ObrasSocialesPage = () => {
             </div>
           ) : coinsuranceReport.rows?.length > 0 ? (
             <div className="mt-4 grid gap-2 md:grid-cols-3">
-              {coinsuranceReport.rows.slice(0, 6).map((row) => (
-                <div key={row.obraSocialId || row.obraSocialName} className="rounded-2xl bg-slate-50 p-3">
-                  <p className="text-sm font-black text-slate-800">{row.obraSocialName}</p>
-                  <p className="mt-1 text-xs font-semibold text-slate-500">{row.appointmentCount} turnos</p>
-                  <p className="mt-2 text-sm font-black text-teal-700">{formatCurrency(row.totalAmount)}</p>
-                  <p className="mt-1 text-[11px] font-semibold text-slate-400">Honorarios estimados</p>
-                </div>
-              ))}
+              {coinsuranceReport.rows.slice(0, 6).map((row) => {
+                const rowKey = getReportRowKey(row);
+                const hasManualAdjustment = Object.prototype.hasOwnProperty.call(
+                  reportMonthAdjustments,
+                  rowKey
+                );
+                const manualAdjustment = hasManualAdjustment
+                  ? Number(reportMonthAdjustments[rowKey]) || 0
+                  : 0;
+                const adjustedRowTotal = (Number(row.totalAmount) || 0) + manualAdjustment;
+
+                return (
+                  <div key={row.obraSocialId || row.obraSocialName} className="rounded-2xl bg-slate-50 p-3">
+                    <p className="text-sm font-black text-slate-800">{row.obraSocialName}</p>
+                    <p className="mt-1 text-xs font-semibold text-slate-500">{row.appointmentCount} turnos</p>
+                    <p className="mt-2 text-sm font-black text-teal-700">{formatCurrency(adjustedRowTotal)}</p>
+                    <p className="mt-1 text-[11px] font-semibold text-slate-400">Honorarios estimados</p>
+                    {Array.isArray(row.bonusDetails) && row.bonusDetails.length > 0 && (
+                      <p className="mt-1 text-[11px] font-semibold text-amber-700">
+                        Bonos detectados: {row.bonusDetails
+                          .map((bonus) => `${bonus.label} ${formatCurrency(bonus.amount)}`)
+                          .join(' · ')}
+                      </p>
+                    )}
+                    {manualAdjustment !== 0 && (
+                      <p className="mt-1 text-[11px] font-semibold text-slate-500">
+                        Base: {formatCurrency(row.totalAmount)} · Ajuste: {formatCurrency(manualAdjustment)}
+                      </p>
+                    )}
+                    <label className="mt-3 block">
+                      <span className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+                        Ajuste manual
+                      </span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={hasManualAdjustment ? manualAdjustment : ''}
+                        onChange={(event) => updateReportAdjustment(rowKey, event.target.value)}
+                        placeholder="0"
+                        className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 outline-none transition focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+                      />
+                    </label>
+                  </div>
+                );
+              })}
             </div>
           ) : (
             <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm font-semibold text-slate-500">
@@ -1118,7 +1251,7 @@ const ObrasSocialesPage = () => {
                   return (
                     <article
                       key={os.id}
-                      className="overflow-hidden rounded-2xl border border-slate-200 bg-white"
+                      className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
                     >
                       <button
                         type="button"
@@ -1134,7 +1267,7 @@ const ObrasSocialesPage = () => {
                           <p className="truncate text-sm font-bold text-slate-800">
                             {os.nombreOs}
                           </p>
-                          <div className="mt-1 flex items-center gap-2">
+                          <div className="mt-1 flex flex-wrap items-center gap-2">
                             <span className="text-xs font-bold text-amber-700">
                               Coseg: {formatCurrency(os.coseguroValor)}
                             </span>
@@ -1163,7 +1296,7 @@ const ObrasSocialesPage = () => {
 
                       {isExpanded && (
                         <div className="border-t border-slate-100 bg-slate-50/50 p-4">
-                          <div className="grid grid-cols-2 gap-3 text-sm">
+                          <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
                             <div>
                               <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
                                 Código COKIBA
@@ -1195,7 +1328,7 @@ const ObrasSocialesPage = () => {
                                       coseguroValor: e.target.value,
                                     }))
                                   }
-                                  className="mt-0.5 w-full rounded-lg border border-teal-300 bg-white px-2 py-1 text-sm font-bold outline-none"
+                                className="mt-0.5 w-full min-h-11 rounded-lg border border-teal-300 bg-white px-2 py-1 text-sm font-bold outline-none"
                                 />
                               ) : (
                                 <p className="mt-0.5 font-black text-amber-700">
@@ -1218,7 +1351,7 @@ const ObrasSocialesPage = () => {
                                       honorarioEstimado: e.target.value,
                                     }))
                                   }
-                                  className="mt-0.5 w-full rounded-lg border border-teal-300 bg-white px-2 py-1 text-sm font-bold outline-none"
+                                className="mt-0.5 w-full min-h-11 rounded-lg border border-teal-300 bg-white px-2 py-1 text-sm font-bold outline-none"
                                 />
                               ) : (
                                 <p className="mt-0.5 font-black text-teal-700">
@@ -1241,7 +1374,7 @@ const ObrasSocialesPage = () => {
                                       fixedCopay: e.target.value,
                                     }))
                                   }
-                                  className="mt-0.5 w-full rounded-lg border border-teal-300 bg-white px-2 py-1 text-sm font-bold outline-none"
+                                className="mt-0.5 w-full min-h-11 rounded-lg border border-teal-300 bg-white px-2 py-1 text-sm font-bold outline-none"
                                 />
                               ) : (
                                 <p className="mt-0.5 font-black text-slate-700">
@@ -1291,7 +1424,7 @@ const ObrasSocialesPage = () => {
                                       atendibleSanMiguel: !f.atendibleSanMiguel,
                                     }))
                                   }
-                                  className={`rounded-xl px-3 py-2 text-xs font-bold transition ${
+                                  className={`min-h-11 rounded-xl px-3 py-2 text-xs font-bold transition ${
                                     editForm.atendibleSanMiguel
                                       ? 'bg-violet-100 text-violet-700'
                                       : 'bg-white text-slate-500'
@@ -1308,7 +1441,7 @@ const ObrasSocialesPage = () => {
                                       isActive: !f.isActive,
                                     }))
                                   }
-                                  className={`rounded-xl px-3 py-2 text-xs font-bold transition ${
+                                  className={`min-h-11 rounded-xl px-3 py-2 text-xs font-bold transition ${
                                     editForm.isActive
                                       ? 'bg-emerald-100 text-emerald-700'
                                       : 'bg-rose-100 text-rose-700'
@@ -1327,7 +1460,7 @@ const ObrasSocialesPage = () => {
                                         : f.isActive,
                                     }))
                                   }
-                                  className={`rounded-xl px-3 py-2 text-xs font-bold transition ${
+                                  className={`min-h-11 rounded-xl px-3 py-2 text-xs font-bold transition ${
                                     editForm.statusManualOverride
                                       ? 'bg-sky-100 text-sky-700'
                                       : 'bg-white text-slate-500'
@@ -1343,7 +1476,7 @@ const ObrasSocialesPage = () => {
                                       requiresAuthorization: !f.requiresAuthorization,
                                     }))
                                   }
-                                  className={`rounded-xl px-3 py-2 text-xs font-bold transition ${
+                                  className={`min-h-11 rounded-xl px-3 py-2 text-xs font-bold transition ${
                                     editForm.requiresAuthorization
                                       ? 'bg-amber-100 text-amber-700'
                                       : 'bg-white text-slate-500'
@@ -1371,7 +1504,7 @@ const ObrasSocialesPage = () => {
                                 <button
                                   type="button"
                                   onClick={cancelEdit}
-                                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-500 hover:bg-slate-100"
+                            className="inline-flex min-h-11 items-center justify-center rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-500 hover:bg-slate-100"
                                 >
                                   Cancelar
                                 </button>
@@ -1379,7 +1512,7 @@ const ObrasSocialesPage = () => {
                                   type="button"
                                   onClick={() => saveEdit(os)}
                                   disabled={isSaving}
-                                  className="rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-teal-700 disabled:opacity-50"
+                            className="inline-flex min-h-11 items-center justify-center rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-teal-700 disabled:opacity-50"
                                 >
                                   Guardar
                                 </button>
@@ -1389,7 +1522,7 @@ const ObrasSocialesPage = () => {
                                 <button
                                   type="button"
                                   onClick={() => startEdit(os)}
-                                  className="flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-500 hover:bg-slate-100"
+                            className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-500 hover:bg-slate-100"
                                 >
                                   <Edit3 size={14} /> Editar
                                 </button>
@@ -1397,7 +1530,7 @@ const ObrasSocialesPage = () => {
                                   type="button"
                                   onClick={() => removeFromGrid(os)}
                                   disabled={deletingId === os.id}
-                                  className="flex items-center gap-1 rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-bold text-rose-600 hover:bg-rose-50 disabled:opacity-50"
+                            className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-bold text-rose-600 hover:bg-rose-50 disabled:opacity-50"
                                 >
                                   <Trash2 size={14} /> Quitar
                                 </button>

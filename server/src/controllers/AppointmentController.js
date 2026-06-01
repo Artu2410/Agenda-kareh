@@ -306,7 +306,7 @@ const buildAppointmentWritePayload = async (tx, patient, payload = {}, options =
   const insuranceContext = await getAppointmentInsuranceContext(tx, patient, payload);
   const hydratedChecklist = await prepareReusedDocuments(tx, patient.id, insuranceContext.documentsChecklist);
   const financialSnapshot = buildStoredFinancialSnapshot({
-    currentAppointment,
+    currentAppointment: preserveCurrentInsurance ? currentAppointment : null,
     nextObraSocialId: insuranceContext.obraSocialId,
     nextCharge: insuranceContext.charge,
   });
@@ -806,6 +806,11 @@ export const updateAppointment = async (req, res, prisma) => {
       }
       ensureAppointmentScope(req, currentAppointment.professionalId);
 
+      const nextDate = date ? parseDateAvoidTZ(date) : currentAppointment.date;
+      const nextTime = time || currentAppointment.time;
+      const hasScheduleChange =
+        nextTime !== currentAppointment.time || nextDate.getTime() !== currentAppointment.date.getTime();
+
       const appointmentWritePayload = await buildAppointmentWritePayload(tx, currentAppointment.patient, {
         ...currentAppointment.patient,
         ...req.body,
@@ -817,6 +822,7 @@ export const updateAppointment = async (req, res, prisma) => {
         sessionToken: sessionToken ?? currentAppointment.sessionToken,
       }, {
         currentAppointment: currentAppointment,
+        preserveCurrentInsurance: !hasScheduleChange,
       });
 
       // Actualizar datos del paciente
@@ -834,10 +840,6 @@ export const updateAppointment = async (req, res, prisma) => {
 
       // Actualizar cita
       const updateData = {};
-      const nextDate = date ? parseDateAvoidTZ(date) : currentAppointment.date;
-      const nextTime = time || currentAppointment.time;
-      const hasScheduleChange =
-        nextTime !== currentAppointment.time || nextDate.getTime() !== currentAppointment.date.getTime();
 
       if (date) updateData.date = nextDate;
       if (time) updateData.time = nextTime;
