@@ -462,8 +462,8 @@ export const useAppointmentForm = ({
         setShowPrintModal(true);
         onRefresh?.();
       }
-    } catch {
-      alert('Error');
+    } catch (error) {
+      alert(error.friendlyMessage || error.response?.data?.message || 'No se pudo guardar el turno.');
     } finally {
       setLoading(false);
     }
@@ -488,8 +488,8 @@ export const useAppointmentForm = ({
           });
           onDelete();
           onClose();
-        } catch {
-          alert('Error');
+        } catch (error) {
+          alert(error.friendlyMessage || error.response?.data?.message || 'No se pudo eliminar el turno.');
         } finally {
           setLoading(false);
         }
@@ -568,7 +568,7 @@ export const useAppointmentForm = ({
       setIsAddingManualSession(false);
       setManualDraft(createManualDraft());
     } catch (error) {
-      alert(error.response?.data?.message || 'Error al agendar la sesión individual.');
+      alert(error.friendlyMessage || error.response?.data?.message || 'Error al agendar la sesión individual.');
     } finally {
       setLoading(false);
     }
@@ -601,7 +601,7 @@ export const useAppointmentForm = ({
       onRefresh?.();
       alert('Sesiones adicionales generadas exitosamente.');
     } catch (error) {
-      alert(error.response?.data?.message || 'Error al generar sesiones adicionales.');
+      alert(error.friendlyMessage || error.response?.data?.message || 'Error al generar sesiones adicionales.');
     } finally {
       setLoading(false);
     }

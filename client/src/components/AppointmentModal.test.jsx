@@ -135,6 +135,6 @@ describe('AppointmentModal', () => {
     await waitFor(() => expect(screen.getByRole('combobox')).toHaveValue('osde-1'));
     fireEvent.click(screen.getByRole('button', { name: /guardar cambios/i }));
 
-    await waitFor(() => expect(alertSpy).toHaveBeenCalledWith('Error'));
+    await waitFor(() => expect(alertSpy).toHaveBeenCalledWith('No se pudo guardar'));
   });
 });
