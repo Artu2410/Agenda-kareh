@@ -441,6 +441,12 @@ const ObrasSocialesPage = () => {
     (sum, value) => sum + (Number(value) || 0),
     0
   );
+  const reportCopayTotal = Number(coinsuranceReport.copayTotal || 0);
+  const reportGrandTotal = (
+    (Number(coinsuranceReport.totalAmount) || 0)
+    + reportCopayTotal
+    + reportAdjustmentTotal
+  );
 
   const updateReportAdjustment = (rowKey, rawValue) => {
     setReportAdjustments((current) => {
@@ -824,13 +830,13 @@ const ObrasSocialesPage = () => {
                 </button>
               </div>
               <p className="text-2xl font-black text-teal-700">
-                {formatCurrency((coinsuranceReport.totalAmount || 0) + reportAdjustmentTotal)}
+                {formatCurrency(reportGrandTotal)}
               </p>
-              {reportAdjustmentTotal !== 0 && (
-                <p className="text-[11px] font-semibold text-slate-400">
-                  Base: {formatCurrency(coinsuranceReport.totalAmount || 0)} · Ajustes: {formatCurrency(reportAdjustmentTotal)}
-                </p>
-              )}
+              <p className="text-[11px] font-semibold text-slate-400">
+                Honorarios: {formatCurrency(coinsuranceReport.totalAmount || 0)}
+                {' '}· Coseguros: {formatCurrency(reportCopayTotal)}
+                {' '}· Ajustes: {formatCurrency(reportAdjustmentTotal)}
+              </p>
             </div>
           </div>
           {reportLoading ? (
@@ -857,6 +863,11 @@ const ObrasSocialesPage = () => {
                     <p className="mt-1 text-xs font-semibold text-slate-500">{row.appointmentCount} turnos</p>
                     <p className="mt-2 text-sm font-black text-teal-700">{formatCurrency(adjustedRowTotal)}</p>
                     <p className="mt-1 text-[11px] font-semibold text-slate-400">Honorarios estimados</p>
+                    {Number(row.copayTotal) > 0 && (
+                      <p className="mt-1 text-[11px] font-semibold text-emerald-700">
+                        Coseguro histórico: {formatCurrency(row.copayTotal)}
+                      </p>
+                    )}
                     {Array.isArray(row.bonusDetails) && row.bonusDetails.length > 0 && (
                       <p className="mt-1 text-[11px] font-semibold text-amber-700">
                         Bonos detectados: {row.bonusDetails

@@ -102,6 +102,7 @@ describe('monthly honorarios report', () => {
         obraSocialId: 'os-1',
         obraSocialName: 'IOMA',
         totalAmount: 4000,
+        copayTotal: 0,
         appointmentCount: 2,
         bonusDetails: [],
         bonusTotal: 0,
@@ -128,6 +129,7 @@ describe('monthly honorarios report', () => {
         obraSocialId: 'os-1',
         obraSocialName: 'IOMA',
         totalAmount: 5000,
+        copayTotal: 0,
         appointmentCount: 1,
         bonusDetails: [],
         bonusTotal: 0,
@@ -160,6 +162,44 @@ describe('monthly honorarios report', () => {
         obraSocialId: 'os-1',
         obraSocialName: 'IOMA',
         totalAmount: 4000,
+        copayTotal: 3000,
+        appointmentCount: 1,
+        bonusDetails: [],
+        bonusTotal: 0,
+      },
+    ]);
+  });
+
+  it('prefers the stored copay snapshot over a later obra social change', () => {
+    const rows = buildMonthlyHonorariosReport([
+      {
+        obraSocialId: 'os-1',
+        date: '2026-04-15',
+        patientChargeAmount: 7000,
+        coinsuranceAmount: 7000,
+        coinsuranceDetails: {
+          baseCopay: 3000,
+          honorario: 5000,
+          total: 7000,
+        },
+        obraSocial: {
+          nombreOs: 'IOMA',
+          honorarioEstimado: 5000,
+          isActive: true,
+          isArchived: false,
+          cokibaDetails: {
+            observaciones: 'El prestador deberá percibir en concepto de copago $ 4.000 por sesión',
+          },
+        },
+      },
+    ], { month: '2026-04' });
+
+    expect(rows).toEqual([
+      {
+        obraSocialId: 'os-1',
+        obraSocialName: 'IOMA',
+        totalAmount: 4000,
+        copayTotal: 3000,
         appointmentCount: 1,
         bonusDetails: [],
         bonusTotal: 0,
@@ -188,6 +228,7 @@ describe('monthly honorarios report', () => {
         obraSocialId: 'os-1',
         obraSocialName: 'IOMA',
         totalAmount: 3830,
+        copayTotal: 0,
         appointmentCount: 1,
         bonusTotal: 15000,
         bonusDetails: [
@@ -236,6 +277,7 @@ describe('monthly honorarios report', () => {
         obraSocialId: 'os-sancor',
         obraSocialName: 'SANCOR',
         totalAmount: 2000,
+        copayTotal: 0,
         appointmentCount: 1,
         bonusDetails: [],
         bonusTotal: 0,
@@ -311,6 +353,7 @@ describe('monthly honorarios report', () => {
         obraSocialId: 'os-ioma',
         obraSocialName: 'IOMA',
         totalAmount: 40000,
+        copayTotal: 30000,
         appointmentCount: 10,
         bonusTotal: 30000,
         bonusDetails: [
@@ -333,6 +376,7 @@ describe('monthly honorarios report', () => {
         obraSocialId: 'os-ioma',
         obraSocialName: 'IOMA',
         totalAmount: 40000,
+        copayTotal: 30000,
         appointmentCount: 10,
         bonusTotal: 30000,
         bonusDetails: [
