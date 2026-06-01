@@ -1,4 +1,4 @@
 ALTER TABLE "Appointment"
-ADD COLUMN "paidInAdvance" BOOLEAN NOT NULL DEFAULT false;
+ADD COLUMN IF NOT EXISTS "paidInAdvance" BOOLEAN NOT NULL DEFAULT false;
 
-CREATE INDEX "Appointment_paidInAdvance_date_idx" ON "Appointment"("paidInAdvance", "date");
+CREATE INDEX IF NOT EXISTS "Appointment_paidInAdvance_date_idx" ON "Appointment"("paidInAdvance", "date");
