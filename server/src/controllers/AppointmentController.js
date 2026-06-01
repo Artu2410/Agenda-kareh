@@ -419,7 +419,8 @@ export const createAppointment = async (req, res, prisma) => {
     hasPatientId: Boolean(patientId),
     sessionCount: sessionCount || null,
   });
-  logger.debug('Full appointment request body', { body: req.body });
+  console.log('Appointment creation request received');
+  console.log('Full appointment request body:', req.body);
 
   if ((!patientData && !patientId) || !date || !time) return res.status(400).json({ message: "Datos faltantes" });
 
@@ -610,6 +611,8 @@ export const createAppointment = async (req, res, prisma) => {
 
     res.status(201).json({ success: true, appointments: result.appointments });
   } catch (error) {
+    console.error('Appointment creation failed');
+    console.error(error);
     logger.error('Appointment creation failed', {
       errorMessage: error.message,
       errorCode: error.code || null,
@@ -624,7 +627,14 @@ export const createAppointment = async (req, res, prisma) => {
       date: date || null,
       time: time || null,
     });
-    throw createInternalError(error, 'Error al crear el turno');
+    const appError = createInternalError(error, 'Error al crear el turno');
+    return res.status(appError.statusCode || 500).json({
+      success: false,
+      message: appError.publicMessage || 'Error al crear el turno',
+      error: error.message,
+      code: error.code || null,
+      meta: error.meta || null,
+    });
   }
 };
 
