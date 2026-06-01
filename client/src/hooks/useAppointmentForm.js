@@ -148,6 +148,7 @@ export const useAppointmentForm = ({
   const [uploadingAuthorization, setUploadingAuthorization] = useState(false);
 
   const lastSearchedRef = useRef('');
+  const searchTimerRef = useRef(null);
   const { ConfirmModalComponent, openModal } = useConfirmModal();
 
   const isEditMode = Boolean(appointment?.id);
@@ -281,6 +282,23 @@ export const useAppointmentForm = ({
     loadObrasSociales();
   }, [isOpen, loadObrasSociales]);
 
+  useEffect(() => () => {
+    if (searchTimerRef.current) {
+      clearTimeout(searchTimerRef.current);
+      searchTimerRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) return;
+
+    if (searchTimerRef.current) {
+      clearTimeout(searchTimerRef.current);
+      searchTimerRef.current = null;
+    }
+    lastSearchedRef.current = '';
+  }, [isOpen]);
+
   useEffect(() => {
     if (!isOpen) return;
 
@@ -345,18 +363,31 @@ export const useAppointmentForm = ({
     setDocumentsChecklist(nextChecklist);
   }, [appointment?.documentsChecklist, isEditMode, patientData.treatAsParticular, selectedObraSocial]);
 
-  const searchPatient = useCallback(async (field, value) => {
-    if (value.length < 5 || value === lastSearchedRef.current) return;
-    lastSearchedRef.current = value;
+  const searchPatient = useCallback((field, value) => {
+    const normalizedValue = String(value || '').trim();
 
-    try {
-      const { data } = await api.get(`/patients/search?${field}=${value}`);
-      if (data) {
-        setPatientData((previous) => normalizePatientFromSearch(previous, data));
-      }
-    } catch {
-      // Si no existe el paciente todavía, dejamos el formulario para alta manual.
+    if (searchTimerRef.current) {
+      clearTimeout(searchTimerRef.current);
     }
+
+    if (normalizedValue.length < 6) return;
+
+    searchTimerRef.current = setTimeout(async () => {
+      const searchKey = `${field}:${normalizedValue}`;
+      if (searchKey === lastSearchedRef.current) return;
+      lastSearchedRef.current = searchKey;
+
+      try {
+        const { data } = await api.get('/patients/search', {
+          params: { [field]: normalizedValue },
+        });
+        if (data) {
+          setPatientData((previous) => normalizePatientFromSearch(previous, data));
+        }
+      } catch {
+        // Si no existe el paciente todavía, dejamos el formulario para alta manual.
+      }
+    }, 500);
   }, []);
 
   const uploadDocumentToStorage = async (file, scope = 'appointment-documents') => {
