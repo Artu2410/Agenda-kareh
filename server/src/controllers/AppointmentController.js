@@ -87,6 +87,12 @@ const ensureAppointmentScope = (req, professionalId) => {
   return scopedProfessionalId;
 };
 
+const createHttpError = (message, statusCode) => {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
+};
+
 const resolvePatientInsurancePayload = async (tx, payload = {}) => {
   const normalizedObraSocialId = payload.obraSocialId === '' ? null : payload.obraSocialId;
   const treatAsParticular = payload.treatAsParticular === undefined ? false : Boolean(payload.treatAsParticular);
@@ -469,7 +475,7 @@ export const createAppointment = async (req, res, prisma) => {
         });
 
         if (!patient) {
-          throw new Error('Paciente no encontrado');
+          throw createHttpError('Paciente no encontrado', 404);
         }
       }
 
@@ -482,11 +488,11 @@ export const createAppointment = async (req, res, prisma) => {
         });
 
         if (!prof) {
-          throw new Error('Profesional no encontrado');
+          throw createHttpError('Profesional no encontrado', 404);
         }
 
         if (!prof.isActive) {
-          throw new Error('El profesional seleccionado está inactivo');
+          throw createHttpError('El profesional seleccionado está inactivo', 409);
         }
       }
 
@@ -592,6 +598,18 @@ export const createAppointment = async (req, res, prisma) => {
 
     res.status(201).json({ success: true, appointments: result.appointments });
   } catch (error) {
+    logger.error('Appointment creation failed', {
+      errorMessage: error.message,
+      errorCode: error.code || null,
+      errorName: error.name || null,
+      statusCode: error.statusCode || null,
+      userId: req.user?.userId || null,
+      professionalId: professionalId || null,
+      hasPatientData: Boolean(patientData),
+      hasPatientId: Boolean(patientId),
+      date: date || null,
+      time: time || null,
+    });
     throw createInternalError(error, 'Error al crear el turno');
   }
 };
