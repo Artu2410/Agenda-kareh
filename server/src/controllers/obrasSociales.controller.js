@@ -6,6 +6,13 @@ import { auditActions, safeWriteAuditLog } from '../utils/audit.js';
 import { createInternalError, createPublicError } from '../errors/AppError.js';
 import { buildMonthlyHonorariosReport } from '../utils/monthlyHonorariosReport.js';
 
+const BILLABLE_APPOINTMENT_STATUSES = [
+  'SCHEDULED',
+  'PENDING_AUTHORIZATION',
+  'AUTHORIZED',
+  'COMPLETED',
+];
+
 const parseBoolean = (value, fallbackValue = undefined) => {
   if (value === undefined || value === null || value === '') return fallbackValue;
   if (typeof value === 'boolean') return value;
@@ -382,7 +389,7 @@ export const getCoinsuranceReport = async (req, res, prisma) => {
       where: {
         date: { lt: end },
         obraSocialId: { not: null },
-        status: 'COMPLETED',
+        status: { in: BILLABLE_APPOINTMENT_STATUSES },
       },
       select: {
         id: true,
