@@ -393,6 +393,8 @@ export const getCoinsuranceReport = async (req, res, prisma) => {
         sessionNumber: true,
         isFirstSession: true,
         status: true,
+        patientChargeAmount: true,
+        coinsuranceAmount: true,
         coinsuranceDetails: true,
         obraSocialId: true,
         obraSocial: {

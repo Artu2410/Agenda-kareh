@@ -13,6 +13,8 @@ describe('monthly honorarios report', () => {
     isFirstSession = false,
     status = 'COMPLETED',
     honorario = null,
+    patientChargeAmount = null,
+    coinsuranceAmount = null,
     obraSocial = {},
   }) => ({
     patientId,
@@ -21,6 +23,8 @@ describe('monthly honorarios report', () => {
     sessionNumber,
     isFirstSession,
     status,
+    patientChargeAmount,
+    coinsuranceAmount,
     coinsuranceDetails: honorario === null ? null : { honorario },
     obraSocial: {
       nombreOs: 'IOMA',
@@ -131,6 +135,38 @@ describe('monthly honorarios report', () => {
     ]);
   });
 
+  it('derives the honorario from the patient charge when the copago is explicit', () => {
+    const rows = buildMonthlyHonorariosReport([
+      {
+        obraSocialId: 'os-1',
+        date: '2026-04-15',
+        patientChargeAmount: 7000,
+        coinsuranceAmount: 7000,
+        coinsuranceDetails: null,
+        obraSocial: {
+          nombreOs: 'IOMA',
+          honorarioEstimado: 5000,
+          isActive: true,
+          isArchived: false,
+          cokibaDetails: {
+            observaciones: 'El prestador deberá percibir en concepto de copago $ 3.000 por sesión',
+          },
+        },
+      },
+    ], { month: '2026-04' });
+
+    expect(rows).toEqual([
+      {
+        obraSocialId: 'os-1',
+        obraSocialName: 'IOMA',
+        totalAmount: 4000,
+        appointmentCount: 1,
+        bonusDetails: [],
+        bonusTotal: 0,
+      },
+    ]);
+  });
+
   it('extracts bonus values from the obra social details without changing the base total', () => {
     const rows = buildMonthlyHonorariosReport([
       {
@@ -207,7 +243,7 @@ describe('monthly honorarios report', () => {
     ]);
   });
 
-  it('groups IOMA by completed 10-session cycles and bills the following month', () => {
+  it('groups IOMA by completed 10-session cycles in the closing month', () => {
     const iomaAppointments = [
       ...[
         '2026-03-27',
@@ -226,11 +262,14 @@ describe('monthly honorarios report', () => {
         isFirstSession: index === 0,
         obraSocialId: 'os-ioma',
         honorario: null,
+        patientChargeAmount: 7000,
+        coinsuranceAmount: 7000,
         obraSocial: {
           nombreOs: 'IOMA',
           honorarioEstimado: 5000,
           cokibaDetails: {
             coseguroTexto: 'Bono de 10 sesiones:$ 20.000 y Bono de 5 sesiones $ 10.000',
+            observaciones: 'El prestador deberá percibir en concepto de copago $ 3.000 por sesión',
           },
         },
       })),
@@ -251,24 +290,27 @@ describe('monthly honorarios report', () => {
         isFirstSession: index === 0,
         obraSocialId: 'os-ioma',
         honorario: index >= 6 ? (index >= 8 ? 3830 : 0) : null,
+        patientChargeAmount: 7000,
+        coinsuranceAmount: 7000,
         obraSocial: {
           nombreOs: 'IOMA',
           honorarioEstimado: 5000,
           cokibaDetails: {
             coseguroTexto: 'Bono de 10 sesiones:$ 20.000 y Bono de 5 sesiones $ 10.000',
+            observaciones: 'El prestador deberá percibir en concepto de copago $ 3.000 por sesión',
           },
         },
       })),
     ];
 
+    const aprilRows = buildMonthlyHonorariosReport(iomaAppointments, { month: '2026-04' });
     const mayRows = buildMonthlyHonorariosReport(iomaAppointments, { month: '2026-05' });
-    const juneRows = buildMonthlyHonorariosReport(iomaAppointments, { month: '2026-06' });
 
-    expect(mayRows).toEqual([
+    expect(aprilRows).toEqual([
       expect.objectContaining({
         obraSocialId: 'os-ioma',
         obraSocialName: 'IOMA',
-        totalAmount: 50000,
+        totalAmount: 40000,
         appointmentCount: 10,
         bonusTotal: 30000,
         bonusDetails: [
@@ -286,11 +328,11 @@ describe('monthly honorarios report', () => {
       }),
     ]);
 
-    expect(juneRows).toEqual([
+    expect(mayRows).toEqual([
       expect.objectContaining({
         obraSocialId: 'os-ioma',
         obraSocialName: 'IOMA',
-        totalAmount: 50000,
+        totalAmount: 40000,
         appointmentCount: 10,
         bonusTotal: 30000,
         bonusDetails: [
