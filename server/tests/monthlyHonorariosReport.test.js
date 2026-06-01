@@ -73,7 +73,48 @@ describe('monthly honorarios report', () => {
         obraSocialName: 'IOMA',
         totalAmount: 4000,
         appointmentCount: 2,
+        bonusDetails: [],
+        bonusTotal: 0,
       },
+    ]);
+  });
+
+  it('extracts bonus values from the obra social details without changing the base total', () => {
+    const rows = buildMonthlyHonorariosReport([
+      {
+        obraSocialId: 'os-1',
+        coinsuranceDetails: { honorario: 3830 },
+        obraSocial: {
+          nombreOs: 'IOMA',
+          isActive: true,
+          isArchived: false,
+          cokibaDetails: {
+            coseguroTexto: 'Coseguro: Bono de 10 sesiones:$ 10.000 y Bono de 5 sesiones $ 5.000',
+          },
+        },
+      },
+    ]);
+
+    expect(rows).toEqual([
+      expect.objectContaining({
+        obraSocialId: 'os-1',
+        obraSocialName: 'IOMA',
+        totalAmount: 3830,
+        appointmentCount: 1,
+        bonusTotal: 15000,
+        bonusDetails: [
+          {
+            label: 'Bono 10 sesiones',
+            sessions: 10,
+            amount: 10000,
+          },
+          {
+            label: 'Bono 5 sesiones',
+            sessions: 5,
+            amount: 5000,
+          },
+        ],
+      }),
     ]);
   });
 });

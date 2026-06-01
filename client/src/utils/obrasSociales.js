@@ -2,6 +2,62 @@ export const getMonthInputValue = (date = new Date()) => (
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
 );
 
+const parseCurrencyLikeValue = (value) => {
+  const normalized = String(value || '')
+    .replace(/\$/g, '')
+    .replace(/\s/g, '')
+    .trim();
+
+  if (!normalized) return 0;
+
+  if (/^[\d.]+,\d{2}$/.test(normalized)) {
+    const parsed = Number.parseFloat(normalized.replace(/\./g, '').replace(',', '.'));
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  if (/^\d{1,3}(?:\.\d{3})+$/.test(normalized)) {
+    const parsed = Number.parseFloat(normalized.replace(/\./g, ''));
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  if (/^\d+(\.\d{1,2})?$/.test(normalized)) {
+    const parsed = Number.parseFloat(normalized);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  return 0;
+};
+
+export const extractBonusAmounts = (...texts) => {
+  const source = texts
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+    .join('\n');
+
+  const bonuses = [];
+  const seen = new Set();
+  const pattern = /\bbono(?:\s+de)?\s+(\d+)\s+sesiones?\s*:?\s*\$\s*([\d.,]+)(?=\s|$|\.|,|;|:)/gi;
+  let match;
+
+  while ((match = pattern.exec(source)) !== null) {
+    const sessions = Number.parseInt(match[1], 10);
+    const amount = parseCurrencyLikeValue(match[2]);
+    if (!Number.isFinite(sessions) || amount <= 0) continue;
+
+    const key = `${sessions}|${amount.toFixed(2)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    bonuses.push({
+      label: `Bono ${sessions} sesiones`,
+      sessions,
+      amount,
+    });
+  }
+
+  return bonuses;
+};
+
 export const shiftMonthValue = (monthValue, delta) => {
   const [year, month] = String(monthValue || '').split('-').map(Number);
   const baseDate = Number.isFinite(year) && Number.isFinite(month)
@@ -56,6 +112,8 @@ export const getCokibaDetails = (obraSocial) => {
   pushLink(details.validacionUrl, 'Validación afiliatoria');
   pushLink(details.autorizacionUrl, 'Autorización');
 
+  const bonusAmounts = extractBonusAmounts(details.coseguroTexto, details.observaciones);
+
   return {
     arancelVigenteDesde: details.arancelVigenteDesde || '',
     cuit: details.cuit || '',
@@ -69,6 +127,8 @@ export const getCokibaDetails = (obraSocial) => {
     honorarioReferenciaPrestacion: details.honorarioReferenciaPrestacion || '',
     honorarioBasicaReferencia: parseFloat(details.honorarioBasicaReferencia) || 0,
     coinsuranceReliable: details.coinsuranceReliable !== false,
+    bonusAmounts,
+    bonusTotal: bonusAmounts.reduce((sum, bonus) => sum + (Number(bonus.amount) || 0), 0),
     links: [...linkMap.values()],
   };
 };
