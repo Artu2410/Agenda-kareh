@@ -12,6 +12,26 @@ const PRISMA_ERROR_MAP = {
     statusCode: 400,
     publicMessage: 'Los datos enviados hacen referencia a un registro inexistente.',
   },
+  P2011: {
+    statusCode: 400,
+    publicMessage: 'Faltan datos obligatorios para guardar el registro.',
+  },
+  P2012: {
+    statusCode: 400,
+    publicMessage: 'Faltan datos obligatorios para guardar el registro.',
+  },
+  P2014: {
+    statusCode: 400,
+    publicMessage: 'Los datos enviados no coinciden con registros relacionados.',
+  },
+  P2015: {
+    statusCode: 404,
+    publicMessage: 'No se encontró un registro relacionado requerido.',
+  },
+  P2018: {
+    statusCode: 400,
+    publicMessage: 'No se encontró un registro relacionado requerido.',
+  },
   P2021: {
     statusCode: 500,
     publicMessage: 'La base de datos del servidor no está actualizada. Ejecuta las migraciones y vuelve a intentar.',
@@ -24,11 +44,24 @@ const PRISMA_ERROR_MAP = {
     statusCode: 404,
     publicMessage: 'No se encontró el registro solicitado.',
   },
+  P2034: {
+    statusCode: 409,
+    publicMessage: 'El turno se cruzó con otra operación. Intenta guardar nuevamente.',
+  },
 };
 
 const getPrismaErrorMetadata = (error) => {
   const code = typeof error?.code === 'string' ? error.code : null;
-  return code ? PRISMA_ERROR_MAP[code] : null;
+  if (code && PRISMA_ERROR_MAP[code]) return PRISMA_ERROR_MAP[code];
+
+  if (error?.name === 'PrismaClientValidationError') {
+    return {
+      statusCode: 400,
+      publicMessage: 'Los datos del turno no tienen un formato válido para guardar.',
+    };
+  }
+
+  return null;
 };
 
 class AppError extends Error {

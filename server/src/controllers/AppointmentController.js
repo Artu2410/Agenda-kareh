@@ -602,6 +602,8 @@ export const createAppointment = async (req, res, prisma) => {
       errorMessage: error.message,
       errorCode: error.code || null,
       errorName: error.name || null,
+      errorMeta: error.meta || null,
+      errorStack: error.stack || null,
       statusCode: error.statusCode || null,
       userId: req.user?.userId || null,
       professionalId: professionalId || null,
