@@ -29,6 +29,79 @@ const parseCurrencyLikeValue = (value) => {
   return 0;
 };
 
+const parseDateValue = (value) => {
+  if (!value) return null;
+
+  const parsed = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const getMonthKey = (date) => {
+  const parsed = parseDateValue(date);
+  if (!parsed) return '';
+  return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}`;
+};
+
+const getNextMonthKey = (date) => {
+  const parsed = parseDateValue(date);
+  if (!parsed) return '';
+
+  const nextMonthDate = new Date(parsed.getFullYear(), parsed.getMonth() + 1, 1);
+  return getMonthKey(nextMonthDate);
+};
+
+const parseMonthWindow = (monthValue = '') => {
+  const normalizedMonth = String(monthValue || '').trim();
+  const match = normalizedMonth.match(/^(\d{4})-(\d{2})$/);
+
+  if (match) {
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+
+    if (month >= 1 && month <= 12) {
+      const monthStart = new Date(year, month - 1, 1, 0, 0, 0, 0);
+      const nextMonthStart = new Date(year, month, 1, 0, 0, 0, 0);
+
+      return {
+        monthKey: `${year}-${String(month).padStart(2, '0')}`,
+        monthStart,
+        nextMonthStart,
+      };
+    }
+  }
+
+  const today = new Date();
+  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1, 0, 0, 0, 0);
+  const nextMonthStart = new Date(today.getFullYear(), today.getMonth() + 1, 1, 0, 0, 0, 0);
+
+  return {
+    monthKey: getMonthKey(today),
+    monthStart,
+    nextMonthStart,
+  };
+};
+
+const compareAppointments = (left, right) => {
+  const leftDate = parseDateValue(left?.date);
+  const rightDate = parseDateValue(right?.date);
+
+  if (leftDate && rightDate && leftDate.getTime() !== rightDate.getTime()) {
+    return leftDate - rightDate;
+  }
+
+  const leftTime = String(left?.time || '');
+  const rightTime = String(right?.time || '');
+
+  if (leftTime !== rightTime) {
+    return leftTime.localeCompare(rightTime);
+  }
+
+  const leftSlot = Number(left?.slotNumber) || 0;
+  const rightSlot = Number(right?.slotNumber) || 0;
+
+  return leftSlot - rightSlot;
+};
+
 const extractBonusBreakdown = (obraSocial = {}) => {
   const details = obraSocial?.cokibaDetails || {};
   const manualBonuses = Array.isArray(details.reportBonuses) ? details.reportBonuses : [];
@@ -82,6 +155,25 @@ const extractBonusBreakdown = (obraSocial = {}) => {
 
 export const resolveAppointmentHonorario = (appointment = {}) => resolveStoredHonorarioAmount(appointment);
 
+const resolveReportHonorario = (appointment = {}) => {
+  const storedHonorario = resolveAppointmentHonorario(appointment);
+  if (storedHonorario > 0) {
+    return storedHonorario;
+  }
+
+  return roundCurrency(appointment?.obraSocial?.honorarioEstimado);
+};
+
+const resolveCycleHonorario = (appointment = {}) => {
+  const currentHonorario = roundCurrency(appointment?.obraSocial?.honorarioEstimado);
+  if (currentHonorario > 0) {
+    return currentHonorario;
+  }
+
+  const storedHonorario = resolveAppointmentHonorario(appointment);
+  return storedHonorario > 0 ? storedHonorario : 0;
+};
+
 export const isAgreementInsuranceForMonthlyHonorarios = (appointment = {}) => {
   const obraSocial = appointment?.obraSocial;
   const name = String(obraSocial?.nombreOs || '').trim();
@@ -97,36 +189,64 @@ export const isAgreementInsuranceForMonthlyHonorarios = (appointment = {}) => {
   return resolveAppointmentHonorario(appointment) > 0;
 };
 
-export const buildMonthlyHonorariosReport = (appointments = []) => {
+const isEligibleMonthlyInsurance = (appointment = {}) => {
+  const obraSocial = appointment?.obraSocial;
+  const name = String(obraSocial?.nombreOs || '').trim();
+
+  if (!name || MONTHLY_HONORARIOS_EXCLUDED_PATTERN.test(name)) {
+    return false;
+  }
+
+  if (!obraSocial || obraSocial.isArchived || obraSocial.isActive === false) {
+    return false;
+  }
+
+  return true;
+};
+
+const hasSessionBasedBonus = (obraSocial = {}) =>
+  extractBonusBreakdown(obraSocial).some((bonus) => Number(bonus.sessions) > 0);
+
+const appendAppointmentToRow = (byInsurance, appointment, amount) => {
+  const obraSocial = appointment?.obraSocial;
+  const key = appointment.obraSocialId || 'sin-obra-social';
+  const current = byInsurance.get(key) || {
+    obraSocialId: appointment.obraSocialId,
+    obraSocialName: appointment.obraSocial?.nombreOs || 'Sin obra social',
+    totalAmount: 0,
+    appointmentCount: 0,
+    bonusDetails: [],
+  };
+
+  const resolvedAmount = roundCurrency(amount);
+  if (resolvedAmount <= 0) {
+    return;
+  }
+
+  current.totalAmount += resolvedAmount;
+  current.appointmentCount += 1;
+
+  if (current.bonusDetails.length === 0) {
+    current.bonusDetails = extractBonusBreakdown(obraSocial);
+  }
+
+  byInsurance.set(key, current);
+};
+
+const buildLegacyMonthlyHonorariosReport = (appointments = []) => {
   const byInsurance = new Map();
 
   appointments.forEach((appointment) => {
-    if (!isAgreementInsuranceForMonthlyHonorarios(appointment)) {
+    if (!isEligibleMonthlyInsurance(appointment)) {
       return;
     }
 
-    const honorario = resolveAppointmentHonorario(appointment);
+    const honorario = resolveReportHonorario(appointment);
     if (honorario <= 0) {
       return;
     }
 
-    const key = appointment.obraSocialId || 'sin-obra-social';
-    const current = byInsurance.get(key) || {
-      obraSocialId: appointment.obraSocialId,
-      obraSocialName: appointment.obraSocial?.nombreOs || 'Sin obra social',
-      totalAmount: 0,
-      appointmentCount: 0,
-      bonusDetails: [],
-    };
-
-    current.totalAmount += honorario;
-    current.appointmentCount += 1;
-
-    if (current.bonusDetails.length === 0) {
-      current.bonusDetails = extractBonusBreakdown(appointment.obraSocial);
-    }
-
-    byInsurance.set(key, current);
+    appendAppointmentToRow(byInsurance, appointment, honorario);
   });
 
   return [...byInsurance.values()]
@@ -140,4 +260,170 @@ export const buildMonthlyHonorariosReport = (appointments = []) => {
       ),
     }))
     .sort((a, b) => b.totalAmount - a.totalAmount);
+};
+
+const buildAppointmentCycles = (appointments = []) => {
+  const grouped = new Map();
+
+  appointments.forEach((appointment) => {
+    if (!isEligibleMonthlyInsurance(appointment)) {
+      return;
+    }
+
+    if (!appointment?.patientId || !appointment?.obraSocialId) {
+      return;
+    }
+
+    const key = `${appointment.patientId}::${appointment.obraSocialId}`;
+    if (!grouped.has(key)) {
+      grouped.set(key, []);
+    }
+
+    grouped.get(key).push(appointment);
+  });
+
+  const cycles = [];
+
+  grouped.forEach((groupAppointments) => {
+    const sortedAppointments = [...groupAppointments].sort(compareAppointments);
+    let currentCycle = [];
+    let previousSessionNumber = null;
+
+    sortedAppointments.forEach((appointment) => {
+      const sessionNumber = Number(appointment?.sessionNumber) || 0;
+      const shouldStartNewCycle =
+        currentCycle.length > 0
+        && (
+          Boolean(appointment?.isFirstSession)
+          || sessionNumber === 1
+          || currentCycle.length >= 10
+          || (sessionNumber > 0 && previousSessionNumber > 0 && sessionNumber <= previousSessionNumber)
+        );
+
+      if (shouldStartNewCycle) {
+        cycles.push(currentCycle);
+        currentCycle = [];
+      }
+
+      currentCycle.push(appointment);
+      previousSessionNumber = sessionNumber;
+    });
+
+    if (currentCycle.length > 0) {
+      cycles.push(currentCycle);
+    }
+  });
+
+  return cycles.map((cycleAppointments) => {
+    const firstAppointment = cycleAppointments[0] || {};
+    const lastAppointment = cycleAppointments[cycleAppointments.length - 1] || {};
+    const endDate = parseDateValue(lastAppointment.date) || parseDateValue(firstAppointment.date);
+
+    return {
+      appointments: cycleAppointments,
+      obraSocialId: firstAppointment.obraSocialId || null,
+      obraSocialName: firstAppointment.obraSocial?.nombreOs || 'Sin obra social',
+      bonusDetails: extractBonusBreakdown(firstAppointment.obraSocial),
+      billingMonth: getNextMonthKey(endDate),
+      isComplete: cycleAppointments.length === 10,
+    };
+  });
+};
+
+const buildCycleAwareMonthlyHonorariosReport = (appointments = [], monthWindow) => {
+  const byInsurance = new Map();
+  const cycleBasedInsuranceIds = new Set();
+
+  appointments.forEach((appointment) => {
+    if (!isEligibleMonthlyInsurance(appointment)) {
+      return;
+    }
+
+    if (hasSessionBasedBonus(appointment.obraSocial)) {
+      cycleBasedInsuranceIds.add(appointment.obraSocialId);
+    }
+  });
+
+  appointments.forEach((appointment) => {
+    if (!isEligibleMonthlyInsurance(appointment)) {
+      return;
+    }
+
+    const appointmentDate = parseDateValue(appointment.date);
+    if (!appointmentDate) {
+      return;
+    }
+
+    if (cycleBasedInsuranceIds.has(appointment.obraSocialId)) {
+      return;
+    }
+
+    if (appointmentDate < monthWindow.monthStart || appointmentDate >= monthWindow.nextMonthStart) {
+      return;
+    }
+
+    const honorario = resolveReportHonorario(appointment);
+    if (honorario <= 0) {
+      return;
+    }
+
+    appendAppointmentToRow(byInsurance, appointment, honorario);
+  });
+
+  const cycleAppointments = appointments.filter((appointment) => {
+    if (!isEligibleMonthlyInsurance(appointment)) {
+      return false;
+    }
+
+    if (!cycleBasedInsuranceIds.has(appointment.obraSocialId)) {
+      return false;
+    }
+
+    const appointmentDate = parseDateValue(appointment.date);
+    return Boolean(appointmentDate && appointmentDate < monthWindow.monthStart);
+  });
+
+  const cycles = buildAppointmentCycles(cycleAppointments);
+
+  cycles.forEach((cycle) => {
+    if (!cycle.isComplete || cycle.billingMonth !== monthWindow.monthKey) {
+      return;
+    }
+
+    cycle.appointments.forEach((appointment) => {
+      const honorario = resolveCycleHonorario(appointment);
+      if (honorario <= 0) {
+        return;
+      }
+
+      appendAppointmentToRow(byInsurance, appointment, honorario);
+    });
+
+    const current = byInsurance.get(cycle.obraSocialId);
+    if (current && current.bonusDetails.length === 0) {
+      current.bonusDetails = cycle.bonusDetails;
+    }
+  });
+
+  return [...byInsurance.values()]
+    .map((row) => ({
+      ...row,
+      totalAmount: roundCurrency(row.totalAmount),
+      bonusTotal: roundCurrency(
+        Array.isArray(row.bonusDetails)
+          ? row.bonusDetails.reduce((sum, bonus) => sum + (Number(bonus.amount) || 0), 0)
+          : 0
+      ),
+    }))
+    .sort((a, b) => b.totalAmount - a.totalAmount);
+};
+
+export const buildMonthlyHonorariosReport = (appointments = [], options = {}) => {
+  const monthValue = String(options?.month || '').trim();
+  if (!monthValue) {
+    return buildLegacyMonthlyHonorariosReport(appointments);
+  }
+
+  const monthWindow = parseMonthWindow(monthValue);
+  return buildCycleAwareMonthlyHonorariosReport(appointments, monthWindow);
 };

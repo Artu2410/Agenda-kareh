@@ -376,16 +376,23 @@ export const getCoinsuranceReport = async (req, res, prisma) => {
   try {
     const month = String(req.query.month || '').trim();
     const [year, monthNumber] = month ? month.split('-').map(Number) : [new Date().getFullYear(), new Date().getMonth() + 1];
-    const start = new Date(year, (monthNumber || 1) - 1, 1, 0, 0, 0, 0);
     const end = new Date(year, monthNumber || 1, 1, 0, 0, 0, 0);
 
     const appointments = await prisma.appointment.findMany({
       where: {
-        date: { gte: start, lt: end },
+        date: { lt: end },
         obraSocialId: { not: null },
-        status: { not: 'CANCELLED' },
+        status: 'COMPLETED',
       },
       select: {
+        id: true,
+        date: true,
+        time: true,
+        slotNumber: true,
+        patientId: true,
+        sessionNumber: true,
+        isFirstSession: true,
+        status: true,
         coinsuranceDetails: true,
         obraSocialId: true,
         obraSocial: {
@@ -401,7 +408,7 @@ export const getCoinsuranceReport = async (req, res, prisma) => {
       },
     });
 
-    const rows = buildMonthlyHonorariosReport(appointments);
+    const rows = buildMonthlyHonorariosReport(appointments, { month });
 
     res.status(200).json({
       month: `${year}-${String(monthNumber || 1).padStart(2, '0')}`,
