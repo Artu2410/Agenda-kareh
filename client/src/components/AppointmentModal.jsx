@@ -48,6 +48,15 @@ const formatCurrency = (value) => new Intl.NumberFormat('es-AR', {
   currency: 'ARS',
 }).format(Number(value || 0));
 
+const SectionHeader = ({ title, description }) => (
+  <div className="space-y-1">
+    <p className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">{title}</p>
+    {description && (
+      <p className="text-sm font-medium text-slate-500">{description}</p>
+    )}
+  </div>
+);
+
 const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, selectedSlot, appointment = null, professional = null }) => {
   const {
     ConfirmModalComponent,
@@ -122,20 +131,20 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm flex justify-center items-center z-999 p-4">
-      <div className="bg-white rounded-4xl shadow-2xl w-full max-w-5xl h-[90vh] overflow-hidden flex flex-col md:flex-row border border-white/20">
+    <div className="fixed inset-0 z-[999] flex items-stretch justify-center bg-slate-900/70 backdrop-blur-sm p-0 sm:items-center sm:p-4">
+      <div className="flex h-[100dvh] w-full max-w-5xl flex-col overflow-hidden rounded-none border border-white/20 bg-white shadow-2xl sm:h-[90vh] sm:rounded-4xl md:flex-row">
 
         {/* COLUMNA IZQUIERDA: FORMULARIO + HISTORIA */}
-        <div className="flex-1 flex flex-col bg-white border-r border-slate-100 overflow-hidden">
-          <div className="flex-1 p-8 overflow-y-auto custom-scrollbar">
-            <div className="flex justify-between items-center mb-6">
+        <div className="flex flex-1 flex-col overflow-hidden border-b border-slate-100 bg-white md:border-b-0 md:border-r">
+          <div className="flex-1 overflow-y-auto p-4 custom-scrollbar sm:p-6 lg:p-8">
+            <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <h2 className="text-2xl font-black text-slate-800 italic uppercase tracking-tighter">
+                <h2 className="text-xl font-black italic uppercase tracking-tighter text-slate-800 sm:text-2xl">
                   {isEditMode
                     ? `Sesión ${isFirstSession ? '1' : (appointment.sessionNumber || '')}${isFirstSession ? ' (Ingreso)' : ''}`
                     : 'Nuevo Turno'}
                 </h2>
-                <div className="flex items-center gap-4 mt-1">
+                <div className="mt-2 flex flex-wrap items-center gap-2">
                   <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">
                     {modalDate ? format(new Date(`${modalDate}T12:00:00`), "eeee dd 'de' MMMM", { locale: es }) : ''}
                   </p>
@@ -143,13 +152,13 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                     <button
                       type="button"
                       onClick={() => setIsFirstSession(true)}
-                      className="bg-rose-50 text-rose-600 border border-rose-100 rounded-lg px-2 py-0.5 text-[9px] font-black uppercase hover:bg-rose-100 transition-all flex items-center gap-1"
+                      className="inline-flex min-h-11 items-center gap-1 rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-[10px] font-black uppercase transition-all hover:bg-rose-100"
                     >
                       <Flag size={9} fill="currentColor" /> Reiniciar Ciclo (Sesión 1)
                     </button>
                   )}
                   {isEditMode && isFirstSession && !isPendingCycleReset && (
-                    <span className="flex items-center gap-1 bg-teal-50 text-teal-600 border border-teal-100 rounded-lg px-2 py-0.5 text-[9px] font-black uppercase anima-pulse">
+                    <span className="inline-flex min-h-11 items-center gap-1 rounded-xl border border-teal-100 bg-teal-50 px-3 py-2 text-[10px] font-black uppercase text-teal-600 anima-pulse">
                       <Check size={10} /> Inicio de Ciclo
                     </span>
                   )}
@@ -157,13 +166,13 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                     <button
                       type="button"
                       onClick={() => setIsFirstSession(false)}
-                      className="bg-amber-50 text-amber-700 border border-amber-200 rounded-lg px-2 py-0.5 text-[9px] font-black uppercase hover:bg-amber-100 transition-all flex items-center gap-1"
+                      className="inline-flex min-h-11 items-center gap-1 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] font-black uppercase text-amber-700 transition-all hover:bg-amber-100"
                     >
                       <X size={10} /> Deshacer reinicio
                     </button>
                   )}
                   {paidInAdvance && (
-                    <span className="flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg px-2 py-0.5 text-[9px] font-black uppercase">
+                    <span className="inline-flex min-h-11 items-center gap-1 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[10px] font-black uppercase text-emerald-700">
                       <Banknote size={10} /> Pago adelantado
                     </span>
                   )}
@@ -172,66 +181,72 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                   {isEditMode ? appointment?.professional?.fullName : professional?.fullName || 'Profesional no seleccionado'}
                 </p>
               </div>
-              <div className="bg-teal-50 px-5 py-2 rounded-2xl border border-teal-100 text-center">
+              <div className="self-start rounded-2xl border border-teal-100 bg-teal-50 px-5 py-3 text-center">
                 <p className="text-teal-600 font-black text-xl leading-none">{modalTime}</p>
                 <p className="text-[9px] text-teal-500 font-bold uppercase tracking-widest">Horario</p>
               </div>
             </div>
 
             <div className="space-y-6">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="space-y-1">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">DNI del Paciente</label>
-                  <input aria-label="DNI del Paciente" className="w-full p-3 border rounded-2xl bg-slate-50 font-bold focus:ring-2 ring-teal-500 outline-none" value={patientData.dni} onChange={e => { setPatientData({ ...patientData, dni: e.target.value }); searchPatient('dni', e.target.value); }} />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Obra Social</label>
-                  <select
-                    aria-label="Obra Social"
-                    className="w-full p-3 border rounded-2xl bg-slate-50 font-bold focus:ring-2 ring-teal-500 outline-none"
-                    value={selectedCoverageValue}
-                    onChange={(e) => {
-                      const obraSocialId = e.target.value;
-                      if (obraSocialId === PARTICULAR_OPTION_VALUE) {
-                        setPatientData((prev) => {
-                          const hasCoverageLoaded = Boolean(prev.obraSocialId || prev.healthInsurance);
-                          return {
-                            ...prev,
-                            obraSocialId: prev.obraSocialId || '',
-                            healthInsurance: hasCoverageLoaded ? prev.healthInsurance : 'PARTICULAR',
-                            treatAsParticular: true,
-                          };
-                        });
-                        setDocumentsChecklist({ documents: [], additionalInfo: '' });
-                        return;
-                      }
+              <section className="space-y-4">
+                <SectionHeader
+                  title="Paciente"
+                  description="Datos personales y cobertura principal del turno."
+                />
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">DNI del Paciente</label>
+                    <input aria-label="DNI del Paciente" className="w-full min-h-11 rounded-2xl border bg-slate-50 p-3 font-bold outline-none focus:ring-2 ring-teal-500" value={patientData.dni} onChange={e => { setPatientData({ ...patientData, dni: e.target.value }); searchPatient('dni', e.target.value); }} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Obra Social</label>
+                    <select
+                      aria-label="Obra Social"
+                      className="w-full min-h-11 rounded-2xl border bg-slate-50 p-3 font-bold outline-none focus:ring-2 ring-teal-500"
+                      value={selectedCoverageValue}
+                      onChange={(e) => {
+                        const obraSocialId = e.target.value;
+                        if (obraSocialId === PARTICULAR_OPTION_VALUE) {
+                          setPatientData((prev) => {
+                            const hasCoverageLoaded = Boolean(prev.obraSocialId || prev.healthInsurance);
+                            return {
+                              ...prev,
+                              obraSocialId: prev.obraSocialId || '',
+                              healthInsurance: hasCoverageLoaded ? prev.healthInsurance : 'PARTICULAR',
+                              treatAsParticular: true,
+                            };
+                          });
+                          setDocumentsChecklist({ documents: [], additionalInfo: '' });
+                          return;
+                        }
 
-                      const obraSocial = obrasSociales.find((item) => item.id === obraSocialId) || null;
-                      setPatientData((prev) => ({
-                        ...prev,
-                        obraSocialId,
-                        healthInsurance: obraSocial?.nombreOs || '',
-                        treatAsParticular: false,
-                      }));
-                      setDocumentsChecklist(buildChecklistFromInsurance(obraSocial, null));
-                    }}
-                  >
-                    <option value="">Seleccionar obra social</option>
-                    <option value={PARTICULAR_OPTION_VALUE}>PARTICULAR</option>
-                    {obrasSociales
-                      .filter((obraSocial) => obraSocial.isActive || obraSocial.id === patientData.obraSocialId)
-                      .map((obraSocial) => (
-                        <option key={obraSocial.id} value={obraSocial.id}>
-                          {obraSocial.nombreOs}{obraSocial.isActive ? '' : ' · INACTIVA'}
-                        </option>
+                        const obraSocial = obrasSociales.find((item) => item.id === obraSocialId) || null;
+                        setPatientData((prev) => ({
+                          ...prev,
+                          obraSocialId,
+                          healthInsurance: obraSocial?.nombreOs || '',
+                          treatAsParticular: false,
+                        }));
+                        setDocumentsChecklist(buildChecklistFromInsurance(obraSocial, null));
+                      }}
+                    >
+                      <option value="">Seleccionar obra social</option>
+                      <option value={PARTICULAR_OPTION_VALUE}>PARTICULAR</option>
+                      {obrasSociales
+                        .filter((obraSocial) => obraSocial.isActive || obraSocial.id === patientData.obraSocialId)
+                        .map((obraSocial) => (
+                          <option key={obraSocial.id} value={obraSocial.id}>
+                            {obraSocial.nombreOs}{obraSocial.isActive ? '' : ' · INACTIVA'}
+                          </option>
                       ))}
-                  </select>
+                    </select>
+                  </div>
                 </div>
-                <input aria-label="Apellido" placeholder="Apellido" className="p-3 border rounded-2xl bg-slate-50 font-bold" value={patientData.lastName} onChange={e => setPatientData({ ...patientData, lastName: e.target.value })} />
-                <input aria-label="Nombre" placeholder="Nombre" className="p-3 border rounded-2xl bg-slate-50 font-bold" value={patientData.firstName} onChange={e => setPatientData({ ...patientData, firstName: e.target.value })} />
+                <input aria-label="Apellido" placeholder="Apellido" className="min-h-11 rounded-2xl border bg-slate-50 p-3 font-bold" value={patientData.lastName} onChange={e => setPatientData({ ...patientData, lastName: e.target.value })} />
+                <input aria-label="Nombre" placeholder="Nombre" className="min-h-11 rounded-2xl border bg-slate-50 p-3 font-bold" value={patientData.firstName} onChange={e => setPatientData({ ...patientData, firstName: e.target.value })} />
                 <div className="space-y-1 sm:col-span-2">
                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">N° Afiliado</label>
-                  <input aria-label="Número de Afiliado" className="w-full p-3 border rounded-2xl bg-slate-50 font-bold focus:ring-2 ring-teal-500 outline-none" value={patientData.affiliateNumber || ''} onChange={e => setPatientData({ ...patientData, affiliateNumber: e.target.value })} />
+                  <input aria-label="Número de Afiliado" className="w-full min-h-11 rounded-2xl border bg-slate-50 p-3 font-bold outline-none focus:ring-2 ring-teal-500" value={patientData.affiliateNumber || ''} onChange={e => setPatientData({ ...patientData, affiliateNumber: e.target.value })} />
                 </div>
                 <div className="sm:col-span-2 rounded-[1.6rem] border border-slate-200 bg-slate-50 px-4 py-3">
                   <div className="flex items-center justify-between gap-3">
@@ -263,7 +278,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                           treatAsParticular: false,
                         };
                       })}
-                      className={`rounded-2xl px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all ${patientData.treatAsParticular
+                      className={`inline-flex min-h-11 items-center rounded-2xl px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all ${patientData.treatAsParticular
                           ? 'bg-blue-600 text-white shadow-md hover:bg-blue-700'
                           : 'bg-white text-slate-500 border border-slate-200 hover:border-blue-300 hover:text-blue-700'
                         }`}
@@ -291,7 +306,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                     <button
                       type="button"
                       onClick={() => setPaidInAdvance((current) => !current)}
-                      className={`rounded-2xl px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all ${
+                      className={`inline-flex min-h-11 items-center rounded-2xl px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all ${
                         paidInAdvance
                           ? 'bg-emerald-600 text-white shadow-md hover:bg-emerald-700'
                           : 'bg-white text-emerald-700 border border-emerald-200 hover:border-emerald-300'
@@ -322,7 +337,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                           }));
                           setDocumentsChecklist({ documents: [], additionalInfo: '' });
                         }}
-                        className="rounded-xl bg-amber-600 px-3 py-2 text-[9px] font-black uppercase tracking-wider text-white shadow-sm hover:bg-amber-700 transition-all shrink-0"
+                        className="inline-flex min-h-11 shrink-0 items-center rounded-xl bg-amber-600 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-white shadow-sm transition-all hover:bg-amber-700"
                       >
                         Atender Particular
                       </button>
@@ -333,7 +348,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                 {!!selectedObraSocial && !patientData.treatAsParticular && (
                   <div className="sm:col-span-2 rounded-[1.6rem] border border-teal-100 bg-teal-50/70 px-4 py-4">
                     <p className="text-[9px] font-black uppercase tracking-[0.22em] text-teal-600">Coseguro calculado</p>
-                    <div className="mt-3 grid gap-2 sm:grid-cols-4">
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                       <div className="rounded-2xl bg-white px-3 py-3">
                         <p className="text-[9px] font-black uppercase text-slate-400">Base</p>
                         <p className="mt-1 text-sm font-black text-slate-800">{formatCurrency(patientChargeBreakdown.baseCopay)}</p>
@@ -386,41 +401,46 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                         type="text"
                         aria-label="Token de Sesión (Obra Social)"
                         placeholder="Ingrese el número de token / validación"
-                      className="w-full p-3 border border-orange-200 rounded-2xl bg-white font-bold text-orange-800 focus:ring-2 ring-orange-500 outline-none"
-                      value={sessionToken}
-                      onChange={(e) => setSessionToken(e.target.value)}
+                        className="w-full min-h-11 rounded-2xl border border-orange-200 bg-white p-3 font-bold text-orange-800 outline-none focus:ring-2 ring-orange-500"
+                        value={sessionToken}
+                        onChange={(e) => setSessionToken(e.target.value)}
                     />
                   </div>
                 </div>
-              </div>
+              </section>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Teléfono</label>
-                  <input type="tel" aria-label="Teléfono" placeholder="+54 9 11 2345-6789" className="w-full p-3 border rounded-2xl bg-slate-50 font-bold focus:ring-2 ring-teal-500 outline-none" value={patientData.phone || ''} onChange={e => setPatientData({ ...patientData, phone: e.target.value })} />
+              <section className="space-y-4">
+                <SectionHeader
+                  title="Sesiones"
+                  description="Contacto, evolución y controles del turno."
+                />
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Teléfono</label>
+                    <input type="tel" aria-label="Teléfono" placeholder="+54 9 11 2345-6789" className="w-full min-h-11 rounded-2xl border bg-slate-50 p-3 font-bold outline-none focus:ring-2 ring-teal-500" value={patientData.phone || ''} onChange={e => setPatientData({ ...patientData, phone: e.target.value })} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Fecha de Nacimiento</label>
+                    <input type="date" aria-label="Fecha de Nacimiento" className="w-full min-h-11 rounded-2xl border bg-slate-50 p-3 font-bold outline-none focus:ring-2 ring-teal-500" value={patientData.birthDate || ''} onChange={e => setPatientData({ ...patientData, birthDate: e.target.value })} />
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Fecha de Nacimiento</label>
-                  <input type="date" aria-label="Fecha de Nacimiento" className="w-full p-3 border rounded-2xl bg-slate-50 font-bold focus:ring-2 ring-teal-500 outline-none" value={patientData.birthDate || ''} onChange={e => setPatientData({ ...patientData, birthDate: e.target.value })} />
-                </div>
-              </div>
 
               <div className="space-y-1">
                 <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Diagnóstico / Evolución</label>
-                  <textarea aria-label="Diagnóstico / Evolución" className="w-full p-4 border rounded-2xl bg-slate-50 h-24 outline-none resize-none font-semibold uppercase focus:ring-2 ring-teal-500" value={diagnosis} onChange={e => setDiagnosis(e.target.value)} />
+                <textarea aria-label="Diagnóstico / Evolución" className="w-full min-h-28 resize-none rounded-2xl border bg-slate-50 p-4 font-semibold uppercase outline-none focus:ring-2 ring-teal-500" value={diagnosis} onChange={e => setDiagnosis(e.target.value)} />
               </div>
 
               {isEditMode && (
                 <>
                   <div className="space-y-2">
                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Estado del Turno</label>
-                    <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
                       {APPOINTMENT_STATUSES.map((item) => (
                         <button
                           key={item.value}
                           type="button"
                           onClick={() => setStatus(item.value)}
-                          className={`rounded-2xl border px-3 py-3 text-[10px] font-black uppercase transition-all ${status === item.value
+                          className={`min-h-11 rounded-2xl border px-3 py-3 text-[10px] font-black uppercase transition-all ${status === item.value
                               ? item.classes
                               : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300'
                             }`}
@@ -460,25 +480,25 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
               )}
 
               {(!isEditMode || futureAppointments.length <= 1) && (
-                <div className="grid grid-cols-2 gap-6 items-center border border-slate-100 rounded-3xl p-4 bg-slate-50/50">
+                <div className="grid grid-cols-1 items-center gap-6 rounded-3xl border border-slate-100 bg-slate-50/50 p-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Días Semanales</label>
-                    <div className="flex gap-1">
+                    <div className="grid grid-cols-4 gap-2 sm:flex sm:gap-1">
                       {WEEK_DAYS.map(day => (
-                        <button key={day.value} type="button" onClick={() => setSelectedDays(prev => prev.includes(day.value) ? prev.filter(d => d !== day.value) : [...prev, day.value])} className={`w-8 h-8 rounded-xl text-[10px] font-black transition-all ${selectedDays.includes(day.value) ? 'bg-teal-600 text-white shadow-md' : 'bg-slate-100 text-slate-400'}`}>{day.label}</button>
+                        <button key={day.value} type="button" onClick={() => setSelectedDays(prev => prev.includes(day.value) ? prev.filter(d => d !== day.value) : [...prev, day.value])} className={`min-h-11 rounded-xl text-[10px] font-black transition-all ${selectedDays.includes(day.value) ? 'bg-teal-600 text-white shadow-md' : 'bg-slate-100 text-slate-400'}`}>{day.label}</button>
                       ))}
                     </div>
                   </div>
                   <div className="space-y-2 flex flex-col justify-center">
                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">{isEditMode ? 'Generar más sesiones' : 'Cantidad Sesiones'}</label>
                     <div className="flex gap-2 items-center">
-                      <input type="number" className="w-16 p-2 border rounded-xl bg-white font-black text-teal-700 text-center shadow-sm" value={sessionCount} onChange={e => setSessionCount(e.target.value)} />
+                      <input type="number" className="min-h-11 w-20 rounded-xl border bg-white px-2 py-2 text-center font-black text-teal-700 shadow-sm" value={sessionCount} onChange={e => setSessionCount(e.target.value)} />
                       {isEditMode && (
                         <button
                           type="button"
                           onClick={handleGenerateAdditionalSessions}
                           disabled={loading}
-                          className="px-4 py-2 bg-teal-100 text-teal-700 font-black rounded-xl text-[9px] uppercase hover:bg-teal-200 transition-all"
+                          className="min-h-11 rounded-xl bg-teal-100 px-4 py-2 text-[10px] font-black uppercase text-teal-700 transition-all hover:bg-teal-200"
                         >
                           Generar
                         </button>
@@ -488,7 +508,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                 </div>
               )}
 
-              <div className="p-4 bg-slate-50 rounded-4xl border border-slate-100 grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 gap-3 rounded-4xl border border-slate-100 bg-slate-50 p-4 sm:grid-cols-2 lg:grid-cols-3">
                 {[
                   { key: 'hasCancer', label: 'Oncológico', color: 'accent-red-500' },
                   { key: 'hasMarcapasos', label: 'Marcapasos', color: 'accent-blue-500' },
@@ -570,27 +590,36 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                   </div>
                 </div>
               )}
-            </div>
+              </section>
 
-            <div className="flex gap-4 mt-8 pb-4">
-              <button onClick={onClose} className="flex-1 py-4 font-black text-slate-400 uppercase text-xs tracking-widest">Cancelar</button>
-              <button onClick={handleAction} disabled={loading} className="flex-2 bg-teal-600 text-white font-black py-4 rounded-3xl shadow-xl hover:bg-teal-700 transition-all flex items-center justify-center gap-2 uppercase text-xs tracking-widest">
-                {loading ? <Loader2 className="animate-spin" size={18} /> : (isEditMode ? 'Guardar Cambios' : 'Confirmar y Agendar')}
-              </button>
-            </div>
+              <div className="sticky bottom-0 z-10 -mx-4 mt-6 border-t border-slate-100 bg-white/95 px-4 pb-4 pt-4 backdrop-blur sm:-mx-8 sm:px-8">
+                <div className="mb-3">
+                  <SectionHeader
+                    title="Acciones"
+                    description="Guardar, cancelar o eliminar sesiones."
+                  />
+                </div>
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <button onClick={onClose} className="inline-flex min-h-11 flex-1 items-center justify-center rounded-3xl border border-slate-200 py-4 text-xs font-black uppercase tracking-widest text-slate-400 transition hover:border-slate-300 hover:text-slate-600">Cancelar</button>
+                  <button onClick={handleAction} disabled={loading} className="inline-flex min-h-11 flex-[2] items-center justify-center gap-2 rounded-3xl bg-teal-600 py-4 text-xs font-black uppercase tracking-widest text-white shadow-xl transition-all hover:bg-teal-700">
+                    {loading ? <Loader2 className="animate-spin" size={18} /> : (isEditMode ? 'Guardar Cambios' : 'Confirmar y Agendar')}
+                  </button>
+                </div>
 
-            {isEditMode && (
-              <div className="mt-4 pt-6 border-t border-red-50 grid grid-cols-2 gap-3 pb-8">
-                <button onClick={() => handleDelete('single')} className="py-3 bg-red-50 text-red-600 font-black rounded-2xl text-[9px] uppercase hover:bg-red-100 transition-all flex items-center justify-center gap-2"><Trash2 size={14} /> Solo hoy</button>
-                <button onClick={() => handleDelete('future')} className="py-3 bg-red-600 text-white font-black rounded-2xl text-[9px] uppercase hover:bg-red-700 shadow-md transition-all flex items-center justify-center gap-2"><Trash2 size={14} /> Sesiones futuras</button>
+                {isEditMode && (
+                  <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <button onClick={() => handleDelete('single')} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-[10px] font-black uppercase text-red-600 transition hover:bg-red-100"><Trash2 size={14} /> Solo hoy</button>
+                    <button onClick={() => handleDelete('future')} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-red-600 px-4 py-3 text-[10px] font-black uppercase text-white shadow-md transition hover:bg-red-700"><Trash2 size={14} /> Sesiones futuras</button>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            </div>
+        </div>
         </div>
 
         {/* COLUMNA DERECHA: SESIONES */}
-        <div className="w-full md:w-80 bg-slate-50 p-8 flex flex-col">
-          <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center justify-between border-b border-slate-200 pb-2">
+        <div className="flex w-full flex-col border-t border-slate-100 bg-slate-50 p-4 sm:p-6 md:w-80 md:border-l md:border-t-0 lg:p-8">
+          <h3 className="mb-6 flex items-center justify-between border-b border-slate-200 pb-2 text-[11px] font-black uppercase tracking-widest text-slate-400">
             <div className="flex items-center gap-2">
               <CalendarIcon size={14} className="text-teal-500" />
               {isEditMode
@@ -606,7 +635,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                   setIsAddingManualSession(true);
                   setManualDraft({ date: modalDate, time: modalTime });
                 }}
-                className="p-1 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors"
+                className="inline-flex min-h-11 items-center justify-center rounded-lg p-2 text-teal-600 transition-colors hover:bg-teal-50"
                 title="Agregar sesión individual"
               >
                 <Plus size={16} />
@@ -617,7 +646,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
           {isAddingManualSession && (
             <div className="mb-4 bg-teal-50/50 p-3 rounded-xl border border-teal-100 space-y-3 animate-in fade-in slide-in-from-top-2">
               <p className="text-[9px] font-black text-teal-600 uppercase tracking-widest">Nueva sesión individual</p>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <input
                   type="date"
                   className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-bold text-slate-700 outline-none focus:ring-2 ring-teal-500"
@@ -635,7 +664,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                 <button
                   type="button"
                   onClick={() => setIsAddingManualSession(false)}
-                  className="px-3 py-1.5 text-[10px] font-black uppercase text-slate-400 hover:text-slate-600"
+                  className="inline-flex min-h-11 items-center px-3 py-1.5 text-[10px] font-black uppercase text-slate-400 hover:text-slate-600"
                 >
                   Cancelar
                 </button>
@@ -643,7 +672,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                   type="button"
                   onClick={handleCreateIndividualSession}
                   disabled={loading}
-                  className="bg-teal-600 text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase shadow-sm hover:bg-teal-700"
+                  className="inline-flex min-h-11 items-center rounded-lg bg-teal-600 px-3 py-1.5 text-[10px] font-black uppercase text-white shadow-sm hover:bg-teal-700"
                 >
                   Agendar
                 </button>
@@ -670,7 +699,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                 >
                   {editingFutureId === apt.id ? (
                     <>
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                         <input
                           type="date"
                           className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-bold text-slate-700 outline-none focus:ring-2 ring-teal-500"
@@ -689,7 +718,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                           type="button"
                           onClick={cancelEditingFutureAppointment}
                           disabled={savingFutureId === apt.id}
-                          className="inline-flex items-center gap-1 rounded-xl border border-slate-200 px-3 py-2 text-[10px] font-black uppercase text-slate-400 transition-all hover:border-slate-300"
+                          className="inline-flex min-h-11 items-center gap-1 rounded-xl border border-slate-200 px-3 py-2 text-[10px] font-black uppercase text-slate-400 transition-all hover:border-slate-300"
                         >
                           <X size={12} />
                           Cancelar
@@ -698,7 +727,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                           type="button"
                           onClick={() => handleFutureAppointmentSave(apt)}
                           disabled={savingFutureId === apt.id}
-                          className="inline-flex items-center gap-1 rounded-xl bg-teal-600 px-3 py-2 text-[10px] font-black uppercase text-white transition-all hover:bg-teal-700"
+                          className="inline-flex min-h-11 items-center gap-1 rounded-xl bg-teal-600 px-3 py-2 text-[10px] font-black uppercase text-white transition-all hover:bg-teal-700"
                         >
                           {savingFutureId === apt.id ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
                           Guardar
@@ -724,7 +753,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                           <button
                             type="button"
                             onClick={() => startEditingFutureAppointment(apt)}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition-all hover:border-teal-400 hover:text-teal-600"
+                            className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition-all hover:border-teal-400 hover:text-teal-600"
                             aria-label="Editar sesión futura"
                           >
                             <Pencil size={13} />
@@ -740,7 +769,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
           <button
             onClick={handleOpenTicket}
             disabled={ticketLoading}
-            className="mt-6 w-full py-4 bg-white border-2 border-slate-200 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 hover:border-teal-500 hover:text-teal-600 transition-all shadow-sm"
+            className="mt-6 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border-2 border-slate-200 bg-white py-4 text-[10px] font-black uppercase tracking-widest text-slate-500 shadow-sm transition-all hover:border-teal-500 hover:text-teal-600"
           >
             {ticketLoading ? <Loader2 size={16} className="animate-spin" /> : <Printer size={16} />}
             Vista Ticket

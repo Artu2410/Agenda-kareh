@@ -31,11 +31,13 @@ test('crear, editar y cancelar un turno', async ({ page }) => {
 
   await page.getByText('Tester Agenda').click();
   await expect(page.getByRole('button', { name: /Guardar Cambios/i })).toBeVisible();
+  await page.getByRole('button', { name: 'Asistió' }).scrollIntoViewIfNeeded();
   await page.getByRole('button', { name: 'Asistió' }).click();
   await page.getByRole('button', { name: /Guardar Cambios/i }).click();
   await expect(page.getByRole('button', { name: 'Asistió' })).toBeVisible();
 
   await page.getByText('Tester Agenda').click();
+  await page.getByRole('button', { name: 'Sesiones futuras' }).scrollIntoViewIfNeeded();
   await page.getByRole('button', { name: /Sesiones futuras/i }).click();
   await expect(page.getByText(/Eliminar sesiones futuras/i)).toBeVisible();
   await page.getByRole('button', { name: /^Eliminar$/i }).click();

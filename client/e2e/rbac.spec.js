@@ -21,5 +21,5 @@ test('SUPER_USER sí accede a configuración', async ({ page }) => {
   await page.goto('/configuracion');
 
   await expect(page).toHaveURL(/\/configuracion$/);
-  await expect(page.getByRole('heading', { name: 'Configuración', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Añadir Profesional/i })).toBeVisible();
 });

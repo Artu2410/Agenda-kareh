@@ -422,7 +422,7 @@ const WhatsAppPage = () => {
   return (
     <div className="flex h-dvh min-h-dvh overflow-hidden bg-slate-50">
       <aside className={`${showConversationList ? 'flex' : 'hidden'} min-h-0 w-full flex-col bg-white lg:flex lg:w-80 lg:border-r lg:border-slate-200`}>
-        <div className="border-b border-slate-100 p-4">
+        <div className="sticky top-0 z-20 border-b border-slate-100 bg-white p-3 sm:p-4">
           <h1 className="text-lg font-black text-slate-800">WhatsApp</h1>
           <div className="relative mt-3">
             <Search size={16} className="absolute left-3 top-3 text-slate-400" />
@@ -430,7 +430,7 @@ const WhatsAppPage = () => {
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Buscar conversaciones..."
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-sm font-semibold outline-none focus:ring-2 ring-teal-500"
+              className="w-full min-h-11 rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-sm font-semibold outline-none focus:ring-2 ring-teal-500"
             />
           </div>
         </div>
@@ -449,7 +449,7 @@ const WhatsAppPage = () => {
                   key={conversation.id}
                   type="button"
                   onClick={() => setSelectedId(conversation.id)}
-                  className={`w-full border-b border-slate-100 px-4 py-3 text-left transition-all ${
+                  className={`w-full border-b border-slate-100 px-4 py-4 text-left transition-all ${
                     isActive ? 'bg-teal-50' : 'hover:bg-slate-50'
                   }`}
                 >
@@ -475,15 +475,16 @@ const WhatsAppPage = () => {
       </aside>
 
       <section className={`${selectedConversation ? 'flex' : 'hidden'} min-h-0 min-w-0 flex-1 flex-col overflow-hidden lg:flex`}>
-        <header className="shrink-0 flex items-center justify-between gap-3 border-b border-slate-200 bg-white p-3 sm:p-4">
+        <header className="sticky top-0 z-20 shrink-0 flex items-center justify-between gap-3 border-b border-slate-200 bg-white p-3 shadow-sm sm:p-4">
           <div className="flex min-w-0 items-center gap-3">
             <button
               type="button"
               onClick={() => setSelectedId(null)}
-              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-600 lg:hidden"
+              className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-black text-slate-600 lg:hidden"
               aria-label="Volver a conversaciones"
             >
               <ArrowLeft size={18} />
+              <span>Volver</span>
             </button>
             <div className="min-w-0">
               <p className="truncate text-sm font-black text-slate-800">
@@ -511,7 +512,7 @@ const WhatsAppPage = () => {
                   type="button"
                   onClick={handleResumeBot}
                   disabled={botActionLoading}
-                  className="inline-flex items-center gap-2 rounded-xl border border-teal-200 bg-teal-50 px-3 py-2 text-xs font-bold text-teal-700 transition hover:bg-teal-100 disabled:opacity-60"
+                  className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-teal-200 bg-teal-50 px-3 py-2 text-xs font-bold text-teal-700 transition hover:bg-teal-100 disabled:opacity-60"
                 >
                   {botActionLoading ? <Loader2 size={14} className="animate-spin" /> : null}
                   <span>Liberar chat</span>
@@ -521,7 +522,7 @@ const WhatsAppPage = () => {
                   type="button"
                   onClick={handlePauseBot}
                   disabled={botActionLoading}
-                  className="inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700 transition hover:bg-amber-100 disabled:opacity-60"
+                  className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700 transition hover:bg-amber-100 disabled:opacity-60"
                 >
                   {botActionLoading ? <Loader2 size={14} className="animate-spin" /> : null}
                   <span>Tomar chat</span>
@@ -531,7 +532,7 @@ const WhatsAppPage = () => {
               <button
                 type="button"
                 onClick={handleDeleteConversation}
-                className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-600 transition hover:bg-red-100"
+                className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-600 transition hover:bg-red-100"
               >
                 <Trash2 size={14} />
                 <span className="hidden sm:inline">Borrar</span>
@@ -564,7 +565,7 @@ const WhatsAppPage = () => {
 
                   return (
                     <div key={message.id} className={`flex ${isOutbound ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[85%] rounded-3xl px-4 py-3 shadow-sm sm:max-w-xl ${
+                      <div className={`max-w-[90%] rounded-3xl px-4 py-3 shadow-sm sm:max-w-xl ${
                         renderAsReaction
                           ? (isOutbound ? 'bg-amber-100 text-slate-800' : 'border border-amber-200 bg-amber-50 text-slate-800')
                           : (isOutbound ? 'bg-teal-600 text-white' : 'border border-slate-200 bg-white text-slate-700')
@@ -637,7 +638,7 @@ const WhatsAppPage = () => {
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={!selectedConversation || sending}
-                className="shrink-0 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-slate-500 transition hover:border-teal-200 hover:text-teal-600 disabled:opacity-60"
+                className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 p-3 text-slate-500 transition hover:border-teal-200 hover:text-teal-600 disabled:opacity-60"
                 aria-label="Adjuntar archivo"
               >
                 <Paperclip size={18} />
@@ -650,7 +651,7 @@ const WhatsAppPage = () => {
                   onChange={handleDraftChange}
                   placeholder="Escribe o pega el mensaje tal como quieres enviarlo..."
                   rows={1}
-                  className="min-h-[56px] w-full resize-none bg-transparent text-sm font-semibold text-slate-700 outline-none placeholder:text-slate-400"
+                  className="min-h-[80px] w-full resize-none bg-transparent text-sm font-semibold text-slate-700 outline-none placeholder:text-slate-400"
                 />
                 <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
                   Al escribir o adjuntar, el bot se detiene solo para no pisarse con recepción.
@@ -662,7 +663,7 @@ const WhatsAppPage = () => {
               type="button"
               onClick={handleSend}
               disabled={sending || (!draft.trim() && !attachment) || !selectedConversation}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-teal-600 px-5 py-3 font-black text-white disabled:opacity-60 sm:w-auto"
+              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-teal-600 px-5 py-3 font-black text-white disabled:opacity-60 sm:w-auto"
             >
               {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
               Enviar
