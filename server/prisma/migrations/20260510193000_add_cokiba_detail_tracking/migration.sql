@@ -1,8 +1,8 @@
 ALTER TABLE "ObraSocial"
-ADD COLUMN "detectedStatus" TEXT,
-ADD COLUMN "detectedIsActive" BOOLEAN,
-ADD COLUMN "statusManualOverride" BOOLEAN NOT NULL DEFAULT false,
-ADD COLUMN "cokibaDetails" JSONB;
+ADD COLUMN IF NOT EXISTS "detectedStatus" TEXT,
+ADD COLUMN IF NOT EXISTS "detectedIsActive" BOOLEAN,
+ADD COLUMN IF NOT EXISTS "statusManualOverride" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN IF NOT EXISTS "cokibaDetails" JSONB;
 
 UPDATE "ObraSocial"
 SET

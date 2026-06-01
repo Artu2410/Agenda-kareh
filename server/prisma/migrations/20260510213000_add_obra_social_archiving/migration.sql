@@ -1,4 +1,4 @@
 ALTER TABLE "ObraSocial"
-ADD COLUMN "isArchived" BOOLEAN NOT NULL DEFAULT false;
+ADD COLUMN IF NOT EXISTS "isArchived" BOOLEAN NOT NULL DEFAULT false;
 
-CREATE INDEX "ObraSocial_isArchived_idx" ON "ObraSocial"("isArchived");
+CREATE INDEX IF NOT EXISTS "ObraSocial_isArchived_idx" ON "ObraSocial"("isArchived");
