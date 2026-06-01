@@ -384,7 +384,7 @@ export default function PatientsPage() {
 
           <div className="space-y-4 lg:hidden">
             {filteredPatients.map((patient) => (
-              <article key={patient.id} className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm">
+              <article key={patient.id} className="rounded-[1.75rem] border border-slate-200 bg-white p-4 shadow-sm">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <h2 className="text-lg font-black text-slate-800">{patient.fullName}</h2>
@@ -400,14 +400,14 @@ export default function PatientsPage() {
                   {renderPatientDocuments(patient)}
                 </div>
 
-                <div className="mt-5 grid grid-cols-3 gap-2">
-                  <button type="button" onClick={() => openClinicalHistory(patient)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-black uppercase text-teal-600">
+                <div className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  <button type="button" onClick={() => openClinicalHistory(patient)} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200 px-3 py-2 text-xs font-black uppercase text-teal-600">
                     Historia
                   </button>
-                  <button type="button" onClick={() => openEditModal(patient)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-black uppercase text-blue-600">
+                  <button type="button" onClick={() => openEditModal(patient)} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200 px-3 py-2 text-xs font-black uppercase text-blue-600">
                     Editar
                   </button>
-                  <button type="button" onClick={() => deletePatient(patient.id)} className="rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs font-black uppercase text-red-600">
+                  <button type="button" onClick={() => deletePatient(patient.id)} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs font-black uppercase text-red-600">
                     Borrar
                   </button>
                 </div>
@@ -421,7 +421,7 @@ export default function PatientsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
           <form
             onSubmit={savePatient}
-            className="max-h-[94vh] w-full max-w-6xl overflow-y-auto rounded-4xl bg-white p-5 shadow-xl sm:p-7"
+            className="max-h-[94vh] w-full max-w-6xl overflow-y-auto rounded-4xl bg-white p-4 shadow-xl sm:p-7"
           >
             <div className="mb-6 flex flex-col gap-3 border-b border-slate-100 pb-5 sm:flex-row sm:items-end sm:justify-between">
               <div className="min-w-0">
@@ -704,14 +704,14 @@ export default function PatientsPage() {
               <button
                 type="button"
                 onClick={() => setShowModal(false)}
-                className="flex-1 rounded-2xl border border-slate-200 p-3 font-black text-slate-500"
+                className="flex-1 min-h-11 rounded-2xl border border-slate-200 p-3 font-black text-slate-500"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={savingPatient}
-                className="flex-1 rounded-2xl bg-teal-600 p-3 font-black text-white"
+                className="flex-1 min-h-11 rounded-2xl bg-teal-600 p-3 font-black text-white"
               >
                 {savingPatient ? 'Guardando...' : 'Guardar paciente'}
               </button>

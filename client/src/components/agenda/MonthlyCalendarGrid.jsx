@@ -165,7 +165,126 @@ const MonthlyCalendarGrid = ({
         </div>
       </div>
 
-      <div className="overflow-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="grid gap-3 lg:hidden">
+        {monthDays.map((day) => {
+          const dateKey = format(day, 'yyyy-MM-dd');
+          const dayAppointments = appointmentsByDay[dateKey] || [];
+          const visibleAppointments = dayAppointments.slice(0, VISIBLE_APPOINTMENTS_PER_DAY);
+          const hiddenCount = dayAppointments.length - visibleAppointments.length;
+          const isCurrentMonth = isSameMonth(day, currentDate);
+          const isCurrentDay = isToday(day);
+          const availability = scheduleByDay[day.getDay()];
+
+          return (
+            <div
+              key={dateKey}
+              className={`rounded-2xl border bg-white p-4 shadow-sm ${isCurrentMonth ? 'border-slate-200' : 'border-slate-100 bg-slate-50/70'}`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className={`text-[11px] font-black uppercase tracking-[0.22em] ${isCurrentMonth ? 'text-slate-500' : 'text-slate-300'}`}>
+                    {format(day, 'EEEE d MMM', { locale: es })}
+                  </p>
+                  {isCurrentDay && (
+                    <p className="mt-1 text-[10px] font-black uppercase tracking-[0.2em] text-teal-600">Hoy</p>
+                  )}
+                </div>
+                <div className="text-right">
+                  {availability ? (
+                    <p className="inline-flex rounded-full bg-teal-50 px-2 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-teal-700">
+                      {availability}
+                    </p>
+                  ) : (
+                    <p className="inline-flex rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+                      Sin horario
+                    </p>
+                  )}
+                  <p className={`mt-2 text-sm font-black ${isCurrentMonth ? 'text-slate-700' : 'text-slate-400'}`}>
+                    {dayAppointments.length === 0 ? 'Sin turnos' : `${dayAppointments.length} turno${dayAppointments.length === 1 ? '' : 's'}`}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-3 space-y-2">
+                {visibleAppointments.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 px-3 py-3 text-sm font-semibold text-slate-400">
+                    No hay turnos para este día.
+                  </div>
+                ) : (
+                  visibleAppointments.map((appointment) => {
+                    const statusMeta = getStatusMeta(
+                      appointment.status,
+                      appointment.patient?.isRespiratory,
+                      appointment.patient?.isIU,
+                    );
+
+                    return (
+                      <button
+                        key={appointment.id}
+                        type="button"
+                        onClick={() => onAppointmentClick(appointment)}
+                        className={`flex w-full items-start justify-between gap-3 rounded-2xl border p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${statusMeta.cardClass}`}
+                      >
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className={`h-2.5 w-2.5 rounded-full ${statusMeta.accentClass}`} />
+                            <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-700">
+                              {appointment.time}
+                            </span>
+                          </div>
+                          <p className="mt-2 truncate text-sm font-black text-slate-900">
+                            {appointment.patient?.fullName}
+                          </p>
+                          <span className={`mt-2 inline-flex rounded-full border px-2 py-1 text-[10px] font-black uppercase tracking-[0.16em] ${getCoverageBadgeClass(
+                            appointment.patient?.healthInsurance,
+                            appointment.patient?.treatAsParticular
+                          )}`}>
+                            {getCoverageLabel(appointment.patient?.healthInsurance, appointment.patient?.treatAsParticular)}
+                          </span>
+                        </div>
+                        <div className="flex flex-col items-end gap-1">
+                          {statusMeta.icon}
+                          <span className={`rounded-full px-2 py-1 text-[10px] font-black uppercase tracking-[0.16em] ${statusMeta.badgeClass}`}>
+                            {statusMeta.label}
+                          </span>
+                          {appointment.paidInAdvance && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-700">
+                              <Banknote size={11} />
+                              Pago
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })
+                )}
+
+                {hiddenCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => onDayOpen(day)}
+                    className="inline-flex min-h-11 w-full items-center justify-center gap-1 rounded-full bg-slate-900 px-3 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-white transition hover:bg-slate-700"
+                  >
+                    Ver {hiddenCount} más
+                    <ChevronRight size={14} />
+                  </button>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => onDayOpen(day)}
+                className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-slate-500 transition hover:border-teal-500 hover:text-teal-600"
+              >
+                Abrir semana
+                <ChevronRight size={14} />
+              </button>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="hidden overflow-auto rounded-2xl border border-slate-200 bg-white shadow-sm lg:block">
         <div className="grid min-w-[860px] grid-cols-6">
           {WEEKDAY_HEADERS.map((header) => (
             <div

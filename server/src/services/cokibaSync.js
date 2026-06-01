@@ -983,6 +983,10 @@ const synchronizeRows = async (prisma, obrasSociales, logger) => {
         obraSocial.requiresAuthorization === null || obraSocial.requiresAuthorization === undefined
           ? (existing?.requiresAuthorization ?? false)
           : obraSocial.requiresAuthorization,
+      authorizationType:
+        obraSocial.authorizationType === null || obraSocial.authorizationType === undefined
+          ? (existing?.authorizationType ?? null)
+          : obraSocial.authorizationType,
       atendibleSanMiguel: obraSocial.atendibleSanMiguel,
       requiredDocuments:
         obraSocial.requiredDocuments?.documents?.length || obraSocial.requiredDocuments?.additionalInfo
@@ -1015,6 +1019,7 @@ const synchronizeRows = async (prisma, obrasSociales, logger) => {
         detectedIsActive: obraSocial.detectedIsActive,
         statusManualOverride: false,
         requiresAuthorization: obraSocial.requiresAuthorization ?? false,
+        authorizationType: obraSocial.authorizationType ?? null,
         atendibleSanMiguel: obraSocial.atendibleSanMiguel,
         requiredDocuments: obraSocial.requiredDocuments,
         cokibaDetails: obraSocial.cokibaDetails,
