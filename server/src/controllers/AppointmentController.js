@@ -409,6 +409,18 @@ export const createAppointment = async (req, res, prisma) => {
   const phoneToUse = phone !== undefined ? phone : (patientData?.phone || null);
   const birthDateToUse = birthDate !== undefined ? birthDate : (patientData?.birthDate || null);
   
+  // Logging temporal para depuración de creación de turnos
+  logger.info('Appointment creation request received', {
+    userId: req.user?.userId || null,
+    professionalId: professionalId || null,
+    date: date || null,
+    time: time || null,
+    hasPatientData: Boolean(patientData),
+    hasPatientId: Boolean(patientId),
+    sessionCount: sessionCount || null,
+  });
+  logger.debug('Full appointment request body', { body: req.body });
+
   if ((!patientData && !patientId) || !date || !time) return res.status(400).json({ message: "Datos faltantes" });
 
   try {
