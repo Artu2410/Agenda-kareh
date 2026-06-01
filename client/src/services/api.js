@@ -48,6 +48,24 @@ const buildRequestUrl = (config) => {
   return `${normalizedBase}/${normalizedUrl}`;
 };
 
+const buildFriendlyErrorMessage = (response) => {
+  const fallback = 'Ocurrió un error inesperado';
+  const data = response?.data || {};
+
+  if (data.message) {
+    return data.message;
+  }
+
+  if (Array.isArray(data.errors) && data.errors.length > 0) {
+    return data.errors
+      .map((item) => item?.message)
+      .filter(Boolean)
+      .join('\n') || fallback;
+  }
+
+  return fallback;
+};
+
 const processQueue = (err, token = null) => {
   const queue = failedQueue;
   failedQueue = [];
@@ -114,7 +132,7 @@ api.interceptors.response.use(
       const status = error.response.status;
       if (status === 401) message = 'Sesión expirada.';
       if (status === 404) message = 'No se encontró el recurso (Error de ruta).';
-      message = error.response.data?.message || message;
+      message = buildFriendlyErrorMessage(error.response) || message;
     }
     const originalRequest = error.config;
     if (error.response?.status === 403 && error.response?.data?.code === 'EBADCSRFTOKEN' && originalRequest && !originalRequest._csrfRetry) {

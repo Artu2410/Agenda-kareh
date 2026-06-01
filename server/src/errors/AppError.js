@@ -3,6 +3,34 @@ const normalizeStatusCode = (value, fallback = 500) => {
   return Number.isInteger(parsed) && parsed >= 400 && parsed <= 599 ? parsed : fallback;
 };
 
+const PRISMA_ERROR_MAP = {
+  P2002: {
+    statusCode: 409,
+    publicMessage: 'Ya existe un registro con esos datos.',
+  },
+  P2003: {
+    statusCode: 400,
+    publicMessage: 'Los datos enviados hacen referencia a un registro inexistente.',
+  },
+  P2021: {
+    statusCode: 500,
+    publicMessage: 'La base de datos del servidor no está actualizada. Ejecuta las migraciones y vuelve a intentar.',
+  },
+  P2022: {
+    statusCode: 500,
+    publicMessage: 'La base de datos del servidor no está actualizada. Ejecuta las migraciones y vuelve a intentar.',
+  },
+  P2025: {
+    statusCode: 404,
+    publicMessage: 'No se encontró el registro solicitado.',
+  },
+};
+
+const getPrismaErrorMetadata = (error) => {
+  const code = typeof error?.code === 'string' ? error.code : null;
+  return code ? PRISMA_ERROR_MAP[code] : null;
+};
+
 class AppError extends Error {
   constructor(message, statusCode = 500, options = {}) {
     super(message);
@@ -80,10 +108,11 @@ const toAppError = (error, { statusCode, publicMessage, message } = {}) => {
 };
 
 const createInternalError = (error, publicMessage = 'Internal server error') => {
-  const statusCode = normalizeStatusCode(error?.statusCode, 500);
+  const prismaMetadata = getPrismaErrorMetadata(error);
+  const statusCode = normalizeStatusCode(error?.statusCode, prismaMetadata?.statusCode || 500);
   const safePublicMessage = statusCode >= 500
-    ? publicMessage
-    : (error?.publicMessage || error?.message || publicMessage);
+    ? (prismaMetadata?.publicMessage || publicMessage)
+    : (error?.publicMessage || prismaMetadata?.publicMessage || error?.message || publicMessage);
 
   return toAppError(error, {
     statusCode,

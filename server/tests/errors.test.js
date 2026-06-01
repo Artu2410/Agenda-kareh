@@ -87,5 +87,25 @@ describe('Error Classes', () => {
       expect(error.publicMessage).toBe('Servicio no disponible');
       expect(error.message).toBe('DB down');
     });
+
+    it('should expose a safe message for missing Prisma columns', () => {
+      const originalError = new Error('Column does not exist');
+      originalError.code = 'P2022';
+
+      const error = createInternalError(originalError, 'Error al crear el turno');
+
+      expect(error.statusCode).toBe(500);
+      expect(error.publicMessage).toBe('La base de datos del servidor no está actualizada. Ejecuta las migraciones y vuelve a intentar.');
+    });
+
+    it('should map Prisma unique constraint errors to conflicts', () => {
+      const originalError = new Error('Unique constraint failed');
+      originalError.code = 'P2002';
+
+      const error = createInternalError(originalError, 'Error interno');
+
+      expect(error.statusCode).toBe(409);
+      expect(error.publicMessage).toBe('Ya existe un registro con esos datos.');
+    });
   });
 });
