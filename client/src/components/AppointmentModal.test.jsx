@@ -137,4 +137,37 @@ describe('AppointmentModal', () => {
 
     await waitFor(() => expect(alertSpy).toHaveBeenCalledWith('No se pudo guardar'));
   });
+
+  it('mantiene uniformes los botones de días semanales', async () => {
+    server.use(
+      http.get(getApiUrl('/obras-sociales'), () => HttpResponse.json([{
+        id: 'osde-1',
+        nombreOs: 'OSDE',
+        isActive: true,
+        requiresAuthorization: false,
+        requiredDocuments: { documents: [], additionalInfo: '' },
+      }], { status: 200 }))
+    );
+
+    render(
+      <AppointmentModal
+        isOpen
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+        onDelete={vi.fn()}
+        onRefresh={vi.fn()}
+        appointment={baseAppointment}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByRole('combobox')).toHaveValue('osde-1'));
+
+    ['L', 'Ma', 'Mi', 'J', 'V', 'S', 'D'].forEach((label) => {
+      const button = screen.getByRole('button', { name: label });
+      expect(button.className).toContain('min-h-11');
+      expect(button.className).toContain('w-full');
+      expect(button.className).toContain('px-2');
+      expect(button.className).toContain('py-3');
+    });
+  });
 });

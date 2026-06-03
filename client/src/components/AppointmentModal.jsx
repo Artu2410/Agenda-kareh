@@ -483,9 +483,16 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                 <div className="grid grid-cols-1 items-center gap-6 rounded-3xl border border-slate-100 bg-slate-50/50 p-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Días Semanales</label>
-                    <div className="grid grid-cols-4 gap-2 sm:flex sm:gap-1">
+                    <div className="grid w-full grid-cols-7 gap-2">
                       {WEEK_DAYS.map(day => (
-                        <button key={day.value} type="button" onClick={() => setSelectedDays(prev => prev.includes(day.value) ? prev.filter(d => d !== day.value) : [...prev, day.value])} className={`min-h-11 rounded-xl text-[10px] font-black transition-all ${selectedDays.includes(day.value) ? 'bg-teal-600 text-white shadow-md' : 'bg-slate-100 text-slate-400'}`}>{day.label}</button>
+                        <button
+                          key={day.value}
+                          type="button"
+                          onClick={() => setSelectedDays(prev => prev.includes(day.value) ? prev.filter(d => d !== day.value) : [...prev, day.value])}
+                          className={`inline-flex min-h-11 w-full items-center justify-center rounded-xl px-2 py-3 text-[10px] font-black leading-none transition-all ${selectedDays.includes(day.value) ? 'bg-teal-600 text-white shadow-md' : 'bg-slate-100 text-slate-400'}`}
+                        >
+                          {day.label}
+                        </button>
                       ))}
                     </div>
                   </div>
