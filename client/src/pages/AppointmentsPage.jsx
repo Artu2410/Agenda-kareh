@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, Loader2, UserRound, CalendarClock, Clock } f
 import WeeklyCalendarGrid from '../components/agenda/WeeklyCalendarGrid';
 import MonthlyCalendarGrid from '../components/agenda/MonthlyCalendarGrid';
 import { buildAppointmentDailyPresentation } from '../components/agenda/appointmentVisuals.jsx';
+import MonthDayAppointmentsModal from '../components/agenda/MonthDayAppointmentsModal';
 import SlotTimersPanel from '../components/agenda/SlotTimersPanel';
 import AppointmentModal from '../components/AppointmentModal';
 import api from '../services/api'; 
@@ -50,6 +51,7 @@ const AppointmentsPage = () => {
   const [isAppointmentModalOpen, setIsAppointmentModalOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
+  const [selectedMonthDay, setSelectedMonthDay] = useState(null);
   const [professionals, setProfessionals] = useState([]);
   const [selectedProfessionalId, setSelectedProfessionalId] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -82,6 +84,14 @@ const AppointmentsPage = () => {
       .filter((appointment) => format(new Date(appointment.date), 'yyyy-MM-dd') === format(currentDate, 'yyyy-MM-dd'))
       .sort((a, b) => `${a.time}-${a.slotNumber}`.localeCompare(`${b.time}-${b.slotNumber}`))
   ), [appointments, currentDate]);
+
+  const selectedMonthDayAppointments = useMemo(() => (
+    selectedMonthDay
+      ? appointments
+        .filter((appointment) => isSameDay(new Date(appointment.date), selectedMonthDay))
+        .sort((left, right) => `${left.time}-${left.slotNumber}`.localeCompare(`${right.time}-${right.slotNumber}`))
+      : []
+  ), [appointments, selectedMonthDay]);
 
   const mobileWeekDays = useMemo(() => (
     Array.from({ length: 7 }, (_, index) => {
@@ -225,11 +235,17 @@ const AppointmentsPage = () => {
   }, [mobileAgendaViewport, viewMode]);
 
   const handleGoToToday = useCallback(() => {
+    setSelectedMonthDay(null);
     setCurrentDate(new Date());
     setViewMode(VIEW_MODE.week);
   }, []);
 
   const handleMonthDayOpen = useCallback((date) => {
+    setSelectedMonthDay(date);
+  }, []);
+
+  const handleMonthWeekOpen = useCallback((date) => {
+    setSelectedMonthDay(null);
     setCurrentDate(date);
     setViewMode(VIEW_MODE.week);
   }, []);
@@ -489,6 +505,7 @@ const AppointmentsPage = () => {
                 selectedProfessional={selectedProfessional}
                 onAppointmentClick={handleSlotClick}
                 onDayOpen={handleMonthDayOpen}
+                onOpenWeek={handleMonthWeekOpen}
               />
             )}
           </div>
@@ -505,6 +522,16 @@ const AppointmentsPage = () => {
           onSave={handleModalSave}
           onDelete={handleModalSave}
           onRefresh={refreshAppointments}
+        />
+      )}
+
+      {selectedMonthDay && (
+        <MonthDayAppointmentsModal
+          isOpen={Boolean(selectedMonthDay)}
+          day={selectedMonthDay}
+          appointments={selectedMonthDayAppointments}
+          onClose={() => setSelectedMonthDay(null)}
+          onAppointmentClick={handleSlotClick}
         />
       )}
     </div>
