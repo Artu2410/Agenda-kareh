@@ -11,7 +11,8 @@ import {
 } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Activity, AlertTriangle, CalendarClock, CheckCircle2, ChevronRight, Clock3, Zap, Banknote } from 'lucide-react';
-import { getCoverageLabel, isParticularCoverage } from '@/utils/coverage';
+import { getCoverageLabel } from '@/utils/coverage';
+import { getAppointmentColorScheme } from './appointmentColors';
 
 const WEEKDAY_HEADERS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 const VISIBLE_APPOINTMENTS_PER_DAY = 4;
@@ -19,13 +20,15 @@ const isVisibleWeekday = (date) => date.getDay() !== 0;
 
 const getAppointmentDateKey = (value) => String(value || '').split('T')[0];
 
-const getCoverageBadgeClass = (value, treatAsParticular = false) => (
-  isParticularCoverage(value, treatAsParticular)
-    ? 'border-blue-200 bg-blue-100/80 text-blue-800'
-    : 'border-teal-200 bg-teal-100/70 text-teal-800'
-);
+const getStatusMeta = (appointment = {}) => {
+  const { status } = appointment;
+  const colorScheme = getAppointmentColorScheme(appointment);
+  const coverageClasses = {
+    coverageBadgeClass: colorScheme.coverageBadgeClass,
+    coverageBorderClass: colorScheme.coverageBorderClass,
+    showCoverageBadge: colorScheme.showCoverageBadge,
+  };
 
-const getStatusMeta = (status, isRespiratory, isIU) => {
   if (status === 'COMPLETED') {
     return {
       cardClass: 'border-emerald-200 bg-emerald-50/90',
@@ -33,6 +36,7 @@ const getStatusMeta = (status, isRespiratory, isIU) => {
       label: 'Asistió',
       accentClass: 'bg-emerald-500',
       icon: <CheckCircle2 size={14} className="shrink-0 text-emerald-600" />,
+      ...coverageClasses,
     };
   }
 
@@ -43,35 +47,61 @@ const getStatusMeta = (status, isRespiratory, isIU) => {
       label: 'Inasistencia',
       accentClass: 'bg-rose-500',
       icon: <AlertTriangle size={14} className="shrink-0 text-rose-600" />,
+      ...coverageClasses,
     };
   }
 
-  if (isIU && status === 'SCHEDULED') {
+  if (status === 'SCHEDULED' && colorScheme.category === 'iu') {
     return {
-      cardClass: 'border-orange-200 bg-orange-50/90',
-      badgeClass: 'bg-orange-100 text-orange-700',
+      cardClass: colorScheme.cardClass,
+      badgeClass: colorScheme.badgeClass,
       label: 'Tratamiento IU',
-      accentClass: 'bg-orange-500',
+      accentClass: colorScheme.accentClass,
       icon: <span className="text-lg">💧</span>,
+      ...coverageClasses,
     };
   }
 
-  if (isRespiratory && status === 'SCHEDULED') {
+  if (status === 'SCHEDULED' && colorScheme.category === 'respiratory') {
     return {
-      cardClass: 'border-purple-200 bg-purple-50/90',
-      badgeClass: 'bg-purple-100 text-purple-700',
+      cardClass: colorScheme.cardClass,
+      badgeClass: colorScheme.badgeClass,
       label: 'Respiratorio',
-      accentClass: 'bg-purple-500',
+      accentClass: colorScheme.accentClass,
       icon: <span className="text-lg">🫁</span>,
+      ...coverageClasses,
+    };
+  }
+
+  if (status === 'SCHEDULED' && colorScheme.category === 'pami') {
+    return {
+      cardClass: colorScheme.cardClass,
+      badgeClass: colorScheme.badgeClass,
+      label: 'PAMI',
+      accentClass: colorScheme.accentClass,
+      icon: null,
+      ...coverageClasses,
+    };
+  }
+
+  if (status === 'SCHEDULED' && colorScheme.category === 'particular') {
+    return {
+      cardClass: colorScheme.cardClass,
+      badgeClass: colorScheme.badgeClass,
+      label: 'Programado',
+      accentClass: colorScheme.accentClass,
+      icon: null,
+      ...coverageClasses,
     };
   }
 
   return {
-    cardClass: 'border-slate-200 bg-slate-50/90',
-    badgeClass: 'bg-slate-200 text-slate-700',
+    cardClass: colorScheme.cardClass,
+    badgeClass: colorScheme.badgeClass,
     label: 'Programado',
-    accentClass: 'bg-teal-500',
-    icon: <Clock3 size={14} className="shrink-0 text-teal-600" />,
+    accentClass: colorScheme.accentClass,
+    icon: <Clock3 size={14} className={`shrink-0 ${colorScheme.iconClass}`} />,
+    ...coverageClasses,
   };
 };
 
@@ -82,6 +112,7 @@ const MonthlyCalendarGrid = ({
   selectedProfessional = null,
   onAppointmentClick,
   onDayOpen,
+  onOpenWeek = onDayOpen,
 }) => {
   const monthDays = useMemo(() => {
     const monthStart = startOfMonth(currentDate);
@@ -145,7 +176,7 @@ const MonthlyCalendarGrid = ({
         <div>
           <p className="text-xs font-black uppercase tracking-[0.25em] text-teal-600">Vista mensual</p>
           <p className="mt-1 text-sm font-semibold text-slate-500">
-            Toca un turno para editarlo o un día para abrir la semana y gestionar horarios.
+            Toca un turno para editarlo, usa Ver más para ver la lista completa del día o Abrir semana para gestionar horarios.
           </p>
         </div>
 
@@ -212,11 +243,7 @@ const MonthlyCalendarGrid = ({
                   </div>
                 ) : (
                   visibleAppointments.map((appointment) => {
-                    const statusMeta = getStatusMeta(
-                      appointment.status,
-                      appointment.patient?.isRespiratory,
-                      appointment.patient?.isIU,
-                    );
+                    const statusMeta = getStatusMeta(appointment);
 
                     return (
                       <button
@@ -235,12 +262,11 @@ const MonthlyCalendarGrid = ({
                           <p className="mt-2 truncate text-sm font-black text-slate-900">
                             {appointment.patient?.fullName}
                           </p>
-                          <span className={`mt-2 inline-flex rounded-full border px-2 py-1 text-[10px] font-black uppercase tracking-[0.16em] ${getCoverageBadgeClass(
-                            appointment.patient?.healthInsurance,
-                            appointment.patient?.treatAsParticular
-                          )}`}>
-                            {getCoverageLabel(appointment.patient?.healthInsurance, appointment.patient?.treatAsParticular)}
-                          </span>
+                          {statusMeta.showCoverageBadge && (
+                            <span className={`mt-2 inline-flex rounded-full border ${statusMeta.coverageBorderClass} px-2 py-1 text-[10px] font-black uppercase tracking-[0.16em] ${statusMeta.coverageBadgeClass}`}>
+                              {getCoverageLabel(appointment.patient?.healthInsurance, appointment.patient?.treatAsParticular)}
+                            </span>
+                          )}
                         </div>
                         <div className="flex flex-col items-end gap-1">
                           {statusMeta.icon}
@@ -262,7 +288,10 @@ const MonthlyCalendarGrid = ({
                 {hiddenCount > 0 && (
                   <button
                     type="button"
-                    onClick={() => onDayOpen(day)}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onDayOpen(day);
+                    }}
                     className="inline-flex min-h-11 w-full items-center justify-center gap-1 rounded-full bg-slate-900 px-3 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-white transition hover:bg-slate-700"
                   >
                     Ver {hiddenCount} más
@@ -273,7 +302,7 @@ const MonthlyCalendarGrid = ({
 
               <button
                 type="button"
-                onClick={() => onDayOpen(day)}
+                onClick={() => onOpenWeek(day)}
                 className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-slate-500 transition hover:border-teal-500 hover:text-teal-600"
               >
                 Abrir semana
@@ -309,11 +338,11 @@ const MonthlyCalendarGrid = ({
                 key={dateKey}
                 role="button"
                 tabIndex={0}
-                onClick={() => onDayOpen(day)}
+                onClick={() => onOpenWeek(day)}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' || event.key === ' ') {
                     event.preventDefault();
-                    onDayOpen(day);
+                    onOpenWeek(day);
                   }
                 }}
                 className={`flex min-h-[15rem] flex-col border-b border-r border-slate-200 p-3 text-left transition last:border-r-0 ${
@@ -361,11 +390,7 @@ const MonthlyCalendarGrid = ({
 
                 <div className="mt-3 space-y-2">
                   {visibleAppointments.map((appointment) => {
-                    const statusMeta = getStatusMeta(
-                      appointment.status,
-                      appointment.patient?.isRespiratory,
-                      appointment.patient?.isIU,
-                    );
+                    const statusMeta = getStatusMeta(appointment);
 
                     return (
                       <button
@@ -392,12 +417,11 @@ const MonthlyCalendarGrid = ({
                         </p>
 
                         <div className="mt-2 flex items-center justify-between gap-2">
-                          <span className={`rounded-full border px-2 py-1 text-[10px] font-black uppercase tracking-[0.16em] ${getCoverageBadgeClass(
-                            appointment.patient?.healthInsurance,
-                            appointment.patient?.treatAsParticular
-                          )}`}>
-                            {getCoverageLabel(appointment.patient?.healthInsurance, appointment.patient?.treatAsParticular)}
-                          </span>
+                          {statusMeta.showCoverageBadge && (
+                            <span className={`rounded-full border ${statusMeta.coverageBorderClass} px-2 py-1 text-[10px] font-black uppercase tracking-[0.16em] ${statusMeta.coverageBadgeClass}`}>
+                              {getCoverageLabel(appointment.patient?.healthInsurance, appointment.patient?.treatAsParticular)}
+                            </span>
+                          )}
                           <div className="flex flex-wrap justify-end gap-1">
                             {appointment.paidInAdvance && (
                               <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-700">

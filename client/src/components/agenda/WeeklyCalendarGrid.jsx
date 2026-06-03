@@ -1,8 +1,9 @@
 import React, { useMemo, useEffect, useRef } from 'react';
 import { format, addDays } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Activity, Zap, Plus, CheckCircle2, Flag, AlertTriangle, CalendarClock, Banknote } from 'lucide-react';
-import { getCoverageLabel, isParticularCoverage } from '@/utils/coverage';
+import { Activity, Zap, Plus, CheckCircle2, Flag, AlertTriangle, CalendarClock, Banknote, Clock3 } from 'lucide-react';
+import { getCoverageLabel } from '@/utils/coverage';
+import { getAppointmentColorScheme } from './appointmentColors';
 
 const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
 const DAY_OFFSET_MAP = { 1: 0, 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 0: 6 };
@@ -56,22 +57,24 @@ const buildDefaultDays = (currentDate) =>
     hasConfiguredSchedule: false,
   }));
 
-const getCoverageBadgeClass = (value, treatAsParticular = false) => (
-  isParticularCoverage(value, treatAsParticular)
-    ? 'text-blue-800 bg-blue-100/80'
-    : 'text-teal-800 bg-teal-100/50'
-);
-
 const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedule = [], selectedProfessional = null, currentTime, capacityPerSlot = 5 }) => {
   const scrollContainerRef = useRef(null);
-  const getStatusMeta = (status, usesEA, treatAsParticular, healthInsurance, isRespiratory, isIU) => {
-    const isPami = healthInsurance?.toUpperCase().includes('PAMI');
+  const getStatusMeta = (appointment = {}) => {
+    const { status } = appointment;
+    const colorScheme = getAppointmentColorScheme(appointment);
+    const coverageClasses = {
+      coverageBadgeClass: colorScheme.coverageBadgeClass,
+      coverageBorderClass: colorScheme.coverageBorderClass,
+      showCoverageBadge: colorScheme.showCoverageBadge,
+    };
+
     if (status === 'COMPLETED') {
       return {
         cardClass: 'bg-emerald-50 border-emerald-600',
         badgeClass: 'bg-emerald-100 text-emerald-700',
         label: 'Asistió',
-        icon: <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+        icon: <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />,
+        ...coverageClasses,
       };
     }
 
@@ -80,7 +83,8 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
         cardClass: 'bg-rose-50 border-rose-600',
         badgeClass: 'bg-rose-100 text-rose-700',
         label: 'Inasistencia',
-        icon: <AlertTriangle size={16} className="text-rose-600 shrink-0" />
+        icon: <AlertTriangle size={16} className="text-rose-600 shrink-0" />,
+        ...coverageClasses,
       };
     }
 
@@ -90,6 +94,7 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
         badgeClass: 'bg-amber-100 text-amber-700',
         label: 'Pend. autorización',
         icon: null,
+        ...coverageClasses,
       };
     }
 
@@ -99,6 +104,7 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
         badgeClass: 'bg-cyan-100 text-cyan-700',
         label: 'Autorizado',
         icon: null,
+        ...coverageClasses,
       };
     }
 
@@ -108,50 +114,56 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
         badgeClass: 'bg-rose-100 text-rose-700',
         label: 'Rechazado',
         icon: null,
+        ...coverageClasses,
       };
     }
 
-    if (isIU && status === 'SCHEDULED') {
+    if (status === 'SCHEDULED' && colorScheme.category === 'iu') {
       return {
-        cardClass: 'bg-orange-50 border-orange-400',
-        badgeClass: 'bg-orange-100 text-orange-700',
+        cardClass: colorScheme.cardClass,
+        badgeClass: colorScheme.badgeClass,
         label: 'Tratamiento IU',
-        icon: <span className="text-lg">💧</span>
+        icon: <span className="text-lg">💧</span>,
+        ...coverageClasses,
       };
     }
 
-    if (isRespiratory && status === 'SCHEDULED') {
+    if (status === 'SCHEDULED' && colorScheme.category === 'respiratory') {
       return {
-        cardClass: 'bg-purple-50 border-purple-400',
-        badgeClass: 'bg-purple-100 text-purple-700',
+        cardClass: colorScheme.cardClass,
+        badgeClass: colorScheme.badgeClass,
         label: 'Respiratorio',
-        icon: <span className="text-lg">🫁</span>
+        icon: <span className="text-lg">🫁</span>,
+        ...coverageClasses,
       };
     }
 
-    if (isPami && status === 'SCHEDULED') {
+    if (status === 'SCHEDULED' && colorScheme.category === 'pami') {
       return {
-        cardClass: 'bg-amber-50 border-amber-400',
-        badgeClass: 'bg-amber-100 text-amber-700',
+        cardClass: colorScheme.cardClass,
+        badgeClass: colorScheme.badgeClass,
         label: 'PAMI',
-        icon: null
+        icon: null,
+        ...coverageClasses,
       };
     }
 
-    if (isParticularCoverage(healthInsurance, treatAsParticular)) {
+    if (status === 'SCHEDULED' && colorScheme.category === 'particular') {
       return {
-        cardClass: 'bg-blue-50 border-blue-600',
-        badgeClass: 'bg-blue-100 text-blue-700',
+        cardClass: colorScheme.cardClass,
+        badgeClass: colorScheme.badgeClass,
         label: 'Programado',
-        icon: null
+        icon: null,
+        ...coverageClasses,
       };
     }
 
     return {
-      cardClass: usesEA ? 'bg-indigo-50 border-indigo-600' : 'bg-teal-50 border-teal-600',
-      badgeClass: 'bg-slate-100 text-slate-600',
+      cardClass: colorScheme.cardClass,
+      badgeClass: colorScheme.badgeClass,
       label: 'Programado',
-      icon: null
+      icon: <Clock3 size={14} className={`shrink-0 ${colorScheme.iconClass}`} />,
+      ...coverageClasses,
     };
   };
 
@@ -301,12 +313,7 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
                   >
                     {appsInSlot.map((app) => {
                       const statusMeta = getStatusMeta(
-                        app.status,
-                        app.patient?.usesEA,
-                        app.patient?.treatAsParticular,
-                        app.patient?.healthInsurance,
-                        app.patient?.isRespiratory,
-                        app.patient?.isIU
+                        app
                       );
 
                       return (
@@ -330,9 +337,11 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
                           </div>
 
                           <div className="flex items-center justify-between gap-1">
-                            <span className={`text-[9px] sm:text-[10px] font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider ${getCoverageBadgeClass(app.patient?.healthInsurance, app.patient?.treatAsParticular)}`}>
-                              {getCoverageLabel(app.patient?.healthInsurance, app.patient?.treatAsParticular)}
-                            </span>
+                            {statusMeta.showCoverageBadge && (
+                              <span className={`text-[9px] sm:text-[10px] font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider border ${statusMeta.coverageBorderClass} ${statusMeta.coverageBadgeClass}`}>
+                                {getCoverageLabel(app.patient?.healthInsurance, app.patient?.treatAsParticular)}
+                              </span>
+                            )}
                             <span className="text-[8px] sm:text-[9px] font-bold text-slate-400 whitespace-nowrap">
                               SESIÓN {app.isFirstSession ? 1 : app.sessionNumber}
                             </span>

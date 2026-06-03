@@ -4,12 +4,12 @@ import { buildAppointmentDailyPresentation, getStatusMeta } from './appointmentV
 
 describe('appointmentVisuals', () => {
   it('reusa la semántica visual de los estados principales', () => {
-    const completed = getStatusMeta('COMPLETED', false, false, null, false, false);
+    const completed = getStatusMeta({ status: 'COMPLETED', patient: {} });
     expect(completed.label).toBe('Asistió');
     expect(completed.cardClass).toContain('bg-emerald-50');
     expect(React.isValidElement(completed.icon)).toBe(true);
 
-    const cancelled = getStatusMeta('CANCELLED', false, false, null, false, false);
+    const cancelled = getStatusMeta({ status: 'CANCELLED', patient: {} });
     expect(cancelled.label).toBe('Cancelado');
     expect(cancelled.cardClass).toContain('bg-slate-50');
     expect(React.isValidElement(cancelled.icon)).toBe(true);
@@ -26,7 +26,7 @@ describe('appointmentVisuals', () => {
       isFirstSession: true,
       patient: {
         fullName: 'Paciente',
-        healthInsurance: 'PAMI',
+        healthInsurance: 'IOMA',
         treatAsParticular: false,
         usesEA: true,
         hasCancer: true,
@@ -38,9 +38,10 @@ describe('appointmentVisuals', () => {
     });
 
     expect(statusMeta.label).toBe('Tratamiento IU');
+    expect(statusMeta.cardClass).toContain('border-orange-200');
     expect(badges.map((badge) => badge.label)).toEqual(expect.arrayContaining([
       'Tratamiento IU',
-      'PAMI',
+      'IOMA',
       'Pend. autorización',
       'INGRESO',
       'SESIÓN 1',
@@ -49,6 +50,22 @@ describe('appointmentVisuals', () => {
       'Pago pendiente',
       'WhatsApp enviado',
     ]));
+    expect(badges.find((badge) => badge.key === 'coverage')?.className).toContain('bg-orange-100');
+    expect(badges.find((badge) => badge.key === 'coverage')?.label).toBe('IOMA');
     expect(clinicalIcons).toHaveLength(6);
+  });
+
+  it('muestra un solo badge para PAMI', () => {
+    const { badges } = buildAppointmentDailyPresentation({
+      status: 'SCHEDULED',
+      patient: {
+        fullName: 'Paciente PAMI',
+        healthInsurance: 'PAMI',
+        treatAsParticular: false,
+      },
+    });
+
+    expect(badges.filter((badge) => badge.label === 'PAMI')).toHaveLength(1);
+    expect(badges.some((badge) => badge.key === 'coverage')).toBe(false);
   });
 });
