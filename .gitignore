@@ -16,6 +16,10 @@ server/logs/
 server/coverage/
 coverage/
 *.log
+test-results/
+.artifacts/
+client/.artifacts/
+client/test-results/
 
 # IDE and OS specific
 .DS_Store

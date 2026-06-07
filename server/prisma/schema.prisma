@@ -169,6 +169,8 @@ model Patient {
   createdAt                 DateTime          @default(now())
   updatedAt                 DateTime          @updatedAt
   appointments              Appointment[]
+  billingInvoices           BillingInvoice[]
+  billingInvoiceItems        BillingInvoiceItem[]
   clinicalHistory           ClinicalHistory[]
   treatmentCycles           TreatmentCycle[]
   obraSocial                ObraSocial?       @relation(fields: [obraSocialId], references: [id], onDelete: SetNull)
@@ -213,6 +215,7 @@ model Professional {
   createdAt                    DateTime          @default(now())
   updatedAt                    DateTime          @updatedAt
   appointments                 Appointment[]
+  billingInvoiceItems          BillingInvoiceItem[]
   clinicalHistories            ClinicalHistory[]
   workSchedule                 WorkSchedule[]
   user                         User?
@@ -275,6 +278,7 @@ model Appointment {
   patient                   Patient         @relation(fields: [patientId], references: [id])
   professional              Professional    @relation(fields: [professionalId], references: [id])
   payment                   CashFlow?
+  billingInvoiceItems       BillingInvoiceItem[]
 
   @@unique([date, time, slotNumber, professionalId])
   @@index([date])
@@ -316,12 +320,99 @@ model CashFlow {
   appointmentId      String?      @unique
   date               DateTime     @default(now())
   appointment        Appointment? @relation(fields: [appointmentId], references: [id])
+  billingPayment     BillingPayment?
 }
 
 enum FlowType {
   INCOME
   EXPENSE
   TRANSFER
+}
+
+enum BillingPayerType {
+  PATIENT
+  OBRA_SOCIAL
+  OTHER
+}
+
+enum BillingInvoiceStatus {
+  DRAFT
+  ISSUED
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+model BillingInvoice {
+  id                  String               @id @default(cuid())
+  invoiceNumber       String?              @unique
+  payerType           BillingPayerType     @default(OBRA_SOCIAL)
+  payerName           String
+  obraSocialId        String?
+  patientId           String?
+  issueDate           DateTime             @default(now())
+  serviceMonth        String?
+  dueDate             DateTime?
+  expectedPaymentDate DateTime?
+  totalAmount         Decimal              @db.Decimal(10, 2)
+  paidAmount          Decimal              @default(0) @db.Decimal(10, 2)
+  status              BillingInvoiceStatus @default(ISSUED)
+  notes               String?              @db.Text
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  items               BillingInvoiceItem[]
+  payments            BillingPayment[]
+  obraSocial          ObraSocial?          @relation(fields: [obraSocialId], references: [id], onDelete: SetNull)
+  patient             Patient?             @relation(fields: [patientId], references: [id], onDelete: SetNull)
+
+  @@index([payerType])
+  @@index([obraSocialId])
+  @@index([patientId])
+  @@index([issueDate])
+  @@index([expectedPaymentDate])
+  @@index([status])
+}
+
+model BillingInvoiceItem {
+  id             String         @id @default(cuid())
+  invoiceId      String
+  appointmentId  String?
+  patientId      String?
+  professionalId String?
+  serviceDate    DateTime?
+  description    String
+  quantity       Int            @default(1)
+  unitAmount     Decimal        @db.Decimal(10, 2)
+  totalAmount    Decimal        @db.Decimal(10, 2)
+  createdAt      DateTime       @default(now())
+  invoice        BillingInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  appointment    Appointment?   @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  patient        Patient?       @relation(fields: [patientId], references: [id], onDelete: SetNull)
+  professional   Professional?  @relation(fields: [professionalId], references: [id], onDelete: SetNull)
+
+  @@index([invoiceId])
+  @@index([patientId])
+  @@index([professionalId])
+  @@index([serviceDate])
+  @@unique([appointmentId])
+}
+
+model BillingPayment {
+  id            String         @id @default(cuid())
+  invoiceId     String
+  amount        Decimal        @db.Decimal(10, 2)
+  paymentDate   DateTime       @default(now())
+  paymentMethod String
+  account       String         @default("MERCADO_PAGO")
+  notes         String?        @db.Text
+  cashFlowId    String?        @unique
+  createdAt     DateTime       @default(now())
+  invoice       BillingInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  cashFlow      CashFlow?      @relation(fields: [cashFlowId], references: [id], onDelete: SetNull)
+
+  @@index([invoiceId])
+  @@index([paymentDate])
 }
 
 // ---------------------------------------------------------
@@ -407,6 +498,7 @@ model ObraSocial {
   createdAt             DateTime      @default(now())
   updatedAt             DateTime      @updatedAt
   appointments          Appointment[]
+  billingInvoices       BillingInvoice[]
   patients              Patient[]
 
   @@index([estado])
