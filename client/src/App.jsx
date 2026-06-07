@@ -12,6 +12,13 @@ import { ChevronLeft, ChevronRight, Menu } from 'lucide-react';
 
 const AppointmentsPage = lazy(() => import('./pages/AppointmentsPage'));
 const CashflowPage = lazy(() => import('./pages/CashflowPage'));
+const BillingPage = lazy(() => import('./pages/BillingPage'));
+const CapacityPage = lazy(() => import('./pages/CapacityPage'));
+const ProfitabilityPage = lazy(() => import('./pages/ProfitabilityPage'));
+const FinancialProjectionPage = lazy(() => import('./pages/FinancialProjectionPage'));
+const CrmIntelligencePage = lazy(() => import('./pages/CrmIntelligencePage'));
+const HiringPage = lazy(() => import('./pages/HiringPage'));
+const StrategicSimulatorPage = lazy(() => import('./pages/StrategicSimulatorPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const PatientsPage = lazy(() => import('./pages/PatientsPage'));
 const ClinicalHistoriesPage = lazy(() => import('./pages/ClinicalHistoriesPage'));
@@ -276,6 +283,62 @@ function App() {
                     )}
                   />
                   <Route
+                    path={APP_ROUTES.billing}
+                    element={(
+                      <RequireRole role={currentUser?.role} roles={['SUPER_USER', 'ADMIN', 'SECRETARIA']}>
+                        <BillingPage />
+                      </RequireRole>
+                    )}
+                  />
+                  <Route
+                    path={APP_ROUTES.capacity}
+                    element={(
+                      <RequireRole role={currentUser?.role} roles={['SUPER_USER', 'ADMIN', 'PROFESSIONAL', 'SECRETARIA']}>
+                        <CapacityPage />
+                      </RequireRole>
+                    )}
+                  />
+                  <Route
+                    path={APP_ROUTES.profitability}
+                    element={(
+                      <RequireRole role={currentUser?.role} roles={['SUPER_USER', 'ADMIN', 'SECRETARIA']}>
+                        <ProfitabilityPage />
+                      </RequireRole>
+                    )}
+                  />
+                  <Route
+                    path={APP_ROUTES.financialProjection}
+                    element={(
+                      <RequireRole role={currentUser?.role} roles={['SUPER_USER', 'ADMIN', 'SECRETARIA']}>
+                        <FinancialProjectionPage />
+                      </RequireRole>
+                    )}
+                  />
+                  <Route
+                    path={APP_ROUTES.crmIntelligence}
+                    element={(
+                      <RequireRole role={currentUser?.role} roles={['SUPER_USER', 'ADMIN', 'SECRETARIA']}>
+                        <CrmIntelligencePage />
+                      </RequireRole>
+                    )}
+                  />
+                  <Route
+                    path={APP_ROUTES.hiring}
+                    element={(
+                      <RequireRole role={currentUser?.role} roles={['SUPER_USER', 'ADMIN', 'SECRETARIA']}>
+                        <HiringPage />
+                      </RequireRole>
+                    )}
+                  />
+                  <Route
+                    path={APP_ROUTES.strategicSimulator}
+                    element={(
+                      <RequireRole role={currentUser?.role} roles={['SUPER_USER', 'ADMIN', 'SECRETARIA']}>
+                        <StrategicSimulatorPage />
+                      </RequireRole>
+                    )}
+                  />
+                  <Route
                     path={APP_ROUTES.notes}
                     element={(
                       <RequireRole role={currentUser?.role} roles={['SUPER_USER', 'ADMIN']}>
@@ -337,6 +400,20 @@ function App() {
                     )}
                   />
                   <Route path="/cashflow" element={<Navigate to={APP_ROUTES.cashflow} replace />} />
+                  <Route path="/billing" element={<Navigate to={APP_ROUTES.billing} replace />} />
+                  <Route path="/capacity" element={<Navigate to={APP_ROUTES.capacity} replace />} />
+                  <Route path="/inteligencia/capacidad" element={<Navigate to={APP_ROUTES.capacity} replace />} />
+                  <Route path="/profitability" element={<Navigate to={APP_ROUTES.profitability} replace />} />
+                  <Route path="/inteligencia/rentabilidad" element={<Navigate to={APP_ROUTES.profitability} replace />} />
+                  <Route path="/financial-projection" element={<Navigate to={APP_ROUTES.financialProjection} replace />} />
+                  <Route path="/inteligencia/proyeccion-financiera" element={<Navigate to={APP_ROUTES.financialProjection} replace />} />
+                  <Route path="/crm-intelligence" element={<Navigate to={APP_ROUTES.crmIntelligence} replace />} />
+                  <Route path="/inteligencia/crm" element={<Navigate to={APP_ROUTES.crmIntelligence} replace />} />
+                  <Route path="/hiring" element={<Navigate to={APP_ROUTES.hiring} replace />} />
+                  <Route path="/inteligencia/contrataciones" element={<Navigate to={APP_ROUTES.hiring} replace />} />
+                  <Route path="/simulador-estrategico" element={<Navigate to={APP_ROUTES.strategicSimulator} replace />} />
+                  <Route path="/strategic-simulator" element={<Navigate to={APP_ROUTES.strategicSimulator} replace />} />
+                  <Route path="/inteligencia/simulador" element={<Navigate to={APP_ROUTES.strategicSimulator} replace />} />
                   <Route path="/notes" element={<Navigate to={APP_ROUTES.notes} replace />} />
                   <Route path="/whatsapp" element={<Navigate to={APP_ROUTES.whatsapp} replace />} />
                   <Route path="/obras-sociales" element={<Navigate to={APP_ROUTES.obrasSociales} replace />} />
