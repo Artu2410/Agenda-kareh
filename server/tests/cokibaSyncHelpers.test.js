@@ -128,6 +128,29 @@ describe('cokiba sync helpers', () => {
     });
   });
 
+  it('counts percentage coinsurance and fixed copay as fee changes', () => {
+    const summary = summarizeCokibaDiff({
+      added: [],
+      removed: [],
+      changed: [
+        {
+          codigoCokiba: 'OS1',
+          nombreOs: 'OS Uno',
+          changes: [
+            { field: 'percentageCoinsurance', before: 10, after: 15 },
+            { field: 'fixedCopay', before: 500, after: 750 },
+          ],
+        },
+      ],
+    });
+
+    expect(summary).toMatchObject({
+      changedCount: 1,
+      honorarioChanges: 2,
+      hasChanges: true,
+    });
+  });
+
   it('pushes the next daily sync to tomorrow when the time already passed', () => {
     const baseDate = new Date(2026, 4, 31, 4, 0, 0, 0);
     const nextRun = getNextCokibaSyncRunAt('03:15', baseDate);

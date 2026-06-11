@@ -47,6 +47,8 @@ const envSchema = z.object({
 
   // Email / Resend
   RESEND_API_KEY: z.string().optional(),
+  RESEND_FROM_EMAIL: z.string().email().optional(),
+  RESEND_FROM_NAME: z.string().optional(),
   FROM_EMAIL: z.string().email().default('noreply@agenda-kareh.com'),
 
   // Google AI (Gemini)
@@ -56,6 +58,7 @@ const envSchema = z.object({
   COKIBA_DAILY_SYNC_ENABLED: z.enum(['true', 'false']).default('true'),
   COKIBA_DAILY_SYNC_TIME: z.string().regex(/^\d{1,2}:\d{2}$/).default('03:15'),
   COKIBA_CRON_TOKEN: z.string().optional(),
+  KAREH_ALERT_EMAIL: z.string().email().optional(),
 
   // Push notifications
   VAPID_PUBLIC_KEY: z.string().optional(),
