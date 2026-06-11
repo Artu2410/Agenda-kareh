@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import puppeteer from 'puppeteer';
 import { loadSupplementalCokibaCatalog, matchSupplementalCokibaEntry } from './cokibaTextCatalog.js';
+import { sendCokibaAlertEmail } from './cokibaAlertMailer.js';
 import { sendNotificationToAll } from '../controllers/notifications.controller.js';
 import { auditActions, safeWriteAuditLog } from '../utils/audit.js';
 import {
@@ -1078,10 +1079,11 @@ const persistCokibaAuditArtifacts = async ({
   const diff = computeCokibaDiff(previousSnapshotRecords, snapshotRecords);
   const diffSummary = summarizeCokibaDiff(diff);
   const serializedStatus = serializeCokibaStatus(status);
+  const snapshotAt = new Date().toISOString();
   const notificationPayload = buildCokibaNotificationPayload({
     summary: serializedStatus,
     diffSummary,
-    snapshotAt: new Date().toISOString(),
+    snapshotAt,
   });
 
   await safeWriteAuditLog(prisma, { headers: {}, user: null }, {
@@ -1118,6 +1120,18 @@ const persistCokibaAuditArtifacts = async ({
       await sendNotificationToAll(prisma, notificationPayload);
     } catch (error) {
       syncLogger.warn('⚠️ No se pudieron enviar notificaciones internas COKIBA', {
+        errorMessage: error.message,
+      });
+    }
+
+    try {
+      await sendCokibaAlertEmail({
+        diffSummary,
+        diff,
+        snapshotAt,
+      });
+    } catch (error) {
+      syncLogger.warn('⚠️ No se pudo enviar el email de alerta COKIBA', {
         errorMessage: error.message,
       });
     }

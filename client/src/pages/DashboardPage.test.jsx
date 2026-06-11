@@ -1,6 +1,6 @@
 import { render, screen, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import DashboardPage from './DashboardPage';
 import { server } from '../tests/msw/server';
 import { getApiUrl } from '../services/apiBase';
@@ -112,6 +112,15 @@ const metricsResponse = {
 };
 
 describe('DashboardPage', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-05-15T12:00:00.000Z'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('renders the dashboard blocks in the new order', async () => {
     server.use(
       http.get(getApiUrl('/metrics'), () => HttpResponse.json(metricsResponse)),

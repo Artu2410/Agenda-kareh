@@ -29,6 +29,13 @@ const TRACKED_FIELDS = [
   'rawCategoria',
 ];
 
+const FINANCIAL_CHANGE_FIELDS = [
+  'coseguroValor',
+  'honorarioEstimado',
+  'percentageCoinsurance',
+  'fixedCopay',
+];
+
 const normalizeComparableText = (value) => String(value ?? '').trim();
 
 const normalizeComparableNumber = (value) => {
@@ -47,7 +54,7 @@ const normalizeComparableValue = (field, value) => {
     return normalizeComparableBoolean(value);
   }
 
-  if (['coseguroValor', 'honorarioEstimado', 'percentageCoinsurance', 'fixedCopay'].includes(field)) {
+  if (FINANCIAL_CHANGE_FIELDS.includes(field)) {
     return normalizeComparableNumber(value);
   }
 
@@ -241,7 +248,10 @@ export const summarizeCokibaDiff = (diff = {}) => {
     totalChanges: addedCount + removedCount + changedCount,
     activeToInactive,
     inactiveToActive,
-    honorarioChanges: (fieldCounts.honorarioEstimado || 0) + (fieldCounts.coseguroValor || 0),
+    honorarioChanges: FINANCIAL_CHANGE_FIELDS.reduce(
+      (total, field) => total + (fieldCounts[field] || 0),
+      0,
+    ),
     authorizationChanges,
     fieldCounts,
     hasChanges: addedCount > 0 || removedCount > 0 || changedCount > 0,

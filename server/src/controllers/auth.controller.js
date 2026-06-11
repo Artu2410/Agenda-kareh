@@ -1,5 +1,4 @@
 import jwt from 'jsonwebtoken';
-import { Resend } from 'resend';
 import {
   clearAuthCookies,
   extractBearerToken,
@@ -28,13 +27,9 @@ import SessionManager from '../utils/sessionManager.js';
 import { createInternalError, createPublicError } from '../errors/AppError.js';
 import logger from '../config/logger.js';
 import { recordLoginFailure } from '../lib/metrics.js';
+import { sendEmail } from '../services/mailer.js';
 
 const authLogger = logger.child({ service: 'auth' });
-
-const getResendClient = () => {
-  const apiKey = process.env.RESEND_API_KEY;
-  return apiKey ? new Resend(apiKey) : null;
-};
 
 const getPrismaFromRequest = (req) => req.prisma || null;
 
@@ -141,9 +136,8 @@ const buildAuthSuccessPayload = (user, accessToken) => ({
 });
 
 const sendOtpEmail = async (email, otp) => {
-  const resend = getResendClient();
   const otpValidityMinutes = Math.max(1, Math.ceil(getOtpTtlMs() / 60000));
-  if (!resend) {
+  if (!process.env.RESEND_API_KEY) {
     if (isProduction()) {
       throw new Error('Servicio de correo no configurado');
     }
@@ -152,11 +146,7 @@ const sendOtpEmail = async (email, otp) => {
     return { delivered: false, devOtp: otp };
   }
 
-  const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
-  const fromName = process.env.RESEND_FROM_NAME || 'Kareh Salud';
-
-  const { error } = await resend.emails.send({
-    from: `${fromName} <${fromEmail}>`,
+  await sendEmail({
     to: email,
     subject: 'Tu código de acceso a Kareh Salud',
     html: `
@@ -170,10 +160,6 @@ const sendOtpEmail = async (email, otp) => {
       </div>
     `,
   });
-
-  if (error) {
-    throw new Error('No se pudo enviar el correo');
-  }
 
   return { delivered: true };
 };
