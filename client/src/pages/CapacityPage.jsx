@@ -309,7 +309,7 @@ const CapacityPage = () => {
             <p className="text-[11px] font-black uppercase tracking-[0.28em] text-teal-600">KIS · Fase 2</p>
             <h1 className="mt-2 text-3xl font-black text-slate-900">Capacidad Operativa y Ocupación</h1>
             <p className="mt-1 max-w-3xl text-sm font-semibold text-slate-500">
-              Mide cuánto puede producir Kareh, qué porcentaje usa y qué contratación se justifica por datos.
+              Mide cuánto puede producir Kareh, qué porcentaje usa y qué soporte operativo se justifica por datos.
             </p>
           </div>
           <button
@@ -339,7 +339,7 @@ const CapacityPage = () => {
           <div className={`rounded-2xl border bg-white p-5 shadow-sm ${adminAlert.recommended ? 'border-amber-200' : 'border-slate-200'}`}>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Contratación administrativa</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Soporte administrativo</p>
                 <h2 className={`mt-2 text-xl font-black ${adminAlert.recommended ? 'text-amber-700' : 'text-slate-900'}`}>
                   {adminAlert.label || 'En observación'}
                 </h2>
