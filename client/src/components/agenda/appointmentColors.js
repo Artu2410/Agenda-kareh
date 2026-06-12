@@ -1,5 +1,40 @@
 import { isParticularCoverage } from '@/utils/coverage';
 
+const OBRA_SOCIAL_COVERAGE_CLASSES = {
+  coverageBadgeClass: 'bg-indigo-100/80 text-indigo-800',
+  coverageBorderClass: 'border-indigo-200',
+};
+
+const PARTICULAR_COVERAGE_CLASSES = {
+  coverageBadgeClass: 'bg-blue-100/80 text-blue-800',
+  coverageBorderClass: 'border-blue-200',
+};
+
+const DEFAULT_COVERAGE_CLASSES = {
+  coverageBadgeClass: 'bg-slate-100 text-slate-600',
+  coverageBorderClass: 'border-slate-200',
+};
+
+const normalizeCoverage = (value) => String(value || '').trim().toUpperCase();
+
+const getCoverageColorClasses = (healthInsurance, treatAsParticular) => {
+  if (isParticularCoverage(healthInsurance, treatAsParticular)) {
+    return PARTICULAR_COVERAGE_CLASSES;
+  }
+
+  if (normalizeCoverage(healthInsurance)) {
+    return OBRA_SOCIAL_COVERAGE_CLASSES;
+  }
+
+  return DEFAULT_COVERAGE_CLASSES;
+};
+
+const buildAppointmentScheme = (category, scheme, healthInsurance, treatAsParticular) => ({
+  category,
+  ...scheme,
+  ...getCoverageColorClasses(healthInsurance, treatAsParticular),
+});
+
 const APPOINTMENT_COLOR_SCHEMES = {
   iu: {
     cardClass: 'border-orange-200 bg-orange-50/90',
@@ -29,12 +64,12 @@ const APPOINTMENT_COLOR_SCHEMES = {
     showCoverageBadge: true,
   },
   pami: {
-    cardClass: 'border-amber-200 bg-amber-50/90',
-    badgeClass: 'bg-amber-100 text-amber-700',
-    coverageBadgeClass: 'bg-amber-100/80 text-amber-800',
-    coverageBorderClass: 'border-amber-200',
-    accentClass: 'bg-amber-500',
-    iconClass: 'text-amber-600',
+    cardClass: 'border-indigo-200 bg-indigo-50/90',
+    badgeClass: 'bg-indigo-100 text-indigo-700',
+    coverageBadgeClass: 'bg-indigo-100/80 text-indigo-800',
+    coverageBorderClass: 'border-indigo-200',
+    accentClass: 'bg-indigo-500',
+    iconClass: 'text-indigo-600',
     showCoverageBadge: false,
   },
   insurance: {
@@ -57,8 +92,6 @@ const APPOINTMENT_COLOR_SCHEMES = {
   },
 };
 
-const normalizeCoverage = (value) => String(value || '').trim().toUpperCase();
-
 export const getAppointmentColorScheme = (appointment = {}) => {
   const patient = appointment.patient ?? null;
   const source = patient || appointment || {};
@@ -76,38 +109,23 @@ export const getAppointmentColorScheme = (appointment = {}) => {
   }
 
   if (isIU) {
-    return {
-      category: 'iu',
-      ...APPOINTMENT_COLOR_SCHEMES.iu,
-    };
+    return buildAppointmentScheme('iu', APPOINTMENT_COLOR_SCHEMES.iu, healthInsurance, treatAsParticular);
   }
 
   if (isRespiratory) {
-    return {
-      category: 'respiratory',
-      ...APPOINTMENT_COLOR_SCHEMES.respiratory,
-    };
+    return buildAppointmentScheme('respiratory', APPOINTMENT_COLOR_SCHEMES.respiratory, healthInsurance, treatAsParticular);
   }
 
   if (isParticularCoverage(healthInsurance, treatAsParticular)) {
-    return {
-      category: 'particular',
-      ...APPOINTMENT_COLOR_SCHEMES.particular,
-    };
+    return buildAppointmentScheme('particular', APPOINTMENT_COLOR_SCHEMES.particular, healthInsurance, treatAsParticular);
   }
 
   if (normalizedInsurance.includes('PAMI')) {
-    return {
-      category: 'pami',
-      ...APPOINTMENT_COLOR_SCHEMES.pami,
-    };
+    return buildAppointmentScheme('pami', APPOINTMENT_COLOR_SCHEMES.pami, healthInsurance, treatAsParticular);
   }
 
   if (normalizedInsurance) {
-    return {
-      category: 'insurance',
-      ...APPOINTMENT_COLOR_SCHEMES.insurance,
-    };
+    return buildAppointmentScheme('insurance', APPOINTMENT_COLOR_SCHEMES.insurance, healthInsurance, treatAsParticular);
   }
 
   return {

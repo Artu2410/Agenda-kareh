@@ -50,7 +50,7 @@ describe('appointmentVisuals', () => {
       'Pago pendiente',
       'WhatsApp enviado',
     ]));
-    expect(badges.find((badge) => badge.key === 'coverage')?.className).toContain('bg-orange-100');
+    expect(badges.find((badge) => badge.key === 'coverage')?.className).toContain('bg-indigo-100');
     expect(badges.find((badge) => badge.key === 'coverage')?.label).toBe('IOMA');
     expect(clinicalIcons).toHaveLength(6);
   });
