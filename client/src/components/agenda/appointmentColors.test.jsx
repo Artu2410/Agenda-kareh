@@ -69,7 +69,7 @@ describe('getAppointmentColorScheme', () => {
     expect(scheme.showCoverageBadge).toBe(false);
   });
 
-  it('usa verde para una obra social común', () => {
+  it('usa indigo para una obra social común', () => {
     const scheme = getAppointmentColorScheme({
       patient: {
         healthInsurance: 'IOMA',
@@ -78,10 +78,10 @@ describe('getAppointmentColorScheme', () => {
     });
 
     expect(scheme.category).toBe('insurance');
-    expect(scheme.cardClass).toContain('border-emerald-200');
-    expect(scheme.badgeClass).toContain('bg-emerald-100');
-    expect(scheme.coverageBadgeClass).toContain('bg-emerald-100');
-    expect(scheme.coverageBorderClass).toBe('border-emerald-200');
+    expect(scheme.cardClass).toContain('border-indigo-200');
+    expect(scheme.badgeClass).toContain('bg-indigo-100');
+    expect(scheme.coverageBadgeClass).toContain('bg-indigo-100');
+    expect(scheme.coverageBorderClass).toBe('border-indigo-200');
     expect(scheme.showCoverageBadge).toBe(true);
   });
 
