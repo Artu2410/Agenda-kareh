@@ -46,10 +46,12 @@ describe('cashflow schemas', () => {
       amount: '1500',
       category: 'Honorarios',
       concept: 'Sesión particular',
-      paymentMethod: 'Efectivo',
+      paymentMethod: 'Banco Provincia',
+      account: 'BANCO_PROVINCIA',
     });
 
-    expect(parsed.paymentMethod).toBe('Efectivo');
+    expect(parsed.paymentMethod).toBe('Banco Provincia');
+    expect(parsed.account).toBe('BANCO_PROVINCIA');
 
     expect(cashflowIdParamsSchema.parse({ id: 'movimiento-123' })).toEqual({ id: 'movimiento-123' });
     expect(() => cashflowIdParamsSchema.parse({ id: 'abc' })).toThrow('Movimiento inválido');

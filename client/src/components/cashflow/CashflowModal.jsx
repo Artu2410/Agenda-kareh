@@ -10,8 +10,14 @@ import {
   TRANSFER_PAYMENT_METHOD,
 } from '../../utils/cashflow';
 
-const getOppositeAccount = (account) => (account === 'CASH' ? 'MERCADO_PAGO' : 'CASH');
-const inferPaymentMethodFromAccount = (account) => (account === 'CASH' ? 'Efectivo' : 'Mercado Pago');
+const getDefaultDestinationAccount = (account) => (
+  CASHFLOW_ACCOUNTS.find((accountOption) => accountOption.value !== account)?.value || 'CASH'
+);
+const inferPaymentMethodFromAccount = (account) => {
+  if (account === 'CASH') return 'Efectivo';
+  if (account === 'BANCO_PROVINCIA') return 'Banco Provincia';
+  return 'Mercado Pago';
+};
 
 const applyBonosQrPreset = (draft) => ({
   ...draft,
@@ -50,7 +56,7 @@ const createInitialFormState = (transaction) => {
     account,
     destinationAccount: type === 'TRANSFER'
       ? resolveDestinationAccount(transaction || { type, account })
-      : getOppositeAccount(account),
+      : getDefaultDestinationAccount(account),
     paymentMethod: type === 'TRANSFER'
       ? TRANSFER_PAYMENT_METHOD
       : transaction?.paymentMethod || inferPaymentMethodFromAccount(account),
@@ -90,7 +96,7 @@ const CashflowModal = ({
           paymentMethod: TRANSFER_PAYMENT_METHOD,
           destinationAccount: previous.destinationAccount && previous.destinationAccount !== previous.account
             ? previous.destinationAccount
-            : getOppositeAccount(previous.account),
+            : getDefaultDestinationAccount(previous.account),
         };
       }
 
@@ -101,7 +107,7 @@ const CashflowModal = ({
         paymentMethod: previous.paymentMethod === TRANSFER_PAYMENT_METHOD
           ? inferPaymentMethodFromAccount(previous.account)
           : previous.paymentMethod,
-        destinationAccount: getOppositeAccount(previous.account),
+        destinationAccount: getDefaultDestinationAccount(previous.account),
       };
 
       return syncIncomeCategory(nextDraft);
@@ -136,11 +142,14 @@ const CashflowModal = ({
           paymentMethod: TRANSFER_PAYMENT_METHOD,
           destinationAccount: previous.destinationAccount && previous.destinationAccount !== nextAccount
             ? previous.destinationAccount
-            : getOppositeAccount(nextAccount),
+            : getDefaultDestinationAccount(nextAccount),
         };
       }
 
-      if (previous.paymentMethod === TRANSFER_PAYMENT_METHOD) {
+      if (
+        previous.paymentMethod === TRANSFER_PAYMENT_METHOD
+        || previous.paymentMethod === inferPaymentMethodFromAccount(previous.account)
+      ) {
         nextDraft.paymentMethod = inferPaymentMethodFromAccount(nextAccount);
       }
 
@@ -365,7 +374,7 @@ const CashflowModal = ({
                 ))}
               </select>
               <p className="mt-2 text-xs font-semibold text-slate-500">
-                Esto define si el saldo sube o baja en efectivo o en Mercado Pago.
+                Esto define si el saldo sube o baja en efectivo, Mercado Pago o Banco Provincia.
               </p>
             </div>
           )}
@@ -387,6 +396,7 @@ const CashflowModal = ({
               >
                 <option value="Efectivo">Efectivo</option>
                 <option value="Mercado Pago">Mercado Pago</option>
+                <option value="Banco Provincia">Banco Provincia</option>
                 <option value="QR">QR</option>
                 <option value="Transferencia">Transferencia</option>
                 <option value="Tarjeta de Débito">Tarjeta de Débito</option>

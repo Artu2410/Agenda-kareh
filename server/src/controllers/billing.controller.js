@@ -3,7 +3,7 @@ import { createInternalError, createPublicError } from '../errors/AppError.js';
 const VALID_PAYER_TYPES = new Set(['PATIENT', 'OBRA_SOCIAL', 'OTHER']);
 const VALID_INVOICE_STATUSES = new Set(['DRAFT', 'ISSUED', 'PARTIALLY_PAID', 'PAID', 'OVERDUE', 'CANCELLED']);
 const CLOSED_STATUSES = new Set(['PAID', 'CANCELLED']);
-const CASHFLOW_ACCOUNTS = new Set(['CASH', 'MERCADO_PAGO']);
+const CASHFLOW_ACCOUNTS = new Set(['CASH', 'MERCADO_PAGO', 'BANCO_PROVINCIA']);
 const BILLABLE_APPOINTMENT_STATUSES = ['COMPLETED', 'AUTHORIZED', 'SCHEDULED'];
 
 const toNumber = (value) => {
@@ -36,7 +36,10 @@ const normalizeUpper = (value) => normalizeText(value).toUpperCase();
 const resolveAccount = ({ account, paymentMethod }) => {
   const normalizedAccount = normalizeUpper(account);
   if (CASHFLOW_ACCOUNTS.has(normalizedAccount)) return normalizedAccount;
-  return normalizeUpper(paymentMethod) === 'EFECTIVO' ? 'CASH' : 'MERCADO_PAGO';
+  const normalizedMethod = normalizeUpper(paymentMethod);
+  if (normalizedMethod === 'EFECTIVO') return 'CASH';
+  if (/BANCO[_\s-]*PROVINCIA|PROVINCIA/.test(normalizedMethod)) return 'BANCO_PROVINCIA';
+  return 'MERCADO_PAGO';
 };
 
 const resolvePayerType = (value) => {
@@ -506,14 +509,58 @@ export const updateBillingInvoice = async (req, res, prisma) => {
     }
 
     const data = {};
+    const shouldResolvePayer = (
+      req.body.payerType !== undefined
+      || req.body.payerName !== undefined
+      || req.body.obraSocialId !== undefined
+      || req.body.patientId !== undefined
+    );
+
     if (req.body.invoiceNumber !== undefined) data.invoiceNumber = normalizeText(req.body.invoiceNumber) || null;
-    if (req.body.payerName !== undefined) data.payerName = normalizeText(req.body.payerName);
     if (req.body.issueDate !== undefined) data.issueDate = parseDate(req.body.issueDate) || current.issueDate;
     if (req.body.serviceMonth !== undefined) data.serviceMonth = normalizeText(req.body.serviceMonth) || null;
-    if (req.body.dueDate !== undefined) data.dueDate = parseDate(req.body.dueDate);
-    if (req.body.expectedPaymentDate !== undefined) data.expectedPaymentDate = parseDate(req.body.expectedPaymentDate);
+    const hasExplicitDueDate = req.body.dueDate !== undefined && Boolean(normalizeText(req.body.dueDate));
+    const hasExplicitExpectedPaymentDate = (
+      req.body.expectedPaymentDate !== undefined
+      && Boolean(normalizeText(req.body.expectedPaymentDate))
+    );
+    if (req.body.dueDate !== undefined) data.dueDate = hasExplicitDueDate ? parseDate(req.body.dueDate) : null;
+    if (req.body.expectedPaymentDate !== undefined) {
+      data.expectedPaymentDate = hasExplicitExpectedPaymentDate ? parseDate(req.body.expectedPaymentDate) : null;
+    }
     if (req.body.notes !== undefined) data.notes = normalizeText(req.body.notes) || null;
     if (req.body.status !== undefined) data.status = resolveStatus(req.body.status, current.status);
+
+    if (shouldResolvePayer) {
+      const payerType = req.body.payerType !== undefined
+        ? resolvePayerType(req.body.payerType)
+        : current.payerType;
+      const issueDate = data.issueDate || current.issueDate;
+      const obraSocialId = req.body.obraSocialId !== undefined ? req.body.obraSocialId : current.obraSocialId;
+      const patientId = req.body.patientId !== undefined ? req.body.patientId : current.patientId;
+      const shouldDefaultPayerName = req.body.payerType !== undefined || req.body.obraSocialId !== undefined || req.body.patientId !== undefined;
+      const payer = await resolveInvoicePayer(prisma, {
+        payerType,
+        payerName: req.body.payerName !== undefined
+          ? req.body.payerName
+          : shouldDefaultPayerName
+            ? ''
+            : current.payerName,
+        obraSocialId,
+        patientId,
+        issueDate,
+      });
+
+      data.payerType = payerType;
+      data.payerName = payer.payerName;
+      data.obraSocialId = payerType === 'OBRA_SOCIAL' ? (obraSocialId || null) : null;
+      data.patientId = payerType === 'PATIENT' ? (patientId || null) : null;
+
+      if (!hasExplicitExpectedPaymentDate && !hasExplicitDueDate) {
+        data.expectedPaymentDate = payer.expectedPaymentDate;
+        data.dueDate = payer.expectedPaymentDate;
+      }
+    }
 
     const hasItems = Array.isArray(req.body.items);
     let items = null;
@@ -526,6 +573,16 @@ export const updateBillingInvoice = async (req, res, prisma) => {
         return res.status(400).json({ error: 'El monto total debe ser mayor a cero' });
       }
       data.totalAmount = totalAmount;
+    }
+
+    const paidAmount = roundCurrency((current.payments || []).reduce((sum, payment) => (
+      sum + toNumber(payment.amount)
+    ), 0));
+    const nextTotalAmount = data.totalAmount !== undefined ? data.totalAmount : toNumber(current.totalAmount);
+    if (nextTotalAmount < paidAmount) {
+      return res.status(400).json({
+        error: `El total no puede ser menor a lo ya cobrado (${paidAmount})`,
+      });
     }
 
     const invoice = await prisma.$transaction(async (tx) => {

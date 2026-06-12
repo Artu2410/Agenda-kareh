@@ -4,6 +4,7 @@ export const TRANSFER_PAYMENT_METHOD = 'Transferencia interna';
 export const CASHFLOW_ACCOUNTS = [
   { value: 'CASH', label: 'Efectivo' },
   { value: 'MERCADO_PAGO', label: 'Mercado Pago' },
+  { value: 'BANCO_PROVINCIA', label: 'Banco Provincia' },
 ];
 
 const ACCOUNT_LABELS = new Map(CASHFLOW_ACCOUNTS.map((account) => [account.value, account.label]));
@@ -25,7 +26,10 @@ export const resolveCategory = ({ type, category, paymentMethod, concept }) => {
 export const resolveAccount = ({ account, paymentMethod }) => {
   const normalizedAccount = normalizeText(account);
   if (ACCOUNT_SET.has(normalizedAccount)) return normalizedAccount;
-  return normalizeText(paymentMethod) === 'EFECTIVO' ? 'CASH' : 'MERCADO_PAGO';
+  const normalizedMethod = normalizeText(paymentMethod);
+  if (normalizedMethod === 'EFECTIVO') return 'CASH';
+  if (/BANCO[_\s-]*PROVINCIA|PROVINCIA/.test(normalizedMethod)) return 'BANCO_PROVINCIA';
+  return 'MERCADO_PAGO';
 };
 
 export const resolveDestinationAccount = ({ type, account, destinationAccount }) => {
@@ -35,10 +39,10 @@ export const resolveDestinationAccount = ({ type, account, destinationAccount })
 
   const normalizedSourceAccount = normalizeText(account);
   const sourceAccount = ACCOUNT_SET.has(normalizedSourceAccount) ? normalizedSourceAccount : 'CASH';
-  return sourceAccount === 'CASH' ? 'MERCADO_PAGO' : 'CASH';
+  return CASHFLOW_ACCOUNTS.find((accountOption) => accountOption.value !== sourceAccount)?.value || 'CASH';
 };
 
-export const getAccountLabel = (account) => ACCOUNT_LABELS.get(account) || 'Mercado Pago';
+export const getAccountLabel = (account) => ACCOUNT_LABELS.get(account) || 'Cuenta no especificada';
 
 export const formatAccount = (transaction) => {
   const account = resolveAccount(transaction);

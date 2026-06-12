@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Clock3,
   FileText,
+  Pencil,
   Plus,
   Receipt,
   RefreshCw,
@@ -17,6 +18,12 @@ import { showErrorToast, showSuccessToast } from '../components/toastHelpers';
 
 const todayInputValue = () => new Date().toISOString().slice(0, 10);
 const currentMonthValue = () => new Date().toISOString().slice(0, 7);
+const dateInputValue = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toISOString().slice(0, 10);
+};
 
 const createEmptyInvoiceForm = () => ({
   invoiceNumber: '',
@@ -35,10 +42,32 @@ const createEmptyInvoiceForm = () => ({
 const createEmptyPaymentForm = (pendingAmount = 0) => ({
   amount: pendingAmount ? String(pendingAmount) : '',
   paymentDate: todayInputValue(),
-  paymentMethod: 'Transferencia',
-  account: 'MERCADO_PAGO',
+  paymentMethod: 'Banco Provincia',
+  account: 'BANCO_PROVINCIA',
   notes: '',
 });
+
+const createInvoiceFormFromInvoice = (invoice = {}) => {
+  const primaryItem = Array.isArray(invoice.items) && invoice.items.length > 0
+    ? invoice.items[0]
+    : {};
+  const quantity = Number(primaryItem.quantity) || 1;
+  const unitAmount = Number(primaryItem.unitAmount) || (Number(invoice.totalAmount) / quantity) || '';
+
+  return {
+    invoiceNumber: invoice.invoiceNumber || '',
+    payerType: invoice.payerType || 'OBRA_SOCIAL',
+    obraSocialId: invoice.obraSocialId || invoice.obraSocial?.id || '',
+    payerName: invoice.payerName || '',
+    issueDate: dateInputValue(invoice.issueDate) || todayInputValue(),
+    serviceMonth: invoice.serviceMonth || currentMonthValue(),
+    expectedPaymentDate: dateInputValue(invoice.expectedPaymentDate),
+    description: primaryItem.description || 'Prestaciones facturadas',
+    quantity,
+    unitAmount: unitAmount === '' ? '' : String(unitAmount),
+    notes: invoice.notes || '',
+  };
+};
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat('es-AR', {
@@ -96,6 +125,7 @@ const BillingPage = () => {
   const [loading, setLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [invoiceForm, setInvoiceForm] = useState(createEmptyInvoiceForm);
+  const [editingInvoiceId, setEditingInvoiceId] = useState(null);
   const [paymentForms, setPaymentForms] = useState({});
   const [savingInvoice, setSavingInvoice] = useState(false);
   const [savingPaymentId, setSavingPaymentId] = useState(null);
@@ -133,6 +163,29 @@ const BillingPage = () => {
   const paidInvoices = useMemo(
     () => invoices.filter((invoice) => invoice.status === 'PAID'),
     [invoices]
+  );
+
+  const obraSocialOptions = useMemo(() => {
+    const optionsById = new Map();
+
+    obrasSociales.forEach((obraSocial) => {
+      optionsById.set(obraSocial.id, obraSocial);
+    });
+
+    invoices.forEach((invoice) => {
+      if (invoice.obraSocial?.id && !optionsById.has(invoice.obraSocial.id)) {
+        optionsById.set(invoice.obraSocial.id, invoice.obraSocial);
+      }
+    });
+
+    return Array.from(optionsById.values()).sort((left, right) => (
+      String(left.nombreOs || '').localeCompare(String(right.nombreOs || ''), 'es')
+    ));
+  }, [invoices, obrasSociales]);
+
+  const editingInvoice = useMemo(
+    () => invoices.find((invoice) => invoice.id === editingInvoiceId) || null,
+    [editingInvoiceId, invoices]
   );
 
   const summaryCards = [
@@ -191,38 +244,76 @@ const BillingPage = () => {
     }));
   };
 
-  const handleCreateInvoice = async (event) => {
+  const closeInvoiceForm = () => {
+    setInvoiceForm(createEmptyInvoiceForm());
+    setEditingInvoiceId(null);
+    setShowCreateForm(false);
+  };
+
+  const openCreateInvoiceForm = () => {
+    if (showCreateForm && !editingInvoiceId) {
+      closeInvoiceForm();
+      return;
+    }
+
+    setInvoiceForm(createEmptyInvoiceForm());
+    setEditingInvoiceId(null);
+    setShowCreateForm(true);
+  };
+
+  const openEditInvoiceForm = (invoice) => {
+    setInvoiceForm(createInvoiceFormFromInvoice(invoice));
+    setEditingInvoiceId(invoice.id);
+    setShowCreateForm(true);
+  };
+
+  const buildInvoicePayload = () => {
+    const selectedObraSocial = obraSocialOptions.find((obraSocial) => obraSocial.id === invoiceForm.obraSocialId);
+
+    return {
+      invoiceNumber: invoiceForm.invoiceNumber || null,
+      payerType: invoiceForm.payerType,
+      obraSocialId: invoiceForm.payerType === 'OBRA_SOCIAL' ? invoiceForm.obraSocialId || null : null,
+      payerName: invoiceForm.payerType === 'OBRA_SOCIAL'
+        ? selectedObraSocial?.nombreOs || invoiceForm.payerName
+        : invoiceForm.payerName,
+      issueDate: invoiceForm.issueDate,
+      serviceMonth: invoiceForm.serviceMonth || null,
+      expectedPaymentDate: invoiceForm.expectedPaymentDate || null,
+      notes: invoiceForm.notes || null,
+      items: [{
+        description: invoiceForm.description,
+        quantity: Number(invoiceForm.quantity) || 1,
+        unitAmount: Number(invoiceForm.unitAmount) || 0,
+      }],
+    };
+  };
+
+  const handleSaveInvoice = async (event) => {
     event.preventDefault();
 
     try {
       setSavingInvoice(true);
-      const selectedObraSocial = obrasSociales.find((obraSocial) => obraSocial.id === invoiceForm.obraSocialId);
+      const payload = buildInvoicePayload();
+      const totalAmount = (Number(invoiceForm.quantity) || 1) * (Number(invoiceForm.unitAmount) || 0);
 
-      await api.post('/billing/invoices', {
-        invoiceNumber: invoiceForm.invoiceNumber || null,
-        payerType: invoiceForm.payerType,
-        obraSocialId: invoiceForm.payerType === 'OBRA_SOCIAL' ? invoiceForm.obraSocialId || null : null,
-        payerName: invoiceForm.payerType === 'OBRA_SOCIAL'
-          ? selectedObraSocial?.nombreOs || invoiceForm.payerName
-          : invoiceForm.payerName,
-        issueDate: invoiceForm.issueDate,
-        serviceMonth: invoiceForm.serviceMonth || null,
-        expectedPaymentDate: invoiceForm.expectedPaymentDate || null,
-        notes: invoiceForm.notes || null,
-        items: [{
-          description: invoiceForm.description,
-          quantity: Number(invoiceForm.quantity) || 1,
-          unitAmount: Number(invoiceForm.unitAmount) || 0,
-        }],
-      });
+      if (editingInvoice && totalAmount < Number(editingInvoice.paidAmount || 0)) {
+        showErrorToast(`El total no puede ser menor a lo ya cobrado (${formatCurrency(editingInvoice.paidAmount)}).`);
+        return;
+      }
 
-      setInvoiceForm(createEmptyInvoiceForm());
-      setShowCreateForm(false);
+      if (editingInvoiceId) {
+        await api.put(`/billing/invoices/${editingInvoiceId}`, payload);
+      } else {
+        await api.post('/billing/invoices', payload);
+      }
+
+      closeInvoiceForm();
       await fetchBillingData({ silent: true });
-      showSuccessToast('Factura registrada.');
+      showSuccessToast(editingInvoiceId ? 'Factura actualizada.' : 'Factura registrada.');
     } catch (error) {
       const message = error?.response?.data?.error || error?.response?.data?.message || error?.friendlyMessage;
-      showErrorToast(message || 'No se pudo registrar la factura.');
+      showErrorToast(message || 'No se pudo guardar la factura.');
     } finally {
       setSavingInvoice(false);
     }
@@ -294,11 +385,11 @@ const BillingPage = () => {
             </button>
             <button
               type="button"
-              onClick={() => setShowCreateForm((current) => !current)}
+              onClick={openCreateInvoiceForm}
               className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-sm font-black text-white shadow-sm transition hover:bg-teal-700"
             >
-              {showCreateForm ? <X size={16} /> : <Plus size={16} />}
-              {showCreateForm ? 'Cerrar' : 'Nueva factura'}
+              {showCreateForm && !editingInvoiceId ? <X size={16} /> : <Plus size={16} />}
+              {showCreateForm && !editingInvoiceId ? 'Cerrar' : 'Nueva factura'}
             </button>
           </div>
         </header>
@@ -367,14 +458,20 @@ const BillingPage = () => {
         </section>
 
         {showCreateForm && (
-          <form onSubmit={handleCreateInvoice} className="mb-6 rounded-2xl border border-teal-200 bg-white p-5 shadow-sm">
+          <form onSubmit={handleSaveInvoice} className="mb-6 rounded-2xl border border-teal-200 bg-white p-5 shadow-sm">
             <div className="mb-4 flex items-center gap-3">
               <div className="rounded-xl bg-teal-100 p-3 text-teal-700">
-                <Receipt size={20} />
+                {editingInvoiceId ? <Pencil size={20} /> : <Receipt size={20} />}
               </div>
               <div>
-                <h2 className="text-xl font-black text-slate-900">Registrar factura</h2>
-                <p className="text-sm font-semibold text-slate-500">Esto crea el pendiente de cobro, no impacta en caja hasta registrar el cobro.</p>
+                <h2 className="text-xl font-black text-slate-900">
+                  {editingInvoiceId ? 'Editar factura' : 'Registrar factura'}
+                </h2>
+                <p className="text-sm font-semibold text-slate-500">
+                  {editingInvoiceId
+                    ? 'Corregí errores de carga. Si ya hubo cobros, el total no puede quedar por debajo de lo cobrado.'
+                    : 'Esto crea el pendiente de cobro, no impacta en caja hasta registrar el cobro.'}
+                </p>
               </div>
             </div>
 
@@ -402,7 +499,7 @@ const BillingPage = () => {
                     required
                   >
                     <option value="">Seleccionar</option>
-                    {obrasSociales.map((obraSocial) => (
+                    {obraSocialOptions.map((obraSocial) => (
                       <option key={obraSocial.id} value={obraSocial.id}>{obraSocial.nombreOs}</option>
                     ))}
                   </select>
@@ -509,14 +606,21 @@ const BillingPage = () => {
               </label>
             </div>
 
-            <div className="mt-5 flex justify-end">
+            <div className="mt-5 flex flex-col justify-end gap-2 sm:flex-row">
+              <button
+                type="button"
+                onClick={closeInvoiceForm}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-2 text-sm font-black text-slate-600 transition hover:bg-slate-50"
+              >
+                Cancelar
+              </button>
               <button
                 type="submit"
                 disabled={savingInvoice}
                 className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-teal-600 px-5 py-2 text-sm font-black text-white transition hover:bg-teal-700 disabled:opacity-60"
               >
-                <Plus size={16} />
-                {savingInvoice ? 'Guardando...' : 'Guardar factura'}
+                {editingInvoiceId ? <Pencil size={16} /> : <Plus size={16} />}
+                {savingInvoice ? 'Guardando...' : editingInvoiceId ? 'Guardar cambios' : 'Guardar factura'}
               </button>
             </div>
           </form>
@@ -563,6 +667,14 @@ const BillingPage = () => {
                             <span className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-black ${statusClassNames[invoice.status] || statusClassNames.ISSUED}`}>
                               {statusLabels[invoice.status] || invoice.status}
                             </span>
+                            <button
+                              type="button"
+                              onClick={() => openEditInvoiceForm(invoice)}
+                              className="mt-3 inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-black text-slate-600 transition hover:border-teal-200 hover:bg-teal-50 hover:text-teal-700"
+                            >
+                              <Pencil size={13} />
+                              Editar
+                            </button>
                           </td>
                           <td className="px-4 py-4">
                             <p className="font-black text-slate-800">{invoice.payerName}</p>
@@ -597,6 +709,7 @@ const BillingPage = () => {
                                   className="min-h-10 rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:border-teal-400"
                                 >
                                   <option value="MERCADO_PAGO">Mercado Pago</option>
+                                  <option value="BANCO_PROVINCIA">Banco Provincia</option>
                                   <option value="CASH">Efectivo</option>
                                 </select>
                                 <button
@@ -634,6 +747,14 @@ const BillingPage = () => {
                         <div>
                           <p className="font-black text-slate-900">{invoice.invoiceNumber || invoice.payerName}</p>
                           <p className="mt-1 text-sm font-semibold text-slate-500">{invoice.payerName}</p>
+                          <button
+                            type="button"
+                            onClick={() => openEditInvoiceForm(invoice)}
+                            className="mt-3 inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-black text-slate-600"
+                          >
+                            <Pencil size={13} />
+                            Editar
+                          </button>
                         </div>
                         <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-black ${statusClassNames[invoice.status] || statusClassNames.ISSUED}`}>
                           {statusLabels[invoice.status] || invoice.status}
@@ -681,6 +802,7 @@ const BillingPage = () => {
                               className="min-h-11 rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700 outline-none"
                             >
                               <option value="MERCADO_PAGO">Mercado Pago</option>
+                              <option value="BANCO_PROVINCIA">Banco Provincia</option>
                               <option value="CASH">Efectivo</option>
                             </select>
                           </div>

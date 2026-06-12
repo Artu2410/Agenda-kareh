@@ -5,7 +5,7 @@ const DEFAULT_CATEGORY = 'GENERAL';
 const BONOS_QR_CATEGORY = 'BONOS_QR';
 const TRANSFER_PAYMENT_METHOD = 'Transferencia interna';
 const FLOW_TYPES = new Set(['INCOME', 'EXPENSE', 'TRANSFER']);
-const CASHFLOW_ACCOUNTS = new Set(['CASH', 'MERCADO_PAGO']);
+const CASHFLOW_ACCOUNTS = new Set(['CASH', 'MERCADO_PAGO', 'BANCO_PROVINCIA']);
 
 const normalizeText = (value) => String(value || '').trim().toUpperCase();
 const resolveType = (type) => {
@@ -29,7 +29,10 @@ const resolveCategory = ({ type, category, paymentMethod, concept }) => {
 const resolveAccount = ({ account, paymentMethod }) => {
   const normalizedAccount = normalizeText(account);
   if (CASHFLOW_ACCOUNTS.has(normalizedAccount)) return normalizedAccount;
-  return normalizeText(paymentMethod) === 'EFECTIVO' ? 'CASH' : 'MERCADO_PAGO';
+  const normalizedMethod = normalizeText(paymentMethod);
+  if (normalizedMethod === 'EFECTIVO') return 'CASH';
+  if (/BANCO[_\s-]*PROVINCIA|PROVINCIA/.test(normalizedMethod)) return 'BANCO_PROVINCIA';
+  return 'MERCADO_PAGO';
 };
 
 const resolveExplicitAccount = (account) => {
