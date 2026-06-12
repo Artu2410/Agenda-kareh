@@ -15,8 +15,8 @@ describe('getAppointmentColorScheme', () => {
     expect(scheme.category).toBe('iu');
     expect(scheme.cardClass).toContain('border-orange-200');
     expect(scheme.badgeClass).toContain('bg-orange-100');
-    expect(scheme.coverageBadgeClass).toContain('bg-blue-100');
-    expect(scheme.coverageBorderClass).toBe('border-blue-200');
+    expect(scheme.coverageBadgeClass).toContain('bg-orange-100');
+    expect(scheme.coverageBorderClass).toBe('border-orange-200');
     expect(scheme.showCoverageBadge).toBe(true);
   });
 
@@ -32,25 +32,9 @@ describe('getAppointmentColorScheme', () => {
     expect(scheme.category).toBe('respiratory');
     expect(scheme.cardClass).toContain('border-violet-200');
     expect(scheme.badgeClass).toContain('bg-violet-100');
-    expect(scheme.coverageBadgeClass).toContain('bg-blue-100');
-    expect(scheme.coverageBorderClass).toBe('border-blue-200');
+    expect(scheme.coverageBadgeClass).toContain('bg-violet-100');
+    expect(scheme.coverageBorderClass).toBe('border-violet-200');
     expect(scheme.showCoverageBadge).toBe(true);
-  });
-
-  it('mantiene indigo para una obra social en tratamientos especiales', () => {
-    const scheme = getAppointmentColorScheme({
-      patient: {
-        isIU: true,
-        healthInsurance: 'SANCOR',
-        treatAsParticular: false,
-      },
-    });
-
-    expect(scheme.category).toBe('iu');
-    expect(scheme.cardClass).toContain('border-orange-200');
-    expect(scheme.badgeClass).toContain('bg-orange-100');
-    expect(scheme.coverageBadgeClass).toContain('bg-indigo-100');
-    expect(scheme.coverageBorderClass).toBe('border-indigo-200');
   });
 
   it('prioriza Particular por encima de PAMI y otras obras sociales', () => {
@@ -78,22 +62,15 @@ describe('getAppointmentColorScheme', () => {
     });
 
     expect(scheme.category).toBe('pami');
-    expect(scheme.cardClass).toContain('border-indigo-200');
-    expect(scheme.badgeClass).toContain('bg-indigo-100');
-    expect(scheme.coverageBadgeClass).toContain('bg-indigo-100');
-    expect(scheme.coverageBorderClass).toBe('border-indigo-200');
+    expect(scheme.cardClass).toContain('border-amber-200');
+    expect(scheme.badgeClass).toContain('bg-amber-100');
+    expect(scheme.coverageBadgeClass).toContain('bg-amber-100');
+    expect(scheme.coverageBorderClass).toBe('border-amber-200');
     expect(scheme.showCoverageBadge).toBe(false);
   });
 
-  it('usa el color de IOMA para todas las obras sociales comunes', () => {
-    const iomaScheme = getAppointmentColorScheme({
-      patient: {
-        healthInsurance: 'IOMA',
-        treatAsParticular: false,
-      },
-    });
-
-    ['SANCOR', 'SWISS MEDICAL S.A.', 'OSDE'].forEach((healthInsurance) => {
+  it('usa turquesa para todas las obras sociales comunes', () => {
+    ['IOMA', 'SANCOR', 'SWISS MEDICAL S.A.', 'OSDE'].forEach((healthInsurance) => {
       const scheme = getAppointmentColorScheme({
         patient: {
           healthInsurance,
@@ -102,10 +79,10 @@ describe('getAppointmentColorScheme', () => {
       });
 
       expect(scheme.category).toBe('insurance');
-      expect(scheme.cardClass).toBe(iomaScheme.cardClass);
-      expect(scheme.badgeClass).toBe(iomaScheme.badgeClass);
-      expect(scheme.coverageBadgeClass).toBe(iomaScheme.coverageBadgeClass);
-      expect(scheme.coverageBorderClass).toBe(iomaScheme.coverageBorderClass);
+      expect(scheme.cardClass).toContain('border-teal-200');
+      expect(scheme.badgeClass).toContain('bg-teal-100');
+      expect(scheme.coverageBadgeClass).toContain('bg-teal-100');
+      expect(scheme.coverageBorderClass).toBe('border-teal-200');
       expect(scheme.showCoverageBadge).toBe(true);
     });
   });
