@@ -330,7 +330,7 @@ describe('centralized zod validation middleware', () => {
         amount: 15000,
         concept: 'Traspaso interno',
         account: 'CASH',
-        destinationAccount: 'MERCADO_PAGO',
+        destinationAccount: 'BANCO_PROVINCIA',
         date: '2026-05-20',
       })
       .expect(200);
@@ -340,7 +340,7 @@ describe('centralized zod validation middleware', () => {
       amount: 15000,
       concept: 'Traspaso interno',
       account: 'CASH',
-      destinationAccount: 'MERCADO_PAGO',
+      destinationAccount: 'BANCO_PROVINCIA',
       date: '2026-05-20',
     });
   });

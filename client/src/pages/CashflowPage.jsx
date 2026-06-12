@@ -2,11 +2,12 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import instance from '../api/axios';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Plus, ArrowUp, ArrowDown, ArrowLeftRight, ChevronDown, ChevronRight, DollarSign, Printer, Trash2, Wallet, Smartphone } from 'lucide-react';
+import { Plus, ArrowUp, ArrowDown, ArrowLeftRight, ChevronDown, ChevronRight, DollarSign, Printer, Trash2, Wallet, Smartphone, Building2 } from 'lucide-react';
 import CashflowModal from '../components/cashflow/CashflowModal';
 import { useConfirmModal } from '../hooks/useConfirmModal';
 import {
   BONOS_QR_CATEGORY,
+  CASHFLOW_ACCOUNTS,
   formatAccountFlow,
   resolveAccount,
   resolveDestinationAccount,
@@ -100,6 +101,10 @@ const CashflowPage = () => {
 
   // --- CÁLCULOS ---
   const { totalIncome, totalExpense, balance, balancesByAccount } = useMemo(() => {
+    const initialBalances = Object.fromEntries(
+      CASHFLOW_ACCOUNTS.map((account) => [account.value, 0])
+    );
+
     return transactions.reduce((summary, transaction) => {
       const amount = parseFloat(transaction.amount);
       const sourceAccount = resolveAccount(transaction);
@@ -126,15 +131,13 @@ const CashflowPage = () => {
       totalIncome: 0,
       totalExpense: 0,
       balance: 0,
-      balancesByAccount: {
-        CASH: 0,
-        MERCADO_PAGO: 0,
-      },
+      balancesByAccount: initialBalances,
     });
   }, [transactions]);
 
-  const cashBalance = balancesByAccount.CASH;
-  const mercadoPagoBalance = balancesByAccount.MERCADO_PAGO;
+  const cashBalance = balancesByAccount.CASH || 0;
+  const mercadoPagoBalance = balancesByAccount.MERCADO_PAGO || 0;
+  const bancoProvinciaBalance = balancesByAccount.BANCO_PROVINCIA || 0;
 
   const formatCurrency = (value) => {
     if (!showBalances) return '***';
@@ -208,6 +211,15 @@ const CashflowPage = () => {
       icon: Smartphone,
       iconWrapperClassName: 'bg-sky-100',
       iconClassName: 'text-sky-700',
+    },
+    {
+      key: 'banco-provincia-balance',
+      label: 'Saldo Banco Provincia',
+      value: formatCurrency(bancoProvinciaBalance),
+      valueClassName: bancoProvinciaBalance >= 0 ? 'text-indigo-800' : 'text-red-700',
+      icon: Building2,
+      iconWrapperClassName: 'bg-indigo-100',
+      iconClassName: 'text-indigo-700',
     },
     {
       key: 'general-balance',
@@ -294,9 +306,10 @@ const CashflowPage = () => {
       return 'bg-indigo-100 text-indigo-800';
     }
 
-    return resolveAccount(transaction) === 'CASH'
-      ? 'bg-amber-100 text-amber-800'
-      : 'bg-sky-100 text-sky-800';
+    const account = resolveAccount(transaction);
+    if (account === 'CASH') return 'bg-amber-100 text-amber-800';
+    if (account === 'BANCO_PROVINCIA') return 'bg-indigo-100 text-indigo-800';
+    return 'bg-sky-100 text-sky-800';
   };
 
   const getCategoryBadgeClass = (transaction) => {
@@ -334,7 +347,7 @@ const CashflowPage = () => {
             <div>
               <h1 className="text-3xl font-bold text-slate-800">Caja Chica</h1>
               <p className="mt-1 text-sm font-medium text-slate-500">
-                Cada movimiento ahora impacta en una cuenta concreta para no mezclar efectivo con Mercado Pago.
+                Cada movimiento impacta en una cuenta concreta para no mezclar efectivo, Mercado Pago y Banco Provincia.
               </p>
             </div>
             <button

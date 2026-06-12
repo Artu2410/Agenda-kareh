@@ -7,7 +7,7 @@ import {
 } from './common.js';
 
 const flowTypeSchema = z.enum(['INCOME', 'EXPENSE', 'TRANSFER']);
-const accountSchema = z.enum(['CASH', 'MERCADO_PAGO']);
+const accountSchema = z.enum(['CASH', 'MERCADO_PAGO', 'BANCO_PROVINCIA']);
 
 const cashflowBaseBodySchema = z.object({
   amount: z.coerce.number().positive('El monto debe ser mayor a cero'),
