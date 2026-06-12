@@ -38,12 +38,12 @@ const APPOINTMENT_COLOR_SCHEMES = {
     showCoverageBadge: false,
   },
   insurance: {
-    cardClass: 'border-emerald-200 bg-emerald-50/90',
-    badgeClass: 'bg-emerald-100 text-emerald-700',
-    coverageBadgeClass: 'bg-emerald-100/80 text-emerald-800',
-    coverageBorderClass: 'border-emerald-200',
-    accentClass: 'bg-emerald-500',
-    iconClass: 'text-emerald-600',
+    cardClass: 'border-indigo-200 bg-indigo-50/90',
+    badgeClass: 'bg-indigo-100 text-indigo-700',
+    coverageBadgeClass: 'bg-indigo-100/80 text-indigo-800',
+    coverageBorderClass: 'border-indigo-200',
+    accentClass: 'bg-indigo-500',
+    iconClass: 'text-indigo-600',
     showCoverageBadge: true,
   },
   default: {

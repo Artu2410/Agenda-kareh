@@ -100,7 +100,9 @@ const getStatusMeta = (appointment = {}) => {
     badgeClass: colorScheme.badgeClass,
     label: 'Programado',
     accentClass: colorScheme.accentClass,
-    icon: <Clock3 size={14} className={`shrink-0 ${colorScheme.iconClass}`} />,
+    icon: colorScheme.category === 'insurance'
+      ? null
+      : <Clock3 size={14} className={`shrink-0 ${colorScheme.iconClass}`} />,
     ...coverageClasses,
   };
 };

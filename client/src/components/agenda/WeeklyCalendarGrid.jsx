@@ -162,7 +162,9 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
       cardClass: colorScheme.cardClass,
       badgeClass: colorScheme.badgeClass,
       label: 'Programado',
-      icon: <Clock3 size={14} className={`shrink-0 ${colorScheme.iconClass}`} />,
+      icon: colorScheme.category === 'insurance'
+        ? null
+        : <Clock3 size={14} className={`shrink-0 ${colorScheme.iconClass}`} />,
       ...coverageClasses,
     };
   };
