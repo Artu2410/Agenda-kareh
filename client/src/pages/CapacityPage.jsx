@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Clock3,
   Gauge,
+  Lightbulb,
   Loader2,
   RefreshCw,
   Stethoscope,
@@ -167,6 +168,139 @@ const CriteriaList = ({ recommendation }) => (
   </div>
 );
 
+const buildOperationalInsights = ({ currentMonth, futureCoverage, bottleneck, adminAlert }) => {
+  const occupancyRate = Number(currentMonth?.occupancyRate) || 0;
+  const freeMonthlyCapacity = Number(currentMonth?.freeMonthlyCapacity) || 0;
+  const daysCovered = Number(futureCoverage?.daysCovered) || 0;
+  const adminRecommended = Boolean(adminAlert?.recommended);
+
+  const occupancyTone = occupancyRate >= 85 ? 'critical' : occupancyRate >= 70 ? 'warning' : 'success';
+  const capacityTone = bottleneck?.key === 'CONFIGURATION'
+    ? 'critical'
+    : freeMonthlyCapacity > 0
+      ? 'success'
+      : 'critical';
+
+  const priorityInsight = (() => {
+    if (bottleneck?.key === 'CONFIGURATION') {
+      return {
+        key: 'priority',
+        badge: 'Config',
+        tone: 'critical',
+        title: 'Prioridad: completar la configuración operativa',
+        detail: bottleneck?.description || 'No hay capacidad calculable con la configuración actual.',
+      };
+    }
+
+    if (occupancyRate < 50) {
+      return {
+        key: 'priority',
+        badge: 'Foco',
+        tone: 'neutral',
+        title: 'Prioridad: aumentar ocupación antes de contratar',
+        detail: 'La capacidad disponible sigue siendo la palanca principal.',
+      };
+    }
+
+    if (bottleneck?.key === 'ADMINISTRATION') {
+      return {
+        key: 'priority',
+        badge: 'Foco',
+        tone: 'warning',
+        title: 'Prioridad: liberar carga administrativa',
+        detail: bottleneck?.description || 'La carga operativa ya justifica soporte administrativo.',
+      };
+    }
+
+    if (bottleneck?.key === 'CLINICAL_CAPACITY') {
+      return {
+        key: 'priority',
+        badge: 'Foco',
+        tone: 'warning',
+        title: 'Prioridad: sumar capacidad clínica',
+        detail: bottleneck?.description || 'La capacidad clínica es el límite principal.',
+      };
+    }
+
+    if (daysCovered > 60) {
+      return {
+        key: 'priority',
+        badge: 'Foco',
+        tone: 'warning',
+        title: 'Prioridad: ordenar demanda futura',
+        detail: `La agenda futura cubre ${formatCount(daysCovered)} días.`,
+      };
+    }
+
+    return {
+      key: 'priority',
+      badge: 'Foco',
+      tone: 'neutral',
+      title: 'Prioridad: monitorear el crecimiento',
+      detail: 'El crecimiento todavía no exige nuevas estructuras.',
+    };
+  })();
+
+  return [
+    {
+      key: 'occupancy',
+      badge: occupancyRate >= 85 ? 'Riesgo' : occupancyRate >= 70 ? 'Alerta' : 'OK',
+      tone: occupancyTone,
+      title: `Ocupación actual: ${formatRate(occupancyRate)}`,
+      detail: occupancyRate >= 70
+        ? 'La agenda empieza a tensarse.'
+        : 'Todavía hay margen para crecer.',
+    },
+    {
+      key: 'admin',
+      badge: adminRecommended ? 'Activado' : 'OK',
+      tone: adminRecommended ? 'warning' : 'success',
+      title: adminRecommended ? 'Se justifica soporte administrativo' : 'Todavía no se justifica administrativo',
+      detail: adminRecommended
+        ? `${adminAlert?.metCount || 0} criterios reales ya lo respaldan.`
+        : 'La carga sigue dentro del rango operativo actual.',
+    },
+    {
+      key: 'capacity',
+      badge: bottleneck?.key === 'CONFIGURATION' ? 'Config' : freeMonthlyCapacity > 0 ? 'Libre' : 'Límite',
+      tone: capacityTone,
+      title: bottleneck?.key === 'CONFIGURATION'
+        ? 'Todavía falta configurar horarios'
+        : freeMonthlyCapacity > 0
+          ? 'Hay capacidad disponible para crecer'
+          : 'La capacidad calculada ya está al límite',
+      detail: bottleneck?.key === 'CONFIGURATION'
+        ? bottleneck?.description || 'No hay capacidad calculable con la configuración actual.'
+        : freeMonthlyCapacity > 0
+          ? `Quedan ${formatNumber(freeMonthlyCapacity)} turnos mensuales libres.`
+          : 'La ocupación actual ya consume toda la capacidad modelada.',
+    },
+    priorityInsight,
+  ];
+};
+
+const InsightList = ({ insights }) => (
+  <div className="mt-4 grid gap-3">
+    {insights.map((insight) => {
+      const resolvedTone = getTone(insight.tone);
+
+      return (
+        <div key={insight.key} className={`rounded-xl border px-4 py-3 ${resolvedTone.card}`}>
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-black">{insight.title}</p>
+              <p className={`mt-1 text-xs font-semibold ${resolvedTone.text} opacity-85`}>{insight.detail}</p>
+            </div>
+            <span className={`shrink-0 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] ${resolvedTone.badge}`}>
+              {insight.badge}
+            </span>
+          </div>
+        </div>
+      );
+    })}
+  </div>
+);
+
 const CapacityTooltip = ({ active, payload }) => {
   if (!active || !payload?.length) return null;
 
@@ -179,6 +313,10 @@ const CapacityTooltip = ({ active, payload }) => {
         <div className="flex items-center justify-between gap-3">
           <span>Capacidad</span>
           <span className="font-black text-slate-900">{formatNumber(row.capacity)}</span>
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <span>Turnos registrados</span>
+          <span className="font-black text-slate-900">{formatCount(row.turns ?? row.appointmentCount ?? row.completedCount)}</span>
         </div>
         <div className="flex items-center justify-between gap-3">
           <span>Turnos asistidos</span>
@@ -229,6 +367,15 @@ const CapacityPage = () => {
   const occupationTone = currentMonth?.level?.tone || 'neutral';
   const adminAlert = capacity?.alerts?.admin || {};
   const kinesiologistAlert = capacity?.alerts?.kinesiologist || {};
+  const operationalInsights = buildOperationalInsights({
+    currentMonth,
+    futureCoverage,
+    bottleneck,
+    adminAlert,
+  });
+  const visibleMonthlyTrend = (capacity?.monthlyTrend || [])
+    .filter((row) => (row.turns || 0) > 0 || (row.completed || row.completedCount || 0) > 0)
+    .slice(-6);
 
   const summaryCards = [
     {
@@ -382,9 +529,9 @@ const CapacityPage = () => {
               <BarChart3 className="text-slate-300" size={24} />
             </div>
 
-            {(capacity?.monthlyTrend || []).length > 0 ? (
+            {visibleMonthlyTrend.length > 0 ? (
               <ChartSurface>
-                <ComposedChart data={capacity.monthlyTrend} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
+                <ComposedChart data={visibleMonthlyTrend} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                   <XAxis dataKey="month" tick={{ fontSize: 12, fontWeight: 700 }} tickLine={false} axisLine={false} minTickGap={12} />
                   <YAxis yAxisId="left" allowDecimals={false} tickLine={false} axisLine={false} width={38} />
@@ -398,22 +545,23 @@ const CapacityPage = () => {
               </ChartSurface>
             ) : (
               <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center text-sm font-semibold text-slate-400">
-                No hay histórico suficiente.
+                No hay meses con actividad suficiente.
               </div>
             )}
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Datos operativos faltantes</p>
-            <h2 className="mt-2 text-xl font-black text-slate-900">Qué falta medir</h2>
-            <div className="mt-4 grid gap-3">
-              {(capacity?.missingData || []).map((item) => (
-                <div key={item.key} className="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3">
-                  <p className="text-sm font-black text-amber-800">{item.label}</p>
-                  <p className="mt-1 text-xs font-semibold text-amber-700">{item.reason}</p>
-                </div>
-              ))}
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Lectura automática</p>
+                <h2 className="mt-2 text-xl font-black text-slate-900">Insights automáticos</h2>
+                <p className="mt-1 text-sm font-semibold text-slate-500">
+                  Lo importante del mes, resumido en señales accionables.
+                </p>
+              </div>
+              <Lightbulb className="text-slate-300" size={24} />
             </div>
+            <InsightList insights={operationalInsights} />
           </div>
         </section>
 
