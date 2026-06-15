@@ -229,131 +229,209 @@ const ObraSocialDetailPanel = ({ obraSocial }) => {
     ? obraSocial.requiredDocuments.documents
     : [];
   const additionalDocumentInfo = String(obraSocial?.requiredDocuments?.additionalInfo || '').trim();
-  const bonusAmounts = Array.isArray(details.bonusAmounts) ? details.bonusAmounts : [];
   const { hasProvincia, hasSanMiguel, hasBellaVista } = getCoverageHighlights(details.areaCobertura);
   const importantLinks = getImportantLinks(details.links);
+  const honorarium = details.honorarium ?? Number(obraSocial?.honorarium || obraSocial?.honorarioEstimado || 0);
+  const paymentDays = details.paymentDays || obraSocial?.paymentDays || obraSocial?.plazoPago || null;
+  const billingMethod = details.billingMethod || obraSocial?.billingMethod || 'Sin dato';
+  const copaymentText = details.copaymentRequired
+    ? (details.copaymentAmount ? formatCurrency(details.copaymentAmount) : 'Requiere coseguro')
+    : 'Sin coseguro';
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
-      <div className="grid gap-4 xl:grid-cols-[1.1fr,0.9fr]">
-        <section className="rounded-2xl bg-white p-4 shadow-sm">
-          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">
-            Área de Cobertura
-          </p>
-          <div className="mt-3">
-            <div className="flex flex-wrap gap-2">
-              {hasProvincia && (
-                <span className="rounded-full bg-emerald-100 px-3 py-1 text-sm font-black uppercase tracking-[0.16em] text-emerald-800">
-                  Provincia de Buenos Aires
+      <div className="grid gap-4">
+        <section className="grid gap-4 rounded-2xl bg-white p-4 shadow-sm sm:grid-cols-[1.1fr,0.9fr]">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Detalle COKIBA</p>
+            <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-2">
+                <p className="text-lg font-black text-slate-800">{obraSocial.nombreOs}</p>
+                <p className="text-sm font-semibold text-slate-500">Código: {obraSocial.codigoCokiba}</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.16em] ${obraSocial.isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'}`}>
+                  {obraSocial.isActive ? 'Activa' : 'Inactiva'}
                 </span>
-              )}
-              {hasSanMiguel && (
-                <span className="rounded-full bg-violet-100 px-3 py-1 text-sm font-black uppercase tracking-[0.16em] text-violet-800">
-                  San Miguel
+                <span className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.16em] ${obraSocial.requiresAuthorization ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700'}`}>
+                  {obraSocial.requiresAuthorization ? 'Requiere autorización' : 'Sin autorización previa'}
                 </span>
-              )}
-              {hasBellaVista && (
-                <span className="rounded-full bg-violet-100 px-3 py-1 text-sm font-black uppercase tracking-[0.16em] text-violet-800">
-                  Bella Vista
-                </span>
-              )}
-              <span className={`rounded-full px-3 py-1 text-sm font-black uppercase tracking-[0.16em] ${
-                obraSocial.requiresAuthorization
-                  ? 'bg-amber-100 text-amber-800'
-                  : 'bg-slate-100 text-slate-700'
-              }`}>
-                {obraSocial.requiresAuthorization ? 'Requiere autorización' : 'Sin autorización previa'}
-              </span>
+                {hasSanMiguel && (
+                  <span className="rounded-full bg-violet-100 px-3 py-1 text-xs font-black uppercase tracking-[0.16em] text-violet-800">San Miguel / B. Vista</span>
+                )}
+                {hasProvincia && (
+                  <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black uppercase tracking-[0.16em] text-emerald-800">PBA</span>
+                )}
+              </div>
             </div>
+          </div>
 
-            <div className="mt-4 rounded-2xl bg-slate-50 px-4 py-4 text-lg font-black leading-relaxed text-slate-800">
-              {renderCoverageText(details.areaCobertura)}
+          <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Método facturación</p>
+              <p className="mt-1 font-semibold text-slate-800">{billingMethod}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Plazo de pago</p>
+              <p className="mt-1 font-semibold text-slate-800">{paymentDays ? `${paymentDays} días` : 'No disponible'}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Honorario</p>
+              <p className="mt-1 font-semibold text-slate-800">{formatCurrency(honorarium)}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Coseguro</p>
+              <p className="mt-1 font-semibold text-slate-800">{copaymentText}</p>
             </div>
           </div>
         </section>
 
-        <section className="rounded-2xl bg-white p-4 shadow-sm">
-          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">
-            Coseguro y Documentación
-          </p>
-          <div className="mt-3 space-y-4 text-sm">
-            <div className="rounded-2xl bg-amber-50 px-4 py-3">
-              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">
-                Coseguro
-              </p>
-              <p className="mt-1 text-lg font-black text-amber-900">
-                {details.coseguroTexto || formatCurrency(obraSocial.coseguroValor)}
-              </p>
+        <section className="grid gap-4 xl:grid-cols-[1.1fr,0.9fr]">
+          <div className="rounded-2xl bg-white p-4 shadow-sm">
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Área de Cobertura</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {hasProvincia && (
+                <span className="rounded-full bg-emerald-100 px-3 py-1 text-sm font-black uppercase tracking-[0.16em] text-emerald-800">Provincia de Buenos Aires</span>
+              )}
+              {hasSanMiguel && (
+                <span className="rounded-full bg-violet-100 px-3 py-1 text-sm font-black uppercase tracking-[0.16em] text-violet-800">San Miguel</span>
+              )}
+              {hasBellaVista && (
+                <span className="rounded-full bg-violet-100 px-3 py-1 text-sm font-black uppercase tracking-[0.16em] text-violet-800">Bella Vista</span>
+              )}
+            </div>
+            <div className="mt-4 rounded-2xl bg-slate-50 px-4 py-4 text-lg font-black leading-relaxed text-slate-800">
+              {renderCoverageText(details.areaCobertura)}
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {details.billingPortal || details.billingEmail ? (
+              <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4 shadow-sm">
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-violet-500">Facturación</p>
+                <div className="mt-3 space-y-3 text-sm text-slate-700">
+                  {billingMethod && (
+                    <div>
+                      <p className="font-semibold text-slate-800">Método</p>
+                      <p>{billingMethod}</p>
+                    </div>
+                  )}
+                  {details.billingPortal && (
+                    <div className="flex flex-col gap-2">
+                      <p className="font-semibold text-slate-800">Portal</p>
+                      <a
+                        href={details.billingPortal}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center justify-center rounded-full bg-violet-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-violet-800"
+                      >
+                        Abrir
+                      </a>
+                    </div>
+                  )}
+                  {details.billingEmail && (
+                    <div className="flex flex-col gap-2">
+                      <p className="font-semibold text-slate-800">Email</p>
+                      <button
+                        type="button"
+                        onClick={() => navigator.clipboard.writeText(details.billingEmail)}
+                        className="inline-flex items-center justify-center rounded-full border border-violet-200 bg-white px-4 py-2 text-sm font-semibold text-violet-700 transition hover:border-violet-300 hover:bg-violet-100"
+                      >
+                        Copiar
+                      </button>
+                      <p className="break-all text-sm text-slate-600">{details.billingEmail}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : null}
+
+            <div className="rounded-2xl bg-white p-4 shadow-sm">
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Autorización</p>
+              <div className="mt-3 space-y-3 text-sm text-slate-700">
+                <div>
+                  <p className="font-semibold text-slate-800">Tipo</p>
+                  <p>{details.authorization?.type || 'Desconocido'}</p>
+                </div>
+                <div>
+                  <p className="font-semibold text-slate-800">Canales</p>
+                  <p>{(details.authorization?.channels || []).join(', ') || 'No detectado'}</p>
+                </div>
+                {details.authorizationNote && (
+                  <div>
+                    <p className="font-semibold text-slate-800">Nota</p>
+                    <p>{details.authorizationNote}</p>
+                  </div>
+                )}
+              </div>
             </div>
 
-            {bonusAmounts.length > 0 && (
-              <div className="rounded-2xl bg-amber-50 px-4 py-3">
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">
-                  Bonos detectados
-                </p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {bonusAmounts.map((bonus) => (
-                    <span
-                      key={`${bonus.label}-${bonus.amount}`}
-                      className="rounded-full bg-white px-3 py-1.5 text-xs font-black uppercase tracking-[0.14em] text-amber-800"
-                    >
-                      {bonus.label}: {formatCurrency(bonus.amount)}
-                    </span>
-                  ))}
-                </div>
-                <p className="mt-2 text-xs font-semibold text-amber-700">
-                  Total bonos: {formatCurrency(details.bonusTotal || 0)}
-                </p>
+            <div className="rounded-2xl bg-white p-4 shadow-sm">
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Planes detectados</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {details.plans.length > 0 ? (
+                  details.plans.map((plan) => (
+                    <span key={plan} className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-slate-700">{plan}</span>
+                  ))
+                ) : (
+                  <span className="text-sm font-semibold text-slate-400">No se detectaron planes</span>
+                )}
               </div>
-            )}
+            </div>
+          </div>
+        </section>
 
-            <div>
-              <p className="font-black uppercase tracking-[0.18em] text-slate-500">
-                Documentación requerida
-              </p>
+        <section className="grid gap-4 xl:grid-cols-[1.05fr,0.95fr]">
+          <div className="rounded-2xl bg-white p-4 shadow-sm">
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Documentación Obra Social</p>
+            <div className="mt-3 text-sm text-slate-700">
               {documents.length > 0 ? (
-                <div className="mt-2 grid gap-2">
+                <div className="grid gap-3">
                   {documents.map((document) => (
-                    <div key={document.name} className="rounded-xl bg-slate-50 px-3 py-2">
+                    <div key={document.name} className="rounded-2xl bg-slate-50 px-4 py-3">
                       <p className="font-semibold text-slate-800">{document.name}</p>
-                      <p className="mt-1 text-xs font-black uppercase tracking-[0.16em] text-slate-400">
+                      <p className="mt-1 text-xs uppercase tracking-[0.14em] text-slate-500">
                         {document.validityDays ? `${document.validityDays} días` : 'Obligatorio'}
                       </p>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="mt-2 text-sm font-semibold text-slate-400">
-                  No se detectó documentación para pedir.
-                </p>
+                <p className="text-sm font-semibold text-slate-400">No se detectó documentación importante.</p>
               )}
-              {!documents.length && additionalDocumentInfo && (
-                <p className="mt-2 whitespace-pre-line rounded-xl bg-slate-50 px-3 py-2 text-sm font-medium text-slate-600">
+              {additionalDocumentInfo && (
+                <div className="mt-4 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
                   {additionalDocumentInfo}
-                </p>
+                </div>
               )}
             </div>
+          </div>
 
-            {importantLinks.length > 0 && (
-              <div>
-                <p className="font-black uppercase tracking-[0.18em] text-slate-500">
-                  Links útiles
-                </p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {importantLinks.map((link) => (
-                    <a
-                      key={link.href}
-                      href={link.href}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-black uppercase tracking-[0.16em] text-slate-700 transition hover:border-teal-300 hover:text-teal-700"
-                    >
-                      {formatLinkLabel(link)}
-                    </a>
-                  ))}
+          <div className="rounded-2xl bg-white p-4 shadow-sm">
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Links y contactos</p>
+            <div className="mt-3 flex flex-col gap-3 text-sm text-slate-700">
+              {importantLinks.length > 0 ? (
+                importantLinks.map((link) => (
+                  <a
+                    key={link.href}
+                    href={link.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 font-semibold text-slate-800 transition hover:border-teal-300 hover:text-teal-700"
+                  >
+                    {formatLinkLabel(link)}
+                  </a>
+                ))
+              ) : (
+                <p className="text-sm font-semibold text-slate-400">No hay links útiles detectados.</p>
+              )}
+              {details.billingEmail && (
+                <div className="rounded-2xl bg-white px-4 py-3 text-sm text-slate-700 shadow-sm">
+                  <p className="font-semibold text-slate-800">Email</p>
+                  <p>{details.billingEmail}</p>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </section>
       </div>
