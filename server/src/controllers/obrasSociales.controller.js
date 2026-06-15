@@ -2,6 +2,7 @@
 // Obras Sociales Controller (COKIBA)
 // ---------------------------------------------------------
 import { getCokibaSyncStatus, isCokibaSyncRunning, runCokibaSync } from '../services/cokibaSync.js';
+import { normalizeCokibaDetails } from '../services/cokibaNormalizer.js';
 import { auditActions, safeWriteAuditLog } from '../utils/audit.js';
 import { createInternalError, createPublicError } from '../errors/AppError.js';
 import { buildMonthlyHonorariosReport } from '../utils/monthlyHonorariosReport.js';
@@ -41,6 +42,19 @@ const parseCokibaDetails = (value) => {
   } catch {
     return null;
   }
+};
+
+const buildNormalizedDataFromDetails = (details) => {
+  if (!details || typeof details !== 'object') return null;
+
+  return normalizeCokibaDetails({
+    lines: Array.isArray(details.norms) ? details.norms : [],
+    links: Array.isArray(details.links) ? details.links : [],
+    rawCoseguro: details.coseguroTexto || '',
+    authorizationInfo: details.authorizationNote || '',
+    rawText: [details.observaciones, details.convenioTexto].filter(Boolean).join('\n'),
+    details,
+  });
 };
 
 // 1. LISTAR TODAS LAS OBRAS SOCIALES
@@ -203,6 +217,13 @@ export const createObraSocial = async (req, res, prisma) => {
         atendibleSanMiguel: parseBoolean(atendibleSanMiguel, false),
         requiredDocuments: parseRequiredDocuments(requiredDocuments),
         cokibaDetails: parseCokibaDetails(cokibaDetails),
+        normalizedData: buildNormalizedDataFromDetails(parseCokibaDetails(cokibaDetails)),
+        honorarium: buildNormalizedDataFromDetails(parseCokibaDetails(cokibaDetails))?.honorarium ?? null,
+        paymentDays: buildNormalizedDataFromDetails(parseCokibaDetails(cokibaDetails))?.paymentDays ?? null,
+        billingMethod: buildNormalizedDataFromDetails(parseCokibaDetails(cokibaDetails))?.billingMethod || null,
+        copaymentRequired: buildNormalizedDataFromDetails(parseCokibaDetails(cokibaDetails))?.copaymentRequired ?? false,
+        copaymentAmount: buildNormalizedDataFromDetails(parseCokibaDetails(cokibaDetails))?.copaymentAmount ?? null,
+        allowedPlans: buildNormalizedDataFromDetails(parseCokibaDetails(cokibaDetails))?.plans || null,
         rawCategoria: rawCategoria || 'Básica',
         ultimaSync: new Date(),
       },
@@ -261,7 +282,19 @@ export const updateObraSocial = async (req, res, prisma) => {
   if (requiresAuthorization !== undefined) data.requiresAuthorization = parseBoolean(requiresAuthorization, false);
   if (atendibleSanMiguel !== undefined) data.atendibleSanMiguel = parseBoolean(atendibleSanMiguel, false);
   if (requiredDocuments !== undefined) data.requiredDocuments = parseRequiredDocuments(requiredDocuments);
-  if (cokibaDetails !== undefined) data.cokibaDetails = parseCokibaDetails(cokibaDetails);
+  if (cokibaDetails !== undefined) {
+    const parsedDetails = parseCokibaDetails(cokibaDetails);
+    const normalized = buildNormalizedDataFromDetails(parsedDetails);
+
+    data.cokibaDetails = parsedDetails;
+    data.normalizedData = normalized;
+    data.honorarium = normalized?.honorarium ?? null;
+    data.paymentDays = normalized?.paymentDays ?? null;
+    data.billingMethod = normalized?.billingMethod || null;
+    data.copaymentRequired = normalized?.copaymentRequired ?? false;
+    data.copaymentAmount = normalized?.copaymentAmount ?? null;
+    data.allowedPlans = normalized?.plans || null;
+  }
   if (rawCategoria !== undefined) data.rawCategoria = rawCategoria;
   if (statusManualOverride !== undefined) data.statusManualOverride = parseBoolean(statusManualOverride, false);
   if (isArchived !== undefined) data.isArchived = parseBoolean(isArchived, false);

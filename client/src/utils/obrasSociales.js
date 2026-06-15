@@ -113,6 +113,7 @@ export const getCokibaDetails = (obraSocial) => {
   pushLink(details.autorizacionUrl, 'Autorización');
 
   const bonusAmounts = extractBonusAmounts(details.coseguroTexto, details.observaciones);
+  const normalized = details.normalizedData || {};
 
   return {
     arancelVigenteDesde: details.arancelVigenteDesde || '',
@@ -130,6 +131,15 @@ export const getCokibaDetails = (obraSocial) => {
     bonusAmounts,
     bonusTotal: bonusAmounts.reduce((sum, bonus) => sum + (Number(bonus.amount) || 0), 0),
     links: [...linkMap.values()],
+    billingMethod: normalized.billingMethod || '',
+    billingPortal: normalized.billingPortal || '',
+    billingEmail: normalized.billingEmail || '',
+    honorarium: normalized.honorarium ?? null,
+    paymentDays: normalized.paymentDays ?? null,
+    copaymentRequired: normalized.copaymentRequired ?? false,
+    copaymentAmount: normalized.copaymentAmount ?? null,
+    plans: Array.isArray(normalized.plans) ? normalized.plans : [],
+    authorization: normalized.authorization || {},
   };
 };
 

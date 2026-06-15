@@ -3,6 +3,7 @@ import puppeteer from 'puppeteer';
 import { loadSupplementalCokibaCatalog, matchSupplementalCokibaEntry } from './cokibaTextCatalog.js';
 import { sendCokibaAlertEmail } from './cokibaAlertMailer.js';
 import { sendNotificationToAll } from '../controllers/notifications.controller.js';
+import { normalizeCokibaDetails } from './cokibaNormalizer.js';
 import { auditActions, safeWriteAuditLog } from '../utils/audit.js';
 import {
   buildCokibaNotificationPayload,
@@ -719,6 +720,14 @@ const mergeSupplementalRecord = (record, option, supplementalCatalog) => {
           lines: [...(mergedDetails.norms || []), ...(mergedDetails.extractedUrls || [])],
         }),
     },
+    normalizedData: normalizeCokibaDetails({
+      lines: [],
+      links: mergeLinks(baseDetails.links, supplementalDetails.links),
+      rawCoseguro: mergedDetails.coseguroTexto,
+      authorizationInfo: mergedDetails.authorizationNote,
+      rawText: mergeTextLines(mergedDetails.observaciones, mergedDetails.convenioTexto),
+      details: mergedDetails,
+    }),
   };
 };
 
@@ -759,6 +768,14 @@ const extractDetailRecord = (detail, option, plazoPago) => {
     rawCoseguro,
     postConventionLines,
     authorizationInfo,
+  });
+  const normalizedData = normalizeCokibaDetails({
+    lines,
+    links: cokibaDetails.links,
+    rawCoseguro,
+    authorizationInfo: authorizationInfo.note,
+    rawText: detail.bodyText,
+    details: cokibaDetails,
   });
   const authorizationType = deriveCokibaAuthorizationType({
     authorizationNote: authorizationInfo.note,
@@ -802,6 +819,7 @@ const extractDetailRecord = (detail, option, plazoPago) => {
       coinsuranceReliable: coinsuranceRule.isReliable,
       authorizationType,
     },
+    normalizedData,
     rawCategoria: 'Básica',
   };
 };
@@ -977,7 +995,14 @@ const synchronizeRows = async (prisma, obrasSociales, logger) => {
       ),
       fixedCopay: pickSyncedValue(obraSocial.fixedCopay, existing?.fixedCopay, 0),
       honorarioEstimado: obraSocial.honorarioEstimado,
+      honorarium: obraSocial.normalizedData?.honorarium ?? null,
       plazoPago: obraSocial.plazoPago,
+      billingMethod: obraSocial.normalizedData?.billingMethod || null,
+      paymentDays: obraSocial.normalizedData?.paymentDays ?? null,
+      copaymentRequired: obraSocial.normalizedData?.copaymentRequired ?? false,
+      copaymentAmount: obraSocial.normalizedData?.copaymentAmount ?? null,
+      allowedPlans: obraSocial.normalizedData?.plans || null,
+      normalizedData: obraSocial.normalizedData ?? null,
       detectedStatus: obraSocial.detectedStatus,
       detectedIsActive: obraSocial.detectedIsActive,
       requiresAuthorization:
@@ -1013,7 +1038,14 @@ const synchronizeRows = async (prisma, obrasSociales, logger) => {
         percentageCoinsurance: obraSocial.percentageCoinsurance ?? 0,
         fixedCopay: obraSocial.fixedCopay ?? 0,
         honorarioEstimado: obraSocial.honorarioEstimado,
+        honorarium: obraSocial.normalizedData?.honorarium ?? null,
         plazoPago: obraSocial.plazoPago,
+        billingMethod: obraSocial.normalizedData?.billingMethod || null,
+        paymentDays: obraSocial.normalizedData?.paymentDays ?? null,
+        copaymentRequired: obraSocial.normalizedData?.copaymentRequired ?? false,
+        copaymentAmount: obraSocial.normalizedData?.copaymentAmount ?? null,
+        allowedPlans: obraSocial.normalizedData?.plans || null,
+        normalizedData: obraSocial.normalizedData ?? null,
         estado: obraSocial.estado,
         isActive: obraSocial.isActive,
         detectedStatus: obraSocial.detectedStatus,

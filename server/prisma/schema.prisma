@@ -493,6 +493,14 @@ model ObraSocial {
   atendibleSanMiguel    Boolean       @default(false)
   requiredDocuments     Json?
   cokibaDetails         Json?
+  normalizedData        Json?
+  logoUrl               String?
+  honorarium            Decimal?      @db.Decimal(10, 2)
+  paymentDays           Int?
+  billingMethod         String?
+  copaymentRequired     Boolean?      @default(false)
+  copaymentAmount       Decimal?      @db.Decimal(10, 2)
+  allowedPlans          Json?
   rawCategoria          String?
   ultimaSync            DateTime      @default(now())
   createdAt             DateTime      @default(now())
