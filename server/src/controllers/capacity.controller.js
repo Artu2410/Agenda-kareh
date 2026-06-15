@@ -192,31 +192,36 @@ const buildFutureCoverage = (futureAppointments, now) => {
   };
 };
 
-const buildMonthlyTrend = (appointments, monthlyCapacity, now) => {
-  const monthDates = Array.from({ length: 12 }, (_, index) => startOfMonth(subMonths(now, 11 - index)));
-  const rows = monthDates.map((monthDate) => ({
-    monthKey: format(monthDate, 'yyyy-MM'),
-    month: formatChartMonth(monthDate),
-    label: formatMonthLabel(monthDate),
-    capacity: roundOne(monthlyCapacity),
-    completedCount: 0,
-    occupancyRate: 0,
-  }));
-  const rowsByKey = new Map(rows.map((row) => [row.monthKey, row]));
+const buildMonthlyTrend = (appointments, monthlyCapacity) => {
+  const rowsByKey = new Map();
 
   appointments.forEach((appointment) => {
-    if (appointment.status !== COMPLETED_STATUS) return;
+    if (appointment.status === CANCELLED_STATUS) return;
+
     const monthKey = format(appointment.date, 'yyyy-MM');
-    const row = rowsByKey.get(monthKey);
-    if (!row) return;
-    row.completedCount += 1;
+    const current = rowsByKey.get(monthKey) || {
+      monthKey,
+      month: formatChartMonth(appointment.date),
+      label: formatMonthLabel(appointment.date),
+      capacity: roundOne(monthlyCapacity),
+      turns: 0,
+      completedCount: 0,
+      completed: 0,
+      occupancyRate: 0,
+    };
+
+    current.turns += 1;
+    if (appointment.status === COMPLETED_STATUS) current.completedCount += 1;
+    rowsByKey.set(monthKey, current);
   });
 
-  rows.forEach((row) => {
-    row.occupancyRate = row.capacity > 0 ? roundOne((row.completedCount / row.capacity) * 100) : 0;
-  });
-
-  return rows;
+  return Array.from(rowsByKey.values())
+    .sort((left, right) => left.monthKey.localeCompare(right.monthKey))
+    .map((row) => ({
+      ...row,
+      completed: row.completedCount,
+      occupancyRate: row.capacity > 0 ? roundOne((row.completedCount / row.capacity) * 100) : 0,
+    }));
 };
 
 const getSustainedGrowth = (monthlyTrend) => {
@@ -232,8 +237,6 @@ const buildAdminRecommendation = ({
   monthlyAppointmentCount,
   activePatients,
   occupancyRate,
-  delayedAuthorizations,
-  overdueReceivables,
 }) => {
   const criteria = [
     {
@@ -251,41 +254,20 @@ const buildAdminRecommendation = ({
       measured: true,
     },
     {
-      key: 'admin_hours',
-      label: 'Más de 5 horas administrativas semanales',
-      met: false,
-      value: null,
-      measured: false,
-    },
-    {
       key: 'occupancy',
       label: 'Más de 60% de ocupación',
       met: occupancyRate > 60,
       value: roundOne(occupancyRate),
       measured: true,
     },
-    {
-      key: 'authorization_delays',
-      label: 'Retrasos en autorizaciones',
-      met: delayedAuthorizations > 0,
-      value: delayedAuthorizations,
-      measured: true,
-    },
-    {
-      key: 'billing_delays',
-      label: 'Retrasos en facturación o cobro',
-      met: overdueReceivables > 0,
-      value: roundTwo(overdueReceivables),
-      measured: true,
-    },
   ];
   const metCount = criteria.filter((criterion) => criterion.met).length;
 
   return {
-    recommended: metCount >= 3,
+    recommended: metCount >= 2,
     metCount,
-    requiredCount: 3,
-    label: metCount >= 3 ? 'Administrativo recomendado' : 'Administrativo en observación',
+    requiredCount: 2,
+    label: metCount >= 2 ? 'Administrativo recomendado' : 'Administrativo en observación',
     criteria,
   };
 };
@@ -309,13 +291,6 @@ const buildKinesiologistRecommendation = ({
       met: coverageDays > 60,
       value: coverageDays,
       measured: true,
-    },
-    {
-      key: 'rejected_patients',
-      label: 'Pacientes rechazados por falta de horario',
-      met: false,
-      value: null,
-      measured: false,
     },
     {
       key: 'growth',
@@ -413,8 +388,6 @@ export const getCapacityMetrics = async (req, res, prisma) => {
       currentWeekCompletedAppointments,
       historicalAppointments,
       futureAppointments,
-      delayedAuthorizations,
-      overdueInvoices,
     ] = await Promise.all([
       prisma.agendaConfig.findFirst(),
       prisma.professional.findMany({
@@ -480,23 +453,6 @@ export const getCapacityMetrics = async (req, res, prisma) => {
           { slotNumber: 'asc' },
         ],
       }),
-      prisma.appointment.count({
-        where: {
-          date: { lt: todayStart },
-          status: { in: ['PENDING_AUTHORIZATION', 'AUTHORIZED'] },
-          authorizationStatus: 'PENDING',
-        },
-      }),
-      prisma.billingInvoice.findMany({
-        where: {
-          status: { in: ['ISSUED', 'PARTIALLY_PAID', 'OVERDUE'] },
-          expectedPaymentDate: { lt: now },
-        },
-        select: {
-          totalAmount: true,
-          paidAmount: true,
-        },
-      }).catch(() => []),
     ]);
 
     const config = agendaConfig || DEFAULT_AGENDA_CONFIG;
@@ -548,19 +504,13 @@ export const getCapacityMetrics = async (req, res, prisma) => {
     });
 
     const futureCoverage = buildFutureCoverage(futureAppointments, now);
-    const monthlyTrend = buildMonthlyTrend(historicalAppointments, totalSummary.monthlyCapacity, now);
+    const monthlyTrend = buildMonthlyTrend(historicalAppointments, totalSummary.monthlyCapacity);
     const sustainedGrowth = getSustainedGrowth(monthlyTrend);
-    const overdueReceivables = overdueInvoices.reduce(
-      (sum, invoice) => sum + Math.max(0, toNumber(invoice.totalAmount) - toNumber(invoice.paidAmount)),
-      0
-    );
 
     const adminRecommendation = buildAdminRecommendation({
       monthlyAppointmentCount: currentMonthAppointments.length,
       activePatients,
       occupancyRate: totalSummary.occupancyRate,
-      delayedAuthorizations,
-      overdueReceivables,
     });
     const kinesiologistRecommendation = buildKinesiologistRecommendation({
       occupancyRate: totalSummary.occupancyRate,
@@ -614,23 +564,6 @@ export const getCapacityMetrics = async (req, res, prisma) => {
         kinesiologist: kinesiologistRecommendation,
       },
       bottleneck,
-      missingData: [
-        {
-          key: 'admin_hours',
-          label: 'Horas administrativas semanales',
-          reason: 'Todavía no existe registro horario de tareas administrativas.',
-        },
-        {
-          key: 'rejected_patients',
-          label: 'Pacientes rechazados por falta de horario',
-          reason: 'Todavía no se registra demanda perdida.',
-        },
-        {
-          key: 'rooms',
-          label: 'Boxes o salas físicas disponibles',
-          reason: 'La capacidad física no está modelada como entidad separada.',
-        },
-      ],
     });
   } catch (error) {
     throw createInternalError(error, 'Error al obtener capacidad operativa');
