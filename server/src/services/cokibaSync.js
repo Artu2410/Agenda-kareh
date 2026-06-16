@@ -42,6 +42,8 @@ const DEFAULT_LAUNCH_ARGS = [
   '--disable-gpu',
 ];
 
+const CHROME_EXECUTABLE_PATH = process.env.PUPPETEER_EXECUTABLE_PATH || process.env.CHROME_PATH;
+
 const KNOWN_LABELS = [
   'Arancel Vigente desde',
   'CUIT',
@@ -1232,12 +1234,21 @@ const runCokibaSyncInternal = async ({ prisma, logger: syncLogger = defaultLogge
     const previousSnapshotEntry = await getLatestCokibaAuditEntry(localPrisma, auditActions.cokibaSyncSnapshot);
     const previousSnapshotRecords = buildPreviousSnapshot(previousSnapshotEntry);
 
-    browser = await puppeteer.launch({
+    const launchOptions = {
       headless: 'new',
       args: DEFAULT_LAUNCH_ARGS,
       protocolTimeout: 120000,
       defaultViewport: { width: 1280, height: 800 },
-    });
+    };
+
+    if (CHROME_EXECUTABLE_PATH) {
+      launchOptions.executablePath = CHROME_EXECUTABLE_PATH;
+      syncLogger.info('Usando Chrome instalado en el host para Puppeteer', {
+        executablePath: CHROME_EXECUTABLE_PATH,
+      });
+    }
+
+    browser = await puppeteer.launch(launchOptions);
 
     const page = await browser.newPage();
     page.setDefaultNavigationTimeout(30000);
