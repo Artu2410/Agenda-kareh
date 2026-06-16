@@ -190,7 +190,11 @@ export const normalizeCokibaDetails = ({
   const billingEmail = findEmail(mergedText);
 
   const honorarium = extractMoney(details.honorarioReferenciaPrestacion || details.honorarioBasicaReferencia || details.coseguroTexto || details.observaciones) || null;
-  const honorariumUpdatedAt = details.arancelVigenteDesde ? new Date(details.arancelVigenteDesde).toISOString() : null;
+  const honorariumUpdatedAt = (() => {
+    if (!details.arancelVigenteDesde) return null;
+    const date = new Date(details.arancelVigenteDesde);
+    return Number.isNaN(date.getTime()) ? null : date.toISOString();
+  })();
 
   const paymentDays = extractInt(normalizedText.match(/(plazo|pago).*?\b(\d{1,3})\b\s*d[ií]as?/i)?.[0] || normalizedText);
 
