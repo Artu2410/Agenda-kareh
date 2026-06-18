@@ -103,6 +103,74 @@ describe('AppointmentModal', () => {
     expect(onDelete).not.toHaveBeenCalled();
   });
 
+  it('muestra ciclos con asistencias, ausentes y pendientes', async () => {
+    const onClose = vi.fn();
+
+    server.use(
+      http.get(getApiUrl('/obras-sociales'), () => HttpResponse.json([
+        {
+          id: 'osde-1',
+          nombreOs: 'OSDE',
+          isActive: true,
+          requiresAuthorization: false,
+          honorarioEstimado: 10000,
+          requiredDocuments: { documents: [], additionalInfo: '' },
+        },
+      ], { status: 200 })),
+      http.get(getApiUrl('/patients/pat-1/future-appointments'), () => HttpResponse.json([], { status: 200 })),
+      http.get(getApiUrl('/patients/pat-1/session-cycles'), () => HttpResponse.json([
+        {
+          year: 2026,
+          totalCompleted: 3,
+          completedSessions: 3,
+          absentSessions: 1,
+          recordedSessions: 4,
+          sessionsInCurrentCycle: 4,
+          targetSessionsInCurrentCycle: 5,
+          cycles: [],
+          currentCycle: {
+            cycleNumber: 1,
+            from: '2026-06-01T12:00:00.000Z',
+            to: '2026-06-09T12:00:00.000Z',
+            targetSessions: 5,
+            completedSessions: 3,
+            absentSessions: 1,
+            pendingSessions: 1,
+            recordedSessions: 4,
+            isComplete: false,
+            sessions: [
+              { id: 'apt-1', status: 'COMPLETED', isCompleted: true, isAbsent: false, isPending: false },
+              { id: 'apt-2', status: 'COMPLETED', isCompleted: true, isAbsent: false, isPending: false },
+              { id: 'apt-3', status: 'NO_SHOW', isCompleted: false, isAbsent: true, isPending: false },
+              { id: 'apt-4', status: 'COMPLETED', isCompleted: true, isAbsent: false, isPending: false },
+            ],
+          },
+        },
+      ], { status: 200 }))
+    );
+
+    render(
+      <AppointmentModal
+        isOpen
+        onClose={onClose}
+        onSave={vi.fn()}
+        onDelete={vi.fn()}
+        onRefresh={vi.fn()}
+        appointment={{
+          ...baseAppointment,
+          patientId: 'pat-1',
+        }}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByRole('combobox')).toHaveValue('osde-1'));
+    expect(await screen.findByText('Ciclo 1 en curso')).toBeInTheDocument();
+    expect(screen.getByText('3 asistidas · 1 ausentes · 1 pendientes')).toBeInTheDocument();
+    expect(screen.getAllByTitle('Ausente')[0].className).toContain('bg-rose-500');
+    expect(screen.getAllByTitle('Asistida')[0].className).toContain('bg-emerald-500');
+    expect(screen.getAllByTitle('Pendiente')[0].className).toContain('border-dashed');
+  });
+
   it('muestra error cuando la evolución falla', async () => {
     const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
 

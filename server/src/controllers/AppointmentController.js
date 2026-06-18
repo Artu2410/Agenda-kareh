@@ -538,6 +538,20 @@ export const createAppointment = async (req, res, prisma) => {
       const appointmentsCreated = [];
       const numSessions = Math.max(1, parseInt(sessionCount) || 1);
       const [year, month, day] = date.split('-').map(Number);
+      const treatmentCycle = numSessions > 1
+        ? await tx.treatmentCycle.create({
+          data: {
+            patientId: patient.id,
+            diagnosis: String(diagnosis || patientData?.medicalHistory || 'SIN DIAGNOSTICO').trim().toUpperCase(),
+            totalSessions: numSessions,
+            startDate: new Date(year, month - 1, day, 12, 0, 0),
+          },
+          select: {
+            id: true,
+            totalSessions: true,
+          },
+        })
+        : null;
       let currentDate = new Date(year, month - 1, day, 12, 0, 0);
       const daysToUse = (selectedDays && selectedDays.length > 0) ? selectedDays : [currentDate.getDay()];
       
@@ -569,6 +583,7 @@ export const createAppointment = async (req, res, prisma) => {
                 sessionNumber: 0, // Idem
                 patientId: patient.id,
                 professionalId: prof.id,
+                cycleId: treatmentCycle?.id || null,
                 ...baseAppointmentPayload,
                 sessionToken: baseAppointmentPayload.sessionToken,
                 paidInAdvance: Boolean(baseAppointmentPayload.paidInAdvance && sessionsCreated === 0),
@@ -951,6 +966,15 @@ const APPOINTMENT_ORDER = [
   { slotNumber: 'asc' },
 ];
 
+const DEFAULT_SESSION_CYCLE_LENGTH = 10;
+
+const getAppointmentCycleLength = (appointment) => {
+  const totalSessions = Number(appointment?.treatmentCycle?.totalSessions);
+  return Number.isFinite(totalSessions) && totalSessions > 0
+    ? totalSessions
+    : DEFAULT_SESSION_CYCLE_LENGTH;
+};
+
 const resequencePatientAppointments = async (tx, patientId) => {
   logger.debug('Resequencing patient appointments', { patientId });
   const appointments = await tx.appointment.findMany({
@@ -959,24 +983,49 @@ const resequencePatientAppointments = async (tx, patientId) => {
       status: { not: 'CANCELLED' },
     },
     orderBy: APPOINTMENT_ORDER,
-    select: { id: true, isFirstSession: true, date: true },
+    select: {
+      id: true,
+      isFirstSession: true,
+      date: true,
+      cycleId: true,
+      sessionNumber: true,
+      treatmentCycle: {
+        select: {
+          totalSessions: true,
+        },
+      },
+    },
   });
 
   logger.debug('Resequencing appointments fetched', { patientId, count: appointments.length });
 
   let currentNumber = 1;
+  let currentCycleId = null;
+  let currentCycleLength = DEFAULT_SESSION_CYCLE_LENGTH;
+  let previousSessionNumber = null;
   for (const [index, appointment] of appointments.entries()) {
-    let isFirst = appointment.isFirstSession;
-    if (index === 0) isFirst = true; // La primera sesión histórica siempre es ingreso
+    const appointmentCycleLength = getAppointmentCycleLength(appointment);
+    const sessionNumber = Number(appointment.sessionNumber) || 0;
+    const hasExplicitCycle = Boolean(appointment.cycleId);
+    let isFirst = index === 0 || Boolean(appointment.isFirstSession);
 
-    // Regla de negocio automática: Los ciclos son de 10 sesiones. 
-    // Si la cuenta superó 10, forzamos un nuevo inicio de ciclo (Ingreso).
-    if (currentNumber > 10) {
-      isFirst = true;
+    if (hasExplicitCycle) {
+      if (appointment.cycleId !== currentCycleId) {
+        isFirst = true;
+      }
+    } else if (!isFirst) {
+      if (currentNumber > currentCycleLength) {
+        isFirst = true;
+      } else if (sessionNumber > 0 && previousSessionNumber > 0 && sessionNumber <= previousSessionNumber) {
+        isFirst = true;
+      }
     }
 
     if (isFirst) {
       currentNumber = 1;
+      currentCycleId = appointment.cycleId || null;
+      currentCycleLength = appointmentCycleLength;
+      previousSessionNumber = null;
     }
 
     await tx.appointment.update({
@@ -989,6 +1038,7 @@ const resequencePatientAppointments = async (tx, patientId) => {
     });
     
     // Incrementar para la siguiente sesión del loop
+    previousSessionNumber = currentNumber;
     currentNumber++;
   }
 };
@@ -1066,7 +1116,14 @@ export const sendWhatsAppTicketDocument = async (req, res, prisma) => {
 
     const appointment = await prisma.appointment.findUnique({
       where: { id },
-      select: appointmentSelect,
+      select: {
+        ...appointmentSelect,
+        treatmentCycle: {
+          select: {
+            totalSessions: true,
+          },
+        },
+      },
     });
 
     if (!appointment) {
@@ -1094,7 +1151,7 @@ export const sendWhatsAppTicketDocument = async (req, res, prisma) => {
         status: { not: 'CANCELLED' },
       },
       orderBy: APPOINTMENT_ORDER,
-      take: 10,
+      take: Math.max(1, getAppointmentCycleLength(appointment)),
       select: appointmentWithProfessionalSelect,
     });
 
@@ -1271,10 +1328,23 @@ export const getAppointmentBatch = async (req, res, prisma) => {
   try {
     const ref = await prisma.appointment.findUnique({
       where: { id },
-      select: { id: true, patientId: true, date: true, professionalId: true },
+      select: {
+        id: true,
+        patientId: true,
+        date: true,
+        professionalId: true,
+        cycleId: true,
+        treatmentCycle: {
+          select: {
+            totalSessions: true,
+          },
+        },
+      },
     });
     if (!ref) return res.status(404).json({ message: "Turno no encontrado" });
     ensureAppointmentScope(req, ref.professionalId);
+
+    const batchSize = Math.max(1, getAppointmentCycleLength(ref));
 
     const batch = await prisma.appointment.findMany({
       where: mergeWhereClauses(withProfessionalScope(req.user), {
@@ -1283,7 +1353,7 @@ export const getAppointmentBatch = async (req, res, prisma) => {
         status: { not: 'CANCELLED' }
       }),
       orderBy: APPOINTMENT_ORDER,
-      take: 10,
+      take: batchSize,
       select: appointmentBaseSelect,
     });
     res.json(batch);

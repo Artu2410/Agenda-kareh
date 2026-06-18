@@ -57,6 +57,44 @@ const SectionHeader = ({ title, description }) => (
   </div>
 );
 
+const getCycleSummaryText = (cycle = {}) => {
+  const parts = [`${Number(cycle.completedSessions || 0)} asistidas`];
+
+  if (Number(cycle.absentSessions || 0) > 0) {
+    parts.push(`${Number(cycle.absentSessions || 0)} ausentes`);
+  }
+
+  if (Number(cycle.pendingSessions || 0) > 0) {
+    parts.push(`${Number(cycle.pendingSessions || 0)} pendientes`);
+  }
+
+  return parts.join(' · ');
+};
+
+const getCycleCardClassName = (cycle = {}, isActive = false) => {
+  if (Number(cycle.absentSessions || 0) > 0) {
+    return isActive
+      ? 'border-rose-200 bg-rose-50/80'
+      : 'border-rose-200 bg-rose-50';
+  }
+
+  return isActive
+    ? 'border-emerald-200 bg-emerald-50/80'
+    : 'border-emerald-200 bg-emerald-50';
+};
+
+const getCycleDotClassName = (session = {}) => {
+  if (session.isCompleted) {
+    return 'bg-emerald-500';
+  }
+
+  if (session.isAbsent) {
+    return 'bg-rose-500';
+  }
+
+  return 'border border-dashed border-slate-300 bg-white';
+};
+
 const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, selectedSlot, appointment = null, professional = null }) => {
   const {
     ConfirmModalComponent,
@@ -538,57 +576,126 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                     <History size={14} className="text-teal-500" /> Ciclos por Año
                   </h3>
                   <div className="max-h-[260px] overflow-y-auto pr-1 custom-scrollbar space-y-4">
-                    {sessionCycles.length > 0 ? sessionCycles.map((yearData) => (
-                      <div key={yearData.year} className="rounded-[1.6rem] border border-slate-100 bg-slate-50/60 p-4">
-                        {/* Encabezado año */}
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="text-[11px] font-black text-slate-700 uppercase tracking-wide">{yearData.year}</span>
-                          <span className="text-[10px] font-black text-teal-600 bg-teal-50 border border-teal-100 px-3 py-1 rounded-xl">
-                            {yearData.totalCompleted} sesiones asistidas
-                          </span>
-                        </div>
-                        {/* Ciclos completados */}
-                        {yearData.cycles.length > 0 && (
-                          <div className="flex flex-wrap gap-2 mb-2">
-                            {yearData.cycles.map((cycle) => (
-                              <div key={cycle.cycleNumber} className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-1.5">
-                                <div className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[9px] font-black shrink-0">
-                                  {cycle.cycleNumber}
+                    {sessionCycles.length > 0 ? sessionCycles.map((yearData) => {
+                      const completedSessions = Number(yearData.completedSessions ?? yearData.totalCompleted ?? 0);
+                      const absentSessions = Number(yearData.absentSessions ?? 0);
+                      const completedCycles = Array.isArray(yearData.cycles) ? yearData.cycles : [];
+                      const currentCycle = yearData.currentCycle || null;
+                      const currentCycleTargetSessions = Number(currentCycle?.targetSessions || yearData.targetSessionsInCurrentCycle || 10);
+                      const currentCycleSessions = Array.isArray(currentCycle?.sessions) ? currentCycle.sessions : [];
+
+                      return (
+                        <div key={yearData.year} className="rounded-[1.6rem] border border-slate-100 bg-slate-50/60 p-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <span className="text-[11px] font-black text-slate-700 uppercase tracking-wide">{yearData.year}</span>
+                            <span className={`text-[10px] font-black px-3 py-1 rounded-xl border ${absentSessions > 0 ? 'text-rose-700 bg-rose-50 border-rose-100' : 'text-emerald-700 bg-emerald-50 border-emerald-100'}`}>
+                              {completedSessions} sesiones asistidas{absentSessions > 0 ? ` · ${absentSessions} ausentes` : ''}
+                            </span>
+                          </div>
+
+                          {completedCycles.length > 0 && (
+                            <div className="space-y-2 mb-2">
+                              {completedCycles.map((cycle) => {
+                                const cycleSessions = Array.isArray(cycle.sessions) ? cycle.sessions : [];
+                                const cycleTargetSessions = Number(cycle.targetSessions || cycleSessions.length || 10);
+
+                                return (
+                                  <div key={cycle.cycleNumber} className={`rounded-xl border px-3 py-2 ${getCycleCardClassName(cycle)}`}>
+                                    <div className="flex items-start gap-2">
+                                      <div className={`w-5 h-5 rounded-full text-white flex items-center justify-center text-[9px] font-black shrink-0 ${Number(cycle.absentSessions || 0) > 0 ? 'bg-rose-500' : 'bg-emerald-500'}`}>
+                                        {cycle.cycleNumber}
+                                      </div>
+                                      <div className="min-w-0 flex-1">
+                                        <div className="flex items-start justify-between gap-2">
+                                          <div className="min-w-0">
+                                            <p className={`text-[9px] font-black uppercase leading-none ${Number(cycle.absentSessions || 0) > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
+                                              Ciclo {cycle.cycleNumber}
+                                            </p>
+                                            <p className={`text-[8px] font-semibold leading-none mt-0.5 ${Number(cycle.absentSessions || 0) > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
+                                              {cycle.from && cycle.to
+                                                ? `${format(new Date(cycle.from), 'dd/MM', { locale: es })} → ${format(new Date(cycle.to), 'dd/MM', { locale: es })}`
+                                                : 'Sin fechas'}
+                                            </p>
+                                          </div>
+                                          <p className="text-[8px] font-black uppercase tracking-widest text-slate-400 text-right">
+                                            {getCycleSummaryText(cycle)}
+                                          </p>
+                                        </div>
+                                        <div className="mt-2 flex flex-wrap gap-1.5">
+                                          {Array.from({ length: cycleTargetSessions }, (_, index) => {
+                                            const session = cycleSessions[index];
+                                            return (
+                                              <div
+                                                key={index}
+                                                title={
+                                                  session?.isCompleted
+                                                    ? 'Asistida'
+                                                    : session?.isAbsent
+                                                      ? 'Ausente'
+                                                      : 'Pendiente'
+                                                }
+                                                className={`h-2.5 w-2.5 rounded-full ${getCycleDotClassName(session)}`}
+                                              />
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {currentCycle && (
+                            <div className={`rounded-xl border px-3 py-2 ${getCycleCardClassName(currentCycle, true)}`}>
+                              <div className="flex items-start gap-2">
+                                <div className={`w-5 h-5 rounded-full text-white flex items-center justify-center text-[9px] font-black shrink-0 ${Number(currentCycle.absentSessions || 0) > 0 ? 'bg-rose-500' : 'bg-emerald-500'}`}>
+                                  {currentCycle.cycleNumber}
                                 </div>
-                                <div>
-                                  <p className="text-[9px] font-black text-emerald-700 uppercase leading-none">Ciclo {cycle.cycleNumber}</p>
-                                  <p className="text-[8px] text-emerald-500 font-semibold leading-none mt-0.5">
-                                    {format(new Date(cycle.from), 'dd/MM', { locale: es })} → {format(new Date(cycle.to), 'dd/MM', { locale: es })}
-                                  </p>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="min-w-0">
+                                      <p className={`text-[9px] font-black uppercase leading-none ${Number(currentCycle.absentSessions || 0) > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
+                                        Ciclo {currentCycle.cycleNumber} en curso
+                                      </p>
+                                      <p className={`text-[8px] font-semibold leading-none mt-0.5 ${Number(currentCycle.absentSessions || 0) > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
+                                        {getCycleSummaryText(currentCycle)}
+                                      </p>
+                                    </div>
+                                    <p className="text-[8px] font-black uppercase tracking-widest text-slate-400 text-right">
+                                      {currentCycle.recordedSessions || 0} / {currentCycleTargetSessions} sesiones
+                                    </p>
+                                  </div>
+                                  <div className="mt-2 flex flex-wrap gap-1.5">
+                                    {Array.from({ length: currentCycleTargetSessions }, (_, index) => {
+                                      const session = currentCycleSessions[index];
+                                      return (
+                                        <div
+                                          key={index}
+                                          title={
+                                            session?.isCompleted
+                                              ? 'Asistida'
+                                              : session?.isAbsent
+                                                ? 'Ausente'
+                                                : 'Pendiente'
+                                          }
+                                          className={`h-2.5 w-2.5 rounded-full ${getCycleDotClassName(session)}`}
+                                        />
+                                      );
+                                    })}
+                                  </div>
                                 </div>
                               </div>
-                            ))}
-                          </div>
-                        )}
-                        {/* Ciclo en curso */}
-                        {yearData.sessionsInCurrentCycle > 0 && (
-                          <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mt-1">
-                            <div className="w-5 h-5 rounded-full border-2 border-amber-400 border-dashed flex items-center justify-center text-[9px] font-black text-amber-600 shrink-0">
-                              {yearData.completedCycles + 1}
                             </div>
-                            <div>
-                              <p className="text-[9px] font-black text-amber-700 uppercase leading-none">Ciclo {yearData.completedCycles + 1} en curso</p>
-                              <p className="text-[8px] text-amber-500 font-semibold leading-none mt-0.5">
-                                {yearData.sessionsInCurrentCycle} / 10 sesiones
-                              </p>
-                            </div>
-                            <div className="ml-auto flex gap-0.5">
-                              {Array.from({ length: 10 }, (_, i) => (
-                                <div key={i} className={`w-2 h-2 rounded-full ${i < yearData.sessionsInCurrentCycle ? 'bg-amber-400' : 'bg-amber-100'}`} />
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        {yearData.totalCompleted === 0 && (
-                          <p className="text-[10px] text-slate-400 font-bold italic">Sin sesiones completadas</p>
-                        )}
-                      </div>
-                    )) : (
+                          )}
+
+                          {!completedCycles.length && !currentCycle && (
+                            <p className="text-[10px] text-slate-400 font-bold italic">Sin sesiones registradas</p>
+                          )}
+                        </div>
+                      );
+                    }) : (
                       <div className="rounded-[1.6rem] border border-dashed border-slate-200 bg-slate-50/40 p-5 text-center">
                         <p className="text-[10px] text-slate-300 font-black uppercase tracking-widest">Sin ciclos registrados</p>
                         <p className="text-[9px] text-slate-300 font-semibold mt-1">Los ciclos se contabilizan cuando el turno pasa a "Asistió"</p>

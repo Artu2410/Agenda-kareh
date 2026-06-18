@@ -42,7 +42,7 @@ const createRouter = (prisma) => {
   // 1. Obtener turnos de la semana
   router.get('/week', validate({ query: appointmentWeekQuerySchema }), (req, res) => getWeekAppointments(req, res, prisma));
 
-  // 2. Ticket: Obtener lote de 10 sesiones
+  // 2. Ticket: Obtener lote de sesiones del ciclo
   router.get('/:id/batch', (req, res) => getAppointmentBatch(req, res, prisma));
 
   // 2a. Autorizaciones pendientes / resueltas

@@ -239,6 +239,104 @@ describe('AppointmentController core flows', () => {
     }));
   });
 
+  it('persists the treatment cycle length for multi-session batches', async () => {
+    const createdAppointments = [];
+    const patient = buildPatient();
+    const tx = {
+      agendaConfig: {
+        findFirst: jest.fn().mockResolvedValue({ capacityPerSlot: 2 }),
+      },
+      patient: {
+        upsert: jest.fn().mockResolvedValue(patient),
+        update: jest.fn().mockResolvedValue({ id: patient.id }),
+        findUnique: jest.fn().mockResolvedValue(patient),
+      },
+      professional: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'prof-1',
+          fullName: 'Lic. Ana',
+          isActive: true,
+        }),
+        findFirst: jest.fn(),
+        create: jest.fn(),
+      },
+      treatmentCycle: {
+        create: jest.fn().mockResolvedValue({
+          id: 'cycle-1',
+          totalSessions: 5,
+        }),
+      },
+      appointment: {
+        findMany: jest.fn().mockImplementation(async (query) => {
+          if (query?.select?.slotNumber) {
+            return [{ slotNumber: 1 }];
+          }
+
+          return createdAppointments.map((appointment) => ({
+            ...appointment,
+            treatmentCycle: {
+              totalSessions: 5,
+            },
+          }));
+        }),
+        create: jest.fn().mockImplementation(async ({ data }) => {
+          const appointment = {
+            id: `apt-${createdAppointments.length + 1}`,
+            date: data.date,
+            time: data.time,
+            slotNumber: data.slotNumber,
+            cycleId: data.cycleId,
+            sessionNumber: data.sessionNumber,
+            isFirstSession: data.isFirstSession,
+            status: data.status,
+          };
+
+          createdAppointments.push(appointment);
+          return appointment;
+        }),
+        update: jest.fn().mockResolvedValue({ id: 'apt-updated' }),
+        findUnique: jest.fn(),
+      },
+    };
+    const prisma = {
+      agendaConfig: {
+        findFirst: jest.fn().mockResolvedValue({ capacityPerSlot: 2 }),
+      },
+      $transaction: jest.fn(async (callback) => callback(tx)),
+    };
+    const req = {
+      body: {
+        patientId: patient.id,
+        professionalId: 'prof-1',
+        date: '2026-06-10',
+        time: '10:00',
+        diagnosis: 'Control',
+        sessionCount: 5,
+        selectedDays: [3],
+        paidInAdvance: false,
+      },
+      user: { role: 'ADMIN' },
+    };
+    const res = createResponse();
+
+    await createAppointment(req, res, prisma);
+
+    expect(tx.treatmentCycle.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        patientId: patient.id,
+        totalSessions: 5,
+        diagnosis: 'CONTROL',
+      }),
+    }));
+    expect(tx.appointment.create).toHaveBeenCalled();
+    expect(tx.appointment.create.mock.calls.every((call) => call[0].data.cycleId === 'cycle-1')).toBe(true);
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      success: true,
+      appointments: expect.any(Array),
+    }));
+  });
+
   it('creates an insured appointment with authorization and financial snapshot data', async () => {
     const { prisma, tx } = buildCreatePrisma({ insured: true });
     tx.appointment.findMany

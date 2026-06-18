@@ -674,41 +674,206 @@ export const getFutureAppointments = async (req, res, prisma) => {
   }
 };
 
-// Devuelve ciclos de sesiones completadas por anio para control de obra social
+const SESSION_CYCLE_DEFAULT_TOTAL = 10;
+const SESSION_CYCLE_FINAL_STATUSES = new Set(['COMPLETED', 'NO_SHOW']);
+
+const compareSessionCycleAppointments = (left, right) => {
+  const leftDate = new Date(left.date).getTime();
+  const rightDate = new Date(right.date).getTime();
+
+  if (leftDate !== rightDate) return leftDate - rightDate;
+
+  const leftTime = String(left.time || '');
+  const rightTime = String(right.time || '');
+  if (leftTime !== rightTime) return leftTime.localeCompare(rightTime);
+
+  return (Number(left.slotNumber) || 0) - (Number(right.slotNumber) || 0);
+};
+
+const getAppointmentCycleLength = (appointment) => {
+  const totalSessions = Number(appointment?.treatmentCycle?.totalSessions);
+  return Number.isFinite(totalSessions) && totalSessions > 0
+    ? totalSessions
+    : SESSION_CYCLE_DEFAULT_TOTAL;
+};
+
+const buildLegacyCycleGroups = (appointments = []) => {
+  const groups = [];
+  let currentGroup = null;
+  let previousSessionNumber = null;
+
+  appointments.forEach((appointment) => {
+    const sessionNumber = Number(appointment.sessionNumber) || 0;
+    const targetSessions = getAppointmentCycleLength(appointment);
+
+    const shouldStartNewGroup = !currentGroup
+      || Boolean(appointment.isFirstSession)
+      || (sessionNumber === 1 && currentGroup.appointments.length > 0)
+      || (previousSessionNumber > 0 && sessionNumber > 0 && sessionNumber <= previousSessionNumber)
+      || currentGroup.appointments.length >= currentGroup.targetSessions;
+
+    if (shouldStartNewGroup) {
+      currentGroup = {
+        appointments: [],
+        targetSessions,
+      };
+      groups.push(currentGroup);
+      previousSessionNumber = null;
+    }
+
+    currentGroup.appointments.push(appointment);
+    currentGroup.targetSessions = Math.max(currentGroup.targetSessions, targetSessions);
+    previousSessionNumber = sessionNumber || previousSessionNumber;
+  });
+
+  return groups;
+};
+
+const summarizeCycleGroup = (appointments = [], targetSessions = SESSION_CYCLE_DEFAULT_TOTAL) => {
+  const orderedAppointments = [...appointments].sort(compareSessionCycleAppointments);
+  const sessions = orderedAppointments.map((appointment, index) => {
+    const status = String(appointment.status || 'SCHEDULED').toUpperCase();
+    return {
+      id: appointment.id,
+      date: appointment.date,
+      status,
+      sessionNumber: Number(appointment.sessionNumber) || index + 1,
+      isCompleted: status === 'COMPLETED',
+      isAbsent: status === 'NO_SHOW',
+      isPending: !SESSION_CYCLE_FINAL_STATUSES.has(status),
+    };
+  });
+
+  const completedSessions = sessions.filter((session) => session.isCompleted).length;
+  const absentSessions = sessions.filter((session) => session.isAbsent).length;
+  const recordedSessions = completedSessions + absentSessions;
+  const pendingSessions = Math.max(targetSessions - recordedSessions, 0);
+  const from = orderedAppointments[0]?.date || null;
+  const to = orderedAppointments[orderedAppointments.length - 1]?.date || from;
+
+  return {
+    from,
+    to,
+    targetSessions,
+    completedSessions,
+    absentSessions,
+    recordedSessions,
+    pendingSessions,
+    sessions,
+    isComplete: pendingSessions === 0,
+  };
+};
+
+// Devuelve ciclos de sesiones por anio para control de obra social
 export const getSessionCycles = async (req, res, prisma) => {
   const { patientId } = req.params;
   try {
-    const completedAppointments = await prisma.appointment.findMany({
-      where: mergeWhereClauses(withProfessionalScope(req.user), { patientId, status: 'COMPLETED' }),
-      orderBy: [{ date: 'asc' }],
-      select: { id: true, date: true, diagnosis: true },
+    const appointments = await prisma.appointment.findMany({
+      where: mergeWhereClauses(withProfessionalScope(req.user), {
+        patientId,
+        status: { not: 'CANCELLED' },
+      }),
+      orderBy: [
+        { date: 'asc' },
+        { time: 'asc' },
+        { slotNumber: 'asc' },
+      ],
+      select: {
+        id: true,
+        date: true,
+        time: true,
+        slotNumber: true,
+        status: true,
+        cycleId: true,
+        sessionNumber: true,
+        isFirstSession: true,
+        treatmentCycle: {
+          select: {
+            totalSessions: true,
+          },
+        },
+      },
     });
 
-    const byYear = {};
-    for (const apt of completedAppointments) {
-      const year = new Date(apt.date).getFullYear();
-      if (!byYear[year]) byYear[year] = [];
-      byYear[year].push(apt);
-    }
+    const explicitCycles = new Map();
+    const legacyAppointments = [];
 
-    const result = Object.entries(byYear)
+    appointments.forEach((appointment) => {
+      if (appointment.cycleId) {
+        if (!explicitCycles.has(appointment.cycleId)) {
+          explicitCycles.set(appointment.cycleId, {
+            appointments: [],
+            targetSessions: getAppointmentCycleLength(appointment),
+          });
+        }
+
+        const cycle = explicitCycles.get(appointment.cycleId);
+        cycle.appointments.push(appointment);
+        cycle.targetSessions = Math.max(cycle.targetSessions, getAppointmentCycleLength(appointment));
+        return;
+      }
+
+      legacyAppointments.push(appointment);
+    });
+
+    const cycleSummaries = [
+      ...Array.from(explicitCycles.values()).map((cycle) => summarizeCycleGroup(cycle.appointments, cycle.targetSessions)),
+      ...buildLegacyCycleGroups(legacyAppointments).map((cycle) => summarizeCycleGroup(cycle.appointments, cycle.targetSessions)),
+    ].sort((left, right) => {
+      const leftDate = new Date(left.from || 0).getTime();
+      const rightDate = new Date(right.from || 0).getTime();
+      return leftDate - rightDate;
+    });
+
+    const byYear = new Map();
+    cycleSummaries.forEach((cycle) => {
+      const cycleDate = cycle.from ? new Date(cycle.from) : null;
+      const year = cycleDate && !Number.isNaN(cycleDate.getTime())
+        ? cycleDate.getFullYear()
+        : new Date().getFullYear();
+
+      if (!byYear.has(year)) {
+        byYear.set(year, []);
+      }
+
+      byYear.get(year).push(cycle);
+    });
+
+    const result = Array.from(byYear.entries())
       .sort(([a], [b]) => Number(b) - Number(a))
-      .map(([year, apts]) => {
-        const totalCompleted = apts.length;
-        const completedCycles = Math.floor(totalCompleted / 10);
-        const sessionsInCurrentCycle = totalCompleted % 10;
+      .map(([year, cycles]) => {
+        const orderedCycles = [...cycles].sort((left, right) => {
+          const leftDate = new Date(left.from || 0).getTime();
+          const rightDate = new Date(right.from || 0).getTime();
+          return leftDate - rightDate;
+        });
+
+        const completedSessions = orderedCycles.reduce((sum, cycle) => sum + cycle.completedSessions, 0);
+        const absentSessions = orderedCycles.reduce((sum, cycle) => sum + cycle.absentSessions, 0);
+        const recordedSessions = orderedCycles.reduce((sum, cycle) => sum + cycle.recordedSessions, 0);
+        const completedCycles = orderedCycles.filter((cycle) => cycle.isComplete);
+        const currentCycle = [...orderedCycles].reverse().find((cycle) => !cycle.isComplete) || null;
+        const currentCycleNumber = currentCycle
+          ? completedCycles.length + 1
+          : null;
+
         return {
           year: Number(year),
-          totalCompleted,
-          completedCycles,
-          sessionsInCurrentCycle,
-          cycles: Array.from({ length: completedCycles }, (_, i) => ({
-            cycleNumber: i + 1,
-            from: apts[i * 10]?.date,
-            to: apts[i * 10 + 9]?.date,
+          totalCompleted: completedSessions,
+          completedSessions,
+          absentSessions,
+          recordedSessions,
+          sessionsInCurrentCycle: currentCycle?.recordedSessions || 0,
+          targetSessionsInCurrentCycle: currentCycle?.targetSessions || SESSION_CYCLE_DEFAULT_TOTAL,
+          cycles: completedCycles.map((cycle, index) => ({
+            ...cycle,
+            cycleNumber: index + 1,
           })),
-          currentCycleStart: completedCycles * 10 < totalCompleted
-            ? apts[completedCycles * 10]?.date
+          currentCycle: currentCycle
+            ? {
+              ...currentCycle,
+              cycleNumber: currentCycleNumber,
+            }
             : null,
         };
       });
