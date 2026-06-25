@@ -20,7 +20,8 @@
     "backfill:honorarios": "node scripts/backfill-appointment-honorarios.js --apply",
     "check-whatsapp": "npm run check:whatsapp",
     "whatsapp-reminders": "node scripts/whatsapp-reminders.js",
-    "cokiba-sync": "node scripts/cokiba-sync.js"
+    "cokiba-sync": "node scripts/cokiba-sync.js",
+    "compliance-check": "node scripts/compliance-check.js"
   },
   "engines": {
     "node": "22.x"

@@ -46,9 +46,7 @@ const INITIAL_COVERAGES = [
   { name: 'SWISS MEDICAL', aliases: ['Swiss'], isActive: true, documentationRequired: DEFAULT_DOCUMENTATION },
   { name: 'Galicia', aliases: ['Galicia Salud'], isActive: false, documentationRequired: 'No trabajamos esta cobertura' },
   { name: 'Union Personal', aliases: ['Unión Personal', 'UP'], isActive: false, documentationRequired: 'Cobertura suspendida' },
-
   { name: 'LA HOLANDO ART', aliases: ['Holando Art', 'Holando'], isActive: true, documentationRequired: ART_DOCUMENTATION },
-  { name: 'LA SEGUNDA ART', aliases: ['La Segunda', 'Segunda Art'], isActive: true, documentationRequired: ART_DOCUMENTATION },
   { name: 'OMINT ART (SERENA)', aliases: ['OMINT ART', 'SERENA'], isActive: true, documentationRequired: ART_DOCUMENTATION },
   { name: 'PARANÁ ART', aliases: ['Paraná'], isActive: true, documentationRequired: ART_DOCUMENTATION },
   { name: 'RECONQUISTA ART', aliases: ['Reconquista'], isActive: true, documentationRequired: ART_DOCUMENTATION },
