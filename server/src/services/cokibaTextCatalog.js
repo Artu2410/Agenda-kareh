@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const DEFAULT_CATALOG_PATH = path.resolve(__dirname, '../../data/obras-sociales.txt');
+const COBERTURAS_PUBLICAS_PATH = path.resolve(__dirname, '../../data/coberturas-publicas.json');
 
 const KNOWN_LABELS = [
   'Arancel Vigente desde',
@@ -210,6 +210,44 @@ const buildAliases = (name) => uniqueBy(
   (item) => item
 );
 
+const createPublicCoverageCatalogEntry = (item) => {
+  const nombreOs = normalizeText(String(item.nombre || item.name || ''));
+  if (!nombreOs) return null;
+
+  return {
+    nombreOs,
+    aliases: buildAliases(nombreOs),
+    detectedStatus: null,
+    detectedIsActive: null,
+    requiresAuthorization: null,
+    requiredDocuments: {
+      documents: [],
+      additionalInfo: '',
+    },
+    cokibaDetails: {
+      arancelVigenteDesde: '',
+      cuit: '',
+      areaCobertura: '',
+      coseguroTexto: '',
+      observaciones: '',
+      convenioTexto: '',
+      convenioUrl: '',
+      convenioLabel: '',
+      validacionUrl: '',
+      autorizacionUrl: '',
+      numeroPrestador: '',
+      authorizationNote: '',
+      norms: [],
+      links: [],
+      extractedUrls: [],
+      tariffHeaders: [],
+      tariffRows: [],
+      honorarioReferenciaPrestacion: '',
+      honorarioBasicaReferencia: 0,
+    },
+  };
+};
+
 const parseSection = (sectionText) => {
   const lines = normalizeLines(sectionText);
   const nombreOs = lines[0] || '';
@@ -297,19 +335,17 @@ export const loadSupplementalCokibaCatalog = async ({ logger = console } = {}) =
   if (cachedCatalog) return cachedCatalog;
 
   try {
-    const text = await fs.readFile(DEFAULT_CATALOG_PATH, 'utf8');
-    const entries = text
-      .split(/Aranceles y Normas de Facturación/gi)
-      .map((section) => section.trim())
-      .filter(Boolean)
-      .map((section) => parseSection(section))
-      .filter(Boolean);
+    const text = await fs.readFile(COBERTURAS_PUBLICAS_PATH, 'utf8');
+    const rawEntries = JSON.parse(text);
+    const entries = Array.isArray(rawEntries)
+      ? rawEntries.map(createPublicCoverageCatalogEntry).filter(Boolean)
+      : [];
 
-    logger.info(`📚 Catálogo complementario cargado: ${entries.length} obras sociales desde TXT`);
+    logger.info(`📚 Catálogo complementario cargado: ${entries.length} obras sociales desde JSON`);
     cachedCatalog = entries;
     return entries;
   } catch (error) {
-    logger.warn(`⚠️ No se pudo cargar el catálogo complementario TXT: ${error.message}`);
+    logger.warn(`⚠️ No se pudo cargar el catálogo complementario JSON: ${error.message}`);
     cachedCatalog = [];
     return cachedCatalog;
   }

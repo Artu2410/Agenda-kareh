@@ -21,7 +21,6 @@ const ClinicalHistoryPage = lazy(() => import('./pages/ClinicalHistoryPage'));
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const WhatsAppPage = lazy(() => import('./pages/WhatsAppPage'));
-const ObrasSocialesPage = lazy(() => import('./pages/ObrasSocialesPage'));
 const NotesPage = lazy(() => import('./pages/NotesPage'));
 const AuditoriaPage = lazy(() => import('./pages/AuditoriaPage'));
 const AutorizacionesPage = lazy(() => import('./pages/AutorizacionesPage'));
@@ -318,14 +317,6 @@ function App() {
                     )}
                   />
                   <Route
-                    path={APP_ROUTES.obrasSociales}
-                    element={(
-                      <RequireRole role={currentUser?.role} roles={['SUPER_USER', 'ADMIN']}>
-                        <ObrasSocialesPage />
-                      </RequireRole>
-                    )}
-                  />
-                  <Route
                     path={APP_ROUTES.audit}
                     element={(
                       <RequireRole role={currentUser?.role} roles={['SUPER_USER', 'ADMIN']}>
@@ -360,7 +351,6 @@ function App() {
                   <Route path="/inteligencia/capacidad" element={<Navigate to={APP_ROUTES.capacity} replace />} />
                   <Route path="/notes" element={<Navigate to={APP_ROUTES.notes} replace />} />
                   <Route path="/whatsapp" element={<Navigate to={APP_ROUTES.whatsapp} replace />} />
-                  <Route path="/obras-sociales" element={<Navigate to={APP_ROUTES.obrasSociales} replace />} />
                   <Route path="/auditoria" element={<Navigate to={APP_ROUTES.audit} replace />} />
                   <Route path="/autorizaciones" element={<Navigate to={APP_ROUTES.authorizations} replace />} />
                   <Route path="/settings" element={<Navigate to={APP_ROUTES.settings} replace />} />

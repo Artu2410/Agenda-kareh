@@ -26,3 +26,6 @@ client/test-results/
 .vscode/
 .qodo/
 .venv/
+
+# Private data files
+server/private/

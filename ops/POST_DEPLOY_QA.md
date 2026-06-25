@@ -31,14 +31,6 @@ Validar en producción que auth, agenda, WhatsApp y cashflow siguen operativos d
 - [ ] Cancelar un turno y verificar que desaparece.
 - [ ] Verificar impresión/preview si aplica.
 
-## Obras Sociales
-- [ ] Abrir `/obras-sociales`.
-- [ ] Filtrar por estado.
-- [ ] Buscar por nombre o código.
-- [ ] Crear una obra social manual.
-- [ ] Editar una obra social existente.
-- [ ] Confirmar que la grilla y el detalle se actualizan.
-
 ## WhatsApp
 - [ ] Verificar que la bandeja carga conversaciones.
 - [ ] Enviar mensaje manual.
