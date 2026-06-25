@@ -11,7 +11,6 @@ export const APP_ROUTES = {
   notes: '/notas',
   settings: '/configuracion',
   whatsapp: '/whatsapp',
-  obrasSociales: '/obras-sociales',
   audit: '/auditoria',
   authorizations: '/autorizaciones',
   privacy: '/privacidad',
@@ -77,7 +76,6 @@ export const getDocumentTitle = (pathname) => {
     [APP_ROUTES.notes]: 'Agenda Kareh | Notas',
     [APP_ROUTES.settings]: 'Agenda Kareh | Configuracion',
     [APP_ROUTES.whatsapp]: 'Agenda Kareh | WhatsApp',
-    [APP_ROUTES.obrasSociales]: 'Agenda Kareh | Obras Sociales',
     [APP_ROUTES.audit]: 'Agenda Kareh | Auditoría',
     [APP_ROUTES.authorizations]: 'Agenda Kareh | Autorizaciones',
     [APP_ROUTES.privacy]: 'Agenda Kareh | Privacidad',
@@ -93,7 +91,6 @@ export const getDocumentTitle = (pathname) => {
     '/notes': 'Agenda Kareh | Notas',
     '/settings': 'Agenda Kareh | Configuracion',
     '/whatsapp': 'Agenda Kareh | WhatsApp',
-    '/obras-sociales': 'Agenda Kareh | Obras Sociales',
     '/auditoria': 'Agenda Kareh | Auditoría',
     '/autorizaciones': 'Agenda Kareh | Autorizaciones',
   };

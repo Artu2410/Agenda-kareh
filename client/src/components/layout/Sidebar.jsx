@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { BarChart3, Calendar, Users, DollarSign, Settings, FileText, LogOut, MessageCircle, ChevronLeft, NotebookPen, Building2, ShieldCheck, ClipboardCheck, Receipt, Gauge } from 'lucide-react';
+import { BarChart3, Calendar, Users, DollarSign, Settings, FileText, LogOut, MessageCircle, ChevronLeft, NotebookPen, ShieldCheck, ClipboardCheck, Receipt, Gauge } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import toast, { showSuccessToast } from '../toastHelpers';
 import { useConfirmModal } from '../../hooks/useConfirmModal';
@@ -62,7 +62,7 @@ const Sidebar = ({ onToggle, onLogout, onNavigate, isMobile = false }) => {
     { icon: MessageCircle, label: 'WhatsApp', path: APP_ROUTES.whatsapp, roles: ['SUPER_USER', 'ADMIN'] },
     { icon: DollarSign, label: 'Caja', path: APP_ROUTES.cashflow, roles: ['SUPER_USER', 'ADMIN', 'SECRETARIA'] },
     { icon: Receipt, label: 'Facturación', path: APP_ROUTES.billing, roles: ['SUPER_USER', 'ADMIN', 'SECRETARIA'] },
-    { icon: Building2, label: 'Obras Sociales', path: APP_ROUTES.obrasSociales, roles: ['SUPER_USER', 'ADMIN'] },
+
     { icon: Settings, label: 'Configuración', path: APP_ROUTES.settings, roles: ['SUPER_USER', 'ADMIN'] },
   ].filter((item) => hasAnyRole(userRole, item.roles));
 
