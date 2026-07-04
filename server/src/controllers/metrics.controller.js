@@ -92,6 +92,7 @@ const buildMonthlySnapshot = async (prisma, baseDate) => {
   const attendanceRate = resolvedCount > 0
     ? Number(((completedCount / resolvedCount) * 100).toFixed(1))
     : 0;
+  const totalTurnosMes = appointments.length;
 
   return {
     start,
@@ -102,6 +103,7 @@ const buildMonthlySnapshot = async (prisma, baseDate) => {
     scheduledCount,
     resolvedCount,
     attendanceRate,
+    totalTurnosMes,
     insuranceBreakdown,
     respiratoryCount: appointments.filter((appointment) => appointment.patient.isRespiratory).length,
     iuCount: appointments.filter((appointment) => appointment.patient.isIU).length,
@@ -205,6 +207,139 @@ const buildFutureAgendaSnapshot = async (prisma, now) => {
   };
 };
 
+const buildCommercialMetrics = (appointments = []) => {
+  const consultations = 0;
+  const turnsGranted = 0;
+  const assistances = 0;
+  const continuityCount = 0;
+  const abandonmentCount = 0;
+
+  return {
+    consultations,
+    turnsGranted,
+    assistances,
+    continuityCount,
+    abandonmentCount,
+    continuityRate: 0,
+    conversions: {
+      consultationsToTurns: 0,
+      turnsToAssistances: 0,
+      assistancesToContinuity: 0,
+    },
+    hasRealData: false,
+  };
+};
+
+const buildBillingByCoverage = async (prisma, { start, nextStart }) => {
+  const cashFlowModel = prisma?.cashFlow?.findMany;
+  const billingInvoiceModel = prisma?.billingInvoice?.findMany;
+
+  if (!cashFlowModel && !billingInvoiceModel) {
+    return [];
+  }
+
+  const [cashflows, invoices] = await Promise.all([
+    cashFlowModel ? cashFlowModel({
+      where: {
+        date: { gte: start, lt: nextStart },
+        type: 'INCOME',
+      },
+      select: {
+        amount: true,
+        concept: true,
+      },
+    }) : Promise.resolve([]),
+    billingInvoiceModel ? billingInvoiceModel({
+      where: {
+        issueDate: { gte: start, lt: nextStart },
+      },
+      select: {
+        payerName: true,
+        totalAmount: true,
+        obraSocialId: true,
+        patientId: true,
+      },
+      include: {
+        obraSocial: {
+          select: { nombreOs: true },
+        },
+      },
+    }) : Promise.resolve([]),
+  ]);
+
+  const realRows = [];
+
+  invoices.forEach((invoice) => {
+    if (!invoice.totalAmount) return;
+    const coverageName = invoice.obraSocial?.nombreOs || invoice.payerName || 'Sin datos';
+    realRows.push({
+      name: coverageName,
+      patients: invoice.patientId ? 1 : 0,
+      turns: 0,
+      amount: Number(invoice.totalAmount.toString()),
+      avgPerPatient: invoice.patientId ? Number(invoice.totalAmount.toString()) : 0,
+    });
+  });
+
+  if (cashflows.length > 0) {
+    cashflows.forEach((cashflow) => {
+      if (!cashflow.amount) return;
+      realRows.push({
+        name: cashflow.concept || 'Sin datos',
+        patients: 0,
+        turns: 0,
+        amount: Number(cashflow.amount.toString()),
+        avgPerPatient: 0,
+      });
+    });
+  }
+
+  if (realRows.length === 0) {
+    return [];
+  }
+
+  return realRows
+    .reduce((acc, row) => {
+      const existing = acc.find((item) => item.name === row.name);
+      if (existing) {
+        existing.amount += row.amount;
+        existing.patients += row.patients;
+        existing.turns += row.turns;
+        existing.avgPerPatient = existing.patients > 0 ? existing.amount / existing.patients : 0;
+        return acc;
+      }
+      acc.push({ ...row, avgPerPatient: row.patients > 0 ? row.amount / row.patients : 0 });
+      return acc;
+    }, [])
+    .sort((left, right) => right.amount - left.amount);
+};
+
+const buildInsights = ({ monthly, commercial, billingByCoverage }) => {
+  const insights = [];
+
+  if (monthly?.capacityMonthly > 0) {
+    insights.push(`La ocupación del consultorio es del ${monthly.occupancyRate.toFixed(1)}%.`);
+    insights.push(`Aún existe capacidad para aproximadamente ${Math.round(monthly.freeCapacity)} turnos más este mes.`);
+  }
+
+  if (billingByCoverage?.length > 0) {
+    const topCoverage = billingByCoverage[0];
+    insights.push(`La mayor facturación proviene de pacientes ${topCoverage.name.toLowerCase()}.`);
+    const coverageWithMostPatients = [...billingByCoverage].sort((left, right) => right.patients - left.patients)[0];
+    insights.push(`La cobertura con mayor cantidad de pacientes es ${coverageWithMostPatients.name}.`);
+  }
+
+  if (commercial?.hasRealData && commercial?.consultations > 0) {
+    insights.push(`El porcentaje de conversión de consultas a turnos es del ${commercial.conversions.consultationsToTurns.toFixed(1)}%.`);
+  }
+
+  if (commercial?.assistances > 0 && commercial?.continuityCount > 0) {
+    insights.push(`La tasa de continuidad es del ${commercial.continuityRate.toFixed(1)}%.`);
+  }
+
+  return insights;
+};
+
 export const getMetrics = async (req, res, prisma) => {
   try {
     const now = new Date();
@@ -245,6 +380,44 @@ export const getMetrics = async (req, res, prisma) => {
     const currentMonthSnapshot = await buildMonthlySnapshot(prisma, now);
     const previousMonthSnapshot = await buildMonthlySnapshot(prisma, subMonths(now, 1));
     const futureAgendaSnapshot = await buildFutureAgendaSnapshot(prisma, now);
+    const agendaConfig = prisma?.agendaConfig?.findFirst ? await prisma.agendaConfig.findFirst() : null;
+    const configuredSlotDuration = Math.max(1, Number(agendaConfig?.slotDuration || agendaConfig?.timerDurationMinutes || 30));
+    const capacityPerSlot = Math.max(1, Number(agendaConfig?.capacityPerSlot || 1));
+    const weeklyCapacity = capacityPerSlot > 0 && configuredSlotDuration > 0
+      ? 40 / configuredSlotDuration * capacityPerSlot
+      : 0;
+    const monthlyCapacity = weeklyCapacity * 4.33;
+    const occupancyRate = monthlyCapacity > 0
+      ? Number(((currentMonthSnapshot.totalTurnosMes / monthlyCapacity) * 100).toFixed(1))
+      : 0;
+    const freeCapacity = Math.max(monthlyCapacity - currentMonthSnapshot.totalTurnosMes, 0);
+
+    const appointmentRows = await prisma.appointment.findMany({
+      where: {
+        date: { gte: currentMonthSnapshot.start, lt: currentMonthSnapshot.nextStart },
+        status: { not: 'CANCELLED' },
+      },
+      include: {
+        patient: {
+          select: {
+            id: true,
+            healthInsurance: true,
+            treatAsParticular: true,
+          },
+        },
+      },
+    });
+    const commercial = buildCommercialMetrics(appointmentRows);
+    const billingByCoverage = await buildBillingByCoverage(prisma, currentMonthSnapshot);
+    const insights = buildInsights({
+      monthly: {
+        capacityMonthly: monthlyCapacity,
+        occupancyRate,
+        freeCapacity,
+      },
+      commercial,
+      billingByCoverage,
+    });
 
     const monthlyChange = previousMonthSnapshot.appointmentCount > 0
       ? Number((((currentMonthSnapshot.appointmentCount - previousMonthSnapshot.appointmentCount) / previousMonthSnapshot.appointmentCount) * 100).toFixed(1))
@@ -327,7 +500,13 @@ export const getMetrics = async (req, res, prisma) => {
         insuranceBreakdown: currentMonthSnapshot.insuranceBreakdown,
         respiratory: currentMonthSnapshot.respiratoryCount,
         iu: currentMonthSnapshot.iuCount,
+        capacityMonthly: monthlyCapacity,
+        occupancyRate,
+        freeCapacity,
       },
+      commercial,
+      billingByCoverage,
+      insights,
       annual: {
         patientCount: uniquePatients.length,
         appointmentCount: annualAppointmentCount,

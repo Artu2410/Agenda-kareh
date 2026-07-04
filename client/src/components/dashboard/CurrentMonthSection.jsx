@@ -2,6 +2,12 @@ import { AlertTriangle, Calendar, CheckCircle2, Clock3, TrendingUp } from 'lucid
 import { formatCount, formatRate } from './dashboardFormatters';
 import { formatCurrentMonthRange } from './dashboardPeriods';
 
+const formatCurrency = (value) => new Intl.NumberFormat('es-AR', {
+  style: 'currency',
+  currency: 'ARS',
+  maximumFractionDigits: 0,
+}).format(Number(value) || 0);
+
 const SectionBadge = ({ children, toneClassName = 'border-green-100 bg-green-50 text-green-700' }) => (
   <span className={`inline-flex items-center rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.24em] ${toneClassName}`}>
     {children}
@@ -26,8 +32,10 @@ const InsuranceTag = ({ name, count }) => (
   </span>
 );
 
-const CurrentMonthSection = ({ monthly, weekly }) => {
+const CurrentMonthSection = ({ monthly, weekly, commercial, billingByCoverage, insights }) => {
   const currentMonthRange = formatCurrentMonthRange();
+  const occupancyRate = Number(monthly?.occupancyRate || 0);
+  const freeCapacity = Number(monthly?.freeCapacity || 0);
 
   return (
     <section className="rounded-4xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
@@ -110,6 +118,117 @@ const CurrentMonthSection = ({ monthly, weekly }) => {
                 <p className="mt-2 text-2xl font-black text-orange-700">{formatCount(monthly?.iu)}</p>
               </div>
             </div>
+          </div>
+
+          <div className="mt-4 rounded-[1.8rem] border border-slate-200 bg-slate-50 px-5 py-5">
+            <p className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">Ocupación y capacidad</p>
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
+                <p className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">Capacidad mensual</p>
+                <p className="mt-2 text-xl font-black text-slate-900">{formatCount(monthly?.capacityMonthly)}</p>
+              </div>
+              <div className="rounded-2xl border border-teal-200 bg-teal-50 px-4 py-4">
+                <p className="text-[10px] font-black uppercase tracking-[0.24em] text-teal-600">Ocupación</p>
+                <p className="mt-2 text-xl font-black text-teal-700">{formatRate(occupancyRate)}</p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
+                <p className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">Capacidad libre</p>
+                <p className="mt-2 text-xl font-black text-slate-900">{formatCount(freeCapacity)}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-[1.8rem] border border-slate-200 bg-slate-50 px-5 py-5">
+            <p className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">Embudo comercial</p>
+            <h3 className="mt-2 text-lg font-black text-slate-900">Consultas, turnos y continuidad</h3>
+            {commercial?.hasRealData ? (
+              <>
+                <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
+                    <p className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">Consultas</p>
+                    <p className="mt-2 text-xl font-black text-slate-900">{formatCount(commercial?.consultations)}</p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
+                    <p className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">Turnos otorgados</p>
+                    <p className="mt-2 text-xl font-black text-slate-900">{formatCount(commercial?.turnsGranted)}</p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
+                    <p className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">Asistencias</p>
+                    <p className="mt-2 text-xl font-black text-emerald-700">{formatCount(commercial?.assistances)}</p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
+                    <p className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">Continuidad</p>
+                    <p className="mt-2 text-xl font-black text-slate-900">{formatCount(commercial?.continuityCount)}</p>
+                  </div>
+                </div>
+                <div className="mt-4 rounded-2xl border border-slate-200 bg-white px-4 py-4 text-sm font-semibold text-slate-600">
+                  <div className="flex flex-wrap gap-2">
+                    <span className="rounded-full bg-slate-100 px-3 py-1">Consultas → Turnos: {formatRate(commercial?.conversions?.consultationsToTurns)}</span>
+                    <span className="rounded-full bg-slate-100 px-3 py-1">Turno → Asistencia: {formatRate(commercial?.conversions?.turnsToAssistances)}</span>
+                    <span className="rounded-full bg-slate-100 px-3 py-1">Asistencia → Continuidad: {formatRate(commercial?.conversions?.assistancesToContinuity)}</span>
+                  </div>
+                  <p className="mt-3 text-sm font-medium text-slate-500">
+                    Pacientes con dos o más asistencias dentro del período y pacientes que solo asistieron una vez.
+                  </p>
+                </div>
+              </>
+            ) : (
+              <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-5 text-sm font-semibold text-slate-500">
+                Sin datos
+              </div>
+            )}
+          </div>
+
+          <div className="mt-4 rounded-[1.8rem] border border-slate-200 bg-slate-50 px-5 py-5">
+            <p className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">Facturación por cobertura</p>
+            <h3 className="mt-2 text-lg font-black text-slate-900">Monto y volumen por cobertura</h3>
+            <div className="mt-4 overflow-x-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">
+                    <th className="pb-3 pr-4">Cobertura</th>
+                    <th className="pb-3 pr-4">Pacientes</th>
+                    <th className="pb-3 pr-4">Turnos</th>
+                    <th className="pb-3 pr-4">Monto facturado</th>
+                    <th className="pb-3">Promedio por paciente</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {billingByCoverage?.length > 0 ? (
+                    billingByCoverage.map((item) => (
+                      <tr key={item.name} className="border-b border-slate-100 text-slate-600">
+                        <td className="py-3 pr-4 font-semibold text-slate-800">{item.name}</td>
+                        <td className="py-3 pr-4">{formatCount(item.patients)}</td>
+                        <td className="py-3 pr-4">{formatCount(item.turns)}</td>
+                        <td className="py-3 pr-4">{formatCurrency(item.amount)}</td>
+                        <td className="py-3">{formatCurrency(item.avgPerPatient)}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan="5" className="py-4 text-sm font-semibold text-slate-400">Sin datos</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-[1.8rem] border border-slate-200 bg-slate-50 px-5 py-5">
+            <p className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">Insights automáticos</p>
+            <ul className="mt-4 space-y-2">
+              {insights?.length > 0 ? (
+                insights.map((insight, index) => (
+                  <li key={`${insight}-${index}`} className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-600">
+                    {insight}
+                  </li>
+                ))
+              ) : (
+                <li className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-400">
+                  Sin insights para mostrar.
+                </li>
+              )}
+            </ul>
           </div>
         </div>
 

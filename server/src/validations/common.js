@@ -126,12 +126,24 @@ export const dayOfWeekSchema = z.number().int().min(0, 'Día inválido').max(6, 
 
 export const urlLikeString = (field = 'URL') => optionalString(field, { max: 2000 });
 
+const truncateString = (value, maxLength) => {
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  return trimmed.length > maxLength ? trimmed.slice(0, maxLength) : trimmed;
+};
+
 const checklistDocumentSchema = z.object({
-  name: requiredString('Nombre del documento', { max: 255 }),
+  name: z.preprocess(
+    (value) => truncateString(value, 255),
+    requiredString('Nombre del documento', { max: 255 }),
+  ),
   mandatory: z.boolean().optional(),
   presented: z.boolean().optional(),
   fileUrl: urlLikeString('Archivo del documento'),
-  fileName: optionalString('Nombre del archivo', { max: 255 }),
+  fileName: z.preprocess(
+    (value) => truncateString(value, 255),
+    optionalString('Nombre del archivo', { max: 255 }),
+  ),
   presentedAt: optionalDateInput('Fecha de presentación'),
   validityDays: z.coerce.number().int().min(0, 'Validez inválida').optional(),
   reusedFromAppointmentId: optionalIdSchema('Turno de origen'),

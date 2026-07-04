@@ -64,4 +64,14 @@ describe('validation common schemas', () => {
     expect(result.documents[0].fileName).toBe('documento.pdf');
     expect(result.additionalInfo).toBe('Revisar primero');
   });
+
+  it('truncates overly long document names to the supported limit', () => {
+    const longName = 'A'.repeat(260);
+    const result = documentsChecklistSchema.parse({
+      documents: [{ name: longName }],
+    });
+
+    expect(result.documents[0].name).toHaveLength(255);
+    expect(result.documents[0].name).toBe(longName.slice(0, 255));
+  });
 });

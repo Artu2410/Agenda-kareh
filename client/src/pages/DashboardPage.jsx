@@ -85,7 +85,13 @@ const DashboardPage = () => {
         <DashboardHeader />
         <FutureAgendaSection futureAgenda={futureAgenda} />
         <FutureCoverageSection futureAgenda={futureAgenda} />
-        <CurrentMonthSection monthly={metrics.monthly} weekly={metrics.weekly} />
+        <CurrentMonthSection
+          monthly={metrics.monthly}
+          weekly={metrics.weekly}
+          commercial={metrics.commercial}
+          billingByCoverage={metrics.billingByCoverage}
+          insights={metrics.insights}
+        />
         <MonthlyTrendSection
           chartData={chartData}
           chartType={chartType}

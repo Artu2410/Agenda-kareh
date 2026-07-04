@@ -159,6 +159,10 @@ describe('DashboardPage', () => {
     expect(annualSectionNode).toBeTruthy();
 
     expect(within(currentMonthSection).getByText('Mes actual')).toBeInTheDocument();
+    expect(within(currentMonthSection).getByText('Ocupación y capacidad')).toBeInTheDocument();
+    expect(within(currentMonthSection).getByText('Embudo comercial')).toBeInTheDocument();
+    expect(within(currentMonthSection).getByText('Facturación por cobertura')).toBeInTheDocument();
+    expect(within(currentMonthSection).getByText('Insights automáticos')).toBeInTheDocument();
     expect(within(historicalChartSection).getByText('Histórico de actividad')).toBeInTheDocument();
     expect(within(historicalTableSection).getByText('Histórico de actividad')).toBeInTheDocument();
     expect(within(historicalChartSection).getByText('Últimos 12 meses con actividad')).toBeInTheDocument();
