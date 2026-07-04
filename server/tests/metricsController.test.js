@@ -1,4 +1,5 @@
 import { getMetrics } from '../src/controllers/metrics.controller.js';
+import { metricsQuerySchema } from '../src/validations/metricsSchemas.js';
 
 const createResponse = () => {
   const res = {};
@@ -39,6 +40,32 @@ describe('getMetrics', () => {
 
   afterEach(() => {
     jest.useRealTimers();
+  });
+
+  it('rejects incomplete month/year filter combinations with a descriptive error', () => {
+    const result = metricsQuerySchema.safeParse({ month: '4' });
+
+    expect(result.success).toBe(false);
+    expect(result.error.issues[0].message).toBe('Si se envía month o year, ambos deben enviarse para filtrar por periodo.');
+  });
+
+  it('uses the requested month and year when they are provided in the query', async () => {
+    const prisma = {
+      appointment: {
+        findMany: jest.fn(async () => []),
+        count: jest.fn(async () => 0),
+        groupBy: jest.fn(async () => []),
+      },
+    };
+
+    const req = { query: { period: 'month', month: '4', year: '2026' } };
+    const res = createResponse();
+
+    await getMetrics(req, res, prisma);
+
+    const payload = res.json.mock.calls[0][0];
+
+    expect(payload.monthly.label).toBe('abril 2026');
   });
 
   it('returns future agenda metrics and filters inactive monthly rows', async () => {

@@ -340,9 +340,27 @@ const buildInsights = ({ monthly, commercial, billingByCoverage }) => {
   return insights;
 };
 
+const resolveReferenceDate = (req) => {
+  const query = req?.query || {};
+  const requestedMonth = query.month;
+  const requestedYear = query.year;
+
+  if (requestedYear && requestedMonth) {
+    const parsedMonth = Number.parseInt(requestedMonth, 10);
+    const parsedYear = Number.parseInt(requestedYear, 10);
+
+    if (Number.isInteger(parsedMonth) && Number.isInteger(parsedYear)) {
+      const normalizedMonth = Math.min(Math.max(parsedMonth, 1), 12);
+      return new Date(parsedYear, normalizedMonth - 1, 1, 12, 0, 0, 0);
+    }
+  }
+
+  return new Date();
+};
+
 export const getMetrics = async (req, res, prisma) => {
   try {
-    const now = new Date();
+    const now = resolveReferenceDate(req);
 
     const weekStart = startOfWeek(now, { weekStartsOn: 1 });
     const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
