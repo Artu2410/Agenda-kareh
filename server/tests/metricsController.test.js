@@ -113,6 +113,25 @@ describe('getMetrics', () => {
     const payload = res.json.mock.calls[0][0];
 
     expect(payload.monthlyTrend.every((row) => row.appointmentCount > 0)).toBe(true);
+    expect(payload.monthly).toEqual(expect.objectContaining({
+      occupancyRate: expect.any(Number),
+      capacityMonthly: expect.any(Number),
+      freeCapacity: expect.any(Number),
+    }));
+    expect(payload.commercial).toEqual(expect.objectContaining({
+      consultations: expect.any(Number),
+      turnsGranted: expect.any(Number),
+      assistances: expect.any(Number),
+      continuityCount: expect.any(Number),
+      abandonmentCount: expect.any(Number),
+      conversions: expect.objectContaining({
+        consultationsToTurns: expect.any(Number),
+        turnsToAssistances: expect.any(Number),
+        assistancesToContinuity: expect.any(Number),
+      }),
+    }));
+    expect(payload.billingByCoverage).toEqual(expect.any(Array));
+    expect(payload.insights).toEqual(expect.any(Array));
     expect(payload.futureAgenda).toEqual(expect.objectContaining({
       farthestLabel: expect.stringContaining('agosto'),
       appointmentCount: 6,

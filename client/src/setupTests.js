@@ -13,7 +13,9 @@ afterEach(() => {
   server.resetHandlers();
   resetApiClientState();
   authStore.clearAuth();
-  localStorage.clear();
+  if (typeof localStorage?.clear === 'function') {
+    localStorage.clear();
+  }
   vi.restoreAllMocks();
 });
 afterAll(() => server.close());
