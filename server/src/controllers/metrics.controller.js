@@ -258,8 +258,6 @@ const buildBillingByCoverage = async (prisma, { start, nextStart }) => {
         totalAmount: true,
         obraSocialId: true,
         patientId: true,
-      },
-      include: {
         obraSocial: {
           select: { nombreOs: true },
         },
