@@ -18,6 +18,23 @@ jobs:
     timeout-minutes: 15
 
     steps:
+      - name: Verificar secretos requeridos
+        shell: bash
+        run: |
+          MISSING=""
+          if [ -z "${{ secrets.SERVER_URL }}" ]; then
+            MISSING="$MISSING SERVER_URL"
+          fi
+          if [ -z "${{ secrets.COKIBA_CRON_TOKEN }}" ]; then
+            MISSING="$MISSING COKIBA_CRON_TOKEN"
+          fi
+          if [ -n "$MISSING" ]; then
+            echo "::error::Faltan los siguientes secretos en GitHub Actions:$MISSING"
+            echo "Configuralos en: Settings → Secrets and variables → Actions"
+            exit 1
+          fi
+          echo "✅ Secretos verificados"
+
       - name: Trigger COKIBA sync en el servidor
         shell: bash
         run: |
@@ -34,7 +51,7 @@ jobs:
           cat /tmp/response.json
 
           if [ "$HTTP_STATUS" -ne 200 ]; then
-            echo "❌ Sync falló con status $HTTP_STATUS"
+            echo "::error::Sync COKIBA falló — HTTP $HTTP_STATUS. Revisar response arriba."
             exit 1
           fi
 
@@ -43,5 +60,5 @@ jobs:
       - name: Notificar fallo en el run
         if: failure()
         run: |
-          echo "::error::El sync diario de COKIBA falló."
-          echo "Revisar logs en: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          echo "::error::El sync diario de COKIBA falló. Revisar logs en: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+

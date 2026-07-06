@@ -9,7 +9,7 @@ import {
   ArrowRight 
 } from 'lucide-react';
 import { showErrorToast, showSuccessToast, showLoadingToast } from '../components/toastHelpers';
-import ReleaseVersionBadge from '../components/ReleaseVersionBadge';
+
 import { storeAuthenticatedUser } from '../services/session';
 import * as authStore from '../stores/auth';
 import { APP_ROUTES } from '../utils/appRoutes';
@@ -212,9 +212,7 @@ export default function LoginPage({ onLoginSuccess }) {
                 <button onClick={() => setStep('email')} className="text-slate-500 text-sm hover:underline">Cambiar correo</button>
               </div>
 
-              <div className="border-t border-slate-100 pt-4 text-center">
-                <ReleaseVersionBadge className="text-center" />
-              </div>
+
             </MotionDiv>
           )}
         </div>
