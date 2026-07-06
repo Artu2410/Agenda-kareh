@@ -99,21 +99,21 @@ const getOccupationLevel = (occupancyRate) => {
   };
 };
 
-const buildCapacitySummary = (availableMinutes, sessionDurationMinutes, completedCount) => {
+const buildCapacitySummary = (availableMinutes, sessionDurationMinutes, occupiedCount, capacityPerSlot = 1) => {
   const weeklyCapacity = sessionDurationMinutes > 0
-    ? availableMinutes / sessionDurationMinutes
+    ? (availableMinutes / sessionDurationMinutes) * capacityPerSlot
     : 0;
   const monthlyCapacity = weeklyCapacity * MONTHLY_WEEK_FACTOR;
   const occupancyRate = monthlyCapacity > 0
-    ? (completedCount / monthlyCapacity) * 100
+    ? (occupiedCount / monthlyCapacity) * 100
     : 0;
 
   return {
     availableHoursWeekly: roundTwo(availableMinutes / 60),
     weeklyCapacity: roundOne(weeklyCapacity),
     monthlyCapacity: roundOne(monthlyCapacity),
-    completedCount,
-    freeMonthlyCapacity: roundOne(Math.max(monthlyCapacity - completedCount, 0)),
+    completedCount: occupiedCount, // keeping name for backwards compatibility
+    freeMonthlyCapacity: roundOne(Math.max(monthlyCapacity - occupiedCount, 0)),
     occupancyRate: roundOne(occupancyRate),
     level: getOccupationLevel(occupancyRate),
   };
@@ -457,6 +457,7 @@ export const getCapacityMetrics = async (req, res, prisma) => {
 
     const config = agendaConfig || DEFAULT_AGENDA_CONFIG;
     const sessionDurationMinutes = Math.max(1, Number(config.slotDuration || config.timerDurationMinutes || 30));
+    const capacityPerSlot = Math.max(1, Number(config.capacityPerSlot || 1));
     const weeklyCompletedByProfessional = currentWeekCompletedAppointments.reduce((accumulator, appointment) => {
       accumulator.set(appointment.professionalId, (accumulator.get(appointment.professionalId) || 0) + 1);
       return accumulator;
@@ -466,9 +467,9 @@ export const getCapacityMetrics = async (req, res, prisma) => {
       (sum, professional) => sum + getScheduleMinutes(professional.workSchedule),
       0
     );
-    const completedCurrentMonth = currentMonthAppointments.filter((appointment) => appointment.status === COMPLETED_STATUS).length;
     const activePatients = new Set(currentMonthAppointments.map((appointment) => appointment.patientId).filter(Boolean)).size;
-    const totalSummary = buildCapacitySummary(totalAvailableMinutes, sessionDurationMinutes, completedCurrentMonth);
+    const validCurrentMonth = currentMonthAppointments.length;
+    const totalSummary = buildCapacitySummary(totalAvailableMinutes, sessionDurationMinutes, validCurrentMonth, capacityPerSlot);
 
     const professionalsSummary = professionals.map((professional) => {
       const availableMinutes = getScheduleMinutes(professional.workSchedule);
@@ -478,8 +479,8 @@ export const getCapacityMetrics = async (req, res, prisma) => {
         noShow: 0,
         activePatients: new Set(),
       };
-      const summary = buildCapacitySummary(availableMinutes, sessionDurationMinutes, monthlyCounters.completed);
-      const weeklyCapacity = sessionDurationMinutes > 0 ? availableMinutes / sessionDurationMinutes : 0;
+      const summary = buildCapacitySummary(availableMinutes, sessionDurationMinutes, monthlyCounters.total, capacityPerSlot);
+      const weeklyCapacity = sessionDurationMinutes > 0 ? (availableMinutes / sessionDurationMinutes) * capacityPerSlot : 0;
       const weeklyCompleted = weeklyCompletedByProfessional.get(professional.id) || 0;
       const weeklyOccupancyRate = weeklyCapacity > 0 ? (weeklyCompleted / weeklyCapacity) * 100 : 0;
 
@@ -537,16 +538,16 @@ export const getCapacityMetrics = async (req, res, prisma) => {
         start: weekStart,
         end: addDays(weekEnd, -1),
         completedCount: currentWeekCompletedAppointments.length,
-        capacity: roundOne(totalAvailableMinutes / sessionDurationMinutes),
+        capacity: roundOne((totalAvailableMinutes / sessionDurationMinutes) * capacityPerSlot),
         occupancyRate: totalAvailableMinutes > 0
-          ? roundOne((currentWeekCompletedAppointments.length / (totalAvailableMinutes / sessionDurationMinutes)) * 100)
+          ? roundOne((currentWeekCompletedAppointments.length / ((totalAvailableMinutes / sessionDurationMinutes) * capacityPerSlot)) * 100)
           : 0,
       },
       currentMonth: {
         start: monthStart,
         end: addDays(monthEnd, -1),
         appointmentCount: currentMonthAppointments.length,
-        completedCount: completedCurrentMonth,
+        completedCount: currentMonthAppointments.filter((a) => a.status === COMPLETED_STATUS).length,
         noShowCount: currentMonthAppointments.filter((appointment) => appointment.status === NO_SHOW_STATUS).length,
         activePatients,
         availableHoursWeekly: totalSummary.availableHoursWeekly,
