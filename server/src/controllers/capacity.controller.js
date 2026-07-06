@@ -99,9 +99,9 @@ const getOccupationLevel = (occupancyRate) => {
   };
 };
 
-const buildCapacitySummary = (availableMinutes, sessionDurationMinutes, occupiedCount, capacityPerSlot = 1) => {
+const buildCapacitySummary = (availableMinutes, sessionDurationMinutes, occupiedCount) => {
   const weeklyCapacity = sessionDurationMinutes > 0
-    ? (availableMinutes / sessionDurationMinutes) * capacityPerSlot
+    ? (availableMinutes / sessionDurationMinutes)
     : 0;
   const monthlyCapacity = weeklyCapacity * MONTHLY_WEEK_FACTOR;
   const occupancyRate = monthlyCapacity > 0
@@ -457,7 +457,6 @@ export const getCapacityMetrics = async (req, res, prisma) => {
 
     const config = agendaConfig || DEFAULT_AGENDA_CONFIG;
     const sessionDurationMinutes = Math.max(1, Number(config.slotDuration || config.timerDurationMinutes || 30));
-    const capacityPerSlot = Math.max(1, Number(config.capacityPerSlot || 1));
     const weeklyCompletedByProfessional = currentWeekCompletedAppointments.reduce((accumulator, appointment) => {
       accumulator.set(appointment.professionalId, (accumulator.get(appointment.professionalId) || 0) + 1);
       return accumulator;
@@ -469,7 +468,7 @@ export const getCapacityMetrics = async (req, res, prisma) => {
     );
     const activePatients = new Set(currentMonthAppointments.map((appointment) => appointment.patientId).filter(Boolean)).size;
     const validCurrentMonth = currentMonthAppointments.length;
-    const totalSummary = buildCapacitySummary(totalAvailableMinutes, sessionDurationMinutes, validCurrentMonth, capacityPerSlot);
+    const totalSummary = buildCapacitySummary(totalAvailableMinutes, sessionDurationMinutes, validCurrentMonth);
 
     const professionalsSummary = professionals.map((professional) => {
       const availableMinutes = getScheduleMinutes(professional.workSchedule);
@@ -479,8 +478,8 @@ export const getCapacityMetrics = async (req, res, prisma) => {
         noShow: 0,
         activePatients: new Set(),
       };
-      const summary = buildCapacitySummary(availableMinutes, sessionDurationMinutes, monthlyCounters.total, capacityPerSlot);
-      const weeklyCapacity = sessionDurationMinutes > 0 ? (availableMinutes / sessionDurationMinutes) * capacityPerSlot : 0;
+      const summary = buildCapacitySummary(availableMinutes, sessionDurationMinutes, monthlyCounters.total);
+      const weeklyCapacity = sessionDurationMinutes > 0 ? (availableMinutes / sessionDurationMinutes) : 0;
       const weeklyCompleted = weeklyCompletedByProfessional.get(professional.id) || 0;
       const weeklyOccupancyRate = weeklyCapacity > 0 ? (weeklyCompleted / weeklyCapacity) * 100 : 0;
 
@@ -531,16 +530,15 @@ export const getCapacityMetrics = async (req, res, prisma) => {
       referenceDate: now,
       config: {
         sessionDurationMinutes,
-        capacityPerSlot: Number(config.capacityPerSlot || 1),
         monthlyWeekFactor: MONTHLY_WEEK_FACTOR,
       },
       currentWeek: {
         start: weekStart,
         end: addDays(weekEnd, -1),
         completedCount: currentWeekCompletedAppointments.length,
-        capacity: roundOne((totalAvailableMinutes / sessionDurationMinutes) * capacityPerSlot),
+        capacity: roundOne(totalAvailableMinutes / sessionDurationMinutes),
         occupancyRate: totalAvailableMinutes > 0
-          ? roundOne((currentWeekCompletedAppointments.length / ((totalAvailableMinutes / sessionDurationMinutes) * capacityPerSlot)) * 100)
+          ? roundOne((currentWeekCompletedAppointments.length / (totalAvailableMinutes / sessionDurationMinutes)) * 100)
           : 0,
       },
       currentMonth: {

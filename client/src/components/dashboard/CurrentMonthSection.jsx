@@ -2,11 +2,18 @@ import { AlertTriangle, Calendar, CheckCircle2, Clock3, TrendingUp } from 'lucid
 import { formatCount, formatRate } from './dashboardFormatters';
 import { formatCurrentMonthRange } from './dashboardPeriods';
 
-const formatCurrency = (value) => new Intl.NumberFormat('es-AR', {
-  style: 'currency',
-  currency: 'ARS',
-  maximumFractionDigits: 0,
-}).format(Number(value) || 0);
+const formatCurrency = (value) => {
+  if (value === null || value === undefined || value === '' || value === '-') return '-';
+
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return '-';
+
+  return new Intl.NumberFormat('es-AR', {
+    style: 'currency',
+    currency: 'ARS',
+    maximumFractionDigits: 0,
+  }).format(numericValue);
+};
 
 const SectionBadge = ({ children, toneClassName = 'border-green-100 bg-green-50 text-green-700' }) => (
   <span className={`inline-flex items-center rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.24em] ${toneClassName}`}>

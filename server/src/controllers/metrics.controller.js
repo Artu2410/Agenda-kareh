@@ -438,11 +438,13 @@ export const getMetrics = async (req, res, prisma) => {
     const previousMonthSnapshot = await buildMonthlySnapshot(prisma, subMonths(now, 1));
     const futureAgendaSnapshot = await buildFutureAgendaSnapshot(prisma, now);
     const agendaConfig = prisma?.agendaConfig?.findFirst ? await prisma.agendaConfig.findFirst() : null;
-    
-    const professionals = await prisma.professional.findMany({
-      where: { isActive: true, isArchived: false },
-      include: { workSchedule: true },
-    });
+
+    const professionals = prisma?.professional?.findMany
+      ? await prisma.professional.findMany({
+        where: { isActive: true, isArchived: false },
+        include: { workSchedule: true },
+      })
+      : [];
     
     const totalAvailableMinutes = professionals.reduce(
       (sum, prof) => sum + getScheduleMinutes(prof.workSchedule),
@@ -605,7 +607,6 @@ export const getMetricsDebug = async (req, res, prisma) => {
       1,
       Number(agendaConfig?.slotDuration || agendaConfig?.timerDurationMinutes || 30)
     );
-    const capacityPerSlot = Math.max(1, Number(agendaConfig?.capacityPerSlot || 1));
 
     // Profesionales y horarios
     const professionals = await prisma.professional.findMany({
@@ -619,7 +620,7 @@ export const getMetricsDebug = async (req, res, prisma) => {
     );
 
     const weeklyCapacity = configuredSlotDuration > 0
-      ? (totalAvailableMinutes / configuredSlotDuration) * capacityPerSlot
+      ? (totalAvailableMinutes / configuredSlotDuration)
       : 0;
     const monthlyCapacity = weeklyCapacity * 4.33;
 
@@ -653,7 +654,6 @@ export const getMetricsDebug = async (req, res, prisma) => {
       referenceMonth: format(now, 'MMMM yyyy', { locale: es }),
       config: {
         slotDuration: configuredSlotDuration,
-        capacityPerSlot,
         professionalsCount: professionals.length,
         totalAvailableMinutesWeekly: totalAvailableMinutes,
       },
