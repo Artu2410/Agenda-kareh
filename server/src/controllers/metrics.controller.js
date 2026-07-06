@@ -450,9 +450,8 @@ export const getMetrics = async (req, res, prisma) => {
     );
 
     const configuredSlotDuration = Math.max(1, Number(agendaConfig?.slotDuration || agendaConfig?.timerDurationMinutes || 30));
-    const capacityPerSlot = Math.max(1, Number(agendaConfig?.capacityPerSlot || 1));
     const weeklyCapacity = configuredSlotDuration > 0
-      ? (totalAvailableMinutes / configuredSlotDuration) * capacityPerSlot
+      ? (totalAvailableMinutes / configuredSlotDuration)
       : 0;
     const monthlyCapacity = weeklyCapacity * 4.33;
     const occupancyRate = monthlyCapacity > 0
