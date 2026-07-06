@@ -57,6 +57,7 @@ import createHiringRoutes from './src/routes/hiring.routes.js';
 import createStrategicSimulatorRoutes from './src/routes/strategicSimulator.routes.js';
 import createClinicalHistoryRoutes from './src/routes/clinicalHistory.routes.js';
 import createMetricsRoutes from './src/routes/metrics.routes.js';
+import { getMetricsDebug } from './src/controllers/metrics.controller.js';
 import createProfessionalRoutes from './src/routes/professionalRoutes.js';
 import createNotesRoutes from './src/routes/notes.routes.js';
 import createUploadRoutes from './src/routes/upload.routes.js';
@@ -354,6 +355,13 @@ app.use('/api/crm-intelligence', authMiddleware, checkRole(ROLES.SUPER_USER, ROL
 app.use('/api/hiring', authMiddleware, checkRole(ROLES.SUPER_USER, ROLES.ADMIN, ROLES.SECRETARIA), createHiringRoutes(prisma));
 app.use('/api/strategic-simulator', authMiddleware, checkRole(ROLES.SUPER_USER, ROLES.ADMIN, ROLES.SECRETARIA), createStrategicSimulatorRoutes(prisma));
 app.use('/api/clinical-history', authMiddleware, checkRole(ROLES.SUPER_USER, ROLES.ADMIN, ROLES.PROFESSIONAL), createClinicalHistoryRoutes(prisma));
+// GET /api/metrics-debug — TEMPORAL: endpoint sin auth para validar deploy (token requerido)
+app.get('/api/metrics-debug', async (req, res, next) => {
+  const EXPECTED = 'kareh-debug-2026';
+  if (req.query.token !== EXPECTED) return res.status(403).json({ error: 'Forbidden' });
+  return getMetricsDebug(req, res, prisma);
+});
+
 app.use('/api/metrics', authMiddleware, createMetricsRoutes(prisma));
 app.use('/api/notes', authMiddleware, createNotesRoutes(prisma));
 app.use('/api/professionals', authMiddleware, createProfessionalRoutes(prisma));
