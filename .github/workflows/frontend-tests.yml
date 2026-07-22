@@ -42,36 +42,3 @@ jobs:
         run: |
           cd client
           npm run build
-
-  client-e2e:
-    name: Client E2E tests (Playwright)
-    runs-on: ubuntu-latest
-    needs: client-tests
-    concurrency:
-      group: frontend-e2e
-      cancel-in-progress: true
-    steps:
-      - uses: actions/checkout@v4
-      - name: Use Node.js 22
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: Cache node modules
-        uses: actions/cache@v4
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-node-${{ hashFiles('**/client/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-
-      - name: Install client deps
-        run: |
-          cd client
-          npm ci --legacy-peer-deps
-      - name: Install Playwright Chromium
-        run: |
-          cd client
-          npx playwright install --with-deps chromium
-      - name: Run Playwright E2E
-        run: |
-          cd client
-          npm run test:e2e

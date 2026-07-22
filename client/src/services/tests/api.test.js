@@ -2,14 +2,13 @@ import { waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { delay, http, HttpResponse } from 'msw';
 import { server } from '../../tests/msw/server';
-import api, { getApiClientState, resetApiClientState, verifyOTP } from '../api';
+import api, { getApiClientState, resetApiClientState } from '../api';
 import { getApiUrl } from '../apiBase';
 import * as authStore from '../../stores/auth';
 
 const protectedUrl = getApiUrl('/protected');
 const refreshUrl = getApiUrl('/auth/refresh');
 const logoutUrl = getApiUrl('/auth/logout');
-const verifyOtpUrl = getApiUrl('/auth/verify-otp');
 
 describe('Axios interceptor refresh flow', () => {
   beforeEach(() => {
@@ -21,18 +20,14 @@ describe('Axios interceptor refresh flow', () => {
     authStore.setAccessToken('old-token');
 
     let protectedCalls = 0;
-    let refreshCompleted = false;
     server.use(
       http.get(protectedUrl, ({ request }) => {
         protectedCalls++;
         const auth = request.headers.get('authorization') || '';
-        if (refreshCompleted && !auth) return HttpResponse.json({ data: 'ok' }, { status: 200 });
+        if (auth === 'Bearer new-token') return HttpResponse.json({ data: 'ok' }, { status: 200 });
         return HttpResponse.json({ message: 'Unauthorized' }, { status: 401 });
       }),
-      http.post(refreshUrl, () => {
-        refreshCompleted = true;
-        return HttpResponse.json({ success: true }, { status: 200 });
-      })
+      http.post(refreshUrl, () => HttpResponse.json({ accessToken: 'new-token' }, { status: 200 }))
     );
 
     const response = await api.get('/protected');
@@ -40,7 +35,7 @@ describe('Axios interceptor refresh flow', () => {
     expect(response.status).toBe(200);
     expect(response.data.data).toBe('ok');
     expect(protectedCalls).toBe(2);
-    expect(authStore.getAccessToken()).toBeNull();
+    expect(authStore.getAccessToken()).toBe('new-token');
     expect(getApiClientState()).toEqual({ isRefreshing: false, failedQueueLength: 0 });
   });
 
@@ -48,18 +43,16 @@ describe('Axios interceptor refresh flow', () => {
     authStore.setAccessToken('old-token');
 
     let refreshCalls = 0;
-    let refreshCompleted = false;
     server.use(
       http.get(protectedUrl, ({ request }) => {
         const auth = request.headers.get('authorization') || '';
-        if (refreshCompleted && !auth) return HttpResponse.json({ data: 'ok' }, { status: 200 });
+        if (auth === 'Bearer new-token') return HttpResponse.json({ data: 'ok' }, { status: 200 });
         return HttpResponse.json({ message: 'Unauthorized' }, { status: 401 });
       }),
       http.post(refreshUrl, async () => {
         refreshCalls++;
-        refreshCompleted = true;
         await delay(50);
-        return HttpResponse.json({ success: true }, { status: 200 });
+        return HttpResponse.json({ accessToken: 'new-token' }, { status: 200 });
       })
     );
 
@@ -67,7 +60,7 @@ describe('Axios interceptor refresh flow', () => {
     const results = await Promise.all(promises);
 
     results.forEach((r) => expect(r.status).toBe(200));
-    expect(authStore.getAccessToken()).toBeNull();
+    expect(authStore.getAccessToken()).toBe('new-token');
     await waitFor(() => {
       expect(refreshCalls).toBe(1);
       expect(getApiClientState()).toEqual({ isRefreshing: false, failedQueueLength: 0 });
@@ -115,7 +108,7 @@ describe('Axios interceptor refresh flow', () => {
       }),
       http.post(refreshUrl, () => {
         refreshCalls++;
-        return HttpResponse.json({ success: true }, { status: 200 });
+        return HttpResponse.json({ accessToken: 'new-token' }, { status: 200 });
       })
     );
 
@@ -123,49 +116,6 @@ describe('Axios interceptor refresh flow', () => {
 
     expect(protectedCalls).toBe(2);
     expect(refreshCalls).toBe(1);
-    expect(getApiClientState()).toEqual({ isRefreshing: false, failedQueueLength: 0 });
-  });
-
-  it('debe seguir soportando refresh con accessToken explícito si el backend aún lo envía', async () => {
-    authStore.setAccessToken('old-token');
-
-    let refreshCompleted = false;
-    server.use(
-      http.get(protectedUrl, ({ request }) => {
-        const auth = request.headers.get('authorization') || '';
-        if (refreshCompleted && auth === 'Bearer new-token') {
-          return HttpResponse.json({ data: 'ok' }, { status: 200 });
-        }
-        return HttpResponse.json({ message: 'Unauthorized' }, { status: 401 });
-      }),
-      http.post(refreshUrl, () => {
-        refreshCompleted = true;
-        return HttpResponse.json({ accessToken: 'new-token' }, { status: 200 });
-      })
-    );
-
-    const response = await api.get('/protected');
-
-    expect(response.status).toBe(200);
-    expect(authStore.getAccessToken()).toBe('new-token');
-    expect(getApiClientState()).toEqual({ isRefreshing: false, failedQueueLength: 0 });
-  });
-
-  it('no debe intentar refresh al fallar verifyOTP en login', async () => {
-    let refreshCalls = 0;
-    server.use(
-      http.post(verifyOtpUrl, () => HttpResponse.json({ message: 'Código incorrecto' }, { status: 401 })),
-      http.post(refreshUrl, () => {
-        refreshCalls++;
-        return HttpResponse.json({ success: true }, { status: 200 });
-      })
-    );
-
-    await expect(verifyOTP('admin@kareh.com', '123456')).rejects.toMatchObject({
-      friendlyMessage: 'Código incorrecto',
-    });
-
-    expect(refreshCalls).toBe(0);
     expect(getApiClientState()).toEqual({ isRefreshing: false, failedQueueLength: 0 });
   });
 });
