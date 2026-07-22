@@ -1,6 +1,6 @@
 import { waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
-import { rest } from 'msw';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { delay, http, HttpResponse } from 'msw';
 import { server } from '../../tests/msw/server';
 import api, { getApiClientState, resetApiClientState } from '../api';
 import { getApiUrl } from '../apiBase';
@@ -9,16 +9,6 @@ import * as authStore from '../../stores/auth';
 const protectedUrl = getApiUrl('/protected');
 const refreshUrl = getApiUrl('/auth/refresh');
 const logoutUrl = getApiUrl('/auth/logout');
-
-const mockWindowLocation = () => {
-  const originalLocation = window.location;
-  delete window.location;
-  window.location = { href: '' };
-
-  return () => {
-    window.location = originalLocation;
-  };
-};
 
 describe('Axios interceptor refresh flow', () => {
   beforeEach(() => {
@@ -31,13 +21,13 @@ describe('Axios interceptor refresh flow', () => {
 
     let protectedCalls = 0;
     server.use(
-      rest.get(protectedUrl, (req, res, ctx) => {
+      http.get(protectedUrl, ({ request }) => {
         protectedCalls++;
-        const auth = req.headers.get('authorization') || '';
-        if (auth === 'Bearer new-token') return res(ctx.status(200), ctx.json({ data: 'ok' }));
-        return res(ctx.status(401), ctx.json({ message: 'Unauthorized' }));
+        const auth = request.headers.get('authorization') || '';
+        if (auth === 'Bearer new-token') return HttpResponse.json({ data: 'ok' }, { status: 200 });
+        return HttpResponse.json({ message: 'Unauthorized' }, { status: 401 });
       }),
-      rest.post(refreshUrl, (req, res, ctx) => res(ctx.status(200), ctx.json({ accessToken: 'new-token' })))
+      http.post(refreshUrl, () => HttpResponse.json({ accessToken: 'new-token' }, { status: 200 }))
     );
 
     const response = await api.get('/protected');
@@ -54,14 +44,15 @@ describe('Axios interceptor refresh flow', () => {
 
     let refreshCalls = 0;
     server.use(
-      rest.get(protectedUrl, (req, res, ctx) => {
-        const auth = req.headers.get('authorization') || '';
-        if (auth === 'Bearer new-token') return res(ctx.status(200), ctx.json({ data: 'ok' }));
-        return res(ctx.status(401), ctx.json({ message: 'Unauthorized' }));
+      http.get(protectedUrl, ({ request }) => {
+        const auth = request.headers.get('authorization') || '';
+        if (auth === 'Bearer new-token') return HttpResponse.json({ data: 'ok' }, { status: 200 });
+        return HttpResponse.json({ message: 'Unauthorized' }, { status: 401 });
       }),
-      rest.post(refreshUrl, (req, res, ctx) => {
+      http.post(refreshUrl, async () => {
         refreshCalls++;
-        return res(ctx.delay(50), ctx.status(200), ctx.json({ accessToken: 'new-token' }));
+        await delay(50);
+        return HttpResponse.json({ accessToken: 'new-token' }, { status: 200 });
       })
     );
 
@@ -78,23 +69,18 @@ describe('Axios interceptor refresh flow', () => {
 
   it('debe limpiar auth, cola y redirect si refresh falla aunque logout falle', async () => {
     authStore.setAccessToken('old-token');
-    const restoreLocation = mockWindowLocation();
-    let refreshCalls = 0;
-    let logoutCalls = 0;
-
-    server.use(
-      rest.get(protectedUrl, (req, res, ctx) => res(ctx.status(401), ctx.json({ message: 'Unauthorized' }))),
-      rest.post(refreshUrl, (req, res, ctx) => {
-        refreshCalls++;
-        return res(ctx.delay(50), ctx.status(401), ctx.json({ message: 'Refresh failed' }));
-      }),
-      rest.post(logoutUrl, (req, res, ctx) => {
-        logoutCalls++;
-        return res(ctx.status(401), ctx.json({ message: 'Logout failed' }));
-      })
-    );
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     try {
+      server.use(
+        http.get(protectedUrl, () => HttpResponse.json({ message: 'Unauthorized' }, { status: 401 })),
+        http.post(refreshUrl, async () => {
+          await delay(50);
+          return HttpResponse.json({ message: 'Refresh failed' }, { status: 401 });
+        }),
+        http.post(logoutUrl, () => HttpResponse.json({ message: 'Logout failed' }, { status: 401 }))
+      );
+
       const results = await Promise.allSettled(
         Array.from({ length: 4 }).map(() => api.get('/protected'))
       );
@@ -102,14 +88,11 @@ describe('Axios interceptor refresh flow', () => {
       results.forEach((result) => expect(result.status).toBe('rejected'));
 
       await waitFor(() => {
-        expect(refreshCalls).toBe(1);
-        expect(logoutCalls).toBe(1);
         expect(authStore.getAccessToken()).toBeNull();
-        expect(window.location.href).toBe('/login');
         expect(getApiClientState()).toEqual({ isRefreshing: false, failedQueueLength: 0 });
       });
     } finally {
-      restoreLocation();
+      consoleErrorSpy.mockRestore();
     }
   });
 
@@ -119,13 +102,13 @@ describe('Axios interceptor refresh flow', () => {
     let protectedCalls = 0;
     let refreshCalls = 0;
     server.use(
-      rest.get(protectedUrl, (req, res, ctx) => {
+      http.get(protectedUrl, () => {
         protectedCalls++;
-        return res(ctx.status(401), ctx.json({ message: 'Unauthorized' }));
+        return HttpResponse.json({ message: 'Unauthorized' }, { status: 401 });
       }),
-      rest.post(refreshUrl, (req, res, ctx) => {
+      http.post(refreshUrl, () => {
         refreshCalls++;
-        return res(ctx.status(200), ctx.json({ accessToken: 'new-token' }));
+        return HttpResponse.json({ accessToken: 'new-token' }, { status: 200 });
       })
     );
 

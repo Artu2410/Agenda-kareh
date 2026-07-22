@@ -1,4 +1,4 @@
-import { rest } from 'msw';
+import { http, HttpResponse } from 'msw';
 import { getApiUrl } from '../../services/apiBase';
 
 // Handlers will be configured dynamically in tests by replacing these exports
@@ -7,9 +7,25 @@ export const createHandlers = ({
   refreshHandler, // function to handle refresh
 }) => {
   return [
-    rest.get(getApiUrl('/protected'), (req, res, ctx) => protectedHandler(req, res, ctx)),
-    rest.get(getApiUrl('/csrf-token'), (req, res, ctx) => res(ctx.status(200), ctx.json({ token: 'test-csrf-token' }))),
-    rest.post(getApiUrl('/auth/refresh'), (req, res, ctx) => refreshHandler(req, res, ctx)),
-    rest.post(getApiUrl('/auth/logout'), (req, res, ctx) => res(ctx.status(200), ctx.json({ success: true }))),
+    http.get(getApiUrl('/protected'), ({ request, params, cookies }) =>
+      protectedHandler({ request, params, cookies })
+    ),
+    http.get(getApiUrl('/version'), () =>
+      HttpResponse.json({
+        version: '2026.05.28-rc1',
+        commit: 'cb5f418',
+        environment: 'test',
+        deployedAt: '2026-05-28T22:00:00.000Z',
+      }, { status: 200 })
+    ),
+    http.get(getApiUrl('/csrf-token'), () =>
+      HttpResponse.json({ token: 'test-csrf-token' }, { status: 200 })
+    ),
+    http.post(getApiUrl('/auth/refresh'), ({ request, params, cookies }) =>
+      refreshHandler({ request, params, cookies })
+    ),
+    http.post(getApiUrl('/auth/logout'), () =>
+      HttpResponse.json({ success: true }, { status: 200 })
+    ),
   ];
 };
