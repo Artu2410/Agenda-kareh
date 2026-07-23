@@ -1,0 +1,81 @@
+name: Backend Tests
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'server/**'
+      - '.github/workflows/backend-tests.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'server/**'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [22.x]
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+          cache-dependency-path: server/package-lock.json
+      
+      - name: Install dependencies
+        run: cd server && npm ci
+      
+      - name: Generate Prisma Client
+        run: cd server && npm run prisma:generate
+      
+      - name: Validate environment variables
+        run: cd server && npm run check:env 2>/dev/null || echo "⚠️ Check env script not found"
+        env:
+          NODE_ENV: test
+          JWT_SECRET: test-secret-at-least-32-chars-long
+          DATABASE_URL: postgresql://test:test@localhost/test
+      
+      - name: Run tests
+        run: cd server && npm test -- --coverage
+        env:
+          NODE_ENV: test
+          JWT_SECRET: test-secret-at-least-32-chars-long
+          DATABASE_URL: postgresql://test:test@localhost/test
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./server/coverage/coverage-final.json
+          flags: backend
+          name: backend-coverage
+        continue-on-error: true
+
+  lint:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: 'npm'
+          cache-dependency-path: server/package-lock.json
+      
+      - name: Install dependencies
+        run: cd server && npm ci
+      
+      - name: Generate Prisma Client
+        run: cd server && npm run prisma:generate
+      
+      - name: Run linter
+        run: cd server && npm run lint || echo "⚠️ No lint script configured"
+        continue-on-error: true

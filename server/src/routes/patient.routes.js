@@ -1,0 +1,43 @@
+import { Router } from 'express';
+import {
+  searchPatientByDni,
+  getAllPatients,
+  getClinicalHistoryPatients,
+  createPatient, 
+  updatePatient, 
+  deletePatient, 
+  getPatientById,
+  getPatientHistoryByDni,
+  getFutureAppointments,
+  getSessionCycles,
+  renumberAllPatients
+} from '../controllers/patient.controller.js';
+import { validate } from '../middlewares/validate.js';
+import { checkRole } from '../middlewares/authMiddleware.js';
+import {
+  createPatientBodySchema,
+  patientIdParamsSchema,
+  updatePatientBodySchema,
+} from '../validations/patientSchemas.js';
+
+export default function createPatientRoutes(prisma) {
+  const router = Router();
+  
+  // Rutas GET
+  router.get('/all', (req, res) => getAllPatients(req, res, prisma));
+  router.get('/clinical-histories', (req, res) => getClinicalHistoryPatients(req, res, prisma));
+  router.get('/search', (req, res) => searchPatientByDni(req, res, prisma));
+  router.get('/:dni/history', (req, res) => getPatientHistoryByDni(req, res, prisma));
+  router.get('/:patientId/future-appointments', (req, res) => getFutureAppointments(req, res, prisma));
+  router.get('/:patientId/session-cycles', (req, res) => getSessionCycles(req, res, prisma));
+  router.get('/:id', (req, res) => getPatientById(req, res, prisma));
+  
+  // Rutas POST/DELETE
+  router.post('/', validate({ body: createPatientBodySchema }), (req, res) => createPatient(req, res, prisma));
+  router.delete('/:id', (req, res) => deletePatient(req, res, prisma));
+  router.put('/:id', validate({ params: patientIdParamsSchema, body: updatePatientBodySchema }), (req, res) => updatePatient(req, res, prisma));
+  router.patch('/:id', validate({ params: patientIdParamsSchema, body: updatePatientBodySchema }), (req, res) => updatePatient(req, res, prisma));
+  router.post('/admin/renumber', checkRole('SUPER_USER', 'ADMIN'), (req, res) => renumberAllPatients(req, res, prisma));
+
+  return router;
+}

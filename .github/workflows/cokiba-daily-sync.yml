@@ -1,0 +1,64 @@
+name: COKIBA Daily Sync
+
+on:
+  schedule:
+    # 06:00 ARG (UTC-3) = 09:00 UTC
+    - cron: '0 9 * * *'
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Motivo del sync manual'
+        required: false
+        default: 'Manual trigger'
+
+jobs:
+  cokiba-sync:
+    name: Sincronizar Obras Sociales COKIBA
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Verificar secretos requeridos
+        shell: bash
+        run: |
+          MISSING=""
+          if [ -z "${{ secrets.SERVER_URL }}" ]; then
+            MISSING="$MISSING SERVER_URL"
+          fi
+          if [ -z "${{ secrets.COKIBA_CRON_TOKEN }}" ]; then
+            MISSING="$MISSING COKIBA_CRON_TOKEN"
+          fi
+          if [ -n "$MISSING" ]; then
+            echo "::error::Faltan los siguientes secretos en GitHub Actions:$MISSING"
+            echo "Configuralos en: Settings → Secrets and variables → Actions"
+            exit 1
+          fi
+          echo "✅ Secretos verificados"
+
+      - name: Trigger COKIBA sync en el servidor
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          HTTP_STATUS=$(curl -sS -o /tmp/response.json -w "%{http_code}" \
+            -X POST "${{ secrets.SERVER_URL }}/api/cron/cokiba-sync" \
+            -H "x-cron-token: ${{ secrets.COKIBA_CRON_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            --max-time 600)
+
+          echo "HTTP Status: $HTTP_STATUS"
+          echo "Response:"
+          cat /tmp/response.json
+
+          if [ "$HTTP_STATUS" -ne 200 ]; then
+            echo "::error::Sync COKIBA falló — HTTP $HTTP_STATUS. Revisar response arriba."
+            exit 1
+          fi
+
+          echo "✅ Sync completado"
+
+      - name: Notificar fallo en el run
+        if: failure()
+        run: |
+          echo "::error::El sync diario de COKIBA falló. Revisar logs en: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+

@@ -1,0 +1,2 @@
+ALTER TABLE "AgendaConfig"
+ADD COLUMN "timerDurationMinutes" INTEGER NOT NULL DEFAULT 25;

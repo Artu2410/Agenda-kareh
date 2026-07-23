@@ -1,0 +1,2 @@
+ALTER TABLE "AgendaConfig"
+ADD COLUMN "timerDurations" INTEGER[] NOT NULL DEFAULT ARRAY[]::INTEGER[];
