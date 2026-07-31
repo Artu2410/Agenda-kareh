@@ -1,0 +1,30 @@
+export default {
+  testEnvironment: 'node',
+  coveragePathIgnorePatterns: ['/node_modules/'],
+  testMatch: ['**/__tests__/**/*.js', '**/?(*.)+(spec|test).js'],
+  transformIgnorePatterns: ['node_modules/(?!(p-queue)/)'],
+  coverageThreshold: {
+    global: {
+      lines: 70,
+      branches: 60,
+    },
+  },
+  collectCoverageFrom: [
+    'src/lib/**/*.js',
+    'src/constants/roles.js',
+    'src/controllers/whatsapp/dto/**/*.js',
+    'src/utils/sessionManager.js',
+    'src/utils/monthlyHonorariosReport.js',
+    'src/utils/appointmentFinancialSnapshot.js',
+    'src/utils/roles.js',
+    'src/utils/audit.js',
+    'src/validations/common.js',
+    'src/validations/appointmentSchemas.js',
+    'src/validations/authSchemas.js',
+    'src/validations/cashflowSchemas.js',
+    'src/validations/patientSchemas.js',
+  ],
+  setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
+  testTimeout: 10000,
+  verbose: true,
+};

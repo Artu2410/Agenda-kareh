@@ -1,0 +1,5 @@
+ALTER TABLE "WhatsAppConversation"
+  ADD COLUMN IF NOT EXISTS "pricingExplainedAt" TIMESTAMP(3),
+  ADD COLUMN IF NOT EXISTS "slotOfferSentAt" TIMESTAMP(3),
+  ADD COLUMN IF NOT EXISTS "lastServiceType" TEXT,
+  ADD COLUMN IF NOT EXISTS "lastOfferedSlots" JSONB;
