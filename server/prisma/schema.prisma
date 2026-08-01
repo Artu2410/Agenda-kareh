@@ -1,0 +1,517 @@
+// ---------------------------------------------------------
+// CONFIGURACIÓN DE CONEXIÓN
+// ---------------------------------------------------------
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum UserRole {
+  SUPER_USER
+  ADMIN
+  PROFESSIONAL
+  SECRETARIA
+}
+
+// ---------------------------------------------------------
+// 1. CONFIGURACIÓN GLOBAL DE LA APP
+// ---------------------------------------------------------
+model User {
+  id                     String             @id @default(cuid())
+  email                  String             @unique
+  fullName               String
+  role                   UserRole           @default(PROFESSIONAL)
+  professionalId         String?            @unique
+  isActive               Boolean            @default(true)
+  failedLoginAttempts    Int                @default(0)
+  lockedUntil            DateTime?
+  lastLoginAt            DateTime?
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+  authorizedAppointments Appointment[]      @relation("AppointmentAuthorizationReviewer")
+  auditLogs              AuditLog[]
+  otpChallenges          AuthOtpChallenge[]
+  professional           Professional?      @relation(fields: [professionalId], references: [id], onDelete: SetNull)
+  sessions               AuthSession[]
+}
+
+model AuthSession {
+  id               String    @id @default(cuid())
+  userId           String
+  refreshTokenHash String    @unique
+  accessTokenJti   String
+  ipAddress        String?
+  userAgent        String?
+  expiresAt        DateTime
+  lastUsedAt       DateTime?
+  revokedAt        DateTime?
+  revokedReason    String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@index([accessTokenJti])
+}
+
+model AuthOtpChallenge {
+  id            String    @id @default(cuid())
+  userId        String
+  email         String
+  codeHash      String
+  expiresAt     DateTime
+  attemptCount  Int       @default(0)
+  consumedAt    DateTime?
+  lastAttemptAt DateTime?
+  createdAt     DateTime  @default(now())
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([email, expiresAt])
+  @@index([userId, createdAt])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  action     String
+  entityType String
+  entityId   String?
+  oldValues  Json?
+  newValues  Json?
+  details    Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+model AgendaConfig {
+  id                   String   @id @default(cuid())
+  weekdayStartTime     String
+  weekdayEndTime       String
+  saturdayEnabled      Boolean  @default(false)
+  saturdayStartTime    String?
+  saturdayEndTime      String?
+  slotDuration         Int      @default(30)
+  capacityPerSlot      Int      @default(5)
+  timerDurationMinutes Int      @default(25)
+  timerDurations       Int[]    @default([])
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+model InternalNote {
+  id        String   @id
+  title     String
+  body      String   @db.Text
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([sortOrder])
+  @@index([updatedAt])
+}
+
+model AgendaTimerState {
+  id               String    @id @default(cuid())
+  timerDate        String
+  slotTime         String
+  slotNumber       Int
+  status           String    @default("idle")
+  durationSeconds  Int
+  remainingSeconds Int
+  endsAt           DateTime?
+  finishedAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@unique([timerDate, slotTime, slotNumber])
+  @@index([timerDate, slotTime])
+}
+
+// ---------------------------------------------------------
+// 2. PACIENTES
+// ---------------------------------------------------------
+model Patient {
+  id                        String            @id @default(cuid())
+  dni                       String            @unique
+  fullName                  String
+  clinicalRecordNumber      Int               @unique @default(autoincrement())
+  email                     String?
+  birthDate                 DateTime
+  healthInsurance           String?
+  obraSocialId              String?
+  treatAsParticular         Boolean           @default(false)
+  affiliateNumber           String?
+  dniImageUrl               String?
+  dniBackImageUrl           String?
+  insuranceCardImageUrl     String?
+  insuranceCardBackImageUrl String?
+  phone                     String?
+  address                   String?
+  emergencyPhone            String?
+  medicalHistory            String?
+  hasCancer                 Boolean           @default(false)
+  hasMarcapasos             Boolean           @default(false)
+  usesEA                    Boolean           @default(false)
+  usesWheelchair            Boolean           @default(false)
+  isRespiratory             Boolean           @default(false)
+  isIU                      Boolean           @default(false)
+  medicalNotes              String?           @db.Text
+  createdAt                 DateTime          @default(now())
+  updatedAt                 DateTime          @updatedAt
+  appointments              Appointment[]
+  billingInvoices           BillingInvoice[]
+  billingInvoiceItems        BillingInvoiceItem[]
+  clinicalHistory           ClinicalHistory[]
+  treatmentCycles           TreatmentCycle[]
+  obraSocial                ObraSocial?       @relation(fields: [obraSocialId], references: [id], onDelete: SetNull)
+
+  @@index([phone])
+  @@index([obraSocialId])
+}
+
+// ---------------------------------------------------------
+// 3. STAFF PROFESIONAL
+// ---------------------------------------------------------
+enum ProfessionalType {
+  MN // Médico Nacional
+  MP // Médico Provincial
+}
+
+model Professional {
+  id                           String            @id @default(cuid())
+  fullName                     String
+  licenseNumber                String            @unique
+  licenseNumberMP              String?
+  specialty                    String            @default("Kinesiología")
+  type                         ProfessionalType  @default(MN)
+  isActive                     Boolean           @default(true)
+  isArchived                   Boolean           @default(false)
+  dni                          String?
+  phone                        String?
+  birthDate                    DateTime?
+  address                      String?
+  emergencyPhone               String?
+  medicalHistory               String?
+  dniImageUrl                  String?
+  dniBackImageUrl              String?
+  licenseMNImageUrl            String?
+  licenseMNBackImageUrl        String?
+  licenseMPImageUrl            String?
+  licenseMPBackImageUrl        String?
+  degreeImageUrl               String?
+  degreeBackImageUrl           String?
+  providerRegistryImageUrl     String?
+  malpracticeInsuranceImageUrl String?
+  createdAt                    DateTime          @default(now())
+  updatedAt                    DateTime          @updatedAt
+  appointments                 Appointment[]
+  billingInvoiceItems          BillingInvoiceItem[]
+  clinicalHistories            ClinicalHistory[]
+  workSchedule                 WorkSchedule[]
+  user                         User?
+}
+
+model WorkSchedule {
+  id             String       @id @default(cuid())
+  professionalId String
+  dayOfWeek      Int
+  startTime      String
+  endTime        String
+  professional   Professional @relation(fields: [professionalId], references: [id])
+
+  @@unique([professionalId, dayOfWeek])
+}
+
+// ---------------------------------------------------------
+// 4. AGENDA Y TRATAMIENTOS
+// ---------------------------------------------------------
+model TreatmentCycle {
+  id            String        @id @default(cuid())
+  patientId     String
+  diagnosis     String
+  startDate     DateTime      @default(now())
+  totalSessions Int
+  createdAt     DateTime      @default(now())
+  appointments  Appointment[]
+  patient       Patient       @relation(fields: [patientId], references: [id])
+}
+
+model Appointment {
+  id                        String          @id @default(cuid())
+  date                      DateTime
+  time                      String
+  slotNumber                Int
+  diagnosis                 String?
+  patientId                 String
+  professionalId            String
+  obraSocialId              String?
+  cycleId                   String?
+  sessionNumber             Int?
+  isFirstSession            Boolean         @default(false)
+  status                    String          @default("SCHEDULED")
+  authorizationStatus       String          @default("NOT_REQUIRED")
+  authorizationNumber       String?
+  authorizationFileUrl      String?
+  authorizationReviewedAt   DateTime?
+  authorizationReviewedById String?
+  documentsChecklist        Json?
+  coinsuranceAmount         Decimal?        @db.Decimal(10, 2)
+  patientChargeAmount       Decimal?        @db.Decimal(10, 2)
+  coinsuranceDetails        Json?
+  paidInAdvance             Boolean         @default(false)
+  whatsappTicketSentAt      DateTime?
+  whatsappReminderSentAt    DateTime?
+  sessionToken              String?
+  authorizationReviewedBy   User?           @relation("AppointmentAuthorizationReviewer", fields: [authorizationReviewedById], references: [id], onDelete: SetNull)
+  treatmentCycle            TreatmentCycle? @relation(fields: [cycleId], references: [id])
+  obraSocial                ObraSocial?     @relation(fields: [obraSocialId], references: [id], onDelete: SetNull)
+  patient                   Patient         @relation(fields: [patientId], references: [id])
+  professional              Professional    @relation(fields: [professionalId], references: [id])
+  payment                   CashFlow?
+  billingInvoiceItems       BillingInvoiceItem[]
+
+  @@unique([date, time, slotNumber, professionalId])
+  @@index([date])
+  @@index([professionalId, date])
+  @@index([patientId])
+  @@index([obraSocialId])
+  @@index([authorizationStatus, date])
+  @@index([paidInAdvance, date])
+}
+
+// ---------------------------------------------------------
+// 5. HISTORIA CLÍNICA (CORREGIDA)
+// ---------------------------------------------------------
+model ClinicalHistory {
+  id             String        @id @default(cuid())
+  patientId      String
+  professionalId String?
+  date           DateTime      @default(now())
+  diagnosis      String?
+  evolution      String        @db.Text
+  attachments    String?
+  createdAt      DateTime      @default(now())
+  patient        Patient       @relation(fields: [patientId], references: [id])
+  professional   Professional? @relation(fields: [professionalId], references: [id])
+}
+
+// ---------------------------------------------------------
+// 6. FINANZAS
+// ---------------------------------------------------------
+model CashFlow {
+  id                 String       @id @default(cuid())
+  type               FlowType
+  amount             Decimal      @db.Decimal(10, 2)
+  category           String       @default("GENERAL")
+  concept            String
+  paymentMethod      String
+  account            String       @default("CASH")
+  destinationAccount String?
+  appointmentId      String?      @unique
+  date               DateTime     @default(now())
+  appointment        Appointment? @relation(fields: [appointmentId], references: [id])
+  billingPayment     BillingPayment?
+}
+
+enum FlowType {
+  INCOME
+  EXPENSE
+  TRANSFER
+}
+
+enum BillingPayerType {
+  PATIENT
+  OBRA_SOCIAL
+  OTHER
+}
+
+enum BillingInvoiceStatus {
+  DRAFT
+  ISSUED
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+model BillingInvoice {
+  id                  String               @id @default(cuid())
+  invoiceNumber       String?              @unique
+  payerType           BillingPayerType     @default(OBRA_SOCIAL)
+  payerName           String
+  obraSocialId        String?
+  patientId           String?
+  issueDate           DateTime             @default(now())
+  serviceMonth        String?
+  dueDate             DateTime?
+  expectedPaymentDate DateTime?
+  totalAmount         Decimal              @db.Decimal(10, 2)
+  paidAmount          Decimal              @default(0) @db.Decimal(10, 2)
+  status              BillingInvoiceStatus @default(ISSUED)
+  notes               String?              @db.Text
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  items               BillingInvoiceItem[]
+  payments            BillingPayment[]
+  obraSocial          ObraSocial?          @relation(fields: [obraSocialId], references: [id], onDelete: SetNull)
+  patient             Patient?             @relation(fields: [patientId], references: [id], onDelete: SetNull)
+
+  @@index([payerType])
+  @@index([obraSocialId])
+  @@index([patientId])
+  @@index([issueDate])
+  @@index([expectedPaymentDate])
+  @@index([status])
+}
+
+model BillingInvoiceItem {
+  id             String         @id @default(cuid())
+  invoiceId      String
+  appointmentId  String?
+  patientId      String?
+  professionalId String?
+  serviceDate    DateTime?
+  description    String
+  quantity       Int            @default(1)
+  unitAmount     Decimal        @db.Decimal(10, 2)
+  totalAmount    Decimal        @db.Decimal(10, 2)
+  createdAt      DateTime       @default(now())
+  invoice        BillingInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  appointment    Appointment?   @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  patient        Patient?       @relation(fields: [patientId], references: [id], onDelete: SetNull)
+  professional   Professional?  @relation(fields: [professionalId], references: [id], onDelete: SetNull)
+
+  @@index([invoiceId])
+  @@index([patientId])
+  @@index([professionalId])
+  @@index([serviceDate])
+  @@unique([appointmentId])
+}
+
+model BillingPayment {
+  id            String         @id @default(cuid())
+  invoiceId     String
+  amount        Decimal        @db.Decimal(10, 2)
+  paymentDate   DateTime       @default(now())
+  paymentMethod String
+  account       String         @default("MERCADO_PAGO")
+  notes         String?        @db.Text
+  cashFlowId    String?        @unique
+  createdAt     DateTime       @default(now())
+  invoice       BillingInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  cashFlow      CashFlow?      @relation(fields: [cashFlowId], references: [id], onDelete: SetNull)
+
+  @@index([invoiceId])
+  @@index([paymentDate])
+}
+
+// ---------------------------------------------------------
+// 7. WHATSAPP INBOX
+// ---------------------------------------------------------
+model WhatsAppConversation {
+  id                 String            @id @default(cuid())
+  waId               String            @unique
+  phone              String
+  profileName        String?
+  currentState       String?           @default("welcome")
+  lastMessageAt      DateTime?
+  lastMessageText    String?
+  unreadCount        Int               @default(0)
+  lastAutoReplyAt    DateTime?
+  pricingExplainedAt DateTime?
+  slotOfferSentAt    DateTime?
+  lastServiceType    String?
+  lastOfferedSlots   Json?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  messages           WhatsAppMessage[]
+
+  @@index([phone])
+  @@index([lastMessageAt])
+}
+
+model WhatsAppMessage {
+  id             String               @id @default(cuid())
+  conversationId String
+  direction      String
+  type           String
+  text           String?
+  mediaUrl       String?
+  mediaMime      String?
+  mediaSha256    String?
+  mediaName      String?
+  waMessageId    String?              @unique
+  status         String?
+  statusAt       DateTime?
+  createdAt      DateTime             @default(now())
+  conversation   WhatsAppConversation @relation(fields: [conversationId], references: [id])
+
+  @@index([conversationId])
+  @@index([status])
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  email     String?
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ---------------------------------------------------------
+// 8. OBRAS SOCIALES (COKIBA)
+// ---------------------------------------------------------
+model ObraSocial {
+  id                    String        @id @default(cuid())
+  codigoCokiba          String        @unique
+  nombreOs              String
+  coseguroValor         Decimal       @db.Decimal(10, 2)
+  honorarioEstimado     Decimal       @db.Decimal(10, 2)
+  percentageCoinsurance Decimal       @default(0) @db.Decimal(5, 2)
+  fixedCopay            Decimal       @default(0) @db.Decimal(10, 2)
+  plazoPago             Int           @default(60)
+  estado                String        @default("Activa")
+  isActive              Boolean       @default(true)
+  detectedStatus        String?
+  detectedIsActive      Boolean?
+  statusManualOverride  Boolean       @default(false)
+  isArchived            Boolean       @default(false)
+  requiresAuthorization Boolean       @default(false)
+  authorizationType     String?
+  atendibleSanMiguel    Boolean       @default(false)
+  requiredDocuments     Json?
+  cokibaDetails         Json?
+  normalizedData        Json?
+  logoUrl               String?
+  honorarium            Decimal?      @db.Decimal(10, 2)
+  paymentDays           Int?
+  billingMethod         String?
+  copaymentRequired     Boolean?      @default(false)
+  copaymentAmount       Decimal?      @db.Decimal(10, 2)
+  allowedPlans          Json?
+  rawCategoria          String?
+  ultimaSync            DateTime      @default(now())
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  appointments          Appointment[]
+  billingInvoices       BillingInvoice[]
+  patients              Patient[]
+
+  @@index([estado])
+  @@index([isActive])
+  @@index([isArchived])
+  @@index([requiresAuthorization])
+  @@index([nombreOs])
+}
