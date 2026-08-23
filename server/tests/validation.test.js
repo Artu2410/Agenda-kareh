@@ -3,6 +3,7 @@ import request from 'supertest';
 import { validate } from '../src/middlewares/validate.js';
 import { requestOtpBodySchema } from '../src/validations/authSchemas.js';
 import { createPatientBodySchema, patientIdParamsSchema, updatePatientBodySchema } from '../src/validations/patientSchemas.js';
+import { createObraSocialBodySchema, updateObraSocialBodySchema } from '../src/validations/obrasSocialesSchemas.js';
 import {
   appointmentIdParamsSchema,
   appointmentWeekQuerySchema,
@@ -79,6 +80,32 @@ describe('centralized zod validation middleware', () => {
     );
   });
 
+  it('rejects patient coverage names longer than 150 characters', async () => {
+    const app = createValidationApp({
+      schema: { body: createPatientBodySchema },
+    });
+
+    const longCoverageName = 'A'.repeat(151);
+
+    const response = await request(app)
+      .post('/')
+      .send({
+        fullName: 'Paciente de prueba',
+        dni: '12345678',
+        healthInsurance: longCoverageName,
+      })
+      .expect(400);
+
+    expect(response.body.success).toBe(false);
+    expect(response.body.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: 'body.healthInsurance',
+        }),
+      ]),
+    );
+  });
+
   it('accepts valid patient updates with params and partial body', async () => {
     const app = createValidationApp({
       path: '/patients/:id',
@@ -95,6 +122,77 @@ describe('centralized zod validation middleware', () => {
       phone: '+54 9 11 2345-6789',
       medicalNotes: 'Seguimiento',
     });
+  });
+
+  it('accepts valid obra social payloads and preserves extra fields', async () => {
+    const app = createValidationApp({
+      schema: { body: createObraSocialBodySchema },
+    });
+
+    const response = await request(app)
+      .post('/')
+      .send({
+        nombreOs: '  OSDE  ',
+        codigoCokiba: 'OSDE_2026',
+        isActive: true,
+        requiredDocuments: { documents: [] },
+      })
+      .expect(200);
+
+    expect(response.body.body).toEqual({
+      nombreOs: 'OSDE',
+      codigoCokiba: 'OSDE_2026',
+      isActive: true,
+      requiredDocuments: { documents: [] },
+    });
+  });
+
+  it('rejects obra social names longer than 150 characters on create', async () => {
+    const app = createValidationApp({
+      schema: { body: createObraSocialBodySchema },
+    });
+
+    const response = await request(app)
+      .post('/')
+      .send({
+        nombreOs: 'A'.repeat(151),
+        codigoCokiba: 'OSDE_2026',
+      })
+      .expect(400);
+
+    expect(response.body.success).toBe(false);
+    expect(response.body.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: 'body.nombreOs',
+        }),
+      ]),
+    );
+  });
+
+  it('rejects obra social names longer than 150 characters on update', async () => {
+    const app = createValidationApp({
+      method: 'patch',
+      path: '/obras-sociales/:id',
+      schema: { body: updateObraSocialBodySchema },
+    });
+
+    const response = await request(app)
+      .patch('/obras-sociales/c1234567890')
+      .send({
+        nombreOs: 'A'.repeat(151),
+        isArchived: false,
+      })
+      .expect(400);
+
+    expect(response.body.success).toBe(false);
+    expect(response.body.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: 'body.nombreOs',
+        }),
+      ]),
+    );
   });
 
   it('rejects invalid appointment create payloads', async () => {
