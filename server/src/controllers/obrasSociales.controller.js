@@ -7,12 +7,16 @@ import { auditActions, safeWriteAuditLog } from '../utils/audit.js';
 import { createInternalError, createPublicError } from '../errors/AppError.js';
 import { buildMonthlyHonorariosReport } from '../utils/monthlyHonorariosReport.js';
 
+const MAX_OBRA_SOCIAL_NAME_LENGTH = 150;
+
 const BILLABLE_APPOINTMENT_STATUSES = [
   'SCHEDULED',
   'PENDING_AUTHORIZATION',
   'AUTHORIZED',
   'COMPLETED',
 ];
+
+const normalizeObraSocialName = (value) => (typeof value === 'string' ? value.trim() : '');
 
 const parseBoolean = (value, fallbackValue = undefined) => {
   if (value === undefined || value === null || value === '') return fallbackValue;
@@ -193,15 +197,23 @@ export const createObraSocial = async (req, res, prisma) => {
     statusManualOverride,
   } = req.body;
 
-  if (!nombreOs) {
+  const normalizedNombreOs = normalizeObraSocialName(nombreOs);
+
+  if (!normalizedNombreOs) {
     return res.status(400).json({ error: 'El nombre de la obra social es obligatorio' });
+  }
+
+  if (normalizedNombreOs.length > MAX_OBRA_SOCIAL_NAME_LENGTH) {
+    return res.status(400).json({
+      error: `El nombre de la obra social no puede superar ${MAX_OBRA_SOCIAL_NAME_LENGTH} caracteres`,
+    });
   }
 
   try {
     const obraSocial = await prisma.obraSocial.create({
       data: {
-        codigoCokiba: codigoCokiba || nombreOs.toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 10) + '_' + Date.now().toString(36),
-        nombreOs,
+        codigoCokiba: codigoCokiba || normalizedNombreOs.toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 10) + '_' + Date.now().toString(36),
+        nombreOs: normalizedNombreOs,
         coseguroValor: parseFloat(coseguroValor) || 0,
         honorarioEstimado: parseFloat(honorarioEstimado) || 0,
         percentageCoinsurance: parseFloat(percentageCoinsurance) || 0,
@@ -269,7 +281,21 @@ export const updateObraSocial = async (req, res, prisma) => {
   } = req.body;
 
   const data = {};
-  if (nombreOs !== undefined) data.nombreOs = nombreOs;
+  if (nombreOs !== undefined) {
+    const normalizedNombreOs = normalizeObraSocialName(nombreOs);
+
+    if (!normalizedNombreOs) {
+      return res.status(400).json({ error: 'El nombre de la obra social es obligatorio' });
+    }
+
+    if (normalizedNombreOs.length > MAX_OBRA_SOCIAL_NAME_LENGTH) {
+      return res.status(400).json({
+        error: `El nombre de la obra social no puede superar ${MAX_OBRA_SOCIAL_NAME_LENGTH} caracteres`,
+      });
+    }
+
+    data.nombreOs = normalizedNombreOs;
+  }
   if (coseguroValor !== undefined) data.coseguroValor = parseFloat(coseguroValor);
   if (honorarioEstimado !== undefined) data.honorarioEstimado = parseFloat(honorarioEstimado);
   if (percentageCoinsurance !== undefined) data.percentageCoinsurance = parseFloat(percentageCoinsurance) || 0;

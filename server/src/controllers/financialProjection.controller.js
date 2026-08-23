@@ -11,7 +11,7 @@ import { createInternalError } from '../errors/AppError.js';
 
 const DEFAULT_FIXED_EXPENSES = 1_193_000;
 const DAYS_PER_MONTH = 30.44;
-const CASHFLOW_ACCOUNTS = ['CASH', 'MERCADO_PAGO'];
+const CASHFLOW_ACCOUNTS = ['CASH', 'MERCADO_PAGO', 'BANCO_PROVINCIA'];
 const CANCELLED_INVOICE_STATUS = 'CANCELLED';
 const HORIZON_DAYS = [30, 60, 90];
 

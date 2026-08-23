@@ -11,6 +11,8 @@ import {
   getCoinsuranceReport,
 } from '../controllers/obrasSociales.controller.js';
 import { checkRole } from '../middlewares/authMiddleware.js';
+import { validate } from '../middlewares/validate.js';
+import { createObraSocialBodySchema, updateObraSocialBodySchema } from '../validations/obrasSocialesSchemas.js';
 
 const createRouter = (prisma) => {
   const router = Router();
@@ -32,10 +34,20 @@ const createRouter = (prisma) => {
   router.get('/:id', (req, res) => getObraSocial(req, res, prisma));
 
   // POST: /api/obras-sociales (Crear manualmente)
-  router.post('/', checkRole('SUPER_USER', 'ADMIN'), (req, res) => createObraSocial(req, res, prisma));
+  router.post(
+    '/',
+    checkRole('SUPER_USER', 'ADMIN'),
+    validate({ body: createObraSocialBodySchema }),
+    (req, res) => createObraSocial(req, res, prisma),
+  );
 
   // PUT: /api/obras-sociales/:id (Actualizar)
-  router.put('/:id', checkRole('SUPER_USER', 'ADMIN'), (req, res) => updateObraSocial(req, res, prisma));
+  router.put(
+    '/:id',
+    checkRole('SUPER_USER', 'ADMIN'),
+    validate({ body: updateObraSocialBodySchema }),
+    (req, res) => updateObraSocial(req, res, prisma),
+  );
 
   // DELETE: /api/obras-sociales/:id (Eliminar)
   router.delete('/:id', checkRole('SUPER_USER', 'ADMIN'), (req, res) => deleteObraSocial(req, res, prisma));

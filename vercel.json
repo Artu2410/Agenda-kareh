@@ -1,4 +1,5 @@
 {
+  "installCommand": "cd client && npm ci",
   "buildCommand": "cd client && npm run build",
   "outputDirectory": "client/dist",
   "framework": "vite",

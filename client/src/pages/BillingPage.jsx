@@ -10,6 +10,7 @@ import {
   Plus,
   Receipt,
   RefreshCw,
+  Trash2,
   Wallet,
   X,
 } from 'lucide-react';
@@ -23,6 +24,12 @@ const dateInputValue = (value) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
   return date.toISOString().slice(0, 10);
+};
+
+const accountLabels = {
+  MERCADO_PAGO: 'Mercado Pago',
+  BANCO_PROVINCIA: 'Banco Provincia',
+  CASH: 'Efectivo',
 };
 
 const createEmptyInvoiceForm = () => ({
@@ -42,8 +49,8 @@ const createEmptyInvoiceForm = () => ({
 const createEmptyPaymentForm = (pendingAmount = 0) => ({
   amount: pendingAmount ? String(pendingAmount) : '',
   paymentDate: todayInputValue(),
-  paymentMethod: 'Banco Provincia',
-  account: 'BANCO_PROVINCIA',
+  paymentMethod: 'Mercado Pago',
+  account: 'MERCADO_PAGO',
   notes: '',
 });
 
@@ -69,12 +76,16 @@ const createInvoiceFormFromInvoice = (invoice = {}) => {
   };
 };
 
-const formatCurrency = (value) =>
-  new Intl.NumberFormat('es-AR', {
+const formatCurrency = (value) => {
+  const amount = Number(value) || 0;
+  const hasDecimals = amount % 1 !== 0;
+  return new Intl.NumberFormat('es-AR', {
     style: 'currency',
     currency: 'ARS',
-    maximumFractionDigits: 0,
-  }).format(Number(value) || 0);
+    minimumFractionDigits: hasDecimals ? 2 : 0,
+    maximumFractionDigits: 2,
+  }).format(amount);
+};
 
 const formatDate = (value) => {
   if (!value) return 'Sin fecha';
@@ -358,6 +369,36 @@ const BillingPage = () => {
       showErrorToast(message || 'No se pudo registrar el cobro.');
     } finally {
       setSavingPaymentId(null);
+    }
+  };
+
+  const [deletingPaymentId, setDeletingPaymentId] = useState(null);
+
+  const handleDeletePayment = async (paymentId) => {
+    try {
+      setDeletingPaymentId(paymentId);
+      await api.delete(`/billing/payments/${paymentId}`);
+      await fetchBillingData({ silent: true });
+      showSuccessToast('Cobro eliminado correctamente. La factura reabrió su saldo.');
+    } catch (error) {
+      const message = error?.response?.data?.error || error?.response?.data?.message || error?.friendlyMessage;
+      showErrorToast(message || 'No se pudo eliminar el cobro.');
+    } finally {
+      setDeletingPaymentId(null);
+    }
+  };
+
+  const handleDeleteInvoice = async (invoiceId) => {
+    try {
+      setSavingInvoice(true);
+      await api.delete(`/billing/invoices/${invoiceId}`);
+      await fetchBillingData({ silent: true });
+      showSuccessToast('Factura eliminada.');
+    } catch (error) {
+      const message = error?.response?.data?.error || error?.response?.data?.message || error?.friendlyMessage;
+      showErrorToast(message || 'No se pudo eliminar la factura.');
+    } finally {
+      setSavingInvoice(false);
     }
   };
 
@@ -667,14 +708,28 @@ const BillingPage = () => {
                             <span className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-black ${statusClassNames[invoice.status] || statusClassNames.ISSUED}`}>
                               {statusLabels[invoice.status] || invoice.status}
                             </span>
-                            <button
-                              type="button"
-                              onClick={() => openEditInvoiceForm(invoice)}
-                              className="mt-3 inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-black text-slate-600 transition hover:border-teal-200 hover:bg-teal-50 hover:text-teal-700"
-                            >
-                              <Pencil size={13} />
-                              Editar
-                            </button>
+                            <div className="mt-3 flex flex-wrap items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => openEditInvoiceForm(invoice)}
+                                className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-black text-slate-600 transition hover:border-teal-200 hover:bg-teal-50 hover:text-teal-700"
+                              >
+                                <Pencil size={13} />
+                                Editar
+                              </button>
+                              {Array.isArray(invoice.payments) && invoice.payments.length === 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteInvoice(invoice.id)}
+                                  disabled={savingInvoice}
+                                  className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-white px-3 py-1.5 text-xs font-black text-rose-600 transition hover:bg-rose-50 hover:text-rose-700 disabled:opacity-60"
+                                  title="Eliminar factura"
+                                >
+                                  <Trash2 size={13} />
+                                  Eliminar
+                                </button>
+                              )}
+                            </div>
                           </td>
                           <td className="px-4 py-4">
                             <p className="font-black text-slate-800">{invoice.payerName}</p>
@@ -688,6 +743,31 @@ const BillingPage = () => {
                           <td className="px-4 py-4 text-right font-black text-emerald-700">{formatCurrency(invoice.paidAmount)}</td>
                           <td className="px-4 py-4 text-right font-black text-amber-700">{formatCurrency(invoice.pendingAmount)}</td>
                           <td className="px-4 py-4">
+                            {Array.isArray(invoice.payments) && invoice.payments.length > 0 && (
+                              <div className="mb-3 space-y-1.5 rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-xs">
+                                <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Cobros registrados:</p>
+                                {invoice.payments.map((payment) => (
+                                  <div key={payment.id} className="flex items-center justify-between gap-2 border-t border-slate-200/60 pt-1.5 first:border-0 first:pt-0">
+                                    <div>
+                                      <span className="font-black text-emerald-700">{formatCurrency(payment.amount)}</span>
+                                      <span className="ml-1 text-slate-500">({accountLabels[payment.account] || payment.account || payment.paymentMethod})</span>
+                                      <span className="ml-1 font-normal text-slate-400">{formatDate(payment.paymentDate)}</span>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeletePayment(payment.id)}
+                                      disabled={deletingPaymentId === payment.id}
+                                      className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold text-rose-600 transition hover:bg-rose-100 disabled:opacity-50"
+                                      title="Eliminar este cobro"
+                                    >
+                                      <Trash2 size={12} />
+                                      Eliminar
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
                             {canRegisterPayment ? (
                               <div className="grid min-w-[390px] grid-cols-[1fr,1fr,1fr,auto] gap-2">
                                 <input
@@ -747,14 +827,27 @@ const BillingPage = () => {
                         <div>
                           <p className="font-black text-slate-900">{invoice.invoiceNumber || invoice.payerName}</p>
                           <p className="mt-1 text-sm font-semibold text-slate-500">{invoice.payerName}</p>
-                          <button
-                            type="button"
-                            onClick={() => openEditInvoiceForm(invoice)}
-                            className="mt-3 inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-black text-slate-600"
-                          >
-                            <Pencil size={13} />
-                            Editar
-                          </button>
+                          <div className="mt-3 flex flex-wrap items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => openEditInvoiceForm(invoice)}
+                              className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-black text-slate-600"
+                            >
+                              <Pencil size={13} />
+                              Editar
+                            </button>
+                            {Array.isArray(invoice.payments) && invoice.payments.length === 0 && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteInvoice(invoice.id)}
+                                disabled={savingInvoice}
+                                className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-rose-200 bg-white px-3 py-1.5 text-xs font-black text-rose-600"
+                              >
+                                <Trash2 size={13} />
+                                Eliminar
+                              </button>
+                            )}
+                          </div>
                         </div>
                         <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-black ${statusClassNames[invoice.status] || statusClassNames.ISSUED}`}>
                           {statusLabels[invoice.status] || invoice.status}
@@ -779,6 +872,30 @@ const BillingPage = () => {
                       <p className="mt-3 text-xs font-semibold text-slate-500">
                         Emitida {formatDate(invoice.issueDate)} · Cobro esperado {formatDate(invoice.expectedPaymentDate)}
                       </p>
+
+                      {Array.isArray(invoice.payments) && invoice.payments.length > 0 && (
+                        <div className="mt-3 space-y-1.5 rounded-xl border border-slate-200 bg-white p-3 text-xs">
+                          <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Cobros registrados:</p>
+                          {invoice.payments.map((payment) => (
+                            <div key={payment.id} className="flex items-center justify-between gap-2 border-t border-slate-100 pt-1.5 first:border-0 first:pt-0">
+                              <div>
+                                <span className="font-black text-emerald-700">{formatCurrency(payment.amount)}</span>
+                                <span className="ml-1 text-slate-500">({accountLabels[payment.account] || payment.account || payment.paymentMethod})</span>
+                                <span className="ml-1 font-normal text-slate-400">{formatDate(payment.paymentDate)}</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleDeletePayment(payment.id)}
+                                disabled={deletingPaymentId === payment.id}
+                                className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold text-rose-600 hover:bg-rose-50 disabled:opacity-50"
+                              >
+                                <Trash2 size={12} />
+                                Eliminar
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
 
                       {canRegisterPayment && (
                         <div className="mt-4 grid gap-2">

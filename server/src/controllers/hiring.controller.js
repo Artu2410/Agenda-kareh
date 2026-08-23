@@ -20,7 +20,7 @@ const COMPLETED_STATUS = 'COMPLETED';
 const CANCELLED_STATUS = 'CANCELLED';
 const NO_SHOW_STATUS = 'NO_SHOW';
 const CANCELLED_INVOICE_STATUS = 'CANCELLED';
-const CASHFLOW_ACCOUNTS = ['CASH', 'MERCADO_PAGO'];
+const CASHFLOW_ACCOUNTS = ['CASH', 'MERCADO_PAGO', 'BANCO_PROVINCIA'];
 
 const toNumber = (value) => {
   const parsed = Number(value);
