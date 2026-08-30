@@ -24,3 +24,9 @@ coverage/
 .venv/
 *.git/
 .vercel
+.aider*
+.claude
+graphify-out
+docs
+ops
+CLAUDE.md

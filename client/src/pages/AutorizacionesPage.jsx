@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, Clock3, FileText, RefreshCw, Search, XCircle } from 'lucide-react';
+import { CheckCircle2, FileText, RefreshCw, Search, XCircle } from 'lucide-react';
 import api from '../services/api';
 
 const formatDate = (value) => {
@@ -188,24 +188,6 @@ const AuthorizationsPage = () => {
                       </button>
                     </div>
                   </div>
-                  {Array.isArray(appointment.documentsChecklist?.documents) && appointment.documentsChecklist.documents.length > 0 && (
-                    <div className="mt-4 rounded-[1.5rem] bg-white p-4">
-                      <p className="mb-3 inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
-                        <Clock3 size={12} /> Documentación requerida
-                      </p>
-                      <div className="grid gap-2 md:grid-cols-2">
-                        {appointment.documentsChecklist.documents.map((document) => (
-                          <div key={`${appointment.id}-${document.name}`} className="rounded-2xl border border-slate-200 p-3">
-                            <p className="text-sm font-bold text-slate-800">{document.name}</p>
-                            <p className="mt-1 text-xs text-slate-500">
-                              {document.presented ? 'Presentado' : 'Pendiente'}
-                              {document.validityDays ? ` · Vigencia ${document.validityDays} días` : ' · Sin vencimiento'}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </article>
               ))}
             </div>

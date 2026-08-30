@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import instance from '../../api/axios';
+import instance from '../../services/api';
 import { X, Clock, Calendar, AlertCircle, Loader2 } from 'lucide-react';
 
 const daysMap = [

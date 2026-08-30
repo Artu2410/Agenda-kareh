@@ -121,6 +121,7 @@ export default function ClinicalHistoriesPage() {
       await fetchPatients();
     } catch {
       toast.error('Error al renumerar');
+    } finally {
       setLoading(false);
     }
   };

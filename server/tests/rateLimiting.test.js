@@ -7,11 +7,10 @@
 
 import {
   apiLimiter,
-  authLimiter,
-  otpLimiter,
+  requestOtpLimiter,
+  verifyOtpLimiter,
   refreshLimiter,
   uploadLimiter,
-  strictLimiter,
   searchLimiter,
 } from '../src/config/rateLimits.js';
 
@@ -22,14 +21,14 @@ describe('Rate Limiting Configuration', () => {
       expect(typeof apiLimiter).toBe('function');
     });
 
-    it('should have authLimiter configured', () => {
-      expect(authLimiter).toBeDefined();
-      expect(typeof authLimiter).toBe('function');
+    it('should have requestOtpLimiter configured', () => {
+      expect(requestOtpLimiter).toBeDefined();
+      expect(typeof requestOtpLimiter).toBe('function');
     });
 
-    it('should have otpLimiter configured', () => {
-      expect(otpLimiter).toBeDefined();
-      expect(typeof otpLimiter).toBe('function');
+    it('should have verifyOtpLimiter configured', () => {
+      expect(verifyOtpLimiter).toBeDefined();
+      expect(typeof verifyOtpLimiter).toBe('function');
     });
 
     it('should have uploadLimiter configured', () => {
@@ -42,11 +41,6 @@ describe('Rate Limiting Configuration', () => {
       expect(typeof refreshLimiter).toBe('function');
     });
 
-    it('should have strictLimiter configured', () => {
-      expect(strictLimiter).toBeDefined();
-      expect(typeof strictLimiter).toBe('function');
-    });
-
     it('should have searchLimiter configured', () => {
       expect(searchLimiter).toBeDefined();
       expect(typeof searchLimiter).toBe('function');
@@ -57,11 +51,10 @@ describe('Rate Limiting Configuration', () => {
     it('all limiters should be callable as middleware', () => {
       const limiters = [
         apiLimiter,
-        authLimiter,
-        otpLimiter,
+        requestOtpLimiter,
+        verifyOtpLimiter,
         refreshLimiter,
         uploadLimiter,
-        strictLimiter,
         searchLimiter,
       ];
 
@@ -87,15 +80,14 @@ describe('Rate Limiting Configuration', () => {
     it('should have 6 rate limiters exported', () => {
       const limiters = [
         apiLimiter,
-        authLimiter,
-        otpLimiter,
+        requestOtpLimiter,
+        verifyOtpLimiter,
         refreshLimiter,
         uploadLimiter,
-        strictLimiter,
         searchLimiter,
       ];
 
-      expect(limiters.length).toBe(7);
+      expect(limiters.length).toBe(6);
       limiters.forEach((limiter) => {
         expect(typeof limiter).toBe('function');
       });

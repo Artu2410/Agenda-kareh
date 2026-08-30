@@ -338,6 +338,5 @@ Copia todo el content de `/api/swagger.json` y pega en el editor.
 - [ ] Documentar endpoints de appointments
 - [ ] Documentar endpoints de patients
 - [ ] Documentar endpoints de clinical histories
-- [ ] Agregar webhooks de WhatsApp
 - [ ] Crear guardia (guard) para validar spec
 

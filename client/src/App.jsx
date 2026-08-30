@@ -1,8 +1,8 @@
 import React, { lazy, Suspense, useEffect, useState, useCallback } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { CustomToaster } from './components/Toast';
-import Sidebar from './components/layout/Sidebar';
-import RequireRole from './components/auth/RequireRole';
+import Sidebar from './shared/layout/Sidebar';
+import RequireRole from './shared/components/RequireRole';
 import api from './services/api';
 import { bootstrapAuthSession } from './services/authBootstrap';
 import { getStoredUser } from './services/session';
@@ -10,18 +10,16 @@ import { registerServiceWorker, subscribeToPushNotifications, playNotificationSo
 import { APP_ROUTES, getDocumentTitle } from './utils/appRoutes';
 import { ChevronLeft, ChevronRight, Menu } from 'lucide-react';
 
-const AppointmentsPage = lazy(() => import('./pages/AppointmentsPage'));
+const AppointmentsPage = lazy(() => import('./features/appointments/pages/AppointmentsPage'));
 const CashflowPage = lazy(() => import('./pages/CashflowPage'));
-const BillingPage = lazy(() => import('./pages/BillingPage'));
+const BillingPage = lazy(() => import('./features/billing/pages/BillingPage'));
 const CapacityPage = lazy(() => import('./pages/CapacityPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
-const PatientsPage = lazy(() => import('./pages/PatientsPage'));
+const PatientsPage = lazy(() => import('./features/patients/pages/PatientsPage'));
 const ClinicalHistoriesPage = lazy(() => import('./pages/ClinicalHistoriesPage'));
 const ClinicalHistoryPage = lazy(() => import('./pages/ClinicalHistoryPage'));
-const DashboardPage = lazy(() => import('./pages/DashboardPage'));
-const LoginPage = lazy(() => import('./pages/LoginPage'));
-const WhatsAppPage = lazy(() => import('./pages/WhatsAppPage'));
-const NotesPage = lazy(() => import('./pages/NotesPage'));
+const DashboardPage = lazy(() => import('./features/metrics/pages/DashboardPage'));
+const LoginPage = lazy(() => import('./features/auth/pages/LoginPage'));
 const AuditoriaPage = lazy(() => import('./pages/AuditoriaPage'));
 const AutorizacionesPage = lazy(() => import('./pages/AutorizacionesPage'));
 const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage'));
@@ -293,22 +291,6 @@ function App() {
                     )}
                   />
                   <Route
-                    path={APP_ROUTES.notes}
-                    element={(
-                      <RequireRole role={currentUser?.role} roles={['SUPER_USER', 'ADMIN']}>
-                        <NotesPage />
-                      </RequireRole>
-                    )}
-                  />
-                  <Route
-                    path={APP_ROUTES.whatsapp}
-                    element={(
-                      <RequireRole role={currentUser?.role} roles={['SUPER_USER', 'ADMIN']}>
-                        <WhatsAppPage />
-                      </RequireRole>
-                    )}
-                  />
-                  <Route
                     path={APP_ROUTES.settings}
                     element={(
                       <RequireRole role={currentUser?.role} roles={['SUPER_USER', 'ADMIN']}>
@@ -349,8 +331,6 @@ function App() {
                   <Route path="/billing" element={<Navigate to={APP_ROUTES.billing} replace />} />
                   <Route path="/capacity" element={<Navigate to={APP_ROUTES.capacity} replace />} />
                   <Route path="/inteligencia/capacidad" element={<Navigate to={APP_ROUTES.capacity} replace />} />
-                  <Route path="/notes" element={<Navigate to={APP_ROUTES.notes} replace />} />
-                  <Route path="/whatsapp" element={<Navigate to={APP_ROUTES.whatsapp} replace />} />
                   <Route path="/auditoria" element={<Navigate to={APP_ROUTES.audit} replace />} />
                   <Route path="/autorizaciones" element={<Navigate to={APP_ROUTES.authorizations} replace />} />
                   <Route path="/settings" element={<Navigate to={APP_ROUTES.settings} replace />} />

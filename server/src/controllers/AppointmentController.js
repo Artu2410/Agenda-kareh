@@ -1,9 +1,4 @@
 import { startOfWeek, endOfWeek, parseISO } from 'date-fns';
-import { uploadBufferToStorage } from '../services/storage.js';
-import { buildTicketPdf } from '../services/ticketPdf.js';
-import { uploadMedia, sendDocumentMessage, sendImageMessage, sendTemplateMessage } from '../services/whatsapp.js';
-import { sendWhatsAppTicketForAppointment } from '../services/whatsappTicket.js';
-import { enqueueSendWhatsAppTicket } from '../jobs/sendWhatsAppTicketJob.js';
 import {
   appointmentBaseSelect,
   appointmentSelect,
@@ -16,7 +11,6 @@ import { sendNotificationToEmails } from '../services/pushNotifications.js';
 import { withProfessionalScope, assertScopedProfessionalId } from '../utils/accessScope.js';
 import { calculatePatientCharge, buildDocumentChecklist, isInactiveInsurance } from '../utils/insurance.js';
 import { buildStoredFinancialSnapshot } from '../utils/appointmentFinancialSnapshot.js';
-import { normalizePhone } from '../utils/phone.js';
 import { auditActions, safeWriteAuditLog } from '../utils/audit.js';
 import logger from '../config/logger.js';
 import { createInternalError, createPublicError } from '../errors/AppError.js';
@@ -54,7 +48,6 @@ const parseDateAvoidTZ = (d) => {
     return null;
   }
 };
-
 const UNKNOWN_BIRTHDATE = new Date(1900, 0, 1, 12, 0, 0);
 
 const normalizeBirthDateOrUnknown = (d) => {
@@ -386,7 +379,6 @@ export const getWeekAppointments = async (req, res, prisma) => {
     throw createInternalError(error, 'Error al cargar agenda');
   }
 };
-
 // 2. CREAR CITA (CON LÓGICA DE INGRESO Y SLOTS)
 export const createAppointment = async (req, res, prisma) => {
   const {
@@ -993,190 +985,6 @@ const resequencePatientAppointments = async (tx, patientId) => {
   }
 };
 
-const formatAppointmentDate = (value) => {
-  if (!value) return '';
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleDateString('es-AR');
-};
-
-const buildTicketTemplateComponents = ({ patientName, firstDate, firstTime, professionalName, ticketUrl }) => {
-  const bodyParams = [
-    { type: 'text', text: patientName || 'Paciente' },
-    { type: 'text', text: `${firstDate} ${firstTime}`.trim() },
-    { type: 'text', text: professionalName || 'Kareh' },
-    { type: 'text', text: ticketUrl || '' },
-  ];
-
-  const components = [{ type: 'body', parameters: bodyParams }];
-  return components;
-};
-
-const buildReminderTemplateComponents = ({ patientName, dateLabel, timeLabel, professionalName }) => ([
-  {
-    type: 'body',
-    parameters: [
-      { type: 'text', text: patientName || 'Paciente' },
-      { type: 'text', text: `${dateLabel} ${timeLabel}`.trim() },
-      { type: 'text', text: professionalName || 'Kareh' },
-    ],
-  },
-]);
-
-export const sendWhatsAppTicket = async (req, res, prisma) => {
-  const { id } = req.params;
-  const queueRequest = req.query.queue === 'true' || process.env.WHATSAPP_TICKET_QUEUE === 'true';
-
-  try {
-    if (queueRequest) {
-      await enqueueSendWhatsAppTicket({ prisma, appointmentId: id });
-      return res.status(202).json({
-        success: true,
-        queued: true,
-        message: 'El envío se está procesando en segundo plano.',
-      });
-    }
-
-    await sendWhatsAppTicketForAppointment({ prisma, appointmentId: id });
-    return res.status(200).json({ success: true });
-  } catch (error) {
-    let statusCode = 500;
-    let userMessage = 'Error al enviar WhatsApp';
-
-    if (error.statusCode) {
-      statusCode = error.statusCode;
-    }
-
-    if (error.message?.includes('Template')) {
-      userMessage = 'Error con el template de WhatsApp';
-    } else if (error.message?.includes('access token')) {
-      userMessage = 'Error de autenticación de WhatsApp';
-    } else if (error.message?.includes('phone number')) {
-      userMessage = 'Error con el número de teléfono de WhatsApp';
-    }
-    throw createPublicError(statusCode, userMessage, error);
-  }
-};
-
-export const sendWhatsAppTicketDocument = async (req, res, prisma) => {
-  const { id } = req.params;
-
-  try {
-    logger.info('Iniciando envío de ticket por documento', { appointmentId: id });
-
-    const appointment = await prisma.appointment.findUnique({
-      where: { id },
-      select: appointmentSelect,
-    });
-
-    if (!appointment) {
-      logger.warn('Appointment no encontrado para ticket documento', { appointmentId: id });
-      return res.status(404).json({ message: 'Turno no encontrado' });
-    }
-
-    const phone = normalizePhone(appointment.patient?.phone);
-    if (!phone) {
-      logger.warn('Paciente sin teléfono válido para ticket documento', {
-        appointmentId: id,
-        phone: appointment.patient?.phone || null,
-      });
-      return res.status(400).json({ message: 'El paciente no tiene teléfono válido' });
-    }
-    logger.info('Generando PDF de ticket', {
-      appointmentId: id,
-      patientName: appointment.patient?.fullName || null,
-    });
-
-    const batch = await prisma.appointment.findMany({
-      where: {
-        patientId: appointment.patientId,
-        date: { gte: appointment.date },
-        status: { not: 'CANCELLED' },
-      },
-      orderBy: APPOINTMENT_ORDER,
-      take: 10,
-      select: appointmentWithProfessionalSelect,
-    });
-
-    const ticketPdf = await buildTicketPdf({
-      patient: appointment.patient,
-      professional: appointment.professional,
-      appointments: batch,
-      diagnosis: appointment.diagnosis,
-    });
-
-    logger.info('Subiendo PDF de ticket a WhatsApp', { appointmentId: id });
-
-    const filename = `ticket-${appointment.id}.pdf`;
-    const uploadResult = await uploadMedia({
-      buffer: ticketPdf,
-      filename,
-      mimeType: 'application/pdf',
-    });
-
-    const mediaId = uploadResult?.id;
-    if (!mediaId) {
-      logger.error('No se obtuvo mediaId de WhatsApp para ticket documento', {
-        appointmentId: id,
-        uploadResult,
-      });
-      throw new Error('No se obtuvo mediaId de WhatsApp');
-    }
-
-    logger.info('Enviando ticket documento a WhatsApp', { appointmentId: id, phone });
-
-    await sendDocumentMessage({
-      to: phone,
-      mediaId,
-      filename,
-    });
-
-    await prisma.appointment.update({
-      where: { id: appointment.id },
-      data: { whatsappTicketSentAt: new Date() },
-      select: { id: true },
-    });
-
-    logger.info('Ticket documento enviado por WhatsApp', { appointmentId: id });
-    return res.status(200).json({ success: true });
-  } catch (error) {
-    throw createInternalError(error, 'Error al enviar WhatsApp');
-  }
-};
-
-export const sendWhatsAppReminder = async (appointment, prisma) => {
-  const templateName = process.env.WHATSAPP_REMINDER_TEMPLATE;
-  if (!templateName) {
-    throw new Error('Template de recordatorio no configurado');
-  }
-
-  const phone = normalizePhone(appointment.patient?.phone);
-  if (!phone) {
-    return { skipped: true, reason: 'no_phone' };
-  }
-
-  const components = buildReminderTemplateComponents({
-    patientName: appointment.patient?.fullName,
-    dateLabel: formatAppointmentDate(appointment.date),
-    timeLabel: appointment.time,
-    professionalName: appointment.professional?.fullName,
-  });
-
-  await sendTemplateMessage({
-    to: phone,
-    name: templateName,
-    components,
-  });
-
-  await prisma.appointment.update({
-    where: { id: appointment.id },
-    data: { whatsappReminderSentAt: new Date() },
-    select: { id: true },
-  });
-
-  return { skipped: false };
-};
-
 // 5. ELIMINAR CITA
 export const deleteAppointment = async (req, res, prisma) => {
   try {
@@ -1385,113 +1193,5 @@ export const reviewAppointmentAuthorization = async (req, res, prisma) => {
     res.json({ success: true, appointment: result.appointment });
   } catch (error) {
     throw createInternalError(error, 'Error al revisar autorización');
-  }
-};
-// 7. ENVIAR TICKET COMO IMAGEN POR WHATSAPP (CAPTURADO CON HTML2CANVAS)
-export const sendWhatsAppTicketImage = async (req, res, prisma) => {
-  const { id } = req.params;
-
-  try {
-    logger.info('Iniciando envío de ticket por imagen', { appointmentId: id });
-
-    // Validar que se subió archivo
-    if (!req.file) {
-      logger.warn('Archivo de imagen no proporcionado para ticket', { appointmentId: id });
-      return res.status(400).json({ message: 'Imagen requerida' });
-    }
-
-    const appointment = await prisma.appointment.findUnique({
-      where: { id },
-      select: appointmentSelect,
-    });
-
-    if (!appointment) {
-      logger.warn('Appointment no encontrado para ticket imagen', { appointmentId: id });
-      return res.status(404).json({ message: 'Turno no encontrado' });
-    }
-
-    const phone = normalizePhone(appointment.patient?.phone, true);
-    if (!phone) {
-      logger.warn('Paciente sin teléfono válido para ticket imagen', {
-        appointmentId: id,
-        phone: appointment.patient?.phone || null,
-      });
-      return res.status(400).json({ message: 'El paciente no tiene teléfono válido' });
-    }
-    logger.info('Subiendo ticket imagen a WhatsApp', { appointmentId: id });
-
-    // Validar MIME type
-    const validMimes = ['image/jpeg', 'image/png'];
-    if (!validMimes.includes(req.file.mimetype)) {
-      logger.warn('Tipo de archivo inválido para ticket imagen', {
-        appointmentId: id,
-        mimetype: req.file.mimetype,
-      });
-      return res.status(400).json({ message: 'Solo se permiten imágenes JPEG o PNG' });
-    }
-
-    // Subir imagen a S3 para almacenamiento (opcional, pero recomendado)
-    const s3Key = `thermal-tickets/appointment-${appointment.id}-${Date.now()}.jpg`;
-    try {
-      await uploadBufferToStorage(req.file.buffer, s3Key);
-      logger.info('Imagen de ticket almacenada', { appointmentId: id, storageKey: s3Key });
-    } catch (s3Error) {
-      logger.warn('No se pudo almacenar ticket imagen', {
-        appointmentId: id,
-        message: s3Error.message,
-      });
-      // Continuamos sin fallar, ya que lo importante es enviar por WhatsApp
-    }
-
-    // Subir imagen a WhatsApp
-    const filename = `ticket-${appointment.id}.jpg`;
-    const uploadResult = await uploadMedia({
-      buffer: req.file.buffer,
-      filename,
-      mimeType: req.file.mimetype,
-    });
-
-    const mediaId = uploadResult?.id;
-    if (!mediaId) {
-      logger.error('No se obtuvo mediaId de WhatsApp para ticket imagen', {
-        appointmentId: id,
-        uploadResult,
-      });
-      throw new Error('No se obtuvo mediaId de WhatsApp');
-    }
-
-    logger.info('Enviando ticket imagen a WhatsApp', { appointmentId: id, phone });
-
-    // Enviar imagen
-    const caption = `🏥 Ticket - ${appointment.patient?.fullName || 'Paciente'}`;
-    await sendImageMessage({
-      to: phone,
-      mediaId,
-      caption,
-    });
-
-    // Actualizar timestamp
-    await prisma.appointment.update({
-      where: { id: appointment.id },
-      data: { whatsappTicketSentAt: new Date() },
-      select: { id: true },
-    });
-
-    logger.info('Ticket imagen enviado por WhatsApp', { appointmentId: id });
-    return res.status(200).json({ success: true, message: 'Imagen enviada por WhatsApp' });
-  } catch (error) {
-    let statusCode = 500;
-    let userMessage = 'Error al enviar WhatsApp';
-
-    if (error.statusCode) {
-      statusCode = error.statusCode;
-    }
-
-    if (error.message?.includes('phone number')) {
-      userMessage = 'Error con el número de teléfono de WhatsApp';
-    } else if (error.message?.includes('token')) {
-      userMessage = 'Error de autenticación de WhatsApp';
-    }
-    throw createPublicError(statusCode, userMessage, error);
   }
 };

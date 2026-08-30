@@ -33,17 +33,13 @@ const envSchema = z.object({
   OTP_LENGTH: z.coerce.number().default(6),
   OTP_EXPIRY_MINUTES: z.coerce.number().default(10),
 
-  // AWS S3
-  AWS_REGION: z.string().default('us-east-1'),
-  AWS_ACCESS_KEY_ID: z.string().optional(),
-  AWS_SECRET_ACCESS_KEY: z.string().optional(),
-  AWS_S3_BUCKET: z.string().optional(),
-
-  // WhatsApp
-  WHATSAPP_PHONE_NUMBER_ID: z.string().optional(),
-  WHATSAPP_BUSINESS_ACCOUNT_ID: z.string().optional(),
-  WHATSAPP_ACCESS_TOKEN: z.string().optional(),
-  WHATSAPP_WEBHOOK_VERIFY_TOKEN: z.string().optional(),
+  // Storage S3-compatible
+  STORAGE_BUCKET: z.string().optional(),
+  STORAGE_REGION: z.string().default('us-east-1'),
+  STORAGE_ENDPOINT: z.string().url().optional(),
+  STORAGE_PUBLIC_URL: z.string().url().optional(),
+  STORAGE_ACCESS_KEY_ID: z.string().optional(),
+  STORAGE_SECRET_ACCESS_KEY: z.string().optional(),
 
   // Email / Resend
   RESEND_API_KEY: z.string().optional(),
@@ -52,7 +48,9 @@ const envSchema = z.object({
   FROM_EMAIL: z.string().email().default('noreply@agenda-kareh.com'),
 
   // Google AI (Gemini)
-  GOOGLE_AI_API_KEY: z.string().optional(),
+  GEMINI_API_KEY: z.string().optional(),
+  GEMINI_MODEL: z.string().default('gemini-1.5-flash-002'),
+  GEMINI_AUDIO_MODEL: z.string().default('gemini-1.5-flash-002'),
 
   // COKIBA sync
   COKIBA_DAILY_SYNC_ENABLED: z.enum(['true', 'false']).default('true'),
@@ -72,11 +70,14 @@ const envSchema = z.object({
  * Validar y parsear variables de entorno
  * Lanza error si hay validación fallida
  */
+export let env = {};
+
 export const validateEnv = () => {
   try {
     const parsed = envSchema.parse(process.env);
+    env = parsed;
     logger.info('✅ Variables de entorno validadas correctamente');
-    return parsed;
+    return env;
   } catch (error) {
     const issues = error.issues
       .map((issue) => `  - ${issue.path.join('.')}: ${issue.message}`)
@@ -91,7 +92,7 @@ export const validateEnv = () => {
  * Get env value with type safety
  */
 export const getEnv = () => {
-  return envSchema.parse(process.env);
+  return Object.keys(env).length > 0 ? env : validateEnv();
 };
 
 export default validateEnv;

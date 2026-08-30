@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import instance from '../api/axios';
+import instance from '../services/api';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Plus, ArrowUp, ArrowDown, ArrowLeftRight, ChevronDown, ChevronRight, DollarSign, Printer, Trash2, Wallet, Smartphone, Building2 } from 'lucide-react';

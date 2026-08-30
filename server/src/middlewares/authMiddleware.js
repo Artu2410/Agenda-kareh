@@ -1,7 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { extractBearerToken, getJwtSecret } from '../utils/auth.js';
-
-const normalizeRoles = (roles = []) => roles.map((role) => String(role || '').trim().toUpperCase()).filter(Boolean);
+import { checkRole } from './rbacMiddleware.js';
 
 export const authMiddleware = async (req, res, next) => {
   const token = extractBearerToken(req);
@@ -72,22 +71,4 @@ export const authMiddleware = async (req, res, next) => {
   }
 };
 
-export const checkRole = (...roles) => {
-  const allowedRoles = normalizeRoles(roles.flat());
-
-  return (req, res, next) => {
-    const currentRole = String(req.user?.role || '').toUpperCase();
-
-    if (!currentRole) {
-      return res.status(401).json({ message: 'No autorizado' });
-    }
-
-    if (!allowedRoles.includes(currentRole)) {
-      return res.status(403).json({ message: 'No autorizado para esta acción' });
-    }
-
-    return next();
-  };
-};
-
-export const authorize = checkRole;
+export { checkRole, checkRole as authorize };

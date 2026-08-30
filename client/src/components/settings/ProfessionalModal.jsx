@@ -10,7 +10,7 @@ import {
   UserPlus,
   X,
 } from 'lucide-react';
-import instance from '../../api/axios';
+import instance from '../../services/api';
 import DocumentUploadField from '../DocumentUploadField';
 
 const MAX_UPLOAD_MB = Number(import.meta.env.VITE_UPLOAD_MAX_MB || 25);

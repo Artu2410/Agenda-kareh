@@ -85,7 +85,6 @@ req.logger.warn('Failed login attempt');
 - DATABASE_URL (requerido, URL válida)
 - PORT, NODE_ENV, JWT_EXPIRES_IN
 - AWS credentials
-- WhatsApp credentials
 - Email settings
 - + más...
 

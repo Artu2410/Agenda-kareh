@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import multer from 'multer';
 import {
   getWeekAppointments,
   createAppointment, 
@@ -9,10 +8,7 @@ import {
   cancelFutureAppointments,
   getAppointmentBatch,
   getAppointmentAuthorizations,
-  reviewAppointmentAuthorization,
-  sendWhatsAppTicket,
-  sendWhatsAppTicketDocument,
-  sendWhatsAppTicketImage
+  reviewAppointmentAuthorization
 } from '../controllers/AppointmentController.js';
 import { checkRole } from '../middlewares/authMiddleware.js';
 import { validate } from '../middlewares/validate.js';
@@ -23,18 +19,6 @@ import {
   updateAppointmentBodySchema,
   updateAppointmentEvolutionBodySchema,
 } from '../validations/appointmentSchemas.js';
-
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
-  fileFilter: (req, file, cb) => {
-    const validMimes = ['image/jpeg', 'image/png'];
-    if (!validMimes.includes(file.mimetype)) {
-      return cb(new Error('Solo se permiten imágenes JPEG o PNG'));
-    }
-    return cb(null, true);
-  },
-});
 
 const createRouter = (prisma) => {
   const router = Router();
@@ -48,15 +32,6 @@ const createRouter = (prisma) => {
   // 2a. Autorizaciones pendientes / resueltas
   router.get('/authorizations/list', checkRole('SUPER_USER', 'ADMIN'), (req, res) => getAppointmentAuthorizations(req, res, prisma));
   router.patch('/:id/authorization', checkRole('SUPER_USER', 'ADMIN'), (req, res) => reviewAppointmentAuthorization(req, res, prisma));
-
-  // 2b. Enviar ticket por WhatsApp (PDF)
-  router.post('/:id/whatsapp-ticket', (req, res) => sendWhatsAppTicket(req, res, prisma));
-
-  // 2c. Enviar ticket como imagen por WhatsApp (html2canvas)
-  router.post('/:id/whatsapp-ticket-image', upload.single('image'), (req, res) => sendWhatsAppTicketImage(req, res, prisma));
-
-  // 2d. Enviar ticket como documento por WhatsApp
-  router.post('/:id/whatsapp-ticket-document', (req, res) => sendWhatsAppTicketDocument(req, res, prisma));
 
   // 3. Crear citas (Ciclo completo)
   router.post('/', validate({ body: createAppointmentBodySchema }), (req, res) => createAppointment(req, res, prisma));

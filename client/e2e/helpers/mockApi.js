@@ -517,11 +517,6 @@ export const installMockApi = async (page, options = {}) => {
       return sendJson(route, clone(batch));
     }
 
-    const whatsappTicketMatch = findRouteMatch(path, /^\/appointments\/([^/]+)\/whatsapp-ticket-document$/);
-    if (whatsappTicketMatch && method === 'POST') {
-      return sendJson(route, { success: true });
-    }
-
     if (path === '/obras-sociales' && method === 'GET') {
       const filtered = filterObrasSociales(state.obrasSociales, url.searchParams);
       return sendJson(route, clone(filtered));

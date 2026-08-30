@@ -7,12 +7,10 @@ const {
   STORAGE_PUBLIC_URL,
   STORAGE_ACCESS_KEY_ID,
   STORAGE_SECRET_ACCESS_KEY,
-  AWS_ACCESS_KEY_ID,
-  AWS_SECRET_ACCESS_KEY,
 } = process.env;
 
-const accessKeyId = STORAGE_ACCESS_KEY_ID || AWS_ACCESS_KEY_ID;
-const secretAccessKey = STORAGE_SECRET_ACCESS_KEY || AWS_SECRET_ACCESS_KEY;
+const accessKeyId = STORAGE_ACCESS_KEY_ID;
+const secretAccessKey = STORAGE_SECRET_ACCESS_KEY;
 
 const s3 = new S3Client({
   region: STORAGE_REGION,

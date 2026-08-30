@@ -252,11 +252,17 @@ export class SessionManager {
    */
   async logAuditEvent(userId, action, metadata = {}) {
     try {
+      const safeMetadata = JSON.parse(JSON.stringify(metadata || {}));
+      const { oldValues, newValues, sessionId, ...details } = safeMetadata;
       await this.prisma.auditLog.create({
         data: {
           userId,
           action,
-          metadata: JSON.stringify(metadata),
+          entityType: 'AUTH_SESSION',
+          entityId: sessionId || null,
+          oldValues: oldValues || undefined,
+          newValues: newValues || undefined,
+          details: Object.keys(details).length > 0 ? details : undefined,
           createdAt: new Date(),
         },
       });

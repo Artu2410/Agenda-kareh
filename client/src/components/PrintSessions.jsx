@@ -1,9 +1,8 @@
-import React, { useState, useRef } from 'react';
+import React, { useRef } from 'react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { X, Printer, Download, Loader2, Send } from 'lucide-react';
+import { X, Printer, Download } from 'lucide-react';
 import html2canvas from 'html2canvas';
-import api from '../services/api';
 import { getCoverageLabel, isParticularCoverage } from '../utils/coverage';
 
 const UNKNOWN_BIRTHDATE = '1900-01-01';
@@ -19,15 +18,6 @@ const PREVIEW_NAME_TEXT_SIZE = 'clamp(1.75rem, 6vw, 2.35rem)';
 const PREVIEW_BODY_TEXT_SIZE = 'clamp(1.35rem, 4.8vw, 1.95rem)';
 const PREVIEW_POLICY_TEXT_SIZE = 'clamp(1.2rem, 4.3vw, 1.75rem)';
 const PREVIEW_FOOTER_TEXT_SIZE = 'clamp(1.05rem, 3.8vw, 1.45rem)';
-
-const buildWhatsappBadgeMarkup = () => `
-  <span class="wa-badge" aria-hidden="true">
-    <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="16" cy="16" r="16" fill="#25D366" />
-      <text x="16" y="21" text-anchor="middle" font-size="11" font-family="Arial, sans-serif" font-weight="700" fill="#ffffff">WA</text>
-    </svg>
-  </span>
-`;
 
 const parseTicketDate = (value) => {
   if (!value) return null;
@@ -416,7 +406,7 @@ const buildPrintHtml = ({ printablePatient, printableDiagnosis, sortedAppointmen
 
           <div class="footer">
             <div class="contact-row">
-              ${buildWhatsappBadgeMarkup()}<span class="contact-info">${CONTACT_PHONE}</span>
+              <span class="contact-info">${CONTACT_PHONE}</span>
             </div>
             <div class="contact-info">${CONTACT_ADDRESS}</div>
             <div class="issue-date">Emitido: ${toIssueDate()}</div>
@@ -429,14 +419,7 @@ const buildPrintHtml = ({ printablePatient, printableDiagnosis, sortedAppointmen
 
 const THERMAL_WIDTH_SAFE = () => THERMAL_WIDTH_MM.toString().replace(',', '.');
 
-const WhatsAppBadge = () => (
-  <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#25D366] text-[8px] font-black text-white">
-    WA
-  </span>
-);
-
 const PrintSessions = ({ isOpen, onClose, appointments, patientData, diagnosis, appointmentId }) => {
-  const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
   const ticketRef = useRef(null);
 
   if (!isOpen || !appointments || appointments.length === 0) return null;
@@ -527,30 +510,6 @@ const PrintSessions = ({ isOpen, onClose, appointments, patientData, diagnosis, 
       link.click();
     } catch (error) {
       alert('Error al descargar imagen: ' + error.message);
-    }
-  };
-
-  const handleSendWhatsApp = async () => {
-    if (!appointmentId) {
-      alert('El turno todavía no está guardado.');
-      return;
-    }
-
-    try {
-      setSendingWhatsApp(true);
-      await api.post(`/appointments/${appointmentId}/whatsapp-ticket-document`);
-      alert('✓ PDF enviado por WhatsApp exitosamente');
-      onClose();
-    } catch (error) {
-      const serverMessage = error?.response?.data?.message;
-      const serverDetail = error?.response?.data?.detail;
-      alert(
-        serverMessage
-          ? `${serverMessage}${serverDetail ? `\nDetalle: ${serverDetail}` : ''}`
-          : `Error: ${error?.message || 'No se pudo enviar el PDF por WhatsApp'}`
-      );
-    } finally {
-      setSendingWhatsApp(false);
     }
   };
 
@@ -657,7 +616,6 @@ const PrintSessions = ({ isOpen, onClose, appointments, patientData, diagnosis, 
             {/* FOOTER */}
             <div style={{ marginTop: '0.9rem', paddingTop: '0.9rem', textAlign: 'center', fontSize: PREVIEW_FOOTER_TEXT_SIZE, fontWeight: 900, color: '#000000' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
-                <WhatsAppBadge />
                 <span style={{ fontWeight: 900 }}>{CONTACT_PHONE}</span>
               </div>
               <div style={{ fontSize: PREVIEW_FOOTER_TEXT_SIZE, fontWeight: 900, lineHeight: 1.3 }}>{CONTACT_ADDRESS}</div>
@@ -672,22 +630,11 @@ const PrintSessions = ({ isOpen, onClose, appointments, patientData, diagnosis, 
           </button>
           <button
             onClick={handleDownloadImage}
-            disabled={sendingWhatsApp}
-            style={{ padding: '0.875rem 1.5rem', backgroundColor: '#2563eb', color: '#ffffff', fontWeight: 900, borderRadius: '1rem', border: 'none', cursor: sendingWhatsApp ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', boxShadow: '0 20px 25px -5px rgba(37, 99, 235, 0.1)', opacity: sendingWhatsApp ? 0.6 : 1, transition: 'all 200ms', minHeight: '3.25rem', flex: '1 1 12rem' }}
-            onMouseEnter={(e) => !sendingWhatsApp && (e.target.style.backgroundColor = '#1d4ed8')}
-            onMouseLeave={(e) => !sendingWhatsApp && (e.target.style.backgroundColor = '#2563eb')}
+            style={{ padding: '0.875rem 1.5rem', backgroundColor: '#2563eb', color: '#ffffff', fontWeight: 900, borderRadius: '1rem', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', boxShadow: '0 20px 25px -5px rgba(37, 99, 99, 0.1)', transition: 'all 200ms', minHeight: '3.25rem', flex: '1 1 12rem' }}
+            onMouseEnter={(e) => { e.target.style.backgroundColor = '#1d4ed8'; }}
+            onMouseLeave={(e) => { e.target.style.backgroundColor = '#2563eb'; }}
           >
             <Download size={18} /> Descargar
-          </button>
-          <button
-            onClick={handleSendWhatsApp}
-            disabled={sendingWhatsApp}
-            style={{ padding: '0.875rem 1.5rem', backgroundColor: '#0f172a', color: '#ffffff', fontWeight: 900, borderRadius: '1rem', border: 'none', cursor: sendingWhatsApp ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', boxShadow: '0 20px 25px -5px rgba(15, 23, 42, 0.2)', opacity: sendingWhatsApp ? 0.6 : 1, transition: 'all 200ms', minHeight: '3.25rem', flex: '1 1 16rem' }}
-            onMouseEnter={(e) => !sendingWhatsApp && (e.target.style.backgroundColor = '#0d3b66')}
-            onMouseLeave={(e) => !sendingWhatsApp && (e.target.style.backgroundColor = '#0f172a')}
-          >
-            {sendingWhatsApp ? <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} /> : <Send size={18} />}
-            {sendingWhatsApp ? 'Enviando PDF...' : 'Enviar PDF por WhatsApp'}
           </button>
           <button
             onClick={handlePrint}

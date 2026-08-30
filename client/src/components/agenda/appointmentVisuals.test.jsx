@@ -15,14 +15,13 @@ describe('appointmentVisuals', () => {
     expect(React.isValidElement(cancelled.icon)).toBe(true);
   });
 
-  it('construye badges diarios con cobertura, pago, whatsapp y clínica', () => {
+  it('construye badges diarios con cobertura, pago y clínica', () => {
     const { statusMeta, badges, clinicalIcons } = buildAppointmentDailyPresentation({
       status: 'SCHEDULED',
       authorizationStatus: 'PENDING',
       authorizationNumber: 'AUTH-123',
       paidInAdvance: false,
       sessionToken: 'TOKEN-456',
-      whatsappTicketSentAt: '2026-05-31T10:00:00.000Z',
       isFirstSession: true,
       patient: {
         fullName: 'Paciente',
@@ -48,7 +47,6 @@ describe('appointmentVisuals', () => {
       'Token: TOKEN-456',
       'Aut. AUTH-123',
       'Pago pendiente',
-      'WhatsApp enviado',
     ]));
     expect(badges.find((badge) => badge.key === 'coverage')?.className).toContain('bg-orange-100');
     expect(badges.find((badge) => badge.key === 'coverage')?.label).toBe('IOMA');

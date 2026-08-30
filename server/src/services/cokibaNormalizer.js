@@ -134,7 +134,6 @@ const parseAuthorization = (normalizedText) => {
   }
 
   const channels = [];
-  if (/whatsapp|wsp|whatsap/i.test(lower)) channels.push('WhatsApp');
   if (/portal/i.test(lower)) channels.push('Portal');
   if (/mail|correo|email|e-mail/i.test(lower)) channels.push('Mail');
   if (/sucursal|oficina|presencial/i.test(lower)) channels.push('Sucursal');

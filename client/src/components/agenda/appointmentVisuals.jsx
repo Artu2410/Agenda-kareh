@@ -5,7 +5,6 @@ import {
   Banknote,
   CheckCircle2,
   Flag,
-  MessageSquare,
   X,
   Zap,
 } from 'lucide-react';
@@ -225,15 +224,6 @@ export const buildAppointmentDailyPresentation = (appointment = {}) => {
     className: appointment.paidInAdvance ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600',
     icon: appointment.paidInAdvance ? <Banknote size={11} /> : null,
   });
-
-  if (appointment.whatsappTicketSentAt || appointment.whatsappReminderSentAt) {
-    badges.push({
-      key: 'whatsapp',
-      label: 'WhatsApp enviado',
-      className: 'bg-slate-100 text-slate-600',
-      icon: <MessageSquare size={11} />,
-    });
-  }
 
   const clinicalIcons = [
     patient.hasCancer && { key: 'cancer', title: 'Oncológico', icon: <AlertTriangle size={12} className="text-rose-500" /> },

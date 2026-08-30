@@ -140,6 +140,8 @@ const MonthlyCalendarGrid = ({
   const monthlyTotals = useMemo(() => (
     appointments.reduce((accumulator, appointment) => {
       accumulator.total += 1;
+      const patientKey = appointment.patientId || appointment.patient?.id || appointment.patient?.dni;
+      if (patientKey) accumulator.patientIds.add(patientKey);
 
       if (appointment.status === 'COMPLETED') {
         accumulator.completed += 1;
@@ -150,7 +152,7 @@ const MonthlyCalendarGrid = ({
       }
 
       return accumulator;
-    }, { total: 0, scheduled: 0, completed: 0, noShow: 0 })
+    }, { total: 0, scheduled: 0, completed: 0, noShow: 0, patientIds: new Set() })
   ), [appointments]);
 
   const scheduleByDay = useMemo(() => (
@@ -194,6 +196,9 @@ const MonthlyCalendarGrid = ({
           </div>
           <div className="rounded-full bg-rose-100 px-3 py-1 text-xs font-black uppercase tracking-wide text-rose-700">
             {monthlyTotals.noShow} inasistencias
+          </div>
+          <div className="rounded-full bg-blue-100 px-3 py-1 text-xs font-black uppercase tracking-wide text-blue-700">
+            {monthlyTotals.patientIds.size} pacientes
           </div>
         </div>
       </div>

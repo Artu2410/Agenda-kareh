@@ -27,6 +27,8 @@ export const patientBodySchema = z.object({
   dniBackImageUrl: optionalString('Imagen trasera de DNI', { max: 2000 }),
   insuranceCardImageUrl: optionalString('Imagen de credencial', { max: 2000 }),
   insuranceCardBackImageUrl: optionalString('Imagen trasera de credencial', { max: 2000 }),
+  cudCredentialUrl: optionalString('Credencial CUD', { max: 2000 }),
+  cudNumber: optionalString('Número de CUD', { max: 100 }),
   hasCancer: booleanFlag(),
   hasMarcapasos: booleanFlag(),
   usesEA: booleanFlag(),

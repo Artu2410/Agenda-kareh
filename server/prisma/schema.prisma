@@ -155,6 +155,8 @@ model Patient {
   dniBackImageUrl           String?
   insuranceCardImageUrl     String?
   insuranceCardBackImageUrl String?
+  cudCredentialUrl          String?
+  cudNumber                 String?
   phone                     String?
   address                   String?
   emergencyPhone            String?
@@ -269,8 +271,6 @@ model Appointment {
   patientChargeAmount       Decimal?        @db.Decimal(10, 2)
   coinsuranceDetails        Json?
   paidInAdvance             Boolean         @default(false)
-  whatsappTicketSentAt      DateTime?
-  whatsappReminderSentAt    DateTime?
   sessionToken              String?
   authorizationReviewedBy   User?           @relation("AppointmentAuthorizationReviewer", fields: [authorizationReviewedById], references: [id], onDelete: SetNull)
   treatmentCycle            TreatmentCycle? @relation(fields: [cycleId], references: [id])
@@ -413,51 +413,6 @@ model BillingPayment {
 
   @@index([invoiceId])
   @@index([paymentDate])
-}
-
-// ---------------------------------------------------------
-// 7. WHATSAPP INBOX
-// ---------------------------------------------------------
-model WhatsAppConversation {
-  id                 String            @id @default(cuid())
-  waId               String            @unique
-  phone              String
-  profileName        String?
-  currentState       String?           @default("welcome")
-  lastMessageAt      DateTime?
-  lastMessageText    String?
-  unreadCount        Int               @default(0)
-  lastAutoReplyAt    DateTime?
-  pricingExplainedAt DateTime?
-  slotOfferSentAt    DateTime?
-  lastServiceType    String?
-  lastOfferedSlots   Json?
-  createdAt          DateTime          @default(now())
-  updatedAt          DateTime          @updatedAt
-  messages           WhatsAppMessage[]
-
-  @@index([phone])
-  @@index([lastMessageAt])
-}
-
-model WhatsAppMessage {
-  id             String               @id @default(cuid())
-  conversationId String
-  direction      String
-  type           String
-  text           String?
-  mediaUrl       String?
-  mediaMime      String?
-  mediaSha256    String?
-  mediaName      String?
-  waMessageId    String?              @unique
-  status         String?
-  statusAt       DateTime?
-  createdAt      DateTime             @default(now())
-  conversation   WhatsAppConversation @relation(fields: [conversationId], references: [id])
-
-  @@index([conversationId])
-  @@index([status])
 }
 
 model PushSubscription {

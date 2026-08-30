@@ -211,64 +211,15 @@ const hasSustainedGrowth = (rows = [], key) => {
     && recent[2][key] > recent[0][key];
 };
 
-const calculateResponseMetrics = (messages = [], conversations = []) => {
-  const messagesByConversation = new Map();
-
-  messages.forEach((message) => {
-    const list = messagesByConversation.get(message.conversationId) || [];
-    list.push(message);
-    messagesByConversation.set(message.conversationId, list);
-  });
-
-  const responseHours = [];
-  let inboundMessages = 0;
-  let unansweredInbound = 0;
-
-  messagesByConversation.forEach((conversationMessages) => {
-    const ordered = [...conversationMessages].sort((left, right) => new Date(left.createdAt) - new Date(right.createdAt));
-
-    ordered.forEach((message, index) => {
-      if (message.direction !== 'inbound') return;
-      inboundMessages += 1;
-      const inboundDate = new Date(message.createdAt);
-      const response = ordered
-        .slice(index + 1)
-        .find((candidate) => candidate.direction === 'outbound' && new Date(candidate.createdAt) >= inboundDate);
-
-      if (!response) {
-        unansweredInbound += 1;
-        return;
-      }
-
-      responseHours.push((new Date(response.createdAt) - inboundDate) / (1000 * 60 * 60));
-    });
-  });
-
-  const pendingMessages = conversations.reduce((sum, conversation) => sum + toNumber(conversation.unreadCount), 0);
-
-  return {
-    inboundMessages,
-    unansweredInbound,
-    pendingMessages,
-    pendingConversations: conversations.filter((conversation) => toNumber(conversation.unreadCount) > 0).length,
-    averageResponseHours: responseHours.length > 0
-      ? roundOne(responseHours.reduce((sum, hours) => sum + hours, 0) / responseHours.length)
-      : null,
-    measuredResponses: responseHours.length,
-  };
-};
-
 const estimateAdminHoursWeekly = ({
   activePatients,
   delayedAuthorizations,
-  inboundMessages,
   monthlyTurns,
   pendingInvoices,
 }) => {
   const monthlyHours = (
     monthlyTurns * 0.1
     + activePatients * 0.25
-    + inboundMessages * 0.04
     + pendingInvoices * 0.12
     + delayedAuthorizations * 0.25
   );
@@ -289,13 +240,11 @@ const getCriterion = ({ key, label, measured = true, met, score, value, weight }
 const buildAdministrativeDecision = ({
   activePatients,
   adminCost,
-  averageResponseHours,
   averageRevenuePerTurn,
   delayedAuthorizations,
   estimatedAdminHoursWeekly,
   monthlyTurnGrowth,
   monthlyTurns,
-  pendingMessages,
   receivables,
   sessionDurationMinutes,
 }) => {
@@ -323,23 +272,6 @@ const buildAdministrativeDecision = ({
       score: estimatedAdminHoursWeekly >= 5 ? 25 : (estimatedAdminHoursWeekly >= 3 ? 15 : 0),
       value: estimatedAdminHoursWeekly,
       weight: 25,
-    }),
-    getCriterion({
-      key: 'response_time',
-      label: 'Respuesta promedio > 24 hs',
-      measured: averageResponseHours !== null,
-      met: averageResponseHours !== null && averageResponseHours > 24,
-      score: averageResponseHours > 24 ? 15 : (averageResponseHours > 12 ? 8 : 0),
-      value: averageResponseHours,
-      weight: 15,
-    }),
-    getCriterion({
-      key: 'pending_messages',
-      label: 'Mensajes pendientes',
-      met: pendingMessages > 10,
-      score: pendingMessages > 10 ? 10 : (pendingMessages > 5 ? 5 : 0),
-      value: pendingMessages,
-      weight: 10,
     }),
     getCriterion({
       key: 'process_delays',
@@ -380,8 +312,6 @@ const buildAdministrativeDecision = ({
       activePatients,
       monthlyTurns,
       estimatedAdminHoursWeekly,
-      averageResponseHours,
-      pendingMessages,
       delayedAuthorizations,
       overdueInvoices: receivables.overdueInvoices,
     },
@@ -590,7 +520,6 @@ export const getHiringRecommendations = async (req, res, prisma) => {
     const monthStart = startOfMonth(now);
     const monthEnd = addMonths(monthStart, 1);
     const trendStart = startOfMonth(subMonths(now, 5));
-    const messageStart = addDays(today, -30);
     const fixedExpenses = getFixedExpenses(req);
     const adminCost = getConfigValue(req.query.adminCost, process.env.KAREH_ADMIN_MONTHLY_COST, DEFAULT_ADMIN_MONTHLY_COST);
     const kinesiologistCost = getConfigValue(
@@ -609,8 +538,6 @@ export const getHiringRecommendations = async (req, res, prisma) => {
       currentMonthInvoices,
       cashTransactions,
       delayedAuthorizations,
-      conversations,
-      messages,
     ] = await Promise.all([
       prisma.agendaConfig.findFirst(),
       prisma.professional.findMany({
@@ -702,28 +629,6 @@ export const getHiringRecommendations = async (req, res, prisma) => {
           authorizationStatus: 'PENDING',
         },
       }),
-      prisma.whatsAppConversation.findMany({
-        where: {
-          lastMessageAt: { gte: messageStart },
-        },
-        select: {
-          id: true,
-          unreadCount: true,
-          lastMessageAt: true,
-        },
-      }).catch(() => []),
-      prisma.whatsAppMessage.findMany({
-        where: {
-          createdAt: { gte: messageStart },
-        },
-        select: {
-          id: true,
-          conversationId: true,
-          direction: true,
-          createdAt: true,
-        },
-        orderBy: { createdAt: 'asc' },
-      }).catch(() => []),
     ]);
 
     const sessionDurationMinutes = Math.max(
@@ -751,11 +656,9 @@ export const getHiringRecommendations = async (req, res, prisma) => {
     const newPatientGrowth = getAverageMonthlyGrowth(monthlyTrend, 'newPatients');
     const newPatientGrowthRate = getGrowthRate(monthlyTrend, 'newPatients');
     const sustainedGrowth = hasSustainedGrowth(monthlyTrend, 'completedTurns');
-    const responseMetrics = calculateResponseMetrics(messages, conversations);
     const estimatedAdminHoursWeekly = estimateAdminHoursWeekly({
       activePatients,
       delayedAuthorizations,
-      inboundMessages: responseMetrics.inboundMessages,
       monthlyTurns: currentMonthTurns,
       pendingInvoices: invoices.filter((invoice) => getInvoicePending(invoice) > 0).length,
     });
@@ -788,13 +691,11 @@ export const getHiringRecommendations = async (req, res, prisma) => {
     const administrative = buildAdministrativeDecision({
       activePatients,
       adminCost,
-      averageResponseHours: responseMetrics.averageResponseHours,
       averageRevenuePerTurn,
       delayedAuthorizations,
       estimatedAdminHoursWeekly,
       monthlyTurnGrowth,
       monthlyTurns: currentMonthTurns,
-      pendingMessages: responseMetrics.pendingMessages,
       receivables,
       sessionDurationMinutes,
     });
@@ -842,7 +743,6 @@ export const getHiringRecommendations = async (req, res, prisma) => {
           fullName: professional.fullName,
           availableHoursWeekly: roundOne(getScheduleMinutes(professional.workSchedule) / 60),
         })),
-        response: responseMetrics,
       },
       monthlyTrend,
       assumptions: {
@@ -851,7 +751,7 @@ export const getHiringRecommendations = async (req, res, prisma) => {
         kinesiologistMonthlyCost: roundCurrency(kinesiologistCost),
         newKinesiologistWeeklyHours,
         sessionDurationMinutes,
-        adminHoursFormula: 'Turnos, pacientes activos, mensajes entrantes, facturas pendientes y autorizaciones vencidas.',
+        adminHoursFormula: 'Turnos, pacientes activos, facturas pendientes y autorizaciones vencidas.',
         noRejectedDemandData: true,
       },
       missingData: [

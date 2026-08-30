@@ -2,7 +2,6 @@ const stores = {
   httpRequests: new Map(),
   httpDurations: new Map(),
   httpErrors: new Map(),
-  whatsappMessages: new Map(),
   loginFailures: new Map(),
 };
 
@@ -59,13 +58,6 @@ export const recordHttpRequest = ({ method, route, status, durationSeconds }) =>
   }
 };
 
-export const recordWhatsAppMessage = ({ direction = 'inbound', type = 'text' } = {}) => {
-  incrementStore(stores.whatsappMessages, 'whatsapp_messages_total', {
-    direction: String(direction || 'inbound'),
-    type: String(type || 'text'),
-  }, 1);
-};
-
 export const recordLoginFailure = ({ step = 'verify-otp', reason = 'unknown' } = {}) => {
   incrementStore(stores.loginFailures, 'login_failures_total', {
     step: String(step || 'verify-otp'),
@@ -115,7 +107,6 @@ export const renderPrometheusMetrics = () => {
     renderMetricBlock('http_request_duration_seconds_sum', 'counter', 'Suma de duraciones HTTP en segundos', stores.httpDurations),
     renderMetricBlock('http_request_duration_seconds_count', 'counter', 'Cantidad de requests HTTP medidas', stores.httpDurations),
     renderMetricBlock('http_request_errors_total', 'counter', 'Total de requests HTTP con error', stores.httpErrors),
-    renderMetricBlock('whatsapp_messages_total', 'counter', 'Cantidad de mensajes WhatsApp procesados', stores.whatsappMessages),
     renderMetricBlock('login_failures_total', 'counter', 'Cantidad de fallos de login OTP', stores.loginFailures),
   ];
 

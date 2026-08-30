@@ -183,6 +183,17 @@ export const updateTransaction = async (req, res, prisma) => {
   }
 
   try {
+    const existing = await prisma.cashFlow.findUnique({
+      where: { id },
+      select: { date: true },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ message: 'Movimiento no encontrado' });
+    }
+
+    // La fecha pertenece al movimiento original; solo se asigna automáticamente al crear.
+    data.date = existing.date;
     const updated = await prisma.cashFlow.update({
       where: { id },
       data,

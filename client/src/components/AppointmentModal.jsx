@@ -324,9 +324,6 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                         <p className="text-[11px] font-black uppercase tracking-wide text-amber-800">
                           Esta obra social se encuentra inactiva o sin convenio vigente.
                         </p>
-                        <p className="mt-1 text-[10px] font-semibold text-amber-700/80 uppercase">
-                          No se podrán procesar pagos por COKIBA. Podés atenderlo de forma Particular.
-                        </p>
                       </div>
                       <button
                         type="button"

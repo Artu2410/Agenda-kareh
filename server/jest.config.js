@@ -12,7 +12,6 @@ export default {
   collectCoverageFrom: [
     'src/lib/**/*.js',
     'src/constants/roles.js',
-    'src/controllers/whatsapp/dto/**/*.js',
     'src/utils/sessionManager.js',
     'src/utils/monthlyHonorariosReport.js',
     'src/utils/appointmentFinancialSnapshot.js',

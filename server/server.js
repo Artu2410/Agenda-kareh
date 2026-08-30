@@ -31,7 +31,7 @@ dotenv.config();
 const startedAt = new Date().toISOString();
 
 // Validar variables de entorno antes de iniciar
-validateEnv();
+const validatedEnv = validateEnv();
 
 const prisma = new PrismaClient();
 const app = express();
@@ -44,11 +44,11 @@ setInterval(() => {
   sessionManager.cleanupExpiredSessions();
 }, 60 * 60 * 1000);
 
-import createAuthRoutes from './src/routes/auth.routes.js';
-import createAppointmentRoutes from './src/routes/appointments.routes.js';
-import createPatientRoutes from './src/routes/patient.routes.js';
+import createAuthRoutes from './src/domain/auth/index.js';
+import createAppointmentRoutes from './src/domain/appointments/index.js';
+import createPatientRoutes from './src/domain/patients/index.js';
 import createCashflowRoutes from './src/routes/cashflow.routes.js';
-import createBillingRoutes from './src/routes/billing.routes.js';
+import createBillingRoutes from './src/domain/billing/index.js';
 import createCapacityRoutes from './src/routes/capacity.routes.js';
 import createProfitabilityRoutes from './src/routes/profitability.routes.js';
 import createFinancialProjectionRoutes from './src/routes/financialProjection.routes.js';
@@ -56,22 +56,18 @@ import createCrmIntelligenceRoutes from './src/routes/crmIntelligence.routes.js'
 import createHiringRoutes from './src/routes/hiring.routes.js';
 import createStrategicSimulatorRoutes from './src/routes/strategicSimulator.routes.js';
 import createClinicalHistoryRoutes from './src/routes/clinicalHistory.routes.js';
-import createMetricsRoutes from './src/routes/metrics.routes.js';
-import { getMetricsDebug } from './src/controllers/metrics.controller.js';
+import createMetricsRoutes from './src/domain/metrics/index.js';
 import createProfessionalRoutes from './src/routes/professionalRoutes.js';
 import createNotesRoutes from './src/routes/notes.routes.js';
 import createUploadRoutes from './src/routes/upload.routes.js';
 import createTranscriptionRoutes from './src/routes/transcription.routes.js';
-import { runWhatsappReminders } from './src/services/whatsappReminders.js';
-import createWhatsAppRoutes from './src/routes/whatsapp.routes.js';
 import createAgendaRoutes from './src/routes/agenda.routes.js';
 import createNotificationsRoutes from './src/routes/notifications.routes.js';
 import createObrasSocialesRoutes from './src/routes/obrasSociales.routes.js';
 import createUsersRoutes from './src/routes/users.routes.js';
-import createAuditRoutes from './src/routes/audit.routes.js';
+import createAuditRoutes from './src/domain/audit/index.js';
 import createSessionsRoutes from './src/routes/sessions.routes.js';
 import createVersionRoutes from './src/routes/version.routes.js';
-import { verifyWhatsAppWebhook, handleWhatsAppWebhook } from './src/controllers/whatsapp.controller.js';
 import { authMiddleware } from './src/middlewares/authMiddleware.js';
 import { checkRole } from './src/middlewares/rbacMiddleware.js';
 import { ROLES } from './src/constants/roles.js';
@@ -166,6 +162,12 @@ app.use((req, res, next) => {
 app.use(createRequestLogger);
 app.use(createHttpMetricsMiddleware());
 
+// La sesión y el RBAC requieren acceso al cliente Prisma.
+app.use((req, res, next) => {
+    req.prisma = prisma;
+    next();
+});
+
 // Phase 2: Session Management Middleware
 app.use(sessionValidationMiddleware);
 app.use(deviceDetectionMiddleware);
@@ -207,7 +209,7 @@ app.use(express.json({ limit: '50mb', strict: false }));
 // CSRF: endpoint para obtener token
 app.get('/api/csrf-token', csrfProtection, getCsrfToken);
 
-// CSRF: proteger rutas mutables (excluye webhooks/cron)
+// CSRF: proteger rutas mutables (excluye el cron de sincronización COKIBA)
 app.use('/api', (req, res, next) => {
     const method = req.method.toUpperCase();
     if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') {
@@ -215,27 +217,11 @@ app.use('/api', (req, res, next) => {
     }
 
     const path = req.path || '';
-    if (
-      path.startsWith('/webhooks/whatsapp')
-      || path.startsWith('/cron/whatsapp-reminders')
-      || path.startsWith('/cron/cokiba-sync')
-    ) {
+    if (path.startsWith('/cron/cokiba-sync')) {
         return next();
     }
 
     return csrfProtection(req, res, next);
-});
-
-// Log mínimo para webhook (sin datos sensibles)
-app.use('/api/webhooks/whatsapp', (req, res, next) => {
-    const body = req.body || {};
-    const entryCount = Array.isArray(body.entry) ? body.entry.length : 0;
-    (req.logger || logger).info('WhatsApp webhook recibido', {
-        object: body.object,
-        entryCount,
-        method: req.method,
-    });
-    next();
 });
 
 prisma.$connect()
@@ -250,34 +236,6 @@ prisma.$connect()
   .catch((error) => {
     logger.error('Error de conexión DB', { errorMessage: error.message });
   });
-
-app.use((req, res, next) => {
-    req.prisma = prisma;
-    next();
-});
-
-// WhatsApp Webhook (público)
-app.get('/api/webhooks/whatsapp', verifyWhatsAppWebhook);
-app.post('/api/webhooks/whatsapp', (req, res) => handleWhatsAppWebhook(req, res, prisma));
-
-// Cron hook (para recordatorios WhatsApp)
-app.post('/api/cron/whatsapp-reminders', async (req, res) => {
-    const token = process.env.WHATSAPP_CRON_TOKEN;
-    const provided = req.headers['x-cron-token'] || req.query?.token;
-    if (!token) {
-        return res.status(500).json({ message: 'Cron token no configurado' });
-    }
-    if (token !== provided) {
-        return res.status(403).json({ message: 'No autorizado' });
-    }
-    try {
-        const result = await runWhatsappReminders(prisma);
-        return res.json({ success: true, ...result });
-    } catch (error) {
-        logger.error('Error cron WhatsApp', { errorMessage: error.message });
-        return res.status(500).json({ message: 'Error en cron WhatsApp' });
-  }
-});
 
 app.post('/api/cron/cokiba-sync', async (req, res) => {
     const token = process.env.COKIBA_CRON_TOKEN;
@@ -314,24 +272,6 @@ app.use((req, res, next) => {
 app.use('/api/auth', apiLimiter, createAuthRoutes(prisma));
 app.use('/api', createVersionRoutes({ deployedAt: startedAt }));
 
-// Diagnóstico WhatsApp temporal (público)
-app.get('/api/whatsapp-config', (req, res) => {
-  const config = {
-    hasAccessToken: !!process.env.WHATSAPP_ACCESS_TOKEN,
-    hasPhoneNumberId: !!process.env.WHATSAPP_PHONE_NUMBER_ID,
-    ticketTemplate: process.env.WHATSAPP_TICKET_TEMPLATE || 'NO CONFIGURADO',
-    welcomeMode: 'text',
-    holaMode: 'text',
-    greetingTemplateEnabled: false,
-    greetingTextFromEnv: false,
-    greetingSource: 'controller-default-text',
-    apiVersion: process.env.WHATSAPP_API_VERSION || 'v20.0',
-    language: process.env.WHATSAPP_TEMPLATE_LANGUAGE || 'es_AR',
-    accessTokenPrefix: process.env.WHATSAPP_ACCESS_TOKEN ? process.env.WHATSAPP_ACCESS_TOKEN.substring(0, 10) + '...' : 'NO TOKEN',
-  };
-  res.json({ whatsappConfig: config });
-});
-
 // Phase 2: Swagger API Documentation
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.get('/api/swagger.json', (req, res) => {
@@ -355,19 +295,11 @@ app.use('/api/crm-intelligence', authMiddleware, checkRole(ROLES.SUPER_USER, ROL
 app.use('/api/hiring', authMiddleware, checkRole(ROLES.SUPER_USER, ROLES.ADMIN, ROLES.SECRETARIA), createHiringRoutes(prisma));
 app.use('/api/strategic-simulator', authMiddleware, checkRole(ROLES.SUPER_USER, ROLES.ADMIN, ROLES.SECRETARIA), createStrategicSimulatorRoutes(prisma));
 app.use('/api/clinical-history', authMiddleware, checkRole(ROLES.SUPER_USER, ROLES.ADMIN, ROLES.PROFESSIONAL), createClinicalHistoryRoutes(prisma));
-// GET /api/metrics-debug — TEMPORAL: endpoint sin auth para validar deploy (token requerido)
-app.get('/api/metrics-debug', async (req, res, next) => {
-  const EXPECTED = 'kareh-debug-2026';
-  if (req.query.token !== EXPECTED) return res.status(403).json({ error: 'Forbidden' });
-  return getMetricsDebug(req, res, prisma);
-});
-
 app.use('/api/metrics', authMiddleware, createMetricsRoutes(prisma));
 app.use('/api/notes', authMiddleware, createNotesRoutes(prisma));
 app.use('/api/professionals', authMiddleware, createProfessionalRoutes(prisma));
 app.use('/api/uploads', authMiddleware, uploadLimiter, createUploadRoutes());
 app.use('/api/transcription', authMiddleware, createTranscriptionRoutes());
-app.use('/api/whatsapp', authMiddleware, createWhatsAppRoutes(prisma));
 app.use('/api/agenda', authMiddleware, createAgendaRoutes(prisma));
 app.use('/api/notifications', authMiddleware, createNotificationsRoutes(prisma));
 app.use('/api/obras-sociales', authMiddleware, createObrasSocialesRoutes(prisma));
@@ -401,7 +333,7 @@ app.all('/api/*', (req, res, next) => {
 
 app.use(errorHandler);
 
-const PORT = process.env.PORT || 10000;
+const PORT = validatedEnv.PORT;
 app.listen(PORT, '0.0.0.0', () => {
     logger.info('Servidor Kareh Pro iniciado', getStartupMetadata(PORT, startedAt));
 });

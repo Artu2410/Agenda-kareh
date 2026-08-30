@@ -50,6 +50,8 @@ export const patientSelect = {
   dniBackImageUrl: true,
   insuranceCardImageUrl: true,
   insuranceCardBackImageUrl: true,
+  cudCredentialUrl: true,
+  cudNumber: true,
   phone: true,
   address: true,
   emergencyPhone: true,
@@ -146,8 +148,6 @@ export const appointmentBaseSelect = {
   patientChargeAmount: true,
   coinsuranceDetails: true,
   paidInAdvance: true,
-  whatsappTicketSentAt: true,
-  whatsappReminderSentAt: true,
   sessionToken: true,
 };
 

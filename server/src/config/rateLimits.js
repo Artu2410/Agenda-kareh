@@ -1,4 +1,5 @@
 import rateLimit from 'express-rate-limit';
+import { ipKeyGenerator } from 'express-rate-limit';
 import logger from './logger.js';
 
 /**
@@ -26,38 +27,38 @@ export const apiLimiter = rateLimit({
   },
 });
 
-// Auth limiter - protege endpoints de autenticación (más estricto)
-export const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 5, // máx 5 intentos de login por IP
-  message: 'Demasiados intentos fallidos, intenta en 15 minutos',
-  standardHeaders: false, // Desabilitar headers estándar para flexibilidad
-  legacyHeaders: false,
-  skip: (req) => process.env.NODE_ENV === 'test',
-  handler: (req, res) => {
-    const ip = req.ip;
-    logger.warn('Auth rate limit exceeded', { ip, endpoint: req.path });
-
-    res.status(429).json({
-      success: false,
-      message: 'Demasiados intentos fallidos. Intenta en 15 minutos',
-    });
-  },
-});
-
 // OTP limiter - para verificación de código OTP
-export const otpLimiter = rateLimit({
+const keyFromRequest = (req) => req.body?.email?.toLowerCase() || ipKeyGenerator(req.ip);
+
+export const requestOtpLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
   max: 5, // máx 5 intentos de OTP
   message: 'Demasiados intentos de verificación',
   standardHeaders: false,
   legacyHeaders: false,
+  keyGenerator: keyFromRequest,
   skip: (req) => process.env.NODE_ENV === 'test',
   handler: (req, res) => {
     logger.warn('OTP rate limit exceeded', { ip: req.ip });
     res.status(429).json({
       success: false,
       message: 'Demasiados intentos. Intenta en 15 minutos',
+    });
+  },
+});
+
+export const verifyOtpLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => process.env.NODE_ENV === 'test',
+  keyGenerator: keyFromRequest,
+  handler: (req, res) => {
+    logger.warn('OTP verification rate limit exceeded', { ip: req.ip });
+    res.status(429).json({
+      success: false,
+      message: 'Demasiados intentos. Intenta en 1 minuto',
     });
   },
 });
@@ -95,23 +96,6 @@ export const uploadLimiter = rateLimit({
   },
 });
 
-// Strict limiter - para endpoints muy sensibles (OTP generation, etc)
-export const strictLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hora
-  max: 3, // máx 3 requests por hora
-  message: 'Límite muy estricto excedido',
-  standardHeaders: true,
-  legacyHeaders: false,
-  skip: (req) => process.env.NODE_ENV === 'test',
-  handler: (req, res) => {
-    logger.warn('Strict rate limit exceeded', { ip: req.ip, userId: req.user?.id });
-    res.status(429).json({
-      success: false,
-      message: 'Límite de solicitudes muy frecuentes excedido',
-    });
-  },
-});
-
 // Search limiter - para búsquedas/filtros complejos
 export const searchLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minuto
@@ -131,10 +115,9 @@ export const searchLimiter = rateLimit({
 
 export default {
   apiLimiter,
-  authLimiter,
-  otpLimiter,
+  requestOtpLimiter,
+  verifyOtpLimiter,
   refreshLimiter,
   uploadLimiter,
-  strictLimiter,
   searchLimiter,
 };

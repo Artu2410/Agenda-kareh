@@ -95,6 +95,7 @@
 .calendar-grid {
   --calendar-time-column: 50px;
   --calendar-day-min-width: 95px;
+  --calendar-min-width: calc(var(--calendar-time-column) + (var(--calendar-day-min-width) * 2));
 }
 
 /* --- ESTILOS STICKY (CABECERAS FIJAS) --- */

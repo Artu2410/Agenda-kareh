@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { BarChart3, Calendar, Users, DollarSign, Settings, FileText, LogOut, MessageCircle, ChevronLeft, NotebookPen, ShieldCheck, ClipboardCheck, Receipt, Gauge } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { BarChart3, Calendar, Users, DollarSign, Settings, FileText, LogOut, ChevronLeft, ShieldCheck, ClipboardCheck, Receipt, Gauge } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
-import toast, { showSuccessToast } from '../toastHelpers';
+import { showSuccessToast } from '../toastHelpers';
 import { useConfirmModal } from '../../hooks/useConfirmModal';
 import { APP_ROUTES } from '../../utils/appRoutes';
 import api from '../../services/api';
@@ -33,21 +33,12 @@ const getGreeting = (date = new Date(), firstName = '') => {
 const Sidebar = ({ onToggle, onLogout, onNavigate, isMobile = false }) => {
   const location = useLocation();
   const { ConfirmModalComponent, openModal } = useConfirmModal();
-  const [whatsappUnread, setWhatsappUnread] = useState(0);
   const [now, setNow] = useState(() => new Date());
   const [weather, setWeather] = useState({
     currentTemp: null,
     maxTemp: null,
     minTemp: null,
   });
-  const prevUnreadRef = useRef(new Map());
-  const initializedRef = useRef(false);
-  const canPlaySoundRef = useRef(false);
-
-  const unreadBadgeLabel = useMemo(() => {
-    if (whatsappUnread <= 0) return '';
-    return whatsappUnread > 99 ? '99+' : String(whatsappUnread);
-  }, [whatsappUnread]);
 
   const { name: userName, email: userEmail, role: userRole } = getStoredUser();
   const menuItems = [
@@ -58,8 +49,6 @@ const Sidebar = ({ onToggle, onLogout, onNavigate, isMobile = false }) => {
     { icon: FileText, label: 'Historias Clínicas', path: APP_ROUTES.clinicalHistories, roles: ['SUPER_USER', 'ADMIN', 'PROFESSIONAL'] },
     { icon: ClipboardCheck, label: 'Autorizaciones', path: APP_ROUTES.authorizations, roles: ['SUPER_USER', 'ADMIN'] },
     { icon: ShieldCheck, label: 'Auditoría', path: APP_ROUTES.audit, roles: ['SUPER_USER', 'ADMIN'] },
-    { icon: NotebookPen, label: 'Notas', path: APP_ROUTES.notes, roles: ['SUPER_USER', 'ADMIN'] },
-    { icon: MessageCircle, label: 'WhatsApp', path: APP_ROUTES.whatsapp, roles: ['SUPER_USER', 'ADMIN'] },
     { icon: DollarSign, label: 'Caja', path: APP_ROUTES.cashflow, roles: ['SUPER_USER', 'ADMIN', 'SECRETARIA'] },
     { icon: Receipt, label: 'Facturación', path: APP_ROUTES.billing, roles: ['SUPER_USER', 'ADMIN', 'SECRETARIA'] },
 
@@ -89,29 +78,6 @@ const Sidebar = ({ onToggle, onLogout, onNavigate, isMobile = false }) => {
   const firstName = useMemo(() => getFirstName(userName), [userName]);
   const greetingMessage = useMemo(() => getGreeting(now, firstName), [now, firstName]);
   const temperatureBubble = weather.currentTemp ?? weather.maxTemp;
-
-  const playNotificationSound = () => {
-    if (!canPlaySoundRef.current) return;
-    try {
-      const AudioContext = window.AudioContext || window.webkitAudioContext;
-      if (!AudioContext) return;
-      const ctx = new AudioContext();
-      const oscillator = ctx.createOscillator();
-      const gain = ctx.createGain();
-      oscillator.type = 'sine';
-      oscillator.frequency.value = 880;
-      gain.gain.value = 0.04;
-      oscillator.connect(gain);
-      gain.connect(ctx.destination);
-        oscillator.start();
-        setTimeout(() => {
-          oscillator.stop();
-          ctx.close();
-        }, 180);
-    } catch {
-      // Silencioso: algunas plataformas bloquean audio sin interacción previa
-    }
-  };
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -163,73 +129,6 @@ const Sidebar = ({ onToggle, onLogout, onNavigate, isMobile = false }) => {
     };
   }, []);
 
-  useEffect(() => {
-    const enableSound = () => {
-      canPlaySoundRef.current = true;
-      window.removeEventListener('click', enableSound);
-      window.removeEventListener('keydown', enableSound);
-      window.removeEventListener('touchstart', enableSound);
-    };
-    window.addEventListener('click', enableSound);
-    window.addEventListener('keydown', enableSound);
-    window.addEventListener('touchstart', enableSound);
-    return () => {
-      window.removeEventListener('click', enableSound);
-      window.removeEventListener('keydown', enableSound);
-      window.removeEventListener('touchstart', enableSound);
-    };
-  }, []);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const pollUnread = async () => {
-      try {
-        const { data } = await api.get('/whatsapp/conversations');
-        const conversations = Array.isArray(data) ? data : [];
-        const totalUnread = conversations.reduce((sum, conv) => sum + (conv.unreadCount || 0), 0);
-        if (!isMounted) return;
-
-        const prevMap = prevUnreadRef.current;
-        const newItems = conversations.filter((conv) => (
-          (conv.unreadCount || 0) > (prevMap.get(conv.id) || 0)
-        ));
-
-        prevUnreadRef.current = new Map(
-          conversations.map((conv) => [conv.id, conv.unreadCount || 0])
-        );
-        setWhatsappUnread(totalUnread);
-
-        if (!initializedRef.current) {
-          initializedRef.current = true;
-          return;
-        }
-
-        if (newItems.length > 0) {
-          const totalNew = newItems.reduce((sum, conv) => {
-            const prev = prevMap.get(conv.id) || 0;
-            return sum + ((conv.unreadCount || 0) - prev);
-          }, 0);
-          const primaryName = newItems[0]?.profileName || newItems[0]?.phone || 'WhatsApp';
-          const message = totalNew === 1
-            ? 'Nuevo mensaje de ' + primaryName
-            : 'Nuevos mensajes (' + totalNew + ')';
-          toast(message);
-          playNotificationSound();
-        }
-      } catch {
-        // Silencioso para no interrumpir la UI
-      }
-    };
-
-    pollUnread();
-    const interval = setInterval(pollUnread, 10000);
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
-  }, []);
-
   return (
     <>
       <div className={isMobile ? 'fixed inset-0 z-70' : 'relative z-20'}>
@@ -272,11 +171,6 @@ const Sidebar = ({ onToggle, onLogout, onNavigate, isMobile = false }) => {
               >
                 <Icon size={20} />
                 <span className="font-bold text-sm">{item.label}</span>
-                {item.path === APP_ROUTES.whatsapp && whatsappUnread > 0 && (
-                  <span className="ml-auto min-w-[22px] h-[22px] px-2 inline-flex items-center justify-center rounded-full bg-red-600 text-[11px] font-black text-white">
-                    {unreadBadgeLabel}
-                  </span>
-                )}
               </Link>
             );
           })}

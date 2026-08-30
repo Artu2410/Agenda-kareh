@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import instance from '../api/axios';
+import instance from '../services/api';
 import { Check, Clock, Edit, Loader2, Plus } from 'lucide-react';
 import ProfessionalModal from '../components/settings/ProfessionalModal';
 import ScheduleModal from '../components/settings/ScheduleModal';

@@ -394,6 +394,8 @@ export const createPatient = async (req, res, prisma) => {
     dniBackImageUrl,
     insuranceCardImageUrl,
     insuranceCardBackImageUrl,
+    cudCredentialUrl,
+    cudNumber,
     hasCancer,
     hasMarcapasos,
     usesEA,
@@ -435,6 +437,8 @@ export const createPatient = async (req, res, prisma) => {
         dniBackImageUrl,
         insuranceCardImageUrl,
         insuranceCardBackImageUrl,
+        cudCredentialUrl,
+        cudNumber,
         hasCancer: !!hasCancer,
         hasMarcapasos: !!hasMarcapasos,
         usesEA: !!usesEA,
@@ -469,6 +473,7 @@ export const updatePatient = async (req, res, prisma) => {
     treatAsParticular, affiliateNumber, emergencyPhone, medicalHistory, hasMarcapasos, usesEA, hasCancer, medicalNotes,
     usesWheelchair, isRespiratory, isIU,
     dniImageUrl, dniBackImageUrl, insuranceCardImageUrl, insuranceCardBackImageUrl,
+    cudCredentialUrl, cudNumber,
   } = req.body;
 
   try {
@@ -508,6 +513,8 @@ export const updatePatient = async (req, res, prisma) => {
         dniBackImageUrl,
         insuranceCardImageUrl,
         insuranceCardBackImageUrl,
+        cudCredentialUrl,
+        cudNumber,
         // AÑADIR CAMPOS MÉDICOS A LA ACTUALIZACIÓN
         hasMarcapasos,
         usesEA,
@@ -737,24 +744,36 @@ export const renumberAllPatients = async (req, res, prisma) => {
     });
 
     await prisma.$transaction(async (tx) => {
-      // 1. Numeración temporal negativa para evitar colisiones unique
-      for (let i = 0; i < patients.length; i++) {
-        await tx.patient.update({
-          where: { id: patients[i].id },
-          data: { clinicalRecordNumber: -(i + 1) }
-        });
-      }
+      // Use set-based updates so Neon does not keep a transaction open for every patient.
+      await tx.$executeRawUnsafe(`
+        UPDATE "Patient" AS patient
+        SET "clinicalRecordNumber" = -1000000000 - ranked.position
+        FROM (
+          SELECT id, ROW_NUMBER() OVER (ORDER BY "createdAt" ASC, id ASC) AS position
+          FROM "Patient"
+        ) AS ranked
+        WHERE patient.id = ranked.id
+      `);
 
-      // 2. Numeración final
-      for (let i = 0; i < patients.length; i++) {
-        await tx.patient.update({
-          where: { id: patients[i].id },
-          data: { 
-            clinicalRecordNumber: i + 1
-          }
-        });
-      }
-    });
+      await tx.$executeRawUnsafe(`
+        UPDATE "Patient" AS patient
+        SET "clinicalRecordNumber" = ranked.position
+        FROM (
+          SELECT id, ROW_NUMBER() OVER (ORDER BY "createdAt" ASC, id ASC) AS position
+          FROM "Patient"
+        ) AS ranked
+        WHERE patient.id = ranked.id
+      `);
+
+      // Keep Prisma's database sequence aligned with the last assigned HC.
+      await tx.$executeRawUnsafe(`
+        SELECT setval(
+          '"Patient_clinicalRecordNumber_seq"',
+          COALESCE((SELECT MAX("clinicalRecordNumber") FROM "Patient"), 1),
+          (SELECT COUNT(*) > 0 FROM "Patient")
+        )
+      `);
+    }, { timeout: 30000 });
 
     await safeWriteAuditLog(prisma, req, {
       action: auditActions.patientUpdated,

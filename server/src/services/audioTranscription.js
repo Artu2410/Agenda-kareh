@@ -5,7 +5,7 @@ const AUDIO_TRANSCRIPTION_MODEL = process.env.GEMINI_AUDIO_MODEL || process.env.
 const MAX_INLINE_AUDIO_BYTES = 18 * 1024 * 1024;
 
 const AUDIO_TRANSCRIPTION_PROMPT = [
-  'Transcribi este audio de WhatsApp a texto plano en español.',
+  'Transcribi este audio a texto plano en español.',
   'Mantené nombres, obras sociales, horarios, direcciones, diagnósticos y números tal como se entiendan.',
   'No resumas.',
   'No agregues explicaciones.',

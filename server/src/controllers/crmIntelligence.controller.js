@@ -224,7 +224,7 @@ const buildPrimaryAction = (patient) => {
 
   if (patient.atRisk) {
     return {
-      type: 'WHATSAPP_FOLLOW_UP',
+      type: 'CALL_FOLLOW_UP',
       label: 'Contactar seguimiento',
       reason: 'Cortar abandono antes de perder recurrencia',
       priority: 85,

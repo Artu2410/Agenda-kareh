@@ -48,15 +48,6 @@ const findClosestTimeSlotIndex = (timeSlots, currentMinutes) => {
 const sortSchedules = (workSchedule = []) =>
   [...workSchedule].sort((a, b) => DAY_ORDER.indexOf(a.dayOfWeek) - DAY_ORDER.indexOf(b.dayOfWeek));
 
-const buildDefaultDays = (currentDate) =>
-  Array.from({ length: 6 }, (_, index) => ({
-    dayOfWeek: index + 1,
-    startTime: '08:00',
-    endTime: '20:30',
-    date: addDays(currentDate, index),
-    hasConfiguredSchedule: false,
-  }));
-
 const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedule = [], selectedProfessional = null, currentTime, capacityPerSlot = 5 }) => {
   const scrollContainerRef = useRef(null);
   const getStatusMeta = (appointment = {}) => {
@@ -173,7 +164,13 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
     const sortedSchedule = sortSchedules(workSchedule);
 
     if (!sortedSchedule.length) {
-      return buildDefaultDays(currentDate);
+      return DAY_ORDER.map((dayOfWeek, index) => ({
+        dayOfWeek,
+        startTime: '08:00',
+        endTime: '20:30',
+        date: addDays(currentDate, index),
+        hasConfiguredSchedule: false,
+      }));
     }
 
     return sortedSchedule.map((schedule) => ({
@@ -242,7 +239,25 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
     return findCurrentTimeSlotIndex(timeSlots, currentMinutes);
   }, [timeSlots, currentTime]);
 
-  const gridTemplateColumns = `var(--calendar-time-column) repeat(${dayColumns.length}, minmax(var(--calendar-day-min-width), 1fr))`;
+  const weeklyTotals = useMemo(() => appointments.reduce((totals, appointment) => {
+    totals.total += 1;
+    const patientKey = appointment.patientId || appointment.patient?.id || appointment.patient?.dni;
+    if (patientKey) totals.patientIds.add(patientKey);
+
+    if (appointment.status === 'COMPLETED') totals.completed += 1;
+    else if (appointment.status === 'NO_SHOW') totals.noShow += 1;
+    else totals.scheduled += 1;
+
+    return totals;
+  }, {
+    total: 0,
+    scheduled: 0,
+    completed: 0,
+    noShow: 0,
+    patientIds: new Set(),
+  }), [appointments]);
+
+  const gridTemplateColumns = `var(--calendar-time-column) repeat(${dayColumns.length}, minmax(0, 1fr))`;
 
   if (!selectedProfessional && !appointments.length) {
     return (
@@ -256,9 +271,23 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
     );
   }
 
-  return (
-    <div ref={scrollContainerRef} className="calendar-scroll-container relative isolate max-h-[72vh] overflow-auto rounded-2xl border bg-white shadow-2xl sm:max-h-[85vh]">
-      <div className="calendar-grid grid min-w-max" style={{ gridTemplateColumns }}>
+    return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+        <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-black uppercase tracking-wide text-white">{weeklyTotals.total} turnos</span>
+        <span className="rounded-full bg-teal-100 px-3 py-1 text-xs font-black uppercase tracking-wide text-teal-700">{weeklyTotals.scheduled} programados</span>
+        <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black uppercase tracking-wide text-emerald-700">{weeklyTotals.completed} asistencias</span>
+        <span className="rounded-full bg-rose-100 px-3 py-1 text-xs font-black uppercase tracking-wide text-rose-700">{weeklyTotals.noShow} inasistencias</span>
+        <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-black uppercase tracking-wide text-blue-700">{weeklyTotals.patientIds.size} pacientes</span>
+      </div>
+      <div ref={scrollContainerRef} className="calendar-scroll-container relative isolate max-h-[72vh] overflow-x-auto overflow-y-auto rounded-2xl border bg-white shadow-2xl sm:max-h-[85vh]">
+        <div
+          className="calendar-grid grid w-full min-w-[var(--calendar-min-width)]"
+          style={{
+            gridTemplateColumns,
+            '--calendar-min-width': `calc(var(--calendar-time-column) + (${dayColumns.length} * var(--calendar-day-min-width)))`,
+          }}
+        >
         <div className="sticky-corner border-b border-r p-2 bg-slate-100 z-50" />
 
         {dayColumns.map((day) => (
@@ -405,7 +434,8 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
             </React.Fragment>
           );
         })}
-      </div>
+        </div>
+    </div>
     </div>
   );
 };

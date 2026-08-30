@@ -43,6 +43,8 @@ const EMPTY_FORM = {
   dniBackImageUrl: '',
   insuranceCardImageUrl: '',
   insuranceCardBackImageUrl: '',
+  cudCredentialUrl: '',
+  cudNumber: '',
 };
 
 const PATIENT_DOCUMENTS = [
@@ -50,6 +52,7 @@ const PATIENT_DOCUMENTS = [
   { field: 'dniBackImageUrl', label: 'DNI dorso', tone: 'bg-slate-100 text-slate-600' },
   { field: 'insuranceCardImageUrl', label: 'Credencial frente', tone: 'bg-teal-100 text-teal-700' },
   { field: 'insuranceCardBackImageUrl', label: 'Credencial dorso', tone: 'bg-teal-100 text-teal-700' },
+  { field: 'cudCredentialUrl', label: 'Credencial CUD', tone: 'bg-blue-100 text-blue-700' },
 ];
 
 const isUnknownBirthDate = (birthDate) => {
@@ -171,6 +174,8 @@ export default function PatientsPage() {
       dniBackImageUrl: patient.dniBackImageUrl || '',
       insuranceCardImageUrl: patient.insuranceCardImageUrl || '',
       insuranceCardBackImageUrl: patient.insuranceCardBackImageUrl || '',
+      cudCredentialUrl: patient.cudCredentialUrl || '',
+      cudNumber: patient.cudNumber || '',
       isIU: patient.isIU || false,
     });
     setShowModal(true);
@@ -585,28 +590,6 @@ export default function PatientsPage() {
                       </div>
                     )}
 
-                    {selectedObraSocial?.requiredDocuments?.documents?.length > 0 && (
-                      <div className="md:col-span-2 rounded-[1.6rem] border border-teal-100 bg-teal-50/70 px-4 py-4">
-                        <p className="text-[10px] font-black uppercase tracking-[0.22em] text-teal-600">Documentación requerida</p>
-                        <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                          {selectedObraSocial.requiredDocuments.documents.map((document) => (
-                            <div key={document.name} className="rounded-2xl bg-white px-3 py-3 text-sm font-semibold text-slate-700">
-                              {document.name}
-                              <span className="ml-2 text-xs font-black uppercase text-slate-400">
-                                {document.mandatory ? 'Obligatorio' : 'Opcional'}
-                                {document.validityDays ? ` · ${document.validityDays} días` : ''}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                        {selectedObraSocial.requiredDocuments.additionalInfo && (
-                          <p className="mt-3 whitespace-pre-line text-sm font-medium text-slate-600">
-                            {selectedObraSocial.requiredDocuments.additionalInfo}
-                          </p>
-                        )}
-                      </div>
-                    )}
-
                     <div>
                       <label className="mb-1 block text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Teléfono de emergencia</label>
                       <input
@@ -632,7 +615,7 @@ export default function PatientsPage() {
                 </section>
 
                 <section className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm">
-                  <h3 className="text-lg font-black text-slate-800">Alertas y notas</h3>
+                  <h3 className="text-lg font-black text-slate-800">Alertas médicas</h3>
                   <p className="mt-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Seguimiento rápido</p>
 
                   <div className="mt-4 rounded-3xl bg-red-50 p-4">
@@ -657,17 +640,6 @@ export default function PatientsPage() {
                     </div>
                   </div>
 
-                  <div className="mt-4">
-                    <label className="mb-1 block text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Notas clínicas</label>
-                    <textarea
-                      name="medicalNotes"
-                      value={formData.medicalNotes || ''}
-                      onChange={handleInputChange}
-                      rows={5}
-                      placeholder="Alergias, observaciones o indicaciones administrativas."
-                      className="w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-4 font-semibold outline-none transition focus:ring-2 ring-teal-500"
-                    />
-                  </div>
                 </section>
               </div>
 
@@ -689,6 +661,18 @@ export default function PatientsPage() {
                         disabled={isNewPatient}
                       />
                     ))}
+                  </div>
+
+                  <div className="mt-4">
+                    <label className="mb-1 block text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Número de CUD</label>
+                    <input
+                      type="text"
+                      name="cudNumber"
+                      value={formData.cudNumber || ''}
+                      onChange={handleInputChange}
+                      placeholder="Opcional"
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 font-semibold outline-none transition focus:ring-2 ring-teal-500"
+                    />
                   </div>
 
                   {isNewPatient && (
