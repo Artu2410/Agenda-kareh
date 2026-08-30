@@ -62,13 +62,16 @@
     "supertest": "^7.2.2"
   },
   "overrides": {
-    "brace-expansion": "5.0.8",
+    "brace-expansion": "5.0.9",
     "minimatch": "10.2.5",
     "path-to-regexp": "0.1.13",
     "picomatch": "^2.3.2",
     "qs": "^6.15.0",
     "cookie": "^0.7.0",
     "fast-xml-parser": "5.7.3",
+    "fast-uri": "3.1.5",
+    "ip-address": "10.3.1",
+    "js-yaml": "4.3.1",
     "uuid": "14.0.0",
     "@hono/node-server": "^1.19.14"
   }
