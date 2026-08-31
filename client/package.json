@@ -7,14 +7,14 @@
   "license": "MIT",
   "scripts": {
     "dev": "vite",
-    "build": "npx vite build",
+    "build": "vite build",
+    "preview": "vite preview",
     "lint": "eslint .",
     "test": "vitest",
     "test:unit": "vitest run",
     "test:coverage": "vitest run --coverage",
     "check:coverage": "node scripts/check-coverage.mjs",
-    "test:e2e": "playwright test",
-    "preview": "vite preview"
+    "test:e2e": "playwright test"
   },
   "engines": {
     "node": "22.x"

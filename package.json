@@ -6,7 +6,7 @@
     "server"
   ],
   "scripts": {
-  "build": "npm run build --prefix client",
-  "install-client": "npm install --prefix client"
-}
+    "build": "npm run build --prefix client",
+    "postinstall": "npm install --prefix client"
+  }
 }
