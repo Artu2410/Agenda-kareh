@@ -7,7 +7,7 @@
   "license": "MIT",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "npx vite build",
     "lint": "eslint .",
     "test": "vitest",
     "test:unit": "vitest run",
