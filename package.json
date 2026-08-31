@@ -6,13 +6,7 @@
     "server"
   ],
   "scripts": {
-    "dev": "node scripts/dev.mjs",
-    "dev:client": "npm run dev --workspace client",
-    "dev:server": "npm run dev --workspace server",
-    "build": "npm run build --workspace client",
-    "test": "npm run test:client && npm run test:server",
-    "test:client": "npm run test:unit --workspace client",
-    "test:server": "npm run test --workspace server -- --runInBand",
-    "test:coverage": "npm run test:coverage --workspace client && npm run test:coverage --workspace server"
-  }
+  "build": "npm run build --prefix client",
+  "install-client": "npm install --prefix client"
+}
 }
