@@ -1,12 +1,5 @@
 {
-  "installCommand": "npm ci",
-  "buildCommand": "cd client && npm run build",
+  "buildCommand": "cd client && npm install && npm run build",
   "outputDirectory": "client/dist",
-  "framework": "vite",
-  "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
-  ]
+  "installCommand": "npm install"
 }
