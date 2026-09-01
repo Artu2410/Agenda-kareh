@@ -286,6 +286,7 @@ export const upsertWorkSchedule = async (req, res, prisma) => {
     });
 
     res.status(201).json({ message: 'Work schedule updated successfully', count: result.count });
+    delCache(PROFESSIONALS_CACHE_KEY);
   } catch (error) {
     throw createInternalError(error, 'Error al actualizar cronograma profesional');
   }
