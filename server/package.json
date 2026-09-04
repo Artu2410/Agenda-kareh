@@ -28,7 +28,6 @@
   "author": "Jose Arturo Azocar Perez",
   "license": "MIT",
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1021.0",
     "@google/generative-ai": "^0.24.1",
     "@prisma/client": "^5.22.0",
     "cookie-parser": "^1.4.7",

@@ -27,19 +27,15 @@ const envSchema = z.object({
   CLIENT_URL: z.string().url().optional(),
   CORS_ALLOWED_ORIGINS: z.string().default(''),
 
+  // Almacenamiento local replicado externamente (Syncthing)
+  UPLOADS_DIR: z.string().default('./uploads'),
+  PUBLIC_SERVER_URL: z.string().url().optional(),
+
   // Auth
   AUTHORIZED_EMAIL: z.string().email().optional(),
   AUTH_BOOTSTRAP_USERS: z.string().default(''),
   OTP_LENGTH: z.coerce.number().default(6),
   OTP_EXPIRY_MINUTES: z.coerce.number().default(10),
-
-  // Storage S3-compatible
-  STORAGE_BUCKET: z.string().optional(),
-  STORAGE_REGION: z.string().default('us-east-1'),
-  STORAGE_ENDPOINT: z.string().url().optional(),
-  STORAGE_PUBLIC_URL: z.string().url().optional(),
-  STORAGE_ACCESS_KEY_ID: z.string().optional(),
-  STORAGE_SECRET_ACCESS_KEY: z.string().optional(),
 
   // Email / Resend
   RESEND_API_KEY: z.string().optional(),

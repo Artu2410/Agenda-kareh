@@ -76,6 +76,7 @@ import { getBootstrapUsers } from './src/utils/auth.js';
 import { getStartupMetadata } from './src/config/runtimeInfo.js';
 import { NotFoundError } from './src/errors/AppError.js';
 import { errorHandler } from './src/middlewares/errorHandler.js';
+import { createLocalFileHandler } from './src/services/storage.js';
 
 const isProduction = process.env.NODE_ENV === 'production';
 
@@ -299,6 +300,7 @@ app.use('/api/metrics', authMiddleware, createMetricsRoutes(prisma));
 app.use('/api/notes', authMiddleware, createNotesRoutes(prisma));
 app.use('/api/professionals', authMiddleware, createProfessionalRoutes(prisma));
 app.use('/api/uploads', authMiddleware, uploadLimiter, createUploadRoutes());
+app.use('/uploads', authMiddleware, createLocalFileHandler());
 app.use('/api/transcription', authMiddleware, createTranscriptionRoutes());
 app.use('/api/agenda', authMiddleware, createAgendaRoutes(prisma));
 app.use('/api/notifications', authMiddleware, createNotificationsRoutes(prisma));

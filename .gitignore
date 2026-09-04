@@ -17,6 +17,9 @@ server/coverage/
 coverage/
 *.log
 
+# Backup local de archivos recuperados desde AWS
+Backup_AWS_Kareh/
+
 # IDE and OS specific
 .DS_Store
 .vscode/

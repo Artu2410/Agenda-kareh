@@ -63,4 +63,16 @@ describe('Environment Validation', () => {
       validateEnv();
     }).not.toThrow();
   });
+
+  it('should default local storage and allow a machine-specific public URL', () => {
+    process.env.JWT_SECRET = 'a'.repeat(32);
+    process.env.DATABASE_URL = 'postgresql://user:pass@localhost/db';
+    delete process.env.UPLOADS_DIR;
+    process.env.PUBLIC_SERVER_URL = 'http://100.64.0.10:5000';
+
+    expect(validateEnv()).toMatchObject({
+      UPLOADS_DIR: './uploads',
+      PUBLIC_SERVER_URL: 'http://100.64.0.10:5000',
+    });
+  });
 });

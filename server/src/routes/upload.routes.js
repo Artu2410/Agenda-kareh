@@ -2,7 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { uploadBufferToStorage } from '../services/storage.js';
+import { saveBufferToLocalStorage } from '../services/storage.js';
 import { createInternalError, createPublicError } from '../errors/AppError.js';
 
 const MAX_UPLOAD_MB = Number(process.env.UPLOAD_MAX_MB || 25);
@@ -15,6 +15,13 @@ const ALLOWED_MIME_TYPES = new Set([
   'image/gif',
   'application/pdf',
 ]);
+
+const sanitizeSegment = (value, fallback) => {
+  const sanitized = String(value || fallback)
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]/g, '-');
+  return sanitized || fallback;
+};
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -29,14 +36,15 @@ const upload = multer({
 
 const buildKey = ({ originalname, mimetype, patientId, professionalId, entryId, scope }) => {
   const extFromName = path.extname(originalname || '').toLowerCase();
+  const allowedExtensions = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.pdf']);
   const fallbackExt = mimetype === 'application/pdf' ? '.pdf' : '.jpg';
-  const ext = extFromName || fallbackExt;
+  const ext = allowedExtensions.has(extFromName) ? extFromName : fallbackExt;
 
-  const normalizedScope = String(scope || 'clinical-history').trim() || 'clinical-history';
+  const normalizedScope = sanitizeSegment(scope, 'clinical-history');
   const parts = [normalizedScope];
-  if (patientId) parts.push(patientId);
-  if (professionalId) parts.push(professionalId);
-  if (entryId) parts.push(entryId);
+  if (patientId) parts.push(sanitizeSegment(patientId, 'patient'));
+  if (professionalId) parts.push(sanitizeSegment(professionalId, 'professional'));
+  if (entryId) parts.push(sanitizeSegment(entryId, 'entry'));
 
   return `${parts.join('/')}/${Date.now()}-${crypto.randomUUID()}${ext}`;
 };
@@ -59,7 +67,7 @@ export default function createUploadRoutes() {
         scope: req.body?.scope,
       });
 
-      const url = await uploadBufferToStorage({
+      const { url } = await saveBufferToLocalStorage({
         buffer: req.file.buffer,
         key,
         contentType: req.file.mimetype || 'application/octet-stream',
