@@ -8,5 +8,8 @@
   "scripts": {
     "build": "npm run build --prefix client",
     "postinstall": "npm install --prefix client"
+  },
+  "engines": {
+    "node": "22.x"
   }
 }
