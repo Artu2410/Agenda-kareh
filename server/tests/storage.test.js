@@ -13,6 +13,7 @@ import {
 import {
   createS3Client,
   createS3FileHandler,
+  createFileHandler,
   deleteFileFromStorage,
   saveBufferToS3Storage,
 } from '../src/services/storage.js';
@@ -105,6 +106,12 @@ describe('Cloudflare R2 storage', () => {
     });
 
     await client.destroy();
+  });
+
+  it('does not connect to R2 while registering the file route', () => {
+    delete process.env.STORAGE_ACCESS_KEY_ID;
+
+    expect(() => createFileHandler()).not.toThrow();
   });
 
   it('uploads a buffer to the configured R2 bucket while preserving the relative URL', async () => {

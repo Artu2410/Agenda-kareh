@@ -157,7 +157,7 @@ export const createLocalFileHandler = ({
 const isMissingObjectError = (error) => error?.name === 'NoSuchKey'
   || error?.$metadata?.httpStatusCode === 404;
 
-export const createS3FileHandler = ({ client = getS3Client() } = {}) => async (req, res, next) => {
+export const createS3FileHandler = ({ client } = {}) => async (req, res, next) => {
   let key;
   try {
     key = normalizeKey(decodeURIComponent(String(req.path || '').replace(/^\/+/, '')));
@@ -169,7 +169,8 @@ export const createS3FileHandler = ({ client = getS3Client() } = {}) => async (r
   }
 
   try {
-    const response = await client.send(new GetObjectCommand({ Bucket: getS3Bucket(), Key: key }));
+    const storageClient = client || getS3Client();
+    const response = await storageClient.send(new GetObjectCommand({ Bucket: getS3Bucket(), Key: key }));
     if (response.ContentType) res.setHeader('Content-Type', response.ContentType);
     if (response.ContentLength !== undefined) res.setHeader('Content-Length', response.ContentLength);
     if (response.ETag) res.setHeader('ETag', response.ETag);
