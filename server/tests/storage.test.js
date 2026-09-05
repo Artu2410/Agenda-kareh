@@ -18,6 +18,7 @@ import {
 } from '../src/services/storage.js';
 import { extractBearerToken } from '../src/utils/auth.js';
 import { Readable } from 'node:stream';
+import { createFileAccessMiddleware } from '../src/middlewares/fileAccessMiddleware.js';
 
 describe('local file storage', () => {
   let uploadsDir;
@@ -173,5 +174,18 @@ describe('Cloudflare R2 storage', () => {
     expect(extractBearerToken({ query: { token: 'file-access-token' }, headers: {} }, { allowQueryToken: true }))
       .toBe('file-access-token');
     expect(extractBearerToken({ query: { token: 'file-access-token' }, headers: {} })).toBeNull();
+  });
+
+  it('serves anonymous GET file requests without invoking authentication', async () => {
+    const app = express();
+    const handler = jest.fn((req, res) => res.status(200).send('archivo público'));
+    const authMiddleware = jest.fn(() => { throw new Error('No debe autenticar GET'); });
+    app.use('/uploads', createFileAccessMiddleware({ handler, authMiddleware }));
+
+    const response = await request(app).get('/uploads/patient-documents/file.pdf');
+
+    expect(response.status).toBe(200);
+    expect(response.text).toBe('archivo público');
+    expect(authMiddleware).not.toHaveBeenCalled();
   });
 });
