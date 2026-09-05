@@ -5,6 +5,7 @@ import { es } from 'date-fns/locale';
 import PrintSessions from './PrintSessions';
 import { useAppointmentForm } from '../hooks/useAppointmentForm';
 import { getCoverageLabel, isParticularCoverage } from '../utils/coverage';
+import { getAuthenticatedFileUrl } from '../services/fileUrl';
 
 const WEEK_DAYS = [
   { label: 'L', value: 1 }, { label: 'Ma', value: 2 }, { label: 'Mi', value: 3 },
@@ -384,7 +385,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                       </label>
                     </div>
                     {authorizationFileUrl && (
-                      <a href={authorizationFileUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex text-xs font-bold text-amber-700 underline">
+                      <a href={getAuthenticatedFileUrl(authorizationFileUrl)} target="_blank" rel="noreferrer" className="mt-3 inline-flex text-xs font-bold text-amber-700 underline">
                         Ver autorización adjunta
                       </a>
                     )}

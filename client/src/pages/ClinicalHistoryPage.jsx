@@ -5,6 +5,7 @@ import {
   Loader, X, Upload, Camera, Printer, Calendar, CheckCircle2, ChevronLeft, Search, Maximize2
 } from 'lucide-react';
 import api from '../services/api';
+import { getAuthenticatedFileUrl } from '../services/fileUrl';
 import toast from 'react-hot-toast';
 import { useConfirmModal } from '../hooks/useConfirmModal';
 import {
@@ -586,7 +587,7 @@ const ClinicalHistoryPage = () => {
     try { return JSON.parse(data) || []; } catch { return []; }
   };
 
-  const getAttachmentUrl = (file) => file?.url || file?.data || '';
+  const getAttachmentUrl = (file) => getAuthenticatedFileUrl(file?.url || file?.data || '');
 
   const isPdfAttachment = (file) => {
     const url = getAttachmentUrl(file);
@@ -1131,7 +1132,7 @@ const ClinicalHistoryPage = () => {
                       {insuranceDocumentHistory.map((document, index) => (
                         <a
                           key={`${document.appointmentId}-${document.name}-${index}`}
-                          href={document.fileUrl}
+                          href={getAuthenticatedFileUrl(document.fileUrl)}
                           target="_blank"
                           rel="noreferrer"
                           className="block rounded-3xl border border-white/80 bg-white px-4 py-4 shadow-sm transition hover:border-teal-200"

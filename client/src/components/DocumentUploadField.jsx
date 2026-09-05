@@ -1,4 +1,5 @@
 import React from 'react';
+import { getAuthenticatedFileUrl } from '../services/fileUrl';
 import {
   Camera,
   Download,
@@ -84,13 +85,13 @@ const DocumentUploadField = ({
 
           {value && (
             <>
-              <a href={value} target="_blank" rel="noreferrer">
+              <a href={getAuthenticatedFileUrl(value)} target="_blank" rel="noreferrer">
                 <ActionLabel tone="ghost">
                   <ExternalLink size={14} />
                   Abrir
                 </ActionLabel>
               </a>
-              <a href={value} target="_blank" rel="noreferrer" download>
+              <a href={getAuthenticatedFileUrl(value)} target="_blank" rel="noreferrer" download>
                 <ActionLabel tone="ghost">
                   <Download size={14} />
                   Descargar
@@ -112,14 +113,14 @@ const DocumentUploadField = ({
       {value && (
         isImageUrl(value) ? (
           <img
-            src={value}
+            src={getAuthenticatedFileUrl(value)}
             alt={label}
             className="h-44 w-full rounded-3xl border border-slate-200 object-cover shadow-sm"
           />
         ) : isPdfUrl(value) ? (
           <div className="relative h-44 w-full overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
             <iframe
-              src={`${value}#toolbar=0&navpanes=0&scrollbar=0`}
+              src={`${getAuthenticatedFileUrl(value)}#toolbar=0&navpanes=0&scrollbar=0`}
               className="h-[500px] w-full origin-top scale-[0.5] border-none"
               title={label}
               style={{ pointerEvents: 'none' }}

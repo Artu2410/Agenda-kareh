@@ -16,6 +16,7 @@ import { useConfirmModal } from '../hooks/useConfirmModal';
 import DocumentUploadField from '../components/DocumentUploadField';
 import { buildClinicalHistoryPath, persistClinicalHistoryContext } from '../utils/appRoutes';
 import { getCoverageLabel, isParticularCoverage } from '../utils/coverage';
+import { getAuthenticatedFileUrl } from '../services/fileUrl';
 
 const UNKNOWN_BIRTHDATE = '1900-01-01';
 const MAX_UPLOAD_MB = Number(import.meta.env.VITE_UPLOAD_MAX_MB || 25);
@@ -299,7 +300,7 @@ export default function PatientsPage() {
     return documents.map((document) => (
       <a
         key={document.field}
-        href={patient[document.field]}
+                            href={getAuthenticatedFileUrl(patient[document.field])}
         target="_blank"
         rel="noreferrer"
         className={`rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] ${document.tone}`}

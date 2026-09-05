@@ -160,11 +160,12 @@ export const generateOtpCode = () => String(Math.floor(100000 + Math.random() * 
 
 export const generateTokenId = () => crypto.randomUUID();
 
-export const extractBearerToken = (req) => {
+export const extractBearerToken = (req, { allowQueryToken = false } = {}) => {
   const authHeader = req.headers.authorization;
   return req.cookies?.accessToken
     || (authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null)
     || req.cookies?.auth_token
+    || (allowQueryToken && typeof req.query?.token === 'string' ? req.query.token : null)
     || null;
 };
 

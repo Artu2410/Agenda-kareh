@@ -12,9 +12,12 @@ import {
 
 import {
   createS3Client,
+  createS3FileHandler,
   deleteFileFromStorage,
   saveBufferToS3Storage,
 } from '../src/services/storage.js';
+import { extractBearerToken } from '../src/utils/auth.js';
+import { Readable } from 'node:stream';
 
 describe('local file storage', () => {
   let uploadsDir;
@@ -140,5 +143,35 @@ describe('Cloudflare R2 storage', () => {
         Key: 'clinical-history/patient-1/file.pdf',
       },
     }));
+  });
+
+  it('streams an R2 object as HTTP 200 with its content type', async () => {
+    const app = express();
+    const client = {
+      send: jest.fn().mockResolvedValue({
+        Body: Readable.from(Buffer.from('contenido r2')),
+        ContentType: 'application/pdf',
+        ContentLength: 12,
+      }),
+    };
+    app.use('/uploads', createS3FileHandler({ client }));
+
+    const response = await request(app).get('/uploads/clinical-history/file.pdf');
+
+    expect(response.status).toBe(200);
+    expect(response.headers['content-type']).toContain('application/pdf');
+    expect(response.body.toString()).toBe('contenido r2');
+    expect(client.send).toHaveBeenCalledWith(expect.objectContaining({
+      input: {
+        Bucket: 'kareh-uploads',
+        Key: 'clinical-history/file.pdf',
+      },
+    }));
+  });
+
+  it('accepts a query token only when file routes explicitly opt in', () => {
+    expect(extractBearerToken({ query: { token: 'file-access-token' }, headers: {} }, { allowQueryToken: true }))
+      .toBe('file-access-token');
+    expect(extractBearerToken({ query: { token: 'file-access-token' }, headers: {} })).toBeNull();
   });
 });

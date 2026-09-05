@@ -3,7 +3,8 @@ import { extractBearerToken, getJwtSecret } from '../utils/auth.js';
 import { checkRole } from './rbacMiddleware.js';
 
 export const authMiddleware = async (req, res, next) => {
-  const token = extractBearerToken(req);
+  const isFileRoute = req.baseUrl === '/uploads' || String(req.originalUrl || '').startsWith('/uploads/');
+  const token = extractBearerToken(req, { allowQueryToken: isFileRoute });
   const prisma = req.prisma;
 
   if (!prisma) {

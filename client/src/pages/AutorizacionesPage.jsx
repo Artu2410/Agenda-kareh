@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, FileText, RefreshCw, Search, XCircle } from 'lucide-react';
 import api from '../services/api';
+import { getAuthenticatedFileUrl } from '../services/fileUrl';
 
 const formatDate = (value) => {
   if (!value) return 'Sin fecha';
@@ -159,7 +160,7 @@ const AuthorizationsPage = () => {
                       )}
                       {appointment.authorizationFileUrl && (
                         <a
-                          href={appointment.authorizationFileUrl}
+                          href={getAuthenticatedFileUrl(appointment.authorizationFileUrl)}
                           target="_blank"
                           rel="noreferrer"
                           className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-black uppercase text-slate-600"
