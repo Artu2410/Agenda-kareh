@@ -27,7 +27,13 @@ const envSchema = z.object({
   CLIENT_URL: z.string().url().optional(),
   CORS_ALLOWED_ORIGINS: z.string().default(''),
 
-  // Almacenamiento local replicado externamente (Syncthing)
+  // File storage
+  STORAGE_PROVIDER: z.enum(['local', 's3']).default('local'),
+  STORAGE_ACCESS_KEY_ID: z.string().optional(),
+  STORAGE_SECRET_ACCESS_KEY: z.string().optional(),
+  STORAGE_BUCKET: z.string().optional(),
+  STORAGE_REGION: z.string().default('auto'),
+  STORAGE_ENDPOINT: z.string().url().optional(),
   UPLOADS_DIR: z.string().default('./uploads'),
   PUBLIC_SERVER_URL: z.string().url().optional(),
 

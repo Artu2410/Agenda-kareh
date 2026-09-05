@@ -2,7 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { saveBufferToLocalStorage } from '../services/storage.js';
+import { saveBufferToStorage } from '../services/storage.js';
 import { createInternalError, createPublicError } from '../errors/AppError.js';
 
 const MAX_UPLOAD_MB = Number(process.env.UPLOAD_MAX_MB || 25);
@@ -67,7 +67,7 @@ export default function createUploadRoutes() {
         scope: req.body?.scope,
       });
 
-      const { url } = await saveBufferToLocalStorage({
+      const { url } = await saveBufferToStorage({
         buffer: req.file.buffer,
         key,
         contentType: req.file.mimetype || 'application/octet-stream',

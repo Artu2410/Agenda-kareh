@@ -10,6 +10,12 @@ import {
   saveBufferToLocalStorage,
 } from '../src/services/storage.js';
 
+import {
+  createS3Client,
+  deleteFileFromStorage,
+  saveBufferToS3Storage,
+} from '../src/services/storage.js';
+
 describe('local file storage', () => {
   let uploadsDir;
 
@@ -64,5 +70,75 @@ describe('local file storage', () => {
 
     expect(() => buildLocalFileUrl('../package.json')).toThrow('Ruta de archivo inválida');
     expect(getUploadsDir()).toBe(uploadsDir);
+  });
+});
+
+describe('Cloudflare R2 storage', () => {
+  const originalEnv = { ...process.env };
+
+  beforeEach(() => {
+    process.env.STORAGE_PROVIDER = 's3';
+    process.env.STORAGE_ACCESS_KEY_ID = 'test-access-key';
+    process.env.STORAGE_SECRET_ACCESS_KEY = 'test-secret-key';
+    process.env.STORAGE_BUCKET = 'kareh-uploads';
+    process.env.STORAGE_REGION = 'auto';
+    process.env.STORAGE_ENDPOINT = 'https://account.r2.cloudflarestorage.com';
+  });
+
+  afterEach(() => {
+    process.env = { ...originalEnv };
+  });
+
+  it('creates an S3 client with the R2 endpoint and path-style routing', async () => {
+    const client = createS3Client();
+
+    expect(client.config.forcePathStyle).toBe(true);
+    expect(await client.config.region()).toBe('auto');
+    expect(await client.config.endpoint()).toMatchObject({
+      hostname: 'account.r2.cloudflarestorage.com',
+      protocol: 'https:',
+      path: '/',
+    });
+
+    await client.destroy();
+  });
+
+  it('uploads a buffer to the configured R2 bucket while preserving the relative URL', async () => {
+    const send = jest.fn().mockResolvedValue({});
+    const result = await saveBufferToS3Storage({
+      client: { send },
+      buffer: Buffer.from('contenido'),
+      key: 'clinical-history/patient-1/file.pdf',
+      contentType: 'application/pdf',
+    });
+
+    expect(result).toEqual({
+      key: 'clinical-history/patient-1/file.pdf',
+      url: '/uploads/clinical-history/patient-1/file.pdf',
+    });
+    expect(send).toHaveBeenCalledWith(expect.objectContaining({
+      input: expect.objectContaining({
+        Bucket: 'kareh-uploads',
+        Key: 'clinical-history/patient-1/file.pdf',
+        Body: Buffer.from('contenido'),
+        ContentType: 'application/pdf',
+      }),
+    }));
+  });
+
+  it('deletes a normalized key from the configured R2 bucket', async () => {
+    const send = jest.fn().mockResolvedValue({});
+
+    await deleteFileFromStorage({
+      client: { send },
+      key: '/clinical-history/patient-1/file.pdf',
+    });
+
+    expect(send).toHaveBeenCalledWith(expect.objectContaining({
+      input: {
+        Bucket: 'kareh-uploads',
+        Key: 'clinical-history/patient-1/file.pdf',
+      },
+    }));
   });
 });
