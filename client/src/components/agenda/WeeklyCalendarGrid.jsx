@@ -48,8 +48,9 @@ const findClosestTimeSlotIndex = (timeSlots, currentMinutes) => {
 const sortSchedules = (workSchedule = []) =>
   [...workSchedule].sort((a, b) => DAY_ORDER.indexOf(a.dayOfWeek) - DAY_ORDER.indexOf(b.dayOfWeek));
 
-const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedule = [], selectedProfessional = null, currentTime, capacityPerSlot = 5 }) => {
+const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedule = [], selectedProfessional = null, currentTime, capacityPerSlot = 5, closedDays = [] }) => {
   const scrollContainerRef = useRef(null);
+  const closedDayByDate = new Map(closedDays.map((entry) => [entry.date, entry]));
   const getStatusMeta = (appointment = {}) => {
     const { status } = appointment;
     const colorScheme = getAppointmentColorScheme(appointment);
@@ -291,11 +292,16 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
         <div className="sticky-corner border-b border-r p-2 bg-slate-100 z-50" />
 
         {dayColumns.map((day) => (
-          <div key={day.date.toString()} className="sticky-day-header p-2 sm:p-4 text-center border-b border-r bg-slate-50 z-40">
+          <div key={day.date.toString()} className={`sticky-day-header p-2 sm:p-4 text-center border-b border-r z-40 ${closedDayByDate.has(format(day.date, 'yyyy-MM-dd')) ? 'bg-amber-50' : 'bg-slate-50'}`}>
             <p className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-widest">
               {format(day.date, 'EEEE', { locale: es })}
             </p>
             <p className="text-lg sm:text-xl font-black text-slate-800">{format(day.date, 'd')}</p>
+            {closedDayByDate.has(format(day.date, 'yyyy-MM-dd')) && (
+              <p className="mt-1 text-[10px] font-black uppercase text-amber-800">
+                Cerrado · {closedDayByDate.get(format(day.date, 'yyyy-MM-dd')).name}
+              </p>
+            )}
             {day.hasConfiguredSchedule && (
               <p className="mt-1 text-[10px] font-black uppercase tracking-wider text-teal-600">
                 {day.startTime} - {day.endTime}
@@ -330,7 +336,8 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
                 const dayStartMinutes = parseTimeToMinutes(day.startTime);
                 const dayEndMinutes = parseTimeToMinutes(day.endTime);
                 const isWithinConfiguredSchedule = !day.hasConfiguredSchedule || (slotMinutes >= dayStartMinutes && slotMinutes < dayEndMinutes);
-                const isCellDisabled = !isWithinConfiguredSchedule && appsInSlot.length === 0;
+                const isDayClosed = closedDayByDate.has(formattedDate);
+                const isCellDisabled = (isDayClosed || !isWithinConfiguredSchedule) && appsInSlot.length === 0;
 
                 return (
                   <div
@@ -418,7 +425,7 @@ const WeeklyCalendarGrid = ({ currentDate, onSlotClick, appointments, workSchedu
                       );
                     })}
 
-                    {isWithinConfiguredSchedule && appsInSlot.length < capacityPerSlot && (
+                    {!isDayClosed && isWithinConfiguredSchedule && appsInSlot.length < capacityPerSlot && (
                       <button
                         type="button"
                         aria-label={`Agregar turno ${formattedDate} ${slotTime}`}

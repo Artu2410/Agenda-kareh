@@ -8,6 +8,7 @@ const DEFAULT_AGENDA_CONFIG = {
   saturdayEndTime: null,
   slotDuration: 30,
   capacityPerSlot: 5,
+  nationalHolidaysClose: true,
   timerDurationMinutes: 25,
   timerDurations: [],
 };
@@ -130,6 +131,9 @@ const buildAgendaConfigData = (input = {}) => {
   if (input.weekdayStartTime !== undefined) data.weekdayStartTime = input.weekdayStartTime;
   if (input.weekdayEndTime !== undefined) data.weekdayEndTime = input.weekdayEndTime;
   if (input.saturdayEnabled !== undefined) data.saturdayEnabled = input.saturdayEnabled;
+  if (input.nationalHolidaysClose !== undefined && typeof input.nationalHolidaysClose === 'boolean') {
+    data.nationalHolidaysClose = input.nationalHolidaysClose;
+  }
   if (input.saturdayStartTime !== undefined) data.saturdayStartTime = input.saturdayStartTime;
   if (input.saturdayEndTime !== undefined) data.saturdayEndTime = input.saturdayEndTime;
 

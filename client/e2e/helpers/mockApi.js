@@ -172,6 +172,34 @@ const buildMetricsResponse = () => ({
   },
 });
 
+const buildCapacityResponse = () => ({
+  referenceDate: '2026-10-03T12:00:00.000Z',
+  currentWeek: {
+    capacity: 250,
+    occupiedCount: 15,
+    availableCapacity: 235,
+    occupancyRate: 6,
+  },
+  currentMonth: {
+    weeklyCapacity: 250,
+    monthlyCapacity: 1065,
+    occupiedCount: 15,
+    completedCount: 15,
+    freeMonthlyCapacity: 1050,
+    occupancyRate: (15 / 1065) * 100,
+    activePatients: 8,
+    level: { label: 'Infrautilizado', tone: 'neutral', description: 'Hay margen operativo.' },
+    days: [
+      { date: '2026-10-12', dayOfWeek: 1, capacity: 0, isBlocked: true },
+    ],
+  },
+  futureCoverage: {},
+  bottleneck: { key: 'DEMAND', label: 'Falta demanda', description: 'Capacidad disponible.' },
+  alerts: {},
+  monthlyTrend: [],
+  professionals: [],
+});
+
 const buildAuthUser = (role = 'SECRETARIA') => ({
   id: 'user-1',
   email: `${role.toLowerCase()}@kareh.test`,
@@ -211,6 +239,8 @@ const buildInitialState = ({ role = 'SECRETARIA' } = {}) => {
     ],
     agendaConfig: buildAgendaConfig(),
     metrics: buildMetricsResponse(),
+    capacity: buildCapacityResponse(),
+    calendarEntries: [],
     syncStatus: {
       total: obrasSociales.length,
       activas: obrasSociales.filter((item) => item.isActive).length,
@@ -452,12 +482,28 @@ export const installMockApi = async (page, options = {}) => {
       return sendJson(route, clone(state.metrics));
     }
 
+    if (path === '/capacity' && method === 'GET') {
+      return sendJson(route, clone(state.capacity));
+    }
+
     if (path === '/professionals' && method === 'GET') {
       return sendJson(route, clone(state.professionals));
     }
 
     if (path === '/agenda/config' && method === 'GET') {
       return sendJson(route, clone(state.agendaConfig));
+    }
+
+    if (path === '/agenda/calendar-entries' && method === 'GET') {
+      const from = url.searchParams.get('from');
+      const to = url.searchParams.get('to');
+      const professionalId = url.searchParams.get('professionalId');
+      const entries = state.calendarEntries.filter((entry) => (
+        (!from || entry.date >= from)
+        && (!to || entry.date <= to)
+        && (!entry.professionalId || entry.professionalId === professionalId)
+      ));
+      return sendJson(route, clone(entries));
     }
 
     if (path === '/appointments/week' && method === 'GET') {

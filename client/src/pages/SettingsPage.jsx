@@ -36,11 +36,40 @@ const dayLabels = {
   6: 'Sáb',
 };
 
+const calendarEntryLabels = {
+  NATIONAL_HOLIDAY: 'Feriado nacional',
+  NON_WORKING_DAY: 'Día no laborable',
+  TOURISM_DAY: 'Día turístico',
+  BANK_HOLIDAY: 'Feriado bancario',
+  OBSERVANCE: 'Conmemoración',
+  CLINIC_CLOSURE: 'Cierre propio de Kareh',
+  SCHEDULE_EXCEPTION: 'Apertura excepcional',
+};
+
+const manualCalendarEntryLabels = {
+  CLINIC_CLOSURE: calendarEntryLabels.CLINIC_CLOSURE,
+  SCHEDULE_EXCEPTION: calendarEntryLabels.SCHEDULE_EXCEPTION,
+};
+
+const getLocalDateKey = () => {
+  const today = new Date();
+  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+};
+
 const SettingsPage = () => {
   const [professionals, setProfessionals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [agendaConfig, setAgendaConfig] = useState(null);
+  const [calendarEntries, setCalendarEntries] = useState([]);
+  const [calendarEntrySaving, setCalendarEntrySaving] = useState(false);
+  const [calendarEntryForm, setCalendarEntryForm] = useState({
+    date: getLocalDateKey(),
+    name: '',
+    type: 'CLINIC_CLOSURE',
+    professionalId: '',
+    isOperational: false,
+  });
   const [configLoading, setConfigLoading] = useState(false);
   const [agendaSaving, setAgendaSaving] = useState(false);
   const [isProfessionalModalOpen, setIsProfessionalModalOpen] = useState(false);
@@ -100,13 +129,24 @@ const SettingsPage = () => {
     }
   }, []);
 
+  const fetchCalendarEntries = useCallback(async () => {
+    try {
+      const response = await instance.get('/agenda/calendar-entries');
+      setCalendarEntries(response.data || []);
+    } catch {
+      setCalendarEntries([]);
+    }
+  }, []);
+
   const updateAgendaConfig = async () => {
     if (!agendaConfig) return;
 
     try {
       setAgendaSaving(true);
       const payload = {
+        slotDuration: Math.max(1, Number(agendaConfig.slotDuration) || 1),
         capacityPerSlot: Math.max(1, Number(agendaConfig.capacityPerSlot) || 1),
+        nationalHolidaysClose: Boolean(agendaConfig.nationalHolidaysClose),
         timerDurationMinutes: Math.max(1, Number(agendaConfig.timerDurationMinutes) || 1),
         timerDurations: buildTimerDurations(
           Math.max(1, Number(agendaConfig.capacityPerSlot) || 1),
@@ -126,8 +166,9 @@ const SettingsPage = () => {
   useEffect(() => {
     fetchProfessionals();
     fetchAgendaConfig();
+    fetchCalendarEntries();
     fetchUsers();
-  }, [fetchAgendaConfig, fetchProfessionals, fetchUsers]);
+  }, [fetchAgendaConfig, fetchCalendarEntries, fetchProfessionals, fetchUsers]);
 
   const handleOpenProfessionalModal = (professional = null) => {
     setSelectedProfessional(professional);
@@ -268,6 +309,43 @@ const SettingsPage = () => {
     });
   };
 
+  const handleCreateCalendarEntry = async (event) => {
+    event.preventDefault();
+    try {
+      setCalendarEntrySaving(true);
+      await instance.post('/agenda/calendar-entries', {
+        ...calendarEntryForm,
+        professionalId: calendarEntryForm.professionalId || null,
+        isOperational: calendarEntryForm.type === 'SCHEDULE_EXCEPTION' && calendarEntryForm.isOperational,
+      });
+      setCalendarEntryForm((previous) => ({ ...previous, name: '' }));
+      await fetchCalendarEntries();
+    } catch (err) {
+      alert(err.response?.data?.message || 'No se pudo guardar la excepción de agenda.');
+    } finally {
+      setCalendarEntrySaving(false);
+    }
+  };
+
+  const handleToggleCalendarEntry = async (entry) => {
+    try {
+      await instance.put(`/agenda/calendar-entries/${entry.id}`, { isActive: !entry.isActive });
+      await fetchCalendarEntries();
+    } catch (err) {
+      alert(err.response?.data?.message || 'No se pudo actualizar la excepción.');
+    }
+  };
+
+  const handleDeleteCalendarEntry = async (entry) => {
+    if (!window.confirm(`¿Eliminar «${entry.name}» del ${entry.date}?`)) return;
+    try {
+      await instance.delete(`/agenda/calendar-entries/${entry.id}`);
+      await fetchCalendarEntries();
+    } catch (err) {
+      alert(err.response?.data?.message || 'No se pudo eliminar la excepción.');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 p-4 text-slate-900 sm:p-6">
       <header className="mb-6 sm:mb-8">
@@ -383,7 +461,7 @@ const SettingsPage = () => {
               <div className="space-y-4">
                 <div>
                   <label className="mb-2 block text-sm font-medium text-slate-700">
-                    Capacidad por slot (turnos cada 30 minutos)
+                    Capacidad por bloque de agenda
                   </label>
                   <input
                     type="number"
@@ -394,9 +472,43 @@ const SettingsPage = () => {
                     className="rounded-lg border border-slate-300 px-3 py-2 focus:border-teal-500 focus:ring-2 focus:ring-teal-500"
                   />
                   <p className="mt-1 text-xs text-slate-500">
-                    Número máximo de pacientes que pueden agendarse en el mismo horario (actualmente: {agendaConfig.capacityPerSlot})
+                    Número máximo de pacientes que pueden agendarse en cada horario de inicio.
                   </p>
                 </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-slate-700">
+                    Duración del bloque de agenda (minutos)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="180"
+                    value={agendaConfig.slotDuration}
+                    onChange={handleAgendaInputChange('slotDuration')}
+                    className="rounded-lg border border-slate-300 px-3 py-2 focus:border-teal-500 focus:ring-2 focus:ring-teal-500"
+                  />
+                  <p className="mt-1 text-xs text-slate-500">
+                    La capacidad se recalcula usando esta duración y los horarios configurados para cada profesional.
+                  </p>
+                </div>
+
+                <label className="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm font-semibold text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={agendaConfig.nationalHolidaysClose === true}
+                    onChange={(event) => setAgendaConfig((previous) => (
+                      previous ? { ...previous, nationalHolidaysClose: event.target.checked } : previous
+                    ))}
+                    className="mt-0.5 h-4 w-4 accent-teal-700"
+                  />
+                  <span>
+                    Cerrar el centro en feriados nacionales
+                    <span className="mt-1 block text-xs font-medium text-slate-500">
+                      Los días no laborables y turísticos no cierran automáticamente la agenda.
+                    </span>
+                  </span>
+                </label>
 
                 <div>
                   <label className="mb-2 block text-sm font-medium text-slate-700">
@@ -455,6 +567,129 @@ const SettingsPage = () => {
               </div>
             ) : (
               <p className="text-slate-500">No se pudo cargar la configuración.</p>
+            )}
+          </div>
+        </section>
+
+        <section className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-100 bg-slate-50/50 p-6">
+            <h2 className="text-xl font-bold text-slate-700">Feriados, cierres y excepciones</h2>
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Calendario operativo de Kareh</p>
+          </div>
+
+          <div className="space-y-5 p-6">
+            {canManageUsers && (
+              <form onSubmit={handleCreateCalendarEntry} className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-2 lg:grid-cols-6">
+                <label className="text-xs font-bold text-slate-600">
+                  Fecha
+                  <input
+                    required
+                    type="date"
+                    value={calendarEntryForm.date}
+                    onChange={(event) => setCalendarEntryForm((previous) => ({ ...previous, date: event.target.value }))}
+                    className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm"
+                  />
+                </label>
+                <label className="text-xs font-bold text-slate-600 sm:col-span-1 lg:col-span-2">
+                  Nombre
+                  <input
+                    required
+                    maxLength={120}
+                    value={calendarEntryForm.name}
+                    onChange={(event) => setCalendarEntryForm((previous) => ({ ...previous, name: event.target.value }))}
+                    placeholder="Nombre del feriado o cierre"
+                    className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm"
+                  />
+                </label>
+                <label className="text-xs font-bold text-slate-600 lg:col-span-2">
+                  Tipo
+                  <select
+                    value={calendarEntryForm.type}
+                    onChange={(event) => setCalendarEntryForm((previous) => ({
+                      ...previous,
+                      type: event.target.value,
+                      isOperational: false,
+                    }))}
+                    className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm"
+                  >
+                    {Object.entries(manualCalendarEntryLabels).map(([value, label]) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-xs font-bold text-slate-600">
+                  Alcance
+                  <select
+                    value={calendarEntryForm.professionalId}
+                    onChange={(event) => setCalendarEntryForm((previous) => ({ ...previous, professionalId: event.target.value }))}
+                    className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm"
+                  >
+                    <option value="">Toda la agenda</option>
+                    {professionals.map((professional) => (
+                      <option key={professional.id} value={professional.id}>{professional.fullName}</option>
+                    ))}
+                  </select>
+                </label>
+                {calendarEntryForm.type === 'SCHEDULE_EXCEPTION' && (
+                  <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 sm:col-span-2 lg:col-span-4">
+                    <input
+                      type="checkbox"
+                      checked={calendarEntryForm.isOperational}
+                      onChange={(event) => setCalendarEntryForm((previous) => ({ ...previous, isOperational: event.target.checked }))}
+                    />
+                    Abrir excepcionalmente en un feriado o cierre
+                  </label>
+                )}
+                <button
+                  type="submit"
+                  disabled={calendarEntrySaving}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-teal-700 px-4 text-sm font-bold text-white hover:bg-teal-800 disabled:opacity-60 lg:col-span-6 lg:justify-self-end"
+                >
+                  {calendarEntrySaving ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+                  Agregar al calendario
+                </button>
+              </form>
+            )}
+
+            {calendarEntries.length === 0 ? (
+              <p className="py-6 text-center text-sm font-medium text-slate-500">No hay feriados, cierres ni excepciones configurados.</p>
+            ) : (
+              <ul className="divide-y divide-slate-100">
+                {calendarEntries.map((entry) => {
+                  const professionalName = professionals.find((professional) => professional.id === entry.professionalId)?.fullName;
+                  return (
+                    <li key={entry.id} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <p className={`font-bold ${entry.isActive ? 'text-slate-800' : 'text-slate-400 line-through'}`}>{entry.name}</p>
+                        <p className="mt-1 text-xs font-semibold text-slate-500">
+                          {entry.date} · {calendarEntryLabels[entry.type] || entry.type} · {professionalName || 'Toda la agenda'}
+                          {entry.type === 'SCHEDULE_EXCEPTION' && entry.isOperational ? ' · Operativo' : ''}
+                          {entry.entrySource === 'NATIONAL_HOLIDAY_CALENDAR' ? ' · Calendario automático AR' : ''}
+                        </p>
+                      </div>
+                      {canManageUsers && entry.entrySource !== 'NATIONAL_HOLIDAY_CALENDAR' && (
+                        <div className="flex shrink-0 items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleCalendarEntry(entry)}
+                            aria-pressed={entry.isActive}
+                            className="min-h-10 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                          >
+                            {entry.isActive ? 'Desactivar' : 'Activar'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteCalendarEntry(entry)}
+                            className="min-h-10 rounded-lg border border-rose-200 px-3 text-xs font-bold text-rose-700 hover:bg-rose-50"
+                          >
+                            Eliminar
+                          </button>
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
             )}
           </div>
         </section>

@@ -1,4 +1,4 @@
-import { startOfWeek, endOfWeek, parseISO } from 'date-fns';
+import { addDays, startOfWeek, endOfWeek, parseISO } from 'date-fns';
 import {
   appointmentBaseSelect,
   appointmentSelect,
@@ -14,6 +14,8 @@ import { buildStoredFinancialSnapshot } from '../utils/appointmentFinancialSnaps
 import { auditActions, safeWriteAuditLog } from '../utils/audit.js';
 import logger from '../config/logger.js';
 import { createInternalError, createPublicError } from '../errors/AppError.js';
+import { isCalendarDateOperational } from '../domain/metrics/capacity.service.js';
+import { getHolidaysForDateRange } from '../services/holidayCalendar.service.js';
 
 // Helper para evitar corrimientos de fecha por zona horaria.
 // Si la fecha viene en formato 'YYYY-MM-DD' la dejamos a mediodía local (12:00)
@@ -49,6 +51,10 @@ const parseDateAvoidTZ = (d) => {
   }
 };
 const UNKNOWN_BIRTHDATE = new Date(1900, 0, 1, 12, 0, 0);
+
+const toLocalDateKey = (date) => (
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+);
 
 const normalizeBirthDateOrUnknown = (d) => {
   if (!d) return UNKNOWN_BIRTHDATE;
@@ -419,7 +425,7 @@ export const createAppointment = async (req, res, prisma) => {
   try {
     // Obtener configuración de agenda
     const agendaConfig = await prisma.agendaConfig.findFirst();
-    const capacityPerSlot = agendaConfig?.capacityPerSlot || 5;
+    const capacityPerSlot = Number(agendaConfig?.capacityPerSlot) || 0;
 
     const result = await prisma.$transaction(async (tx) => {
       let patient;
@@ -531,13 +537,49 @@ export const createAppointment = async (req, res, prisma) => {
       const numSessions = Math.max(1, parseInt(sessionCount) || 1);
       const [year, month, day] = date.split('-').map(Number);
       let currentDate = new Date(year, month - 1, day, 12, 0, 0);
+      const calendarEntries = tx.agendaCalendarEntry?.findMany
+        ? await tx.agendaCalendarEntry.findMany({
+          where: {
+            date: {
+              gte: toLocalDateKey(currentDate),
+              lte: toLocalDateKey(addDays(currentDate, 149)),
+            },
+            isActive: true,
+          },
+        })
+        : [];
+      const holidays = getHolidaysForDateRange(
+        toLocalDateKey(currentDate),
+        toLocalDateKey(addDays(currentDate, 149)),
+        { nationalHolidaysClose: agendaConfig?.nationalHolidaysClose !== false },
+      );
       const daysToUse = (selectedDays && selectedDays.length > 0) ? selectedDays : [currentDate.getDay()];
+      if (numSessions === 1 && daysToUse.includes(currentDate.getDay()) && !isCalendarDateOperational({
+        date: toLocalDateKey(currentDate),
+        professionalId: prof.id,
+        calendarEntries,
+        holidays,
+        agendaConfig,
+      })) {
+        throw createHttpError('No se puede crear un turno en un feriado o cierre operativo.', 409);
+      }
       
       let sessionsCreated = 0;
       let loopSafety = 0;
       while (sessionsCreated < numSessions && loopSafety < 150) {
         loopSafety++;
         if (daysToUse.includes(currentDate.getDay())) {
+          if (!isCalendarDateOperational({
+            date: toLocalDateKey(currentDate),
+            professionalId: prof.id,
+            calendarEntries,
+            holidays,
+            agendaConfig,
+          })) {
+            currentDate.setDate(currentDate.getDate() + 1);
+            continue;
+          }
+
           const occupied = await tx.appointment.findMany({
             where: { 
               date: new Date(currentDate.setHours(12,0,0,0)), 
@@ -572,6 +614,9 @@ export const createAppointment = async (req, res, prisma) => {
           }
         }
         currentDate.setDate(currentDate.getDate() + 1);
+      }
+      if (appointmentsCreated.length === 0) {
+        throw createHttpError('No hay fechas operativas con cupos disponibles para crear los turnos solicitados.', 409);
       }
       await resequencePatientAppointments(tx, patient.id);
       return {
@@ -807,7 +852,7 @@ export const updateAppointment = async (req, res, prisma) => {
   try {
     // Obtener configuración de agenda
     const agendaConfig = await prisma.agendaConfig.findFirst();
-    const capacityPerSlot = agendaConfig?.capacityPerSlot || 5;
+    const capacityPerSlot = Number(agendaConfig?.capacityPerSlot) || 0;
 
     const result = await prisma.$transaction(async (tx) => {
       const currentAppointment = await tx.appointment.findUnique({
@@ -881,6 +926,27 @@ export const updateAppointment = async (req, res, prisma) => {
       updateData.sessionToken = appointmentWritePayload.sessionToken;
 
       if (hasScheduleChange) {
+        const calendarEntries = await tx.agendaCalendarEntry.findMany({
+          where: {
+            date: toLocalDateKey(nextDate),
+            isActive: true,
+          },
+        });
+        const holidays = getHolidaysForDateRange(
+          toLocalDateKey(nextDate),
+          toLocalDateKey(nextDate),
+          { nationalHolidaysClose: agendaConfig?.nationalHolidaysClose !== false },
+        );
+        if (!isCalendarDateOperational({
+          date: toLocalDateKey(nextDate),
+          professionalId: currentAppointment.professionalId,
+          calendarEntries,
+          holidays,
+          agendaConfig,
+        })) {
+          throw createHttpError('No se puede mover un turno a un feriado o cierre operativo.', 409);
+        }
+
         const occupiedSlots = await tx.appointment.findMany({
           where: {
             id: { not: id },

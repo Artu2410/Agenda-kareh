@@ -7,7 +7,9 @@ import {
   startOfMonth,
 } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { getCapacityForMonth } from '../domain/metrics/capacity.service.js';
 import { createInternalError } from '../errors/AppError.js';
+import { getHolidaysForDateRange } from '../services/holidayCalendar.service.js';
 
 const DEFAULT_FIXED_EXPENSES = 1_193_000;
 const DEFAULT_ADMIN_MONTHLY_COST = 250_000;
@@ -54,25 +56,6 @@ const getFixedExpenses = (req) => getConfigValue(
   process.env.KAREH_FIXED_EXPENSES_MONTHLY,
   DEFAULT_FIXED_EXPENSES
 );
-
-const parseTimeToMinutes = (value) => {
-  const match = String(value || '').match(/^(\d{1,2}):(\d{2})$/);
-  if (!match) return null;
-
-  const hours = Number(match[1]);
-  const minutes = Number(match[2]);
-  if (!Number.isInteger(hours) || !Number.isInteger(minutes)) return null;
-  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
-
-  return hours * 60 + minutes;
-};
-
-const getScheduleMinutes = (schedule = []) => schedule.reduce((sum, item) => {
-  const start = parseTimeToMinutes(item.startTime);
-  const end = parseTimeToMinutes(item.endTime);
-  if (start === null || end === null || end <= start) return sum;
-  return sum + (end - start);
-}, 0);
 
 const getCashBalances = (transactions = []) => {
   const balances = new Map(CASHFLOW_ACCOUNTS.map((account) => [account, 0]));
@@ -215,21 +198,6 @@ const getReceivables = (invoices = [], today) => {
     due60: 0,
     due90: 0,
   });
-};
-
-const getMonthlyCapacity = ({ professionals, sessionDurationMinutes }) => {
-  const weeklyMinutes = professionals.reduce(
-    (sum, professional) => sum + getScheduleMinutes(professional.workSchedule),
-    0
-  );
-  const weeklyCapacity = sessionDurationMinutes > 0 ? weeklyMinutes / sessionDurationMinutes : 0;
-
-  return {
-    weeklyMinutes,
-    weeklyHours: weeklyMinutes / 60,
-    weeklyCapacity,
-    monthlyCapacity: weeklyCapacity * MONTHLY_WEEK_FACTOR,
-  };
 };
 
 const getCurrentMonthAppointments = (appointments = [], monthStart, monthEnd) => appointments.filter((appointment) => (

@@ -28,6 +28,7 @@ import {
 } from 'recharts';
 import api from '../services/api';
 import { showErrorToast } from '../components/toastHelpers';
+import { getHistoricalAxisMax } from '../utils/capacityChart';
 
 const dayLabels = {
   0: 'Dom',
@@ -315,12 +316,12 @@ const CapacityTooltip = ({ active, payload }) => {
           <span className="font-black text-slate-900">{formatNumber(row.capacity)}</span>
         </div>
         <div className="flex items-center justify-between gap-3">
-          <span>Turnos registrados</span>
-          <span className="font-black text-slate-900">{formatCount(row.turns ?? row.appointmentCount ?? row.completedCount)}</span>
+          <span>Turnos ocupados</span>
+          <span className="font-black text-slate-900">{formatCount(row.occupiedCount)}</span>
         </div>
         <div className="flex items-center justify-between gap-3">
           <span>Turnos asistidos</span>
-          <span className="font-black text-teal-700">{formatCount(row.completedCount)}</span>
+          <span className="font-black text-teal-700">{formatCount(row.attendedCount)}</span>
         </div>
         <div className="flex items-center justify-between gap-3">
           <span>Ocupación</span>
@@ -342,6 +343,7 @@ const formatScheduleSummary = (workSchedule = []) => {
 const CapacityPage = () => {
   const [capacity, setCapacity] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [historyView, setHistoryView] = useState('year');
 
   const fetchCapacity = useCallback(async ({ silent = false } = {}) => {
     try {
@@ -373,9 +375,9 @@ const CapacityPage = () => {
     bottleneck,
     adminAlert,
   });
-  const visibleMonthlyTrend = (capacity?.monthlyTrend || [])
-    .filter((row) => (row.turns || 0) > 0 || (row.completed || row.completedCount || 0) > 0)
-    .slice(-6);
+  const monthlyTrend = capacity?.monthlyTrend || [];
+  const visibleMonthlyTrend = historyView === 'year' ? monthlyTrend : monthlyTrend.slice(-6);
+  const historicalAxisMax = getHistoricalAxisMax(visibleMonthlyTrend);
 
   const summaryCards = [
     {
@@ -386,11 +388,18 @@ const CapacityPage = () => {
       tone: 'neutral',
     },
     {
-      label: 'Turnos realizados',
+      label: 'Turnos asistidos',
       value: formatCount(currentMonth.completedCount),
-      description: 'Solo turnos asistidos',
+      description: 'Turnos efectivamente atendidos',
       icon: CheckCircle2,
       tone: 'success',
+    },
+    {
+      label: 'Turnos ocupados',
+      value: formatCount(currentMonth.occupiedCount),
+      description: 'Turnos no cancelados que consumen capacidad',
+      icon: Users,
+      tone: 'neutral',
     },
     {
       label: 'Ocupación real',
@@ -518,15 +527,33 @@ const CapacityPage = () => {
 
         <section className="mb-6 grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="mb-4 flex items-start justify-between gap-4">
+            <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Histórico mensual</p>
-                <h2 className="mt-2 text-xl font-black text-slate-900">Capacidad vs turnos asistidos</h2>
+                <h2 className="mt-2 text-xl font-black text-slate-900">Capacidad, ocupación y asistencia</h2>
                 <p className="mt-1 text-sm font-semibold text-slate-500">
-                  Usa la capacidad actual configurada para comparar crecimiento real.
+                  Revisá cómo evolucionó el consultorio mes a mes. La ocupación usa turnos no cancelados; la asistencia muestra turnos efectivamente atendidos.
                 </p>
               </div>
-              <BarChart3 className="text-slate-300" size={24} />
+              <div className="flex items-center gap-2 self-start rounded-xl bg-slate-100 p-1" aria-label="Período del histórico">
+                {[
+                  { key: 'year', label: 'Todo el año' },
+                  { key: 'recent', label: 'Últimos 6 meses' },
+                ].map((option) => (
+                  <button
+                    key={option.key}
+                    type="button"
+                    aria-pressed={historyView === option.key}
+                    onClick={() => setHistoryView(option.key)}
+                    className={`rounded-lg px-3 py-2 text-xs font-black transition ${historyView === option.key
+                      ? 'bg-white text-teal-700 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {visibleMonthlyTrend.length > 0 ? (
@@ -534,18 +561,67 @@ const CapacityPage = () => {
                 <ComposedChart data={visibleMonthlyTrend} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                   <XAxis dataKey="month" tick={{ fontSize: 12, fontWeight: 700 }} tickLine={false} axisLine={false} minTickGap={12} />
-                  <YAxis yAxisId="left" allowDecimals={false} tickLine={false} axisLine={false} width={38} />
-                  <YAxis yAxisId="right" orientation="right" tickFormatter={(value) => `${value}%`} tickLine={false} axisLine={false} width={44} />
+                  <YAxis
+                    yAxisId="left"
+                    domain={[0, historicalAxisMax]}
+                    allowDecimals={false}
+                    tickLine={false}
+                    axisLine={false}
+                    width={48}
+                  />
+                  <YAxis
+                    yAxisId="right"
+                    orientation="right"
+                    domain={[0, 'auto']}
+                    tickFormatter={(value) => `${value}%`}
+                    tickLine={false}
+                    axisLine={false}
+                    width={44}
+                  />
                   <RechartsTooltip content={<CapacityTooltip />} />
                   <Legend wrapperStyle={{ paddingTop: 12 }} />
                   <Bar yAxisId="left" dataKey="capacity" name="Capacidad" fill="#cbd5e1" radius={[8, 8, 0, 0]} />
-                  <Bar yAxisId="left" dataKey="completedCount" name="Turnos asistidos" fill="#14b8a6" radius={[8, 8, 0, 0]} />
+                  <Bar yAxisId="left" dataKey="attendedCount" name="Turnos asistidos" fill="#14b8a6" radius={[8, 8, 0, 0]} />
                   <Line yAxisId="right" type="monotone" dataKey="occupancyRate" name="Ocupación %" stroke="#f59e0b" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
                 </ComposedChart>
               </ChartSurface>
             ) : (
               <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center text-sm font-semibold text-slate-400">
                 No hay meses con actividad suficiente.
+              </div>
+            )}
+
+            {monthlyTrend.length > 0 && (
+              <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200">
+                <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
+                  <h3 className="text-sm font-black text-slate-900">Detalle mensual</h3>
+                  <p className="mt-1 text-xs font-semibold text-slate-500">Todo el año disponible para comparar capacidad, demanda y asistencia.</p>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-left text-sm">
+                    <caption className="sr-only">Detalle mensual de capacidad y ocupación</caption>
+                    <thead className="bg-white text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+                      <tr>
+                        <th scope="col" className="px-4 py-3">Mes</th>
+                        <th scope="col" className="px-4 py-3 text-right">Capacidad</th>
+                        <th scope="col" className="px-4 py-3 text-right">Ocupados</th>
+                        <th scope="col" className="px-4 py-3 text-right">Asistidos</th>
+                        <th scope="col" className="px-4 py-3 text-right">Ocupación</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {monthlyTrend.map((row) => (
+                        <tr key={row.monthKey} className="bg-white text-slate-600">
+                          <th scope="row" className="whitespace-nowrap px-4 py-3 font-black text-slate-800">{row.label || row.month}</th>
+                          <td className="px-4 py-3 text-right font-semibold">{formatNumber(row.capacity)}</td>
+                          <td className="px-4 py-3 text-right font-semibold">{formatCount(row.occupiedCount)}</td>
+                          <td className="px-4 py-3 text-right font-semibold text-teal-700">{formatCount(row.attendedCount)}</td>
+                          <td className="px-4 py-3 text-right font-black text-amber-700">{formatRate(row.occupancyRate)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
           </div>
@@ -595,7 +671,7 @@ const CapacityPage = () => {
                       </span>
                     </div>
 
-                    <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
                       <div className="rounded-xl bg-white px-3 py-3">
                         <p className="text-[10px] font-black uppercase text-slate-400">Horas sem.</p>
                         <p className="mt-1 text-lg font-black text-slate-900">{formatNumber(professional.availableHoursWeekly)}</p>
@@ -607,6 +683,10 @@ const CapacityPage = () => {
                       <div className="rounded-xl bg-white px-3 py-3">
                         <p className="text-[10px] font-black uppercase text-slate-400">Asistidos</p>
                         <p className="mt-1 text-lg font-black text-teal-700">{formatCount(professional.completedCount)}</p>
+                      </div>
+                      <div className="rounded-xl bg-white px-3 py-3">
+                        <p className="text-[10px] font-black uppercase text-slate-400">Turnos ocupados</p>
+                        <p className="mt-1 text-lg font-black text-slate-900">{formatCount(professional.occupiedCount)}</p>
                       </div>
                       <div className="rounded-xl bg-white px-3 py-3">
                         <p className="text-[10px] font-black uppercase text-slate-400">Ocupación</p>

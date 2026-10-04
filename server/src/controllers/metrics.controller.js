@@ -9,6 +9,8 @@ import {
   subMonths,
 } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { getCapacityForMonth, getCapacityForWeek } from '../domain/metrics/capacity.service.js';
+import { getHolidaysForDateRange } from '../services/holidayCalendar.service.js';
 import { getCoverageLabel } from '../utils/coverage.js';
 import { createInternalError } from '../errors/AppError.js';
 
@@ -97,6 +99,7 @@ const buildMonthlySnapshot = async (prisma, baseDate) => {
   return {
     start,
     nextStart,
+    appointments,
     appointmentCount,
     completedCount,
     noShowCount,
@@ -360,25 +363,6 @@ const buildInsights = ({ monthly, commercial, billingByCoverage }) => {
   return insights;
 };
 
-const parseTimeToMinutes = (value) => {
-  const match = String(value || '').match(/^(\d{1,2}):(\d{2})$/);
-  if (!match) return null;
-  const hours = Number(match[1]);
-  const minutes = Number(match[2]);
-  if (!Number.isInteger(hours) || !Number.isInteger(minutes)) return null;
-  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
-  return hours * 60 + minutes;
-};
-
-const getScheduleMinutes = (schedule = []) => (
-  schedule.reduce((sum, item) => {
-    const start = parseTimeToMinutes(item.startTime);
-    const end = parseTimeToMinutes(item.endTime);
-    if (start === null || end === null || end <= start) return sum;
-    return sum + (end - start);
-  }, 0)
-);
-
 const resolveReferenceDate = (req) => {
   const query = req?.query || {};
   const requestedMonth = query.month;
@@ -401,15 +385,15 @@ export const getMetrics = async (req, res, prisma) => {
   try {
     const now = resolveReferenceDate(req);
 
-    const weekStart = startOfWeek(now, { weekStartsOn: 1 });
-    const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
+    const weekStart = startOfWeek(now);
+    const weekEnd = endOfWeek(now);
 
     const weeklyAppointments = await prisma.appointment.findMany({
       where: {
         date: { gte: weekStart, lte: weekEnd },
         status: { not: 'CANCELLED' },
       },
-      select: { id: true, status: true },
+      select: { id: true, date: true, status: true, professionalId: true, slotNumber: true },
     });
 
     const weeklyScheduled = weeklyAppointments.filter((appointment) => appointment.status === 'SCHEDULED').length;
@@ -438,6 +422,22 @@ export const getMetrics = async (req, res, prisma) => {
     const previousMonthSnapshot = await buildMonthlySnapshot(prisma, subMonths(now, 1));
     const futureAgendaSnapshot = await buildFutureAgendaSnapshot(prisma, now);
     const agendaConfig = prisma?.agendaConfig?.findFirst ? await prisma.agendaConfig.findFirst() : null;
+    const calendarEntries = prisma?.agendaCalendarEntry?.findMany
+      ? await prisma.agendaCalendarEntry.findMany({
+        where: { isActive: true },
+        orderBy: [{ date: 'asc' }, { name: 'asc' }],
+      })
+      : [];
+    const capacityRangeStart = startOfWeek(now);
+    const capacityRangeEnd = new Date(Math.max(
+      endOfWeek(now).getTime(),
+      currentMonthSnapshot.nextStart.getTime() - 1,
+    ));
+    const holidays = await getHolidaysForDateRange(
+      format(capacityRangeStart, 'yyyy-MM-dd'),
+      format(capacityRangeEnd, 'yyyy-MM-dd'),
+      { nationalHolidaysClose: agendaConfig?.nationalHolidaysClose !== false },
+    );
 
     const professionals = prisma?.professional?.findMany
       ? await prisma.professional.findMany({
@@ -446,16 +446,25 @@ export const getMetrics = async (req, res, prisma) => {
       })
       : [];
     
-    const totalAvailableMinutes = professionals.reduce(
-      (sum, prof) => sum + getScheduleMinutes(prof.workSchedule),
-      0
-    );
-
-    const configuredSlotDuration = Math.max(1, Number(agendaConfig?.slotDuration || agendaConfig?.timerDurationMinutes || 30));
-    const weeklyCapacity = configuredSlotDuration > 0
-      ? (totalAvailableMinutes / configuredSlotDuration)
-      : 0;
-    const monthlyCapacity = weeklyCapacity * 4.33;
+    const monthlyCapacitySummary = getCapacityForMonth({
+      year: now.getFullYear(),
+      month: now.getMonth() + 1,
+      professionals,
+      agendaConfig,
+      appointments: currentMonthSnapshot.appointments || [],
+      calendarEntries,
+      holidays,
+    });
+    const weeklyCapacitySummary = getCapacityForWeek({
+      startDate: weekStart,
+      professionals,
+      agendaConfig,
+      appointments: weeklyAppointments,
+      calendarEntries,
+      holidays,
+    });
+    const monthlyCapacity = monthlyCapacitySummary.totalCapacity;
+    const weeklyCapacity = weeklyCapacitySummary.totalCapacity;
     const occupancyRate = monthlyCapacity > 0
       ? Number(((currentMonthSnapshot.totalTurnosMes / monthlyCapacity) * 100).toFixed(1))
       : 0;
@@ -550,6 +559,14 @@ export const getMetrics = async (req, res, prisma) => {
         completed: weeklyCompleted,
         noShow: weeklyNoShow,
         resolved: weeklyResolved,
+        occupiedCount: weeklyCapacitySummary.occupied,
+        reservedCount: weeklyCapacitySummary.reservedCount,
+        capacity: weeklyCapacitySummary.totalCapacity,
+        theoreticalCapacity: weeklyCapacitySummary.theoreticalCapacity,
+        effectiveCapacity: weeklyCapacitySummary.effectiveCapacity,
+        availableCapacity: weeklyCapacitySummary.available,
+        occupancyRate: Number(weeklyCapacitySummary.occupancyRate.toFixed(1)),
+        capacityDays: weeklyCapacitySummary.days,
         respiratory: weeklyRespiratory,
         iu: weeklyIU,
         percentage: weeklyTotal > 0 ? Number(((weeklyCompleted / weeklyTotal) * 100).toFixed(1)) : 0,
@@ -563,6 +580,10 @@ export const getMetrics = async (req, res, prisma) => {
         noShow: currentMonthSnapshot.noShowCount,
         resolved: currentMonthSnapshot.resolvedCount,
         attendanceRate: currentMonthSnapshot.attendanceRate,
+        occupiedCount: monthlyCapacitySummary.occupied,
+        reservedCount: monthlyCapacitySummary.reservedCount,
+        attendedCount: monthlyCapacitySummary.attendedCount,
+        noShowCount: monthlyCapacitySummary.noShowCount,
         change: monthlyChange,
         changeLabel: monthlyChange >= 0 ? `+${monthlyChange}%` : `${monthlyChange}%`,
         label: formatMonthLabel(now),
@@ -570,6 +591,9 @@ export const getMetrics = async (req, res, prisma) => {
         respiratory: currentMonthSnapshot.respiratoryCount,
         iu: currentMonthSnapshot.iuCount,
         capacityMonthly: monthlyCapacity,
+        theoreticalCapacityMonthly: monthlyCapacitySummary.theoreticalCapacity,
+        effectiveCapacityMonthly: monthlyCapacitySummary.effectiveCapacity,
+        capacityDays: monthlyCapacitySummary.days,
         occupancyRate,
         freeCapacity,
       },

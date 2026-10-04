@@ -6,21 +6,22 @@ import {
   startOfDay,
   startOfMonth,
   startOfWeek,
-  subMonths,
 } from 'date-fns';
 import { es } from 'date-fns/locale';
+import {
+  calculateOperationalCapacity,
+  getCapacityForMonth,
+  getProfessionalCapacityFromSummary,
+  getCapacityForWeek,
+  isCalendarDateOperational,
+} from '../domain/metrics/capacity.service.js';
+import { getHolidaysForDateRange } from '../services/holidayCalendar.service.js';
 import { createInternalError } from '../errors/AppError.js';
 
-const MONTHLY_WEEK_FACTOR = 4.33;
 const COMPLETED_STATUS = 'COMPLETED';
 const CANCELLED_STATUS = 'CANCELLED';
 const NO_SHOW_STATUS = 'NO_SHOW';
-
-const DEFAULT_AGENDA_CONFIG = {
-  slotDuration: 30,
-  timerDurationMinutes: 25,
-  capacityPerSlot: 1,
-};
+const BUSINESS_START_DATE = new Date(2026, 2, 1);
 
 const formatMonthLabel = (date) => format(date, 'MMMM yyyy', { locale: es });
 const formatChartMonth = (date) => format(date, 'MMM yy', { locale: es }).replace('.', '').toUpperCase();
@@ -31,30 +32,8 @@ const toNumber = (value) => {
 };
 
 const roundOne = (value) => Math.round(toNumber(value) * 10) / 10;
-const roundTwo = (value) => Math.round(toNumber(value) * 100) / 100;
 
-const parseTimeToMinutes = (value) => {
-  const match = String(value || '').match(/^(\d{1,2}):(\d{2})$/);
-  if (!match) return null;
-
-  const hours = Number(match[1]);
-  const minutes = Number(match[2]);
-  if (!Number.isInteger(hours) || !Number.isInteger(minutes)) return null;
-  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
-
-  return hours * 60 + minutes;
-};
-
-const getScheduleMinutes = (schedule = []) => (
-  schedule.reduce((sum, item) => {
-    const start = parseTimeToMinutes(item.startTime);
-    const end = parseTimeToMinutes(item.endTime);
-    if (start === null || end === null || end <= start) return sum;
-    return sum + (end - start);
-  }, 0)
-);
-
-const getOccupationLevel = (occupancyRate) => {
+export const getOccupationLevel = (occupancyRate) => {
   if (occupancyRate > 95) {
     return {
       key: 'OPERATIVE_RISK',
@@ -82,7 +61,7 @@ const getOccupationLevel = (occupancyRate) => {
     };
   }
 
-  if (occupancyRate >= 50) {
+  if (occupancyRate >= 10) {
     return {
       key: 'HEALTHY',
       label: 'Saludable',
@@ -96,26 +75,6 @@ const getOccupationLevel = (occupancyRate) => {
     label: 'Infrautilizado',
     tone: 'neutral',
     description: 'Hay capacidad disponible para captar más demanda.',
-  };
-};
-
-const buildCapacitySummary = (availableMinutes, sessionDurationMinutes, occupiedCount) => {
-  const weeklyCapacity = sessionDurationMinutes > 0
-    ? (availableMinutes / sessionDurationMinutes)
-    : 0;
-  const monthlyCapacity = weeklyCapacity * MONTHLY_WEEK_FACTOR;
-  const occupancyRate = monthlyCapacity > 0
-    ? (occupiedCount / monthlyCapacity) * 100
-    : 0;
-
-  return {
-    availableHoursWeekly: roundTwo(availableMinutes / 60),
-    weeklyCapacity: roundOne(weeklyCapacity),
-    monthlyCapacity: roundOne(monthlyCapacity),
-    completedCount: occupiedCount, // keeping name for backwards compatibility
-    freeMonthlyCapacity: roundOne(Math.max(monthlyCapacity - occupiedCount, 0)),
-    occupancyRate: roundOne(occupancyRate),
-    level: getOccupationLevel(occupancyRate),
   };
 };
 
@@ -192,36 +151,63 @@ const buildFutureCoverage = (futureAppointments, now) => {
   };
 };
 
-const buildMonthlyTrend = (appointments, monthlyCapacity) => {
+const buildMonthlyTrend = ({
+  appointments = [],
+  professionals = [],
+  agendaConfig,
+  calendarEntries = [],
+  holidays = [],
+  startDate,
+  endDate,
+}) => {
   const rowsByKey = new Map();
-
   appointments.forEach((appointment) => {
-    if (appointment.status === CANCELLED_STATUS) return;
-
     const monthKey = format(appointment.date, 'yyyy-MM');
     const current = rowsByKey.get(monthKey) || {
-      monthKey,
-      month: formatChartMonth(appointment.date),
-      label: formatMonthLabel(appointment.date),
-      capacity: roundOne(monthlyCapacity),
-      turns: 0,
-      completedCount: 0,
-      completed: 0,
-      occupancyRate: 0,
+      occupiedCount: 0,
+      attendedCount: 0,
     };
 
-    current.turns += 1;
-    if (appointment.status === COMPLETED_STATUS) current.completedCount += 1;
+    current.occupiedCount += 1;
+    if (appointment.status === COMPLETED_STATUS) current.attendedCount += 1;
     rowsByKey.set(monthKey, current);
   });
 
-  return Array.from(rowsByKey.values())
-    .sort((left, right) => left.monthKey.localeCompare(right.monthKey))
-    .map((row) => ({
-      ...row,
-      completed: row.completedCount,
-      occupancyRate: row.capacity > 0 ? roundOne((row.completedCount / row.capacity) * 100) : 0,
-    }));
+  const rows = [];
+  for (let monthStart = startOfMonth(startDate); monthStart < endDate; monthStart = addMonths(monthStart, 1)) {
+    const monthKey = format(monthStart, 'yyyy-MM');
+    const monthEnd = addMonths(monthStart, 1);
+    const monthlySummary = getCapacityForMonth({
+      year: monthStart.getFullYear(),
+      month: monthStart.getMonth() + 1,
+      professionals,
+      agendaConfig,
+      calendarEntries,
+      holidays,
+    });
+    const counters = rowsByKey.get(monthKey) || { occupiedCount: 0, attendedCount: 0 };
+    const capacity = monthlySummary.effectiveCapacity;
+
+    rows.push({
+      monthKey,
+      month: formatChartMonth(monthStart),
+      label: formatMonthLabel(monthStart),
+      capacity: roundOne(capacity),
+      effectiveCapacity: roundOne(capacity),
+      occupiedCount: counters.occupiedCount,
+      attendedCount: counters.attendedCount,
+      turns: counters.occupiedCount,
+      completedCount: counters.attendedCount,
+      completed: counters.attendedCount,
+      occupancyRate: capacity > 0 ? roundOne((counters.occupiedCount / capacity) * 100) : 0,
+      historicalCapacitySource: 'CURRENT_CONFIGURATION_RECONSTRUCTION',
+      historicalCapacityNote: 'No hay snapshots versionados de AgendaConfig ni WorkSchedule; la capacidad histórica fue reconstruida con la configuración actual.',
+      monthStart: format(monthStart, 'yyyy-MM-dd'),
+      monthEnd: format(addDays(monthEnd, -1), 'yyyy-MM-dd'),
+    });
+  }
+
+  return rows;
 };
 
 const getSustainedGrowth = (monthlyTrend) => {
@@ -375,17 +361,17 @@ export const getCapacityMetrics = async (req, res, prisma) => {
   try {
     const now = new Date();
     const todayStart = startOfDay(now);
-    const weekStart = startOfWeek(now, { weekStartsOn: 1 });
+    const weekStart = startOfWeek(now);
     const weekEnd = addDays(weekStart, 7);
     const monthStart = startOfMonth(now);
     const monthEnd = addMonths(monthStart, 1);
-    const trendStart = startOfMonth(subMonths(now, 11));
+    const trendStart = BUSINESS_START_DATE < monthStart ? BUSINESS_START_DATE : monthStart;
 
     const [
       agendaConfig,
       professionals,
       currentMonthAppointments,
-      currentWeekCompletedAppointments,
+      currentWeekAppointments,
       historicalAppointments,
       futureAppointments,
     ] = await Promise.all([
@@ -419,10 +405,13 @@ export const getCapacityMetrics = async (req, res, prisma) => {
       prisma.appointment.findMany({
         where: {
           date: { gte: weekStart, lt: weekEnd },
-          status: COMPLETED_STATUS,
+          status: { not: CANCELLED_STATUS },
         },
         select: {
           id: true,
+          date: true,
+          status: true,
+          patientId: true,
           professionalId: true,
         },
       }),
@@ -446,6 +435,7 @@ export const getCapacityMetrics = async (req, res, prisma) => {
           id: true,
           date: true,
           patientId: true,
+          professionalId: true,
         },
         orderBy: [
           { date: 'asc' },
@@ -455,56 +445,127 @@ export const getCapacityMetrics = async (req, res, prisma) => {
       }),
     ]);
 
-    const config = agendaConfig || DEFAULT_AGENDA_CONFIG;
-    const sessionDurationMinutes = Math.max(1, Number(config.slotDuration || config.timerDurationMinutes || 30));
-    const weeklyCompletedByProfessional = currentWeekCompletedAppointments.reduce((accumulator, appointment) => {
-      accumulator.set(appointment.professionalId, (accumulator.get(appointment.professionalId) || 0) + 1);
-      return accumulator;
-    }, new Map());
-    const monthlyCountersByProfessional = countByProfessional(currentMonthAppointments, professionals);
-    const totalAvailableMinutes = professionals.reduce(
-      (sum, professional) => sum + getScheduleMinutes(professional.workSchedule),
-      0
+    const calendarEntries = prisma.agendaCalendarEntry?.findMany
+      ? await prisma.agendaCalendarEntry.findMany({
+        where: {
+          date: {
+            gte: format(trendStart, 'yyyy-MM-dd'),
+            lte: format(addDays(monthEnd, -1), 'yyyy-MM-dd'),
+          },
+          isActive: true,
+        },
+        orderBy: [{ date: 'asc' }, { name: 'asc' }],
+      })
+      : [];
+    const lastFutureAppointment = futureAppointments[futureAppointments.length - 1];
+    const holidayRangeEnd = lastFutureAppointment?.date && lastFutureAppointment.date > addDays(monthEnd, -1)
+      ? lastFutureAppointment.date
+      : addDays(monthEnd, -1);
+    const holidays = await getHolidaysForDateRange(
+      format(trendStart, 'yyyy-MM-dd'),
+      format(holidayRangeEnd, 'yyyy-MM-dd'),
+      { nationalHolidaysClose: agendaConfig?.nationalHolidaysClose !== false },
     );
+    const operationalCapacity = calculateOperationalCapacity({
+      professionals,
+      agendaConfig,
+      appointments: currentMonthAppointments,
+      referenceDate: now,
+      calendarEntries,
+      holidays,
+    });
+    const weeklyCapacitySummary = getCapacityForWeek({
+      startDate: weekStart,
+      professionals,
+      agendaConfig,
+      appointments: currentWeekAppointments,
+      calendarEntries,
+      holidays,
+    });
+    const monthlyCapacitySummary = getCapacityForMonth({
+      year: now.getFullYear(),
+      month: now.getMonth() + 1,
+      professionals,
+      agendaConfig,
+      appointments: currentMonthAppointments,
+      calendarEntries,
+      holidays,
+    });
+    const weeklyCountersByProfessional = countByProfessional(currentWeekAppointments, professionals);
+    const monthlyCountersByProfessional = countByProfessional(currentMonthAppointments, professionals);
     const activePatients = new Set(currentMonthAppointments.map((appointment) => appointment.patientId).filter(Boolean)).size;
-    const validCurrentMonth = currentMonthAppointments.length;
-    const totalSummary = buildCapacitySummary(totalAvailableMinutes, sessionDurationMinutes, validCurrentMonth);
+    const totalSummary = {
+      availableHoursWeekly: operationalCapacity.availableHoursWeekly,
+      weeklyCapacity: weeklyCapacitySummary.totalCapacity,
+      monthlyCapacity: monthlyCapacitySummary.totalCapacity,
+      freeMonthlyCapacity: monthlyCapacitySummary.available,
+      occupancyRate: monthlyCapacitySummary.occupancyRate,
+      level: getOccupationLevel(monthlyCapacitySummary.occupancyRate),
+    };
 
     const professionalsSummary = professionals.map((professional) => {
-      const availableMinutes = getScheduleMinutes(professional.workSchedule);
+      const capacity = operationalCapacity.professionals.find((row) => row.id === professional.id);
       const monthlyCounters = monthlyCountersByProfessional.get(professional.id) || {
         completed: 0,
         total: 0,
         noShow: 0,
         activePatients: new Set(),
       };
-      const summary = buildCapacitySummary(availableMinutes, sessionDurationMinutes, monthlyCounters.total);
-      const weeklyCapacity = sessionDurationMinutes > 0 ? (availableMinutes / sessionDurationMinutes) : 0;
-      const weeklyCompleted = weeklyCompletedByProfessional.get(professional.id) || 0;
-      const weeklyOccupancyRate = weeklyCapacity > 0 ? (weeklyCompleted / weeklyCapacity) * 100 : 0;
+      const weeklyCounters = weeklyCountersByProfessional.get(professional.id) || {
+        completed: 0,
+        total: 0,
+        noShow: 0,
+        activePatients: new Set(),
+      };
+      const weeklyCapacity = getProfessionalCapacityFromSummary(weeklyCapacitySummary, professional.id);
+      const monthlyCapacity = getProfessionalCapacityFromSummary(monthlyCapacitySummary, professional.id);
+      const occupancyRate = monthlyCapacity > 0 ? (monthlyCounters.total / monthlyCapacity) * 100 : 0;
+      const weeklyOccupancyRate = weeklyCapacity > 0 ? (weeklyCounters.total / weeklyCapacity) * 100 : 0;
 
       return {
         id: professional.id,
         fullName: professional.fullName,
         specialty: professional.specialty,
         workSchedule: professional.workSchedule,
-        availableHoursWeekly: summary.availableHoursWeekly,
-        weeklyCapacity: summary.weeklyCapacity,
-        monthlyCapacity: summary.monthlyCapacity,
-        weeklyCompletedCount: weeklyCompleted,
+        availableHoursWeekly: capacity?.availableHoursWeekly || 0,
+        weeklyCapacity,
+        monthlyCapacity,
+        weeklyCompletedCount: weeklyCounters.completed,
+        weeklyOccupiedCount: weeklyCounters.total,
         weeklyOccupancyRate: roundOne(weeklyOccupancyRate),
-        completedCount: summary.completedCount,
+        completedCount: monthlyCounters.completed,
+        occupiedCount: monthlyCounters.total,
         monthlyAppointmentCount: monthlyCounters.total,
         noShowCount: monthlyCounters.noShow,
         activePatientCount: monthlyCounters.activePatients.size,
-        freeMonthlyCapacity: summary.freeMonthlyCapacity,
-        occupancyRate: summary.occupancyRate,
-        level: summary.level,
+        freeMonthlyCapacity: roundOne(Math.max(monthlyCapacity - monthlyCounters.total, 0)),
+        occupancyRate: roundOne(occupancyRate),
+        attendanceRate: monthlyCounters.completed + monthlyCounters.noShow > 0
+          ? roundOne((monthlyCounters.completed / (monthlyCounters.completed + monthlyCounters.noShow)) * 100)
+          : 0,
+        level: getOccupationLevel(occupancyRate),
       };
     });
 
-    const futureCoverage = buildFutureCoverage(futureAppointments, now);
-    const monthlyTrend = buildMonthlyTrend(historicalAppointments, totalSummary.monthlyCapacity);
+    const futureOperationalAppointments = futureAppointments.filter((appointment) => (
+      isCalendarDateOperational({
+        date: appointment.date,
+        professionalId: appointment.professionalId,
+        calendarEntries,
+        agendaConfig,
+        holidays,
+      })
+    ));
+    const futureCoverage = buildFutureCoverage(futureOperationalAppointments, now);
+    const monthlyTrend = buildMonthlyTrend({
+      appointments: historicalAppointments,
+      professionals,
+      agendaConfig,
+      calendarEntries,
+      holidays,
+      startDate: trendStart,
+      endDate: monthEnd,
+    });
     const sustainedGrowth = getSustainedGrowth(monthlyTrend);
 
     const adminRecommendation = buildAdminRecommendation({
@@ -529,31 +590,45 @@ export const getCapacityMetrics = async (req, res, prisma) => {
     res.status(200).json({
       referenceDate: now,
       config: {
-        sessionDurationMinutes,
-        monthlyWeekFactor: MONTHLY_WEEK_FACTOR,
+        sessionDurationMinutes: operationalCapacity.sessionDurationMinutes,
+        capacityPerSlot: operationalCapacity.capacityPerSlot,
       },
       currentWeek: {
         start: weekStart,
         end: addDays(weekEnd, -1),
-        completedCount: currentWeekCompletedAppointments.length,
-        capacity: roundOne(totalAvailableMinutes / sessionDurationMinutes),
-        occupancyRate: totalAvailableMinutes > 0
-          ? roundOne((currentWeekCompletedAppointments.length / (totalAvailableMinutes / sessionDurationMinutes)) * 100)
-          : 0,
+        occupiedCount: weeklyCapacitySummary.occupied,
+        reservedCount: weeklyCapacitySummary.reservedCount,
+        scheduledCount: weeklyCapacitySummary.scheduledCount,
+        completedCount: weeklyCapacitySummary.attendedCount,
+        noShowCount: weeklyCapacitySummary.noShowCount,
+        attendanceRate: roundOne(weeklyCapacitySummary.attendanceRate),
+        capacity: weeklyCapacitySummary.totalCapacity,
+        theoreticalCapacity: weeklyCapacitySummary.theoreticalCapacity,
+        effectiveCapacity: weeklyCapacitySummary.effectiveCapacity,
+        availableCapacity: weeklyCapacitySummary.available,
+        occupancyRate: roundOne(weeklyCapacitySummary.occupancyRate),
+        days: weeklyCapacitySummary.days,
       },
       currentMonth: {
         start: monthStart,
         end: addDays(monthEnd, -1),
         appointmentCount: currentMonthAppointments.length,
+        occupiedCount: monthlyCapacitySummary.occupied,
+        reservedCount: monthlyCapacitySummary.reservedCount,
+        scheduledCount: monthlyCapacitySummary.scheduledCount,
         completedCount: currentMonthAppointments.filter((a) => a.status === COMPLETED_STATUS).length,
         noShowCount: currentMonthAppointments.filter((appointment) => appointment.status === NO_SHOW_STATUS).length,
+        attendanceRate: roundOne(monthlyCapacitySummary.attendanceRate),
         activePatients,
         availableHoursWeekly: totalSummary.availableHoursWeekly,
-        weeklyCapacity: totalSummary.weeklyCapacity,
-        monthlyCapacity: totalSummary.monthlyCapacity,
-        freeMonthlyCapacity: totalSummary.freeMonthlyCapacity,
-        occupancyRate: totalSummary.occupancyRate,
+        weeklyCapacity: weeklyCapacitySummary.totalCapacity,
+        monthlyCapacity: monthlyCapacitySummary.totalCapacity,
+        theoreticalMonthlyCapacity: monthlyCapacitySummary.theoreticalCapacity,
+        effectiveMonthlyCapacity: monthlyCapacitySummary.effectiveCapacity,
+        freeMonthlyCapacity: monthlyCapacitySummary.available,
+        occupancyRate: roundOne(monthlyCapacitySummary.occupancyRate),
         level: totalSummary.level,
+        days: monthlyCapacitySummary.days,
       },
       professionals: professionalsSummary,
       futureCoverage,

@@ -8,7 +8,9 @@ import {
   subMonths,
 } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { getCapacityForMonth } from '../domain/metrics/capacity.service.js';
 import { createInternalError } from '../errors/AppError.js';
+import { getHolidaysForDateRange } from '../services/holidayCalendar.service.js';
 
 const DEFAULT_FIXED_EXPENSES = 1_193_000;
 const DEFAULT_ADMIN_MONTHLY_COST = 250_000;
@@ -31,7 +33,6 @@ const roundCurrency = (value) => Math.round(toNumber(value) * 100) / 100;
 const roundOne = (value) => Math.round(toNumber(value) * 10) / 10;
 
 const normalizeUpper = (value) => String(value || '').trim().toUpperCase();
-const formatMonthLabel = (date) => format(date, 'MMMM yyyy', { locale: es });
 const formatMonthKey = (date) => format(date, 'yyyy-MM');
 
 const getConfigValue = (queryValue, envValue, fallback) => {
@@ -635,17 +636,37 @@ export const getHiringRecommendations = async (req, res, prisma) => {
       1,
       Number(agendaConfig?.slotDuration || agendaConfig?.timerDurationMinutes || 30)
     );
-    const totalAvailableMinutesWeekly = professionals.reduce(
-      (sum, professional) => sum + getScheduleMinutes(professional.workSchedule),
-      0
+    const calendarEntries = prisma.agendaCalendarEntry?.findMany
+      ? await prisma.agendaCalendarEntry.findMany({
+        where: {
+          date: {
+            gte: format(monthStart, 'yyyy-MM-dd'),
+            lte: format(addDays(monthEnd, -1), 'yyyy-MM-dd'),
+          },
+          isActive: true,
+        },
+      })
+      : [];
+    const holidays = await getHolidaysForDateRange(
+      format(monthStart, 'yyyy-MM-dd'),
+      format(addDays(monthEnd, -1), 'yyyy-MM-dd'),
+      { nationalHolidaysClose: agendaConfig?.nationalHolidaysClose !== false },
     );
-    const weeklyCapacity = totalAvailableMinutesWeekly / sessionDurationMinutes;
-    const monthlyCapacity = weeklyCapacity * MONTHLY_WEEK_FACTOR;
+    const monthlyCapacitySummary = getCapacityForMonth({
+      year: now.getFullYear(),
+      month: now.getMonth() + 1,
+      professionals,
+      agendaConfig,
+      appointments: currentMonthAppointments,
+      calendarEntries,
+      holidays,
+    });
+    const monthlyCapacity = monthlyCapacitySummary.effectiveCapacity;
     const currentCompletedTurns = currentMonthAppointments.filter((appointment) => appointment.status === COMPLETED_STATUS).length;
     const currentMonthTurns = currentMonthAppointments.length;
     const activePatients = new Set(currentMonthAppointments.map((appointment) => appointment.patientId).filter(Boolean)).size;
-    const occupancyRate = monthlyCapacity > 0 ? (currentCompletedTurns / monthlyCapacity) * 100 : 0;
-    const freeMonthlyCapacity = Math.max(0, monthlyCapacity - currentCompletedTurns);
+    const occupancyRate = monthlyCapacitySummary.occupancyRate;
+    const freeMonthlyCapacity = monthlyCapacitySummary.available;
     const farthestFutureAppointment = futureAppointments[futureAppointments.length - 1] || null;
     const coverageDays = farthestFutureAppointment?.date
       ? Math.max(0, differenceInCalendarDays(farthestFutureAppointment.date, today))

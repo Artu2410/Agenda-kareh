@@ -68,6 +68,49 @@ describe('getMetrics', () => {
     expect(payload.monthly.label).toBe('abril 2026');
   });
 
+  it('uses the same Kareh weekly and actual-month capacity as the capacity domain service', async () => {
+    const prisma = {
+      agendaConfig: {
+        findFirst: jest.fn(async () => ({ slotDuration: 30, capacityPerSlot: 5, nationalHolidaysClose: true })),
+      },
+      professional: {
+        findMany: jest.fn(async () => ([{
+          id: 'prof-1',
+          fullName: 'Dr. Kareh',
+          specialty: 'Kinesiología',
+          workSchedule: [
+            { dayOfWeek: 1, startTime: '14:00', endTime: '19:30' },
+            { dayOfWeek: 2, startTime: '17:30', endTime: '19:30' },
+            { dayOfWeek: 3, startTime: '14:00', endTime: '19:30' },
+            { dayOfWeek: 4, startTime: '17:30', endTime: '19:30' },
+            { dayOfWeek: 5, startTime: '14:00', endTime: '19:30' },
+            { dayOfWeek: 6, startTime: '08:00', endTime: '12:30' },
+          ],
+        }])),
+      },
+      appointment: {
+        findMany: jest.fn(async () => []),
+        count: jest.fn(async () => 0),
+        groupBy: jest.fn(async () => []),
+      },
+      agendaCalendarEntry: {
+        findMany: jest.fn(async () => []),
+      },
+    };
+    const req = { query: { month: '10', year: '2026' } };
+    const res = createResponse();
+
+    await getMetrics(req, res, prisma);
+
+    const payload = res.json.mock.calls[0][0];
+    expect(payload.weekly.capacity).toBe(250);
+    expect(payload.weekly.occupiedCount).toBe(0);
+    expect(payload.monthly.capacityMonthly).toBe(1065);
+    expect(payload.monthly.capacityDays.find((day) => day.date === '2026-10-12').capacity).toBe(0);
+    expect(payload.monthly.occupancyRate).toBe(0);
+    expect(payload.monthly.attendanceRate).toBe(0);
+  });
+
   it('returns future agenda metrics and filters inactive monthly rows', async () => {
     const appointments = [
       buildAppointment({ id: 'apr-1', date: '2026-04-05T12:00:00.000Z', status: 'COMPLETED', patientId: 'p1' }),

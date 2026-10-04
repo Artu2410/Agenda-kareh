@@ -17,6 +17,11 @@ enum UserRole {
   SECRETARIA
 }
 
+enum AgendaCalendarEntryType {
+  CLINIC_CLOSURE
+  SCHEDULE_EXCEPTION
+}
+
 // ---------------------------------------------------------
 // 1. CONFIGURACIÓN GLOBAL DE LA APP
 // ---------------------------------------------------------
@@ -102,6 +107,7 @@ model AgendaConfig {
   saturdayEndTime      String?
   slotDuration         Int      @default(30)
   capacityPerSlot      Int      @default(5)
+  nationalHolidaysClose Boolean  @default(true)
   timerDurationMinutes Int      @default(25)
   timerDurations       Int[]    @default([])
   createdAt            DateTime @default(now())
@@ -217,6 +223,7 @@ model Professional {
   createdAt                    DateTime          @default(now())
   updatedAt                    DateTime          @updatedAt
   appointments                 Appointment[]
+  calendarEntries              AgendaCalendarEntry[]
   billingInvoiceItems          BillingInvoiceItem[]
   clinicalHistories            ClinicalHistory[]
   workSchedule                 WorkSchedule[]
@@ -232,6 +239,22 @@ model WorkSchedule {
   professional   Professional @relation(fields: [professionalId], references: [id])
 
   @@unique([professionalId, dayOfWeek])
+}
+
+model AgendaCalendarEntry {
+  id             String                  @id @default(cuid())
+  date           String                  @db.VarChar(10)
+  name           String
+  type           AgendaCalendarEntryType
+  isActive       Boolean                 @default(true)
+  isOperational  Boolean                 @default(false)
+  professionalId String?
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+  professional   Professional?           @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+
+  @@index([date, isActive])
+  @@index([professionalId, date, isActive])
 }
 
 // ---------------------------------------------------------
