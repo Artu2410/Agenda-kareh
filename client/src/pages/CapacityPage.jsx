@@ -51,6 +51,19 @@ const formatCount = (value) =>
 
 const formatRate = (value) => `${formatNumber(value, { maximumFractionDigits: 1 })}%`;
 
+const firstPositiveNumber = (...values) => {
+  const positiveValue = values.find((value) => Number(value) > 0);
+  return positiveValue === undefined ? 0 : Number(positiveValue);
+};
+
+const getOccupiedCount = (row = {}, { includeCompleted = false } = {}) => firstPositiveNumber(
+  row.occupiedCount,
+  row.monthlyAppointmentCount,
+  row.appointmentCount,
+  row.turns,
+  ...(includeCompleted ? [row.completedCount] : []),
+);
+
 const formatDate = (value) => {
   if (!value) return 'Sin datos';
   const date = new Date(value);
@@ -366,6 +379,10 @@ const CapacityPage = () => {
   const currentMonth = capacity?.currentMonth || {};
   const futureCoverage = capacity?.futureCoverage || {};
   const bottleneck = capacity?.bottleneck || {};
+  const currentMonthForDisplay = {
+    ...currentMonth,
+    occupiedCount: getOccupiedCount(currentMonth),
+  };
   const occupationTone = currentMonth?.level?.tone || 'neutral';
   const adminAlert = capacity?.alerts?.admin || {};
   const kinesiologistAlert = capacity?.alerts?.kinesiologist || {};
@@ -375,7 +392,11 @@ const CapacityPage = () => {
     bottleneck,
     adminAlert,
   });
-  const monthlyTrend = capacity?.monthlyTrend || [];
+  const monthlyTrend = (capacity?.monthlyTrend || []).map((row) => ({
+    ...row,
+    occupiedCount: getOccupiedCount(row, { includeCompleted: true }),
+    attendedCount: firstPositiveNumber(row.attendedCount, row.completedCount),
+  }));
   const visibleMonthlyTrend = historyView === 'year' ? monthlyTrend : monthlyTrend.slice(-6);
   const historicalAxisMax = getHistoricalAxisMax(visibleMonthlyTrend);
 
@@ -396,7 +417,7 @@ const CapacityPage = () => {
     },
     {
       label: 'Turnos ocupados',
-      value: formatCount(currentMonth.occupiedCount),
+      value: formatCount(currentMonthForDisplay.occupiedCount),
       description: 'Turnos no cancelados que consumen capacidad',
       icon: Users,
       tone: 'neutral',
@@ -658,6 +679,7 @@ const CapacityPage = () => {
             <div className="grid gap-4 lg:grid-cols-2">
               {capacity.professionals.map((professional) => {
                 const levelTone = getTone(professional.level?.tone);
+                const occupiedCount = getOccupiedCount(professional);
 
                 return (
                   <article key={professional.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -686,7 +708,7 @@ const CapacityPage = () => {
                       </div>
                       <div className="rounded-xl bg-white px-3 py-3">
                         <p className="text-[10px] font-black uppercase text-slate-400">Turnos ocupados</p>
-                        <p className="mt-1 text-lg font-black text-slate-900">{formatCount(professional.occupiedCount)}</p>
+                        <p className="mt-1 text-lg font-black text-slate-900">{formatCount(occupiedCount)}</p>
                       </div>
                       <div className="rounded-xl bg-white px-3 py-3">
                         <p className="text-[10px] font-black uppercase text-slate-400">Ocupación</p>

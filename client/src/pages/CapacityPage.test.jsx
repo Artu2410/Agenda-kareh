@@ -66,7 +66,7 @@ describe('CapacityPage', () => {
     expect(screen.getByText('1.105')).toBeTruthy();
     expect(screen.getByText('1,3%')).toBeTruthy();
     expect(screen.getByText('Turnos asistidos')).toBeTruthy();
-    expect(screen.getByText('Turnos ocupados')).toBeTruthy();
+    expect(screen.getAllByText('Turnos ocupados').length).toBeGreaterThan(0);
   });
 
   it('shows the complete annual monthly breakdown and can narrow the chart to six months', async () => {
@@ -80,5 +80,48 @@ describe('CapacityPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Últimos 6 meses' }));
 
     expect(screen.getByRole('button', { name: 'Últimos 6 meses' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('supports the legacy capacity response used by an older production backend', async () => {
+    api.get.mockResolvedValueOnce({
+      data: {
+        currentMonth: {
+          monthlyCapacity: 216.5,
+          appointmentCount: 109,
+          completedCount: 15,
+          freeMonthlyCapacity: 107.5,
+          occupancyRate: 50.3,
+          level: { label: 'Saludable', tone: 'success' },
+        },
+        currentWeek: { capacity: 50 },
+        futureCoverage: {},
+        bottleneck: {},
+        alerts: {},
+        monthlyTrend: [{
+          monthKey: '2026-10',
+          month: 'OCT 26',
+          label: 'octubre 2026',
+          capacity: 216.5,
+          completedCount: 109,
+          occupancyRate: 50.3,
+        }],
+        professionals: [{
+          id: 'prof-1',
+          fullName: 'Katia Alumine Romero',
+          workSchedule: [],
+          monthlyCapacity: 216.5,
+          completedCount: 109,
+          monthlyAppointmentCount: 109,
+          occupancyRate: 50.3,
+          level: { label: 'Saludable', tone: 'success' },
+        }],
+      },
+    });
+
+    render(<CapacityPage />);
+
+    expect((await screen.findAllByText('109', { selector: 'p' })).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Turnos ocupados').length).toBeGreaterThan(0);
+    expect(screen.getByText('octubre 2026')).toBeTruthy();
   });
 });
