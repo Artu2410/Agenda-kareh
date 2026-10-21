@@ -30,7 +30,7 @@
     "react-dom": "^19.2.0",
     "react-hot-toast": "^2.6.0",
     "react-is": "^19.2.6",
-    "react-router-dom": "^7.17.0",
+    "react-router-dom": "^7.18.3",
     "recharts": "^3.7.0"
   },
   "devDependencies": {
@@ -50,7 +50,7 @@
     "globals": "^16.5.0",
     "jsdom": "^29.1.1",
     "msw": "^2.14.6",
-    "postcss": "8.5.18",
+    "postcss": "8.5.23",
     "tailwindcss": "^4.1.18",
     "vite": "^8.0.16",
     "vitest": "^4.1.7",
@@ -64,6 +64,6 @@
     "minimatch": "10.2.5",
     "picomatch": "^4.0.4",
     "rollup": "^4.59.0",
-    "postcss": "8.5.18"
+    "postcss": "8.5.23"
   }
 }
