@@ -52,6 +52,7 @@ console.log('Installing Puppeteer Chrome using cache dir:', env.PUPPETEER_CACHE_
 const result = spawnSync(npxCommand, ['puppeteer', 'browsers', 'install', 'chrome'], {
   stdio: 'inherit',
   env,
+  shell: process.platform === 'win32',
 });
 
 if (result.status !== 0) {
