@@ -326,6 +326,8 @@ model ClinicalHistory {
   createdAt      DateTime      @default(now())
   patient        Patient       @relation(fields: [patientId], references: [id])
   professional   Professional? @relation(fields: [professionalId], references: [id])
+
+  @@index([patientId, date])
 }
 
 // ---------------------------------------------------------

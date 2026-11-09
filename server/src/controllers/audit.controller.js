@@ -58,6 +58,21 @@ export const listAuditLogs = async (req, res, prisma) => {
   }
 };
 
+const MIN_RETENTION_DAYS = 365;
+const DEFAULT_RETENTION_DAYS = 3650; // 10 años, como la historia clínica (Ley 26.529)
+
+export const getAuditRetentionDays = () => Math.max(
+  Number.parseInt(process.env.AUDIT_RETENTION_DAYS, 10) || DEFAULT_RETENTION_DAYS,
+  MIN_RETENTION_DAYS,
+);
+
+/** Borra registros de auditoría más viejos que la retención configurada. */
+export const purgeExpiredAuditLogs = async (prisma, now = Date.now()) => {
+  const cutoffDate = new Date(now - getAuditRetentionDays() * 24 * 60 * 60 * 1000);
+  const result = await prisma.auditLog.deleteMany({ where: { createdAt: { lt: cutoffDate } } });
+  return { deletedCount: result.count, cutoffDate };
+};
+
 export const cleanupAuditLogs = async (req, res, prisma) => {
   try {
     const olderThanDays = Math.max(Number.parseInt(req.body?.olderThanDays, 10) || 365, 365);

@@ -16,6 +16,7 @@
     "prisma:migrate:deploy": "prisma migrate deploy",
     "check:auth": "node scripts/check-auth-config.js",
     "check:db": "node scripts/check-db.js",
+    "check:status-values": "node scripts/check-status-values.js",
     "smoke:deploy": "node scripts/smoke-check.js",
     "backfill:honorarios": "node scripts/backfill-appointment-honorarios.js --apply",
     "cokiba-sync": "node scripts/cokiba-sync.js",

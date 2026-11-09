@@ -386,6 +386,19 @@ export const getWeekAppointments = async (req, res, prisma) => {
   }
 };
 // 2. CREAR CITA (CON LÓGICA DE INGRESO Y SLOTS)
+// Un paciente no puede tener dos turnos activos el mismo día a la misma hora
+// (con el mismo u otro profesional). Los cancelados no cuentan.
+export const findPatientTimeConflict = (tx, { patientId, date, time, excludeId = null }) => tx.appointment.findFirst({
+  where: {
+    patientId,
+    date,
+    time,
+    status: { not: 'CANCELLED' },
+    ...(excludeId ? { id: { not: excludeId } } : {}),
+  },
+  select: { id: true },
+});
+
 export const createAppointment = async (req, res, prisma) => {
   const {
     patientData,
@@ -576,6 +589,20 @@ export const createAppointment = async (req, res, prisma) => {
             holidays,
             agendaConfig,
           })) {
+            currentDate.setDate(currentDate.getDate() + 1);
+            continue;
+          }
+
+          const patientConflict = await findPatientTimeConflict(tx, {
+            patientId: patient.id,
+            date: new Date(currentDate.setHours(12, 0, 0, 0)),
+            time,
+          });
+          if (patientConflict) {
+            if (numSessions === 1) {
+              throw createHttpError('El paciente ya tiene un turno ese día a esa hora.', 409);
+            }
+            // En una serie, ese día se saltea y la sesión pasa a la próxima fecha disponible.
             currentDate.setDate(currentDate.getDate() + 1);
             continue;
           }
@@ -945,6 +972,18 @@ export const updateAppointment = async (req, res, prisma) => {
           agendaConfig,
         })) {
           throw createHttpError('No se puede mover un turno a un feriado o cierre operativo.', 409);
+        }
+
+        const patientConflict = await findPatientTimeConflict(tx, {
+          patientId: patientId || currentAppointment.patientId,
+          date: nextDate,
+          time: nextTime,
+          excludeId: id,
+        });
+        if (patientConflict) {
+          const error = new Error('El paciente ya tiene otro turno ese día a esa hora.');
+          error.statusCode = 409;
+          throw error;
         }
 
         const occupiedSlots = await tx.appointment.findMany({

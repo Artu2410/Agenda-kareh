@@ -74,6 +74,7 @@ import { getBootstrapUsers } from './src/utils/auth.js';
 import { getStartupMetadata } from './src/config/runtimeInfo.js';
 import { NotFoundError } from './src/errors/AppError.js';
 import { errorHandler } from './src/middlewares/errorHandler.js';
+import { purgeExpiredAuditLogs } from './src/controllers/audit.controller.js';
 import { createFileAccessMiddleware } from './src/middlewares/fileAccessMiddleware.js';
 import { createFileHandler } from './src/services/storage.js';
 import { signUploadUrlsInResponses, stripUploadUrlQueriesInRequests } from './src/utils/fileUrlSigning.js';
@@ -245,6 +246,17 @@ prisma.$connect()
 
     if (isProduction && process.env.COKIBA_DAILY_SYNC_ENABLED !== 'false') {
       scheduleCokibaDailySync({ prisma, logger });
+    }
+
+    // Retención del log de auditoría: una vez al iniciar y luego cada 24 h.
+    if (isProduction) {
+      const runAuditRetention = () => purgeExpiredAuditLogs(prisma)
+        .then(({ deletedCount, cutoffDate }) => {
+          if (deletedCount > 0) logger.info('Auditoría: registros vencidos eliminados', { deletedCount, cutoffDate });
+        })
+        .catch((error) => logger.error('Auditoría: error en retención', { errorMessage: error.message }));
+      void runAuditRetention();
+      setInterval(runAuditRetention, 24 * 60 * 60 * 1000).unref();
     }
   })
   .catch((error) => {

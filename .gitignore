@@ -33,3 +33,9 @@ graphify-out
 docs
 ops
 CLAUDE.md
+
+# Artefactos de tests y herramientas locales
+client/test-results/
+client/playwright-report/
+.continue/
+.agents/evals/
