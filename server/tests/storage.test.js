@@ -20,6 +20,7 @@ import {
 import { extractBearerToken } from '../src/utils/auth.js';
 import { Readable } from 'node:stream';
 import { createFileAccessMiddleware } from '../src/middlewares/fileAccessMiddleware.js';
+import { signUploadUrlsInString } from '../src/utils/fileUrlSigning.js';
 
 describe('local file storage', () => {
   let uploadsDir;
@@ -183,16 +184,34 @@ describe('Cloudflare R2 storage', () => {
     expect(extractBearerToken({ query: { token: 'file-access-token' }, headers: {} })).toBeNull();
   });
 
-  it('serves anonymous GET file requests without invoking authentication', async () => {
+  it('serves GET file requests with a valid signature without authentication', async () => {
+    process.env.JWT_SECRET = 'test-secret-for-file-signing-1234567890';
     const app = express();
-    const handler = jest.fn((req, res) => res.status(200).send('archivo público'));
-    const authMiddleware = jest.fn(() => { throw new Error('No debe autenticar GET'); });
+    const handler = jest.fn((req, res) => res.status(200).send('archivo firmado'));
+    const authMiddleware = jest.fn(() => { throw new Error('No debe autenticar una URL firmada'); });
     app.use('/uploads', createFileAccessMiddleware({ handler, authMiddleware }));
 
-    const response = await request(app).get('/uploads/patient-documents/file.pdf');
+    const signedUrl = signUploadUrlsInString('/uploads/patient-documents/file.pdf');
+    const response = await request(app).get(signedUrl);
 
     expect(response.status).toBe(200);
-    expect(response.text).toBe('archivo público');
+    expect(response.text).toBe('archivo firmado');
     expect(authMiddleware).not.toHaveBeenCalled();
+  });
+
+  it('requires authentication for unsigned or tampered GET file requests', async () => {
+    process.env.JWT_SECRET = 'test-secret-for-file-signing-1234567890';
+    const app = express();
+    const handler = jest.fn((req, res) => res.status(200).send('archivo'));
+    const authMiddleware = jest.fn((req, res) => res.status(401).json({ message: 'No autorizado' }));
+    app.use('/uploads', createFileAccessMiddleware({ handler, authMiddleware }));
+
+    const unsigned = await request(app).get('/uploads/patient-documents/file.pdf');
+    const signedOther = signUploadUrlsInString('/uploads/patient-documents/otro.pdf');
+    const tampered = await request(app).get(`/uploads/patient-documents/file.pdf${signedOther.slice(signedOther.indexOf('?'))}`);
+
+    expect(unsigned.status).toBe(401);
+    expect(tampered.status).toBe(401);
+    expect(handler).not.toHaveBeenCalled();
   });
 });

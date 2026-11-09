@@ -12,6 +12,7 @@ import {
   refreshLimiter,
   uploadLimiter,
   searchLimiter,
+  userApiLimiter,
 } from '../src/config/rateLimits.js';
 
 describe('Rate Limiting Configuration', () => {
@@ -77,7 +78,7 @@ describe('Rate Limiting Configuration', () => {
   });
 
   describe('All rate limiters configured', () => {
-    it('should have 6 rate limiters exported', () => {
+    it('should have 7 rate limiters exported', () => {
       const limiters = [
         apiLimiter,
         requestOtpLimiter,
@@ -85,9 +86,10 @@ describe('Rate Limiting Configuration', () => {
         refreshLimiter,
         uploadLimiter,
         searchLimiter,
+        userApiLimiter,
       ];
 
-      expect(limiters.length).toBe(6);
+      expect(limiters.length).toBe(7);
       limiters.forEach((limiter) => {
         expect(typeof limiter).toBe('function');
       });

@@ -3,6 +3,7 @@ import multer from 'multer';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { saveBufferToStorage } from '../services/storage.js';
+import { detectFileType } from '../utils/fileType.js';
 import { createInternalError, createPublicError } from '../errors/AppError.js';
 
 const MAX_UPLOAD_MB = Number(process.env.UPLOAD_MAX_MB || 25);
@@ -34,11 +35,15 @@ const upload = multer({
   },
 });
 
-const buildKey = ({ originalname, mimetype, patientId, professionalId, entryId, scope }) => {
+const buildKey = ({ originalname, mimetype, detectedExt, patientId, professionalId, entryId, scope }) => {
   const extFromName = path.extname(originalname || '').toLowerCase();
   const allowedExtensions = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.pdf']);
   const fallbackExt = mimetype === 'application/pdf' ? '.pdf' : '.jpg';
-  const ext = allowedExtensions.has(extFromName) ? extFromName : fallbackExt;
+  // La extensión sigue al contenido real; el nombre original solo desempata .jpg/.jpeg.
+  const nameMatchesContent = extFromName === detectedExt || (detectedExt === '.jpg' && extFromName === '.jpeg');
+  const ext = detectedExt
+    ? (nameMatchesContent ? extFromName : detectedExt)
+    : (allowedExtensions.has(extFromName) ? extFromName : fallbackExt);
 
   const normalizedScope = sanitizeSegment(scope, 'clinical-history');
   const parts = [normalizedScope];
@@ -58,9 +63,16 @@ export default function createUploadRoutes() {
         return res.status(400).json({ message: 'Archivo requerido' });
       }
 
+      // El tipo declarado por el navegador no alcanza: verificamos el contenido real.
+      const detected = detectFileType(req.file.buffer);
+      if (!detected) {
+        return res.status(400).json({ message: 'Tipo de archivo no permitido. Solo imágenes o PDF.' });
+      }
+
       const key = buildKey({
         originalname: req.file.originalname,
-        mimetype: req.file.mimetype,
+        mimetype: detected.mime,
+        detectedExt: detected.ext,
         patientId: req.body?.patientId,
         professionalId: req.body?.professionalId,
         entryId: req.body?.entryId,
@@ -70,13 +82,13 @@ export default function createUploadRoutes() {
       const { url } = await saveBufferToStorage({
         buffer: req.file.buffer,
         key,
-        contentType: req.file.mimetype || 'application/octet-stream',
+        contentType: detected.mime,
       });
 
       return res.status(201).json({
         url,
         name: req.file.originalname,
-        type: req.file.mimetype,
+        type: detected.mime,
         size: req.file.size,
       });
     } catch (error) {

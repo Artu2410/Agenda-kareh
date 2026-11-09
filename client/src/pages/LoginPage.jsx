@@ -52,7 +52,7 @@ export default function LoginPage({ onLoginSuccess }) {
       const response = await requestOTP(email.trim());
 
       if (response.data.success) {
-        showSuccessToast('✅ Código enviado a tu email');
+        showSuccessToast('✅ Si el correo está habilitado, te llegará un código');
         setStep('otp');
         setOtpExpiry(Date.now() + 15 * 60 * 1000); 
         setOtp(response.data.devOtp || '');

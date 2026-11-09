@@ -6,6 +6,7 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import { PrismaClient } from '@prisma/client';
 import dns from 'node:dns';
+import crypto from 'node:crypto';
 import logger, { createRequestLogger } from './src/config/logger.js';
 import { validateEnv } from './src/config/env.js';
 import { createHttpMetricsMiddleware, renderPrometheusMetrics } from './src/lib/metrics.js';
@@ -18,6 +19,7 @@ import {
   apiLimiter,
   uploadLimiter,
   searchLimiter,
+  userApiLimiter,
 } from './src/config/rateLimits.js';
 import SessionManager from './src/utils/sessionManager.js';
 import {
@@ -78,6 +80,7 @@ import { NotFoundError } from './src/errors/AppError.js';
 import { errorHandler } from './src/middlewares/errorHandler.js';
 import { createFileAccessMiddleware } from './src/middlewares/fileAccessMiddleware.js';
 import { createFileHandler } from './src/services/storage.js';
+import { signUploadUrlsInResponses, stripUploadUrlQueriesInRequests } from './src/utils/fileUrlSigning.js';
 
 const isProduction = process.env.NODE_ENV === 'production';
 
@@ -87,8 +90,6 @@ const additionalAllowedOrigins = String(process.env.CORS_ALLOWED_ORIGINS || '')
     .filter(Boolean);
 
 const allowedOrigins = new Set([
-    'https://agenda-kareh.vercel.app',
-    'https://kareh-salud.vercel.app',
     'https://agenda.kareh.com.ar',
     'https://kareh.com.ar',
     'http://localhost:5173',
@@ -97,6 +98,11 @@ const allowedOrigins = new Set([
     process.env.FRONTEND_URL,
     ...additionalAllowedOrigins,
 ].filter(Boolean));
+
+// Previews de Vercel: solo los de tu cuenta (sufijo del scope, p.ej. "-artu2410s-projects.vercel.app").
+// En producción, sin VERCEL_PREVIEW_SUFFIX no se acepta ningún preview.
+const vercelPreviewSuffix = String(process.env.VERCEL_PREVIEW_SUFFIX || '').trim().toLowerCase();
+const PREVIEW_PROJECT_PREFIXES = ['kareh-salud-'];
 
 const isAllowedOrigin = (origin) => {
     if (!origin) {
@@ -108,17 +114,21 @@ const isAllowedOrigin = (origin) => {
     }
 
     try {
-        const { hostname } = new URL(origin);
+        const { protocol, hostname } = new URL(origin);
+        const host = hostname.toLowerCase();
 
-        if (hostname === 'agenda-kareh.vercel.app' || hostname === 'kareh-salud.vercel.app') {
+        if (!host.endsWith('.vercel.app')) {
+            return false;
+        }
+
+        if (!isProduction) {
             return true;
         }
 
-        if (hostname.endsWith('.vercel.app')) {
-            return hostname.startsWith('agenda-kareh-') || hostname.startsWith('kareh-salud-') || !isProduction;
-        }
-
-        return false;
+        return protocol === 'https:'
+            && Boolean(vercelPreviewSuffix)
+            && host.endsWith(vercelPreviewSuffix)
+            && PREVIEW_PROJECT_PREFIXES.some((prefix) => host.startsWith(prefix));
     } catch {
         return false;
     }
@@ -199,14 +209,19 @@ app.use(helmet({
             scriptSrc: ["'self'"],
             styleSrc: ["'self'", "'unsafe-inline'"],
             imgSrc: ["'self'", 'data:', 'https:'],
-            connectSrc: ["'self'", 'https://agenda-kareh.vercel.app', 'https://kareh-salud.vercel.app', 'https://kareh-backend.onrender.com', 'https:'],
+            connectSrc: ["'self'", 'https://agenda.kareh.com.ar', 'https://kareh-backend.onrender.com'],
             fontSrc: ["'self'", 'data:', 'https:'],
             objectSrc: ["'none'"],
             frameAncestors: ["'none'"],
         },
     },
 }));
-app.use(express.json({ limit: '50mb', strict: false }));
+// Los archivos van por multipart (/api/uploads); el JSON no necesita 50 MB.
+// 5 MB por defecto para tolerar historias viejas con adjuntos en base64.
+app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '5mb', strict: false }));
+
+// Archivos: firmar URLs de /uploads en respuestas y no guardar firmas/tokens en la base.
+app.use('/api', stripUploadUrlQueriesInRequests, signUploadUrlsInResponses);
 
 // CSRF: endpoint para obtener token
 app.get('/api/csrf-token', csrfProtection, getCsrfToken);
@@ -239,13 +254,20 @@ prisma.$connect()
     logger.error('Error de conexión DB', { errorMessage: error.message });
   });
 
+// Comparación en tiempo constante para el token del cron (solo por header, nunca por query string).
+const safeEqual = (expected, provided) => {
+    const a = Buffer.from(String(expected));
+    const b = Buffer.from(String(provided));
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
+};
+
 app.post('/api/cron/cokiba-sync', async (req, res) => {
     const token = process.env.COKIBA_CRON_TOKEN;
-    const provided = req.headers['x-cron-token'] || req.query?.token;
+    const provided = String(req.headers['x-cron-token'] || '');
     if (!token) {
         return res.status(500).json({ message: 'Cron token de COKIBA no configurado' });
     }
-    if (token !== provided) {
+    if (!safeEqual(token, provided)) {
         return res.status(403).json({ message: 'No autorizado' });
     }
     try {
@@ -274,12 +296,17 @@ app.use((req, res, next) => {
 app.use('/api/auth', apiLimiter, createAuthRoutes(prisma));
 app.use('/api', createVersionRoutes({ deployedAt: startedAt }));
 
-// Phase 2: Swagger API Documentation
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
-app.get('/api/swagger.json', (req, res) => {
-  res.setHeader('Content-Type', 'application/json');
-  res.send(swaggerSpec);
-});
+// Swagger: desactivado en producción salvo ENABLE_API_DOCS=true.
+if (!isProduction || process.env.ENABLE_API_DOCS === 'true') {
+  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+  app.get('/api/swagger.json', (req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.send(swaggerSpec);
+  });
+}
+
+// Límite general por usuario autenticado (o por IP si no hay sesión).
+app.use('/api', userApiLimiter);
 
 // ==========================================
 // RUTAS PROTEGIDAS
@@ -314,12 +341,35 @@ app.use('/api/audit', authMiddleware, createAuditRoutes(prisma));
 app.use('/api/sessions', authMiddleware, createSessionsRoutes(prisma, sessionManager));
 
 // Utilidades
+// Prometheus: requiere METRICS_TOKEN (Bearer). En producción sin token configurado, no se expone.
 app.get('/metrics', (req, res) => {
+    const metricsToken = process.env.METRICS_TOKEN;
+    if (metricsToken) {
+        const provided = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+        if (!safeEqual(metricsToken, provided)) {
+            return res.status(401).json({ message: 'No autorizado' });
+        }
+    } else if (isProduction) {
+        return res.status(404).json({ message: 'No encontrado' });
+    }
     res.type('text/plain; version=0.0.4; charset=utf-8');
-    res.send(renderPrometheusMetrics());
+    return res.send(renderPrometheusMetrics());
 });
+// Liveness: el proceso responde.
 app.get('/health', (req, res) => res.status(200).json({ status: 'ok' }));
 app.get('/api/health', (req, res) => res.status(200).json({ status: 'ok' }));
+// Readiness: además la base de datos responde.
+const readinessHandler = async (req, res) => {
+    try {
+        await prisma.$queryRaw`SELECT 1`;
+        return res.status(200).json({ status: 'ok', database: 'ok' });
+    } catch (error) {
+        logger.error('Readiness: base de datos no disponible', { errorMessage: error.message });
+        return res.status(503).json({ status: 'error', database: 'unavailable' });
+    }
+};
+app.get('/health/ready', readinessHandler);
+app.get('/api/health/ready', readinessHandler);
 
 // ==========================================
 // MANEJO DE ERRORES (JSON SIEMPRE)

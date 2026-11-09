@@ -156,7 +156,7 @@ export const hashOtpCode = (value = '') => crypto
   .update(`${getOtpPepper()}:${String(value)}`)
   .digest('hex');
 
-export const generateOtpCode = () => String(Math.floor(100000 + Math.random() * 900000));
+export const generateOtpCode = () => String(crypto.randomInt(100000, 1000000));
 
 export const generateTokenId = () => crypto.randomUUID();
 

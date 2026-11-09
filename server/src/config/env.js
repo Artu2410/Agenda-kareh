@@ -66,6 +66,22 @@ const envSchema = z.object({
 
   // Debug
   VITE_API_DEBUG: z.string().default('0'),
+}).superRefine((value, ctx) => {
+  if (value.NODE_ENV !== 'production') return;
+  const refreshSecret = value.JWT_REFRESH_SECRET || value.REFRESH_TOKEN_SECRET;
+  if (!refreshSecret) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['JWT_REFRESH_SECRET'],
+      message: 'JWT_REFRESH_SECRET es obligatorio en producción',
+    });
+  } else if (refreshSecret === value.JWT_SECRET) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['JWT_REFRESH_SECRET'],
+      message: 'JWT_REFRESH_SECRET debe ser distinto de JWT_SECRET',
+    });
+  }
 });
 
 /**

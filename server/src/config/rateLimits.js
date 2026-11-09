@@ -113,8 +113,27 @@ export const searchLimiter = rateLimit({
   },
 });
 
+// Límite general para toda la API, por usuario autenticado (o IP sin sesión).
+// Generoso: varias personas del consultorio comparten IP y la agenda hace muchas llamadas.
+export const userApiLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: () => Number(process.env.API_RATE_LIMIT_PER_5MIN) || 1500,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => process.env.NODE_ENV === 'test',
+  keyGenerator: (req) => (req.user?.userId ? `user:${req.user.userId}` : `ip:${ipKeyGenerator(req.ip)}`),
+  handler: (req, res) => {
+    logger.warn('User API rate limit exceeded', { ip: req.ip, userId: req.user?.userId || null, endpoint: req.originalUrl });
+    res.status(429).json({
+      success: false,
+      message: 'Demasiadas solicitudes. Espera unos minutos.',
+    });
+  },
+});
+
 export default {
   apiLimiter,
+  userApiLimiter,
   requestOtpLimiter,
   verifyOtpLimiter,
   refreshLimiter,

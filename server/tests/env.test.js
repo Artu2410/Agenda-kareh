@@ -43,6 +43,22 @@ describe('Environment Validation', () => {
     }).toThrow('JWT_SECRET debe tener al menos 32 caracteres');
   });
 
+  it('should require a distinct refresh secret in production', () => {
+    process.env.JWT_SECRET = 'a'.repeat(32);
+    process.env.DATABASE_URL = 'postgresql://user:pass@localhost/db';
+    process.env.NODE_ENV = 'production';
+    delete process.env.JWT_REFRESH_SECRET;
+    delete process.env.REFRESH_TOKEN_SECRET;
+
+    expect(() => validateEnv()).toThrow(/JWT_REFRESH_SECRET/);
+
+    process.env.JWT_REFRESH_SECRET = 'a'.repeat(32);
+    expect(() => validateEnv()).toThrow(/distinto/);
+
+    process.env.JWT_REFRESH_SECRET = 'b'.repeat(32);
+    expect(() => validateEnv()).not.toThrow();
+  });
+
   it('should validate correctly with valid environment', () => {
     process.env.JWT_SECRET = 'a'.repeat(32);
     process.env.DATABASE_URL = 'postgresql://user:pass@localhost/db';

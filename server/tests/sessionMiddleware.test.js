@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import cookieParser from 'cookie-parser';
 import {
   sessionValidationMiddleware,
+  sessionCleanupMiddleware,
 } from '../src/middlewares/sessionMiddleware.js';
 
 const createApp = () => {
@@ -93,5 +94,27 @@ describe('sessionValidationMiddleware', () => {
       userId: null,
       role: null,
     });
+  });
+});
+
+describe('sessionCleanupMiddleware', () => {
+  it('no bloquea las peticiones mientras limpia sesiones expiradas', async () => {
+    const app = express();
+    let cleanupStarted = false;
+    const cleanupExpiredSessions = () => {
+      cleanupStarted = true;
+      return new Promise(() => {});
+    };
+
+    app.use(sessionCleanupMiddleware({ cleanupExpiredSessions }));
+    app.get('/health', (req, res) => res.json({ ok: true }));
+
+    const response = await request(app)
+      .get('/health')
+      .timeout({ response: 250 });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ ok: true });
+    expect(cleanupStarted).toBe(true);
   });
 });

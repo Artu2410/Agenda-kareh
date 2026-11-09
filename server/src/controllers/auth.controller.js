@@ -138,7 +138,10 @@ const buildAuthSuccessPayload = (user, accessToken) => ({
 const sendOtpEmail = async (email, otp) => {
   const otpValidityMinutes = Math.max(1, Math.ceil(getOtpTtlMs() / 60000));
   if (!process.env.RESEND_API_KEY) {
-    if (isProduction()) {
+    // El código solo se devuelve en la respuesta en desarrollo/test explícitos:
+    // si NODE_ENV falta o tiene otro valor, se trata como producción.
+    const isLocalEnv = ['development', 'test'].includes(String(process.env.NODE_ENV || '').toLowerCase());
+    if (isProduction() || !isLocalEnv) {
       throw new Error('Servicio de correo no configurado');
     }
 
@@ -201,6 +204,12 @@ const validateAccessSession = async (prisma, decodedToken) => {
   return { ok: true, session };
 };
 
+// Misma respuesta exista o no el correo: no revela qué emails tienen cuenta.
+const GENERIC_OTP_RESPONSE = Object.freeze({
+  success: true,
+  message: 'Si el correo está habilitado, te enviamos un código de acceso.',
+});
+
 export const requestOTP = async (req, res) => {
   const prisma = getPrismaFromRequest(req);
   if (!prisma) {
@@ -222,10 +231,7 @@ export const requestOTP = async (req, res) => {
         details: { email: normalizedEmail, reason: 'UNKNOWN_USER' },
       });
       recordLoginFailure({ step: 'request-otp', reason: 'UNKNOWN_USER' });
-      return res.status(403).json({
-        message: 'Acceso denegado',
-        detail: 'El correo no está habilitado para ingresar.',
-      });
+      return res.json(GENERIC_OTP_RESPONSE);
     }
 
     if (!user.isActive) {
@@ -237,7 +243,7 @@ export const requestOTP = async (req, res) => {
         details: { email: normalizedEmail, reason: 'INACTIVE_USER' },
       });
       recordLoginFailure({ step: 'request-otp', reason: 'INACTIVE_USER' });
-      return res.status(403).json({ message: 'Usuario deshabilitado' });
+      return res.json(GENERIC_OTP_RESPONSE);
     }
 
     if (isUserLocked(user)) {
@@ -249,7 +255,7 @@ export const requestOTP = async (req, res) => {
         details: { email: normalizedEmail, reason: 'ACCOUNT_LOCKED' },
       });
       recordLoginFailure({ step: 'request-otp', reason: 'ACCOUNT_LOCKED' });
-      return res.status(423).json({ message: 'Cuenta temporalmente bloqueada. Intenta nuevamente más tarde.' });
+      return res.json(GENERIC_OTP_RESPONSE);
     }
 
     const otp = generateOtpCode();
@@ -295,9 +301,8 @@ export const requestOTP = async (req, res) => {
     });
 
     return res.json({
-      success: true,
-      message: emailResult.delivered ? 'Código OTP enviado' : 'Código OTP generado en modo desarrollo',
-      devOtp: emailResult.devOtp,
+      ...GENERIC_OTP_RESPONSE,
+      ...(emailResult.delivered ? {} : { message: 'Código OTP generado en modo desarrollo', devOtp: emailResult.devOtp }),
     });
   } catch (error) {
     throw createInternalError(error, 'No se pudo solicitar el código OTP');

@@ -135,8 +135,10 @@ export const sessionCleanupMiddleware = (sessionManager) => {
       const now = Date.now();
 
       if (now - lastCleanup > 60 * 60 * 1000) {
-        await sessionManager.cleanupExpiredSessions();
         global.lastSessionCleanup = now;
+        void sessionManager.cleanupExpiredSessions().catch((error) => {
+          logger.error('Session cleanup error', { error: error.message });
+        });
       }
     } catch (error) {
       logger.error('Session cleanup error', { error: error.message });
