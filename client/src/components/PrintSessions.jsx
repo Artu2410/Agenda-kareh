@@ -56,12 +56,20 @@ const getPolicyText = (value, treatAsParticular = false) => [
   WAIT_TOLERANCE_TEXT,
 ].join('\n');
 
+// Escapa texto antes de insertarlo en el HTML de impresión (evita XSS con datos del paciente).
+const escapeHtml = (value) => String(value ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+
 const buildPrintHtml = ({ printablePatient, printableDiagnosis, sortedAppointments, policyText }) => {
   const appointmentRows = sortedAppointments.map((appt, idx) => `
     <div class="row session-row">
-      <span class="session-index">${appt.sessionNumber || idx + 1}</span>
-      <span class="session-date">${toThermalDate(appt.date)}</span>
-      <span class="session-time">${appt.time || ''}</span>
+      <span class="session-index">${escapeHtml(appt.sessionNumber || idx + 1)}</span>
+      <span class="session-date">${escapeHtml(toThermalDate(appt.date))}</span>
+      <span class="session-time">${escapeHtml(appt.time || '')}</span>
     </div>
   `).join('');
 
@@ -347,24 +355,24 @@ const buildPrintHtml = ({ printablePatient, printableDiagnosis, sortedAppointmen
           <!-- PACIENTE -->
           <div class="section">
             <div class="section-title">Paciente</div>
-            <div class="patient-name">${printablePatient.fullName}</div>
+            <div class="patient-name">${escapeHtml(printablePatient.fullName)}</div>
             
             <div class="meta">
               <div class="meta-item">
                 <span class="meta-label">DNI</span>
-                <span class="meta-value">${printablePatient.dni}</span>
+                <span class="meta-value">${escapeHtml(printablePatient.dni)}</span>
               </div>
               <div class="meta-item">
                 <span class="meta-label">Edad</span>
-                <span class="meta-value">${printablePatient.age || 'N/A'}</span>
+                <span class="meta-value">${escapeHtml(printablePatient.age || 'N/A')}</span>
               </div>
               <div class="meta-item meta-item-full meta-inline">
                 <span class="meta-label">F. Nac</span>
-                <span class="meta-value">${printablePatient.birthDate}</span>
+                <span class="meta-value">${escapeHtml(printablePatient.birthDate)}</span>
               </div>
               <div class="meta-item meta-item-full">
                 <span class="meta-label">Afil</span>
-                <span class="meta-value">${printablePatient.affiliateNumber}</span>
+                <span class="meta-value">${escapeHtml(printablePatient.affiliateNumber)}</span>
               </div>
             </div>
 
@@ -378,14 +386,14 @@ const buildPrintHtml = ({ printablePatient, printableDiagnosis, sortedAppointmen
           <!-- COBERTURA -->
           <div class="divider"></div>
           <div style="font-size: 15px; font-weight: 900; text-align: center; margin: 1.2mm 0; text-transform: uppercase;">
-            ${printablePatient.healthInsurance}
+            ${escapeHtml(printablePatient.healthInsurance)}
           </div>
 
           <!-- DIAGNÓSTICO -->
           <div class="divider"></div>
           <div class="section">
             <div class="section-title">Diagnóstico</div>
-            <div class="diagnosis">${printableDiagnosis}</div>
+            <div class="diagnosis">${escapeHtml(printableDiagnosis)}</div>
           </div>
 
           <!-- CRONOGRAMA -->
@@ -400,7 +408,7 @@ const buildPrintHtml = ({ printablePatient, printableDiagnosis, sortedAppointmen
 
           <!-- POLÍTICA Y CONTACTO -->
           <div class="divider"></div>
-          <div class="policy">${policyText}</div>
+          <div class="policy">${escapeHtml(policyText)}</div>
 
           <div class="divider-dashed"></div>
 

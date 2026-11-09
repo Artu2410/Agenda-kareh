@@ -24,7 +24,6 @@ import {
 import SessionManager from './src/utils/sessionManager.js';
 import {
   sessionValidationMiddleware,
-  deviceDetectionMiddleware,
   sessionCleanupMiddleware,
 } from './src/middlewares/sessionMiddleware.js';
 
@@ -41,10 +40,7 @@ const app = express();
 // Phase 2: Initialize SessionManager
 const sessionManager = new SessionManager(prisma);
 
-// Periodic session cleanup every 1 hour
-setInterval(() => {
-  sessionManager.cleanupExpiredSessions();
-}, 60 * 60 * 1000);
+// La limpieza de sesiones vencidas la hace sessionCleanupMiddleware (como mucho 1 vez por hora).
 
 import createAuthRoutes from './src/domain/auth/index.js';
 import createAppointmentRoutes from './src/domain/appointments/index.js';
@@ -182,7 +178,8 @@ app.use((req, res, next) => {
 
 // Phase 2: Session Management Middleware
 app.use(sessionValidationMiddleware);
-app.use(deviceDetectionMiddleware);
+// deviceDetectionMiddleware se quitó: hacía un findMany de sesiones en cada request
+// y su resultado (req.isNewDevice) no se usaba.
 app.use(sessionCleanupMiddleware(sessionManager));
 
 app.use(cors({

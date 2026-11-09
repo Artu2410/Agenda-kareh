@@ -2,6 +2,12 @@ import { Router } from 'express';
 import { withProfessionalScope, assertScopedProfessionalId } from '../utils/accessScope.js';
 import { auditActions, safeWriteAuditLog } from '../utils/audit.js';
 import { createInternalError } from '../errors/AppError.js';
+import { validate } from '../middlewares/validate.js';
+import {
+  createClinicalHistoryBodySchema,
+  idParamsSchema,
+  updateClinicalHistoryBodySchema,
+} from '../validations/adminSchemas.js';
 
 export default function createClinicalHistoryRoutes(prisma) {
   const router = Router();
@@ -36,7 +42,7 @@ export default function createClinicalHistoryRoutes(prisma) {
   });
 
   // POST: Crear entrada y actualizar alertas (Atómico)
-  router.post('/', async (req, res) => {
+  router.post('/', validate({ body: createClinicalHistoryBodySchema }), async (req, res) => {
     const { patientId, diagnosis, evolution, attachments, medicalConditions, createdAt } = req.body;
 
     if (!patientId) {
@@ -92,7 +98,7 @@ export default function createClinicalHistoryRoutes(prisma) {
   });
 
   // PUT: Actualizar una entrada existente (Sincronizado con ClinicalHistoryPage.jsx)
-  router.put('/:id', async (req, res) => {
+  router.put('/:id', validate({ params: idParamsSchema, body: updateClinicalHistoryBodySchema }), async (req, res) => {
     const { id } = req.params;
     const { diagnosis, evolution, createdAt, attachments } = req.body;
 

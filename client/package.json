@@ -20,7 +20,7 @@
     "node": ">=22.0.0"
   },
   "dependencies": {
-    "axios": "^1.20.0",
+    "axios": "^1.21.1",
     "date-fns": "^4.1.0",
     "framer-motion": "^12.26.1",
     "html2canvas": "^1.4.1",
@@ -44,7 +44,7 @@
     "@vitest/coverage-v8": "^4.1.12",
     "autoprefixer": "^10.4.23",
     "eslint": "^9.39.5",
-    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-hooks": "7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
     "jsdom": "^29.1.1",
@@ -57,7 +57,7 @@
   },
   "dependenciesMeta": {},
   "overrides": {
-    "axios": "^1.20.0",
+    "axios": "^1.21.1",
     "@vitest/mocker": "4.1.12",
     "vite": "^8.3.5",
     "ajv": "^6.14.0",
@@ -69,7 +69,7 @@
     "picomatch": "^4.0.4",
     "rollup": "^4.59.0",
     "postcss": "8.5.31",
-    "follow-redirects": "1.16.1",
+    "follow-redirects": "^1.16.3",
     "source-map-js": "1.2.2",
     "undici": "7.29.1",
     "js-yaml": "4.3.2"

@@ -2,6 +2,8 @@ import jwt from 'jsonwebtoken';
 import { extractBearerToken, getJwtSecret } from '../utils/auth.js';
 import { checkRole } from './rbacMiddleware.js';
 
+const LAST_USED_UPDATE_INTERVAL_MS = 5 * 60 * 1000;
+
 export const authMiddleware = async (req, res, next) => {
   const isFileRoute = req.baseUrl === '/uploads' || String(req.originalUrl || '').startsWith('/uploads/');
   const token = extractBearerToken(req, { allowQueryToken: isFileRoute });
@@ -62,6 +64,15 @@ export const authMiddleware = async (req, res, next) => {
     };
 
     req.authSession = session;
+
+    // lastUsedAt como mucho cada 5 minutos y sin bloquear la respuesta.
+    const lastUsedMs = session.lastUsedAt ? new Date(session.lastUsedAt).getTime() : 0;
+    if (Date.now() - lastUsedMs > LAST_USED_UPDATE_INTERVAL_MS) {
+      void prisma.authSession.update({
+        where: { id: session.id },
+        data: { lastUsedAt: new Date() },
+      }).catch(() => {});
+    }
 
     return next();
   } catch (error) {

@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  client:
+    name: Cliente (lint, tests, build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Instalar dependencias del cliente (lockfile de la raíz)
+        run: npm ci --workspace client --include-workspace-root --ignore-scripts
+      - name: Lint
+        run: npm run lint --workspace client
+      - name: Tests
+        run: npm run test:unit --workspace client
+      - name: Build
+        run: npm run build --workspace client
+
+  server:
+    name: Servidor (tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NODE_ENV: test
+      JWT_SECRET: ci-only-secret-not-used-anywhere-else-1234
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Instalar dependencias del servidor (sin descargar Chrome)
+        run: npm ci --workspace server --include-workspace-root --ignore-scripts
+      - name: Generar cliente Prisma
+        run: npx prisma generate --schema server/prisma/schema.prisma
+      - name: Tests
+        run: npm test --workspace server
+
+  audit:
+    name: Auditoría de dependencias
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Falla si hay vulnerabilidades altas o críticas en producción
+        run: npm audit --omit=dev --audit-level=high

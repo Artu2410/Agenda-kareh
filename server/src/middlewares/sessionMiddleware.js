@@ -18,8 +18,10 @@ const buildSessionUser = (decoded = {}) => {
 };
 
 /**
- * Middleware global no bloqueante: adjunta contexto de sesión cuando existe
- * un access token válido, pero no intercepta rutas públicas.
+ * Middleware global no bloqueante: adjunta el usuario del access token (firma JWT válida)
+ * sin consultar la base. Sirve para logs y para el rate limit por usuario.
+ * La validación real de la sesión (revocada, vencida, usuario activo) la hace
+ * authMiddleware en las rutas protegidas, con una sola consulta.
  */
 export const sessionValidationMiddleware = async (req, res, next) => {
   const requestLogger = req.logger || logger;
@@ -36,35 +38,6 @@ export const sessionValidationMiddleware = async (req, res, next) => {
 
     if (!sessionUser) {
       return next();
-    }
-
-    if (req.prisma && sessionUser.tokenId && sessionUser.sessionId) {
-      const session = await req.prisma.authSession.findFirst({
-        where: {
-          id: sessionUser.sessionId,
-          userId: sessionUser.userId,
-          accessTokenJti: sessionUser.tokenId,
-          revokedAt: null,
-          expiresAt: {
-            gt: new Date(),
-          },
-        },
-      });
-
-      if (!session) {
-        requestLogger.debug('Session context skipped: no active session found', {
-          userId: sessionUser.userId,
-          sessionId: sessionUser.sessionId,
-        });
-        return next();
-      }
-
-      await req.prisma.authSession.update({
-        where: { id: session.id },
-        data: { lastUsedAt: new Date() },
-      });
-
-      req.session = session;
     }
 
     req.user = sessionUser;

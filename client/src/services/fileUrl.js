@@ -17,6 +17,9 @@ export const getAuthenticatedFileUrl = (value = '') => {
   const apiOrigin = new URL(API_BASE_URL).origin;
   if (fileUrl.origin !== apiOrigin || !isUploadPath(fileUrl)) return rawUrl;
 
+  // La API ya devuelve las URLs de /uploads firmadas (?exp=&sig=): no hace falta exponer el token.
+  if (fileUrl.searchParams.has('sig')) return fileUrl.toString();
+
   const token = authStore.getAccessToken();
   if (token) fileUrl.searchParams.set('token', token);
   return fileUrl.toString();
