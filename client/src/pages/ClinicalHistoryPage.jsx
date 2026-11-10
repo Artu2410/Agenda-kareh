@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Save, FileText, Eye, EyeOff, Trash2, AlertTriangle, PlusCircle,
-  Loader, X, Upload, Camera, Printer, Calendar, CheckCircle2, ChevronLeft, Search, Maximize2
+  Loader, X, Upload, Camera, Printer, Calendar, CheckCircle2, ChevronLeft, Search, Maximize2, Receipt
 } from 'lucide-react';
 import api from '../services/api';
 import { getAuthenticatedFileUrl } from '../services/fileUrl';
@@ -15,6 +15,8 @@ import {
 } from '../utils/appRoutes';
 import { getCoverageLabel, isParticularCoverage } from '../utils/coverage';
 import RichTextEditor from '../components/clinical/RichTextEditor';
+import KinesicReportModal from '../components/documents/KinesicReportModal';
+import PatientReceiptModal from '../components/documents/PatientReceiptModal';
 import {
   isClinicalRichTextEmpty,
   normalizeClinicalRichTextHtml,
@@ -519,6 +521,7 @@ const ClinicalHistoryPage = () => {
   const location = useLocation();
   const { ConfirmModalComponent, openModal } = useConfirmModal();
   const [patient, setPatient] = useState(null);
+  const [openDocument, setOpenDocument] = useState(null); // 'report' | 'receipt' | null
   const [historyEntries, setHistoryEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dateSearch, setDateSearch] = useState('');
@@ -1050,9 +1053,33 @@ const ClinicalHistoryPage = () => {
                   {patient?.fullName}
                 </h2>
               </div>
-              <button onClick={handlePrintClinicalHistory} className="no-print flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 px-6 py-3 text-[10px] font-black text-white shadow-lg hover:bg-slate-800 md:w-auto">
-                <Printer size={16} /> IMPRIMIR SESIONES
-              </button>
+              <div className="no-print flex w-full flex-col gap-2 sm:flex-row md:w-auto">
+                <button
+                  type="button"
+                  onClick={() => setOpenDocument('report')}
+                  disabled={!patient}
+                  className="flex items-center justify-center gap-2 rounded-2xl border border-teal-200 bg-teal-50 px-5 py-3 text-[10px] font-black text-teal-800 hover:bg-teal-100 disabled:opacity-50"
+                >
+                  <FileText size={16} /> INFORME KINÉSICO
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOpenDocument('receipt')}
+                  disabled={!patient}
+                  className="flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-[10px] font-black text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  <Receipt size={16} /> COMPROBANTE
+                </button>
+                <button onClick={handlePrintClinicalHistory} className="flex items-center justify-center gap-2 rounded-2xl bg-slate-900 px-6 py-3 text-[10px] font-black text-white shadow-lg hover:bg-slate-800">
+                  <Printer size={16} /> IMPRIMIR SESIONES
+                </button>
+              </div>
+              {patient && openDocument === 'report' && (
+                <KinesicReportModal key={patient.id} patient={patient} onClose={() => setOpenDocument(null)} />
+              )}
+              {patient && openDocument === 'receipt' && (
+                <PatientReceiptModal key={patient.id} patient={patient} onClose={() => setOpenDocument(null)} />
+              )}
             </header>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-8">

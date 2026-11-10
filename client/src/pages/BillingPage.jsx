@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import api from '../services/api';
 import { showErrorToast, showSuccessToast } from '../components/toastHelpers';
+import ReceiptsSection from '../components/documents/ReceiptsSection';
 
 const todayInputValue = () => new Date().toISOString().slice(0, 10);
 const currentMonthValue = () => new Date().toISOString().slice(0, 7);
@@ -175,6 +176,14 @@ const BillingPage = () => {
     () => invoices.filter((invoice) => invoice.status === 'PAID'),
     [invoices]
   );
+
+  // Por defecto solo se ven las facturas con saldo: al cobrarse del todo, desaparecen de la lista.
+  const [invoiceView, setInvoiceView] = useState('pending');
+  const visibleInvoices = useMemo(() => {
+    if (invoiceView === 'paid') return paidInvoices;
+    if (invoiceView === 'all') return invoices;
+    return openInvoices;
+  }, [invoiceView, invoices, openInvoices, paidInvoices]);
 
   const obraSocialOptions = useMemo(() => {
     const optionsById = new Map();
@@ -669,10 +678,32 @@ const BillingPage = () => {
 
         <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="border-b border-slate-100 px-5 py-4">
-            <h2 className="text-xl font-black text-slate-900">Facturas emitidas</h2>
-            <p className="mt-1 text-sm font-semibold text-slate-500">
-              {openInvoices.length} abiertas · {paidInvoices.length} cobradas
-            </p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h2 className="text-xl font-black text-slate-900">Facturas emitidas</h2>
+                <p className="mt-1 text-sm font-semibold text-slate-500">
+                  {openInvoices.length} pendientes de cobro · {paidInvoices.length} cobradas
+                </p>
+              </div>
+              <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1" role="tablist" aria-label="Filtrar facturas">
+                {[
+                  { value: 'pending', label: `Pendientes (${openInvoices.length})` },
+                  { value: 'paid', label: `Cobradas (${paidInvoices.length})` },
+                  { value: 'all', label: 'Todas' },
+                ].map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    role="tab"
+                    aria-selected={invoiceView === option.value}
+                    onClick={() => setInvoiceView(option.value)}
+                    className={`min-h-9 rounded-lg px-3 text-xs font-black transition ${invoiceView === option.value ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
           {loading ? (
@@ -680,6 +711,12 @@ const BillingPage = () => {
           ) : invoices.length === 0 ? (
             <p className="px-5 py-8 text-center text-sm font-semibold text-slate-400">
               Todavía no hay facturas. Registrá la primera para empezar a medir cuentas por cobrar.
+            </p>
+          ) : visibleInvoices.length === 0 ? (
+            <p className="px-5 py-8 text-center text-sm font-semibold text-slate-400">
+              {invoiceView === 'pending'
+                ? 'No hay facturas pendientes de cobro. Todo lo facturado está cobrado.'
+                : 'Todavía no hay facturas cobradas.'}
             </p>
           ) : (
             <>
@@ -697,7 +734,7 @@ const BillingPage = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {invoices.map((invoice) => {
+                    {visibleInvoices.map((invoice) => {
                       const paymentForm = getPaymentForm(invoice);
                       const canRegisterPayment = Number(invoice.pendingAmount) > 0 && invoice.status !== 'CANCELLED';
 
@@ -817,7 +854,7 @@ const BillingPage = () => {
               </div>
 
               <div className="space-y-3 p-4 lg:hidden">
-                {invoices.map((invoice) => {
+                {visibleInvoices.map((invoice) => {
                   const paymentForm = getPaymentForm(invoice);
                   const canRegisterPayment = Number(invoice.pendingAmount) > 0 && invoice.status !== 'CANCELLED';
 
@@ -941,6 +978,8 @@ const BillingPage = () => {
             </>
           )}
         </section>
+
+        <ReceiptsSection />
       </div>
     </div>
   );

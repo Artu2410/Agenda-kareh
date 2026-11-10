@@ -31,6 +31,7 @@ export const auditActions = {
   clinicalHistoryCreated: 'CLINICAL_HISTORY_CREATED',
   clinicalHistoryUpdated: 'CLINICAL_HISTORY_UPDATED',
   clinicalHistoryDeleted: 'CLINICAL_HISTORY_DELETED',
+  receiptCreated: 'PATIENT_RECEIPT_CREATED',
   obraSocialCreated: 'OBRA_SOCIAL_CREATED',
   obraSocialUpdated: 'OBRA_SOCIAL_UPDATED',
   obraSocialDeleted: 'OBRA_SOCIAL_DELETED',

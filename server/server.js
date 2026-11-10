@@ -47,6 +47,7 @@ import createAppointmentRoutes from './src/domain/appointments/index.js';
 import createPatientRoutes from './src/domain/patients/index.js';
 import createCashflowRoutes from './src/routes/cashflow.routes.js';
 import createBillingRoutes from './src/domain/billing/index.js';
+import createReceiptsRoutes from './src/routes/receipts.routes.js';
 import createCapacityRoutes from './src/routes/capacity.routes.js';
 import createProfitabilityRoutes from './src/routes/profitability.routes.js';
 import createFinancialProjectionRoutes from './src/routes/financialProjection.routes.js';
@@ -326,6 +327,7 @@ app.use('/api/appointments', authMiddleware, checkRole(ROLES.SUPER_USER, ROLES.A
 app.use('/api/patients', authMiddleware, checkRole(ROLES.SUPER_USER, ROLES.ADMIN, ROLES.PROFESSIONAL, ROLES.SECRETARIA), searchLimiter, createPatientRoutes(prisma));
 app.use('/api/cashflow', authMiddleware, checkRole(ROLES.SUPER_USER, ROLES.ADMIN, ROLES.SECRETARIA), createCashflowRoutes(prisma));
 app.use('/api/billing', authMiddleware, checkRole(ROLES.SUPER_USER, ROLES.ADMIN, ROLES.SECRETARIA), createBillingRoutes(prisma));
+app.use('/api/receipts', authMiddleware, checkRole(ROLES.SUPER_USER, ROLES.ADMIN, ROLES.SECRETARIA, ROLES.PROFESSIONAL), createReceiptsRoutes(prisma));
 app.use('/api/capacity', authMiddleware, checkRole(ROLES.SUPER_USER, ROLES.ADMIN, ROLES.PROFESSIONAL, ROLES.SECRETARIA), createCapacityRoutes(prisma));
 app.use('/api/profitability', authMiddleware, checkRole(ROLES.SUPER_USER, ROLES.ADMIN, ROLES.SECRETARIA), createProfitabilityRoutes(prisma));
 app.use('/api/financial-projection', authMiddleware, checkRole(ROLES.SUPER_USER, ROLES.ADMIN, ROLES.SECRETARIA), createFinancialProjectionRoutes(prisma));

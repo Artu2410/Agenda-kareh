@@ -181,6 +181,7 @@ model Patient {
   billingInvoiceItems        BillingInvoiceItem[]
   clinicalHistory           ClinicalHistory[]
   treatmentCycles           TreatmentCycle[]
+  receipts                  PatientReceipt[]
   obraSocial                ObraSocial?       @relation(fields: [obraSocialId], references: [id], onDelete: SetNull)
 
   @@index([phone])
@@ -227,6 +228,7 @@ model Professional {
   billingInvoiceItems          BillingInvoiceItem[]
   clinicalHistories            ClinicalHistory[]
   workSchedule                 WorkSchedule[]
+  receipts                     PatientReceipt[]
   user                         User?
 }
 
@@ -494,4 +496,33 @@ model ObraSocial {
   @@index([isArchived])
   @@index([requiresAuthorization])
   @@index([nombreOs])
+}
+
+// ---------------------------------------------------------
+// COMPROBANTES NO FISCALES (no válidos como factura ante ARCA)
+// ---------------------------------------------------------
+// Los datos del paciente y del profesional se copian al emitir, para que el
+// comprobante se reimprima igual aunque después cambie la ficha.
+model PatientReceipt {
+  id                  String        @id @default(cuid())
+  number              Int           @unique @default(autoincrement())
+  issueDate           DateTime      @default(now())
+  patientId           String
+  professionalId      String?
+  description         String
+  amount              Decimal       @db.Decimal(12, 2)
+  patientName         String
+  patientDni          String
+  coverage            String?
+  affiliateNumber     String?
+  diagnosis           String?
+  professionalName    String?
+  professionalLicense String?
+  createdById         String?
+  createdAt           DateTime      @default(now())
+  patient             Patient       @relation(fields: [patientId], references: [id])
+  professional        Professional? @relation(fields: [professionalId], references: [id], onDelete: SetNull)
+
+  @@index([patientId, issueDate])
+  @@index([issueDate])
 }
