@@ -4,8 +4,8 @@ import { buildProfessionalPatientWhere, getScopedProfessionalId } from '../utils
 
 /**
  * Comprobantes no fiscales: documento interno para el paciente, NO válido como
- * factura ante ARCA. Se completan solos con los datos del paciente; a mano solo
- * van la descripción y el monto.
+ * factura ante ARCA. Se completan solos con los datos del paciente; a mano van
+ * la descripción, el monto y (opcional) la fecha de emisión.
  */
 
 const receiptSelect = {
@@ -48,7 +48,7 @@ export const serializeReceipt = (receipt) => ({
 // Fecha elegida a mediodía UTC: se imprime el mismo día en cualquier zona horaria.
 const toIssueDate = (value) => (value ? new Date(`${value}T12:00:00Z`) : new Date());
 
-const MAX_NUMBER_RETRIES = 3;
+const MAX_NUMBER_RETRIES = 5;
 
 /**
  * Numera como "último + 1" (no con la secuencia de la base), así al eliminar el

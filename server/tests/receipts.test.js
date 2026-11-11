@@ -141,6 +141,14 @@ describe('patient receipts', () => {
     expect(createReceiptBodySchema.safeParse({ ...base, issueDate: '2026-02-28' }).success).toBe(true);
   });
 
+  it('rejects typo dates far in the past or future', () => {
+    const base = { patientId: 'p1', description: 'x', amount: 10 };
+    const nextYear = new Date().getUTCFullYear() + 2;
+    expect(createReceiptBodySchema.safeParse({ ...base, issueDate: '0202-05-10' }).success).toBe(false);
+    expect(createReceiptBodySchema.safeParse({ ...base, issueDate: `${nextYear}-05-10` }).success).toBe(false);
+    expect(createReceiptBodySchema.safeParse({ ...base, issueDate: '2001-05-10' }).success).toBe(true);
+  });
+
   it('deletes a receipt and records it in the audit log', async () => {
     const prisma = buildPrisma();
     prisma.patientReceipt.findFirst.mockResolvedValue({ id: 'r1', number: 1, patientId: 'p1', amount: '200000', description: '10 sesiones' });

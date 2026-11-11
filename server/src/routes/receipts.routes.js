@@ -22,6 +22,12 @@ export const createReceiptBodySchema = z.object({
       const date = new Date(`${value}T12:00:00Z`);
       return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
     }, 'Fecha inválida')
+    // Desde el año 2000 hasta un año adelante: evita errores de tipeo como 0202 o 2062.
+    .refine((value) => {
+      const maxDate = new Date();
+      maxDate.setUTCFullYear(maxDate.getUTCFullYear() + 1);
+      return value >= '2000-01-01' && value <= maxDate.toISOString().slice(0, 10);
+    }, 'La fecha debe estar entre el año 2000 y un año adelante')
     .optional(),
 }).strip();
 

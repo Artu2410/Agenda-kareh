@@ -12,11 +12,6 @@ export default function ReceiptsSection() {
   const [receipts, setReceipts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const removeFromList = useCallback((deleted) => {
-    setReceipts((prev) => prev.filter((item) => item.id !== deleted.id));
-  }, []);
-  const { ConfirmModalComponent, requestDelete } = useDeleteReceipt(removeFromList);
-
   const loadReceipts = useCallback(async () => {
     try {
       const { data } = await api.get('/receipts', { params: { limit: 20 } });
@@ -31,6 +26,9 @@ export default function ReceiptsSection() {
   useEffect(() => {
     void loadReceipts();
   }, [loadReceipts]);
+
+  // Tras eliminar se recarga la lista, así entra el siguiente y siguen siendo los últimos 20.
+  const { ConfirmModalComponent, requestDelete } = useDeleteReceipt(loadReceipts);
 
   return (
     <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
