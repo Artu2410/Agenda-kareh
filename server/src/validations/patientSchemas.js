@@ -41,6 +41,11 @@ export const patientBodySchema = z.object({
 export const createPatientBodySchema = patientBodySchema;
 export const updatePatientBodySchema = patientBodySchema.partial();
 
+export const actaBookBodySchema = z.object({
+  recorded: z.boolean({ error: 'Indicá si el paciente está pasado al libro' }),
+  folio: z.union([z.string().trim().max(40, 'Máximo 40 caracteres'), z.null()]).optional(),
+}).strip();
+
 export const patientIdParamsSchema = z.object({
   id: idSchema('Paciente'),
 }).strip();

@@ -18,6 +18,7 @@ export const auditActions = {
   userDeleted: 'USER_DELETED',
   patientCreated: 'PATIENT_CREATED',
   patientUpdated: 'PATIENT_UPDATED',
+  patientActaBookUpdated: 'PATIENT_ACTA_BOOK_UPDATED',
   patientDeleted: 'PATIENT_DELETED',
   patientRead: 'PATIENT_READ',
   patientListed: 'PATIENT_LISTED',

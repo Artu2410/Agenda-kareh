@@ -4,6 +4,7 @@ import api from '../services/api';
 import {
   Activity,
   AlertCircle,
+  BookOpen,
   Edit2,
   FileText,
   Loader2,
@@ -14,11 +15,24 @@ import {
 import { MedicalAlertTooltip } from '../components/Tooltip';
 import { useConfirmModal } from '../hooks/useConfirmModal';
 import DocumentUploadField from '../components/DocumentUploadField';
+import ActaBookToggle from '../components/patients/ActaBookToggle';
 import { buildClinicalHistoryPath, persistClinicalHistoryContext } from '../utils/appRoutes';
 import { getCoverageLabel, isParticularCoverage } from '../utils/coverage';
 import { getAuthenticatedFileUrl } from '../services/fileUrl';
 
 const UNKNOWN_BIRTHDATE = '1900-01-01';
+
+const ACTA_BOOK_FILTERS = [
+  { id: 'all', label: 'Todos' },
+  { id: 'pending', label: 'Pendientes de libro' },
+  { id: 'recorded', label: 'Ya en libro' },
+];
+
+const matchesActaBookFilter = (patient, filter) => {
+  if (filter === 'pending') return !patient.actaBookRecordedAt;
+  if (filter === 'recorded') return Boolean(patient.actaBookRecordedAt);
+  return true;
+};
 const MAX_UPLOAD_MB = Number(import.meta.env.VITE_UPLOAD_MAX_MB || 25);
 const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
 
@@ -94,6 +108,7 @@ export default function PatientsPage() {
   const { ConfirmModalComponent, openModal } = useConfirmModal();
   const [patients, setPatients] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [actaBookFilter, setActaBookFilter] = useState('all');
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(null);
@@ -139,19 +154,25 @@ export default function PatientsPage() {
     return obrasSociales.find((obraSocial) => obraSocial.nombreOs === formData.healthInsurance) || null;
   }, [formData.healthInsurance, formData.obraSocialId, obrasSociales]);
 
+  const actaBookCounts = useMemo(() => {
+    const recorded = patients.filter((patient) => patient.actaBookRecordedAt).length;
+    return { all: patients.length, recorded, pending: patients.length - recorded };
+  }, [patients]);
+
   const filteredPatients = useMemo(() => {
     const normalizedTerm = searchTerm.trim().toLowerCase();
-    if (!normalizedTerm) return sortPatientsAlphabetically(patients);
+    const byActaBook = patients.filter((patient) => matchesActaBookFilter(patient, actaBookFilter));
+    if (!normalizedTerm) return sortPatientsAlphabetically(byActaBook);
 
     return sortPatientsAlphabetically(
-      patients.filter((patient) => (
+      byActaBook.filter((patient) => (
         patient.fullName?.toLowerCase().includes(normalizedTerm)
         || patient.dni?.includes(searchTerm)
         || patient.healthInsurance?.toLowerCase().includes(normalizedTerm)
         || getCoverageLabel(patient.healthInsurance, patient.treatAsParticular).toLowerCase().includes(normalizedTerm)
       ))
     );
-  }, [patients, searchTerm]);
+  }, [patients, searchTerm, actaBookFilter]);
 
   const openCreateModal = () => {
     setIsNewPatient(true);
@@ -280,6 +301,30 @@ export default function PatientsPage() {
     });
   };
 
+  const updatePatientInList = (patientId, changes) => {
+    setPatients((prev) => prev.map((item) => (item.id === patientId ? { ...item, ...changes } : item)));
+  };
+
+  const confirmActaBookUnmark = (patient) => (unmark) => {
+    openModal({
+      title: 'Quitar del libro de actas',
+      message: `${patient.fullName} volverá a figurar como pendiente de pasar al libro. ¿Continuar?`,
+      confirmText: 'Quitar marca',
+      icon: BookOpen,
+      onConfirm: unmark,
+    });
+  };
+
+  const renderActaBookToggle = (patient, compact = false) => (
+    <ActaBookToggle
+      key={`${patient.id}-${patient.actaBookFolio || ''}`}
+      patient={patient}
+      compact={compact}
+      onChange={(changes) => updatePatientInList(patient.id, changes)}
+      onRequestUnmark={confirmActaBookUnmark(patient)}
+    />
+  );
+
   const openClinicalHistory = (patient) => {
     persistClinicalHistoryContext({ patientId: patient.id, patientName: patient.fullName });
     navigate(buildClinicalHistoryPath(patient.fullName), {
@@ -337,6 +382,23 @@ export default function PatientsPage() {
         />
       </div>
 
+      <div className="mb-6 flex flex-wrap items-center gap-2" role="group" aria-label="Filtrar por libro de actas">
+        <span className="mr-1 inline-flex items-center gap-1.5 text-xs font-black uppercase text-slate-400">
+          <BookOpen size={14} /> Libro de actas
+        </span>
+        {ACTA_BOOK_FILTERS.map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            onClick={() => setActaBookFilter(option.id)}
+            aria-pressed={actaBookFilter === option.id}
+            className={`min-h-9 rounded-full border px-4 py-1.5 text-xs font-black transition ${actaBookFilter === option.id ? 'border-teal-600 bg-teal-600 text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-teal-300'}`}
+          >
+            {option.label} ({actaBookCounts[option.id]})
+          </button>
+        ))}
+      </div>
+
       {loading ? (
         <div className="flex items-center justify-center py-16 text-slate-400">
           <Loader2 className="animate-spin" size={32} />
@@ -352,6 +414,7 @@ export default function PatientsPage() {
                   <th className="px-6 py-4">DNI</th>
                   <th className="px-6 py-4">Obra Social</th>
                   <th className="px-6 py-4">Documentos</th>
+                  <th className="px-6 py-4">Libro de actas</th>
                   <th className="px-6 py-4 text-center">Acciones</th>
                 </tr>
               </thead>
@@ -369,6 +432,7 @@ export default function PatientsPage() {
                         {renderPatientDocuments(patient)}
                       </div>
                     </td>
+                    <td className="px-6 py-4">{renderActaBookToggle(patient)}</td>
                     <td className="px-6 py-4">
                       <div className="flex justify-center gap-2">
                         <button type="button" onClick={() => openClinicalHistory(patient)} className="p-2 hover:text-teal-600">
@@ -404,6 +468,10 @@ export default function PatientsPage() {
 
                 <div className="mt-4 flex flex-wrap gap-2">
                   {renderPatientDocuments(patient)}
+                </div>
+
+                <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2">
+                  {renderActaBookToggle(patient, true)}
                 </div>
 
                 <div className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-3">

@@ -63,6 +63,8 @@ export const patientSelect = {
   isRespiratory: true,
   isIU: true,
   medicalNotes: true,
+  actaBookRecordedAt: true,
+  actaBookFolio: true,
   createdAt: true,
   updatedAt: true,
 };
