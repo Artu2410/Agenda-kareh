@@ -64,7 +64,7 @@
   },
   "overrides": {
     "brace-expansion": "5.0.12",
-    "minimatch": "10.2.6",
+    "minimatch": "11.0.8",
     "path-to-regexp": "0.1.13",
     "picomatch": "^2.3.2",
     "cookie": "^0.7.0",
@@ -81,6 +81,7 @@
     "browserslist": "4.29.4",
     "baseline-browser-mapping": "2.11.30",
     "uuid": "14.0.0",
-    "@hono/node-server": "^1.19.14"
+    "@hono/node-server": "^1.19.14",
+    "glob": "14.0.5"
   }
 }
