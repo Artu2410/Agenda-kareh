@@ -9,13 +9,13 @@ import {
   primaryButtonClass,
   secondaryButtonClass,
 } from './documentStyles';
-import { formatCurrencyAR, formatDniAR } from '../../utils/documents/printDocument';
+import { formatCurrencyAR, formatDniAR, todayISO } from '../../utils/documents/printDocument';
 import { getLatestDiagnosis, getPatientCoverage, parseAmountInput } from './patientDocumentData';
 import { printPatientReceipt } from './printReceipt';
 
 /**
  * Comprobante no válido como factura ante ARCA. Todo sale de la ficha del paciente;
- * a mano solo se cargan la descripción y el monto.
+ * a mano solo se cargan la descripción, el monto y la fecha (por defecto, hoy).
  * Si no recibe paciente, permite buscarlo por DNI.
  */
 export default function PatientReceiptModal({ patient: initialPatient = null, onClose, onCreated }) {
@@ -24,6 +24,7 @@ export default function PatientReceiptModal({ patient: initialPatient = null, on
   const [searching, setSearching] = useState(false);
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
+  const [issueDate, setIssueDate] = useState(todayISO);
   const [saving, setSaving] = useState(false);
 
   const parsedAmount = parseAmountInput(amount);
@@ -64,6 +65,10 @@ export default function PatientReceiptModal({ patient: initialPatient = null, on
       showErrorToast('Ingresá un monto mayor a 0.');
       return;
     }
+    if (!issueDate) {
+      showErrorToast('Elegí la fecha del comprobante.');
+      return;
+    }
 
     try {
       setSaving(true);
@@ -71,6 +76,7 @@ export default function PatientReceiptModal({ patient: initialPatient = null, on
         patientId: patient.id,
         description: description.trim(),
         amount: parsedAmount,
+        issueDate,
       });
       showSuccessToast(`Comprobante ${data.displayNumber} emitido`);
       printPatientReceipt(data);
@@ -154,6 +160,16 @@ export default function PatientReceiptModal({ patient: initialPatient = null, on
                 {amountIsValid ? formatCurrencyAR(parsedAmount) : 'Monto inválido'}
               </span>
             )}
+          </label>
+          <label className="block">
+            <span className={fieldLabelClass}>Fecha del comprobante</span>
+            <input
+              type="date"
+              className={inputClass}
+              value={issueDate}
+              onChange={(event) => setIssueDate(event.target.value)}
+              disabled={!patient}
+            />
           </label>
         </form>
       </div>

@@ -1,13 +1,14 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { apiGet, printPatientReceipt } = vi.hoisted(() => ({
+const { apiGet, apiDelete, printPatientReceipt } = vi.hoisted(() => ({
   apiGet: vi.fn(),
+  apiDelete: vi.fn(),
   printPatientReceipt: vi.fn(() => true),
 }));
 
-vi.mock('../../services/api', () => ({ default: { get: apiGet } }));
+vi.mock('../../services/api', () => ({ default: { get: apiGet, delete: apiDelete } }));
 vi.mock('./printReceipt', () => ({ printPatientReceipt }));
 
 import PatientReceiptsSection from './PatientReceiptsSection.jsx';
@@ -17,12 +18,14 @@ const receipt = {
   displayNumber: '0001-00000042',
   issueDate: '2026-11-10T12:00:00.000Z',
   description: 'Sesiones de kinesiología',
+  patientName: 'Pérez, Ana',
   amount: 15000.5,
 };
 
 describe('PatientReceiptsSection', () => {
   beforeEach(() => {
     apiGet.mockReset();
+    apiDelete.mockReset();
     printPatientReceipt.mockClear();
   });
 
@@ -45,5 +48,21 @@ describe('PatientReceiptsSection', () => {
     render(<PatientReceiptsSection patientId="p1" />);
 
     expect(await screen.findByText(/todavía no se emitieron comprobantes/i)).toBeInTheDocument();
+  });
+
+  it('elimina un comprobante después de confirmar', async () => {
+    apiGet.mockResolvedValue({ data: [receipt] });
+    apiDelete.mockResolvedValue({});
+
+    render(<PatientReceiptsSection patientId="p1" />);
+    fireEvent.click(await screen.findByRole('button', { name: /eliminar comprobante/i }));
+
+    expect(apiDelete).not.toHaveBeenCalled();
+    const dialog = await screen.findByText(/se eliminará el comprobante/i);
+    const modal = dialog.closest('[role="dialog"]') || document.body;
+    fireEvent.click(within(modal).getByRole('button', { name: /^eliminar$/i }));
+
+    await waitFor(() => expect(apiDelete).toHaveBeenCalledWith('/receipts/r1'));
+    await waitFor(() => expect(screen.queryByText('Sesiones de kinesiología')).not.toBeInTheDocument());
   });
 });

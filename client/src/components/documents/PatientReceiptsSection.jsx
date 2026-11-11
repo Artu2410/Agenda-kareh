@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
-import { Printer, Receipt } from 'lucide-react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Printer, Receipt, Trash2 } from 'lucide-react';
 import api from '../../services/api';
 import { showErrorToast } from '../toastHelpers';
 import { formatCurrencyAR, formatDateAR } from '../../utils/documents/printDocument';
 import { printPatientReceipt } from './printReceipt';
+import useDeleteReceipt from './useDeleteReceipt';
 
 /**
  * Comprobantes no fiscales emitidos a un paciente, dentro de su historia clínica.
@@ -12,6 +13,10 @@ import { printPatientReceipt } from './printReceipt';
 export default function PatientReceiptsSection({ patientId, refreshKey = 0 }) {
   const [receipts, setReceipts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const removeFromList = useCallback((deleted) => {
+    setReceipts((prev) => prev.filter((item) => item.id !== deleted.id));
+  }, []);
+  const { ConfirmModalComponent, requestDelete } = useDeleteReceipt(removeFromList);
 
   useEffect(() => {
     if (!patientId) return undefined;
@@ -54,19 +59,31 @@ export default function PatientReceiptsSection({ patientId, refreshKey = 0 }) {
                   N° {receipt.displayNumber} · {formatDateAR(receipt.issueDate)}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => printPatientReceipt(receipt)}
-                className="shrink-0 rounded-xl p-2 text-slate-500 transition hover:bg-teal-50 hover:text-teal-700"
-                aria-label={`Reimprimir comprobante N° ${receipt.displayNumber}`}
-                title="Reimprimir"
-              >
-                <Printer size={16} />
-              </button>
+              <div className="flex shrink-0 items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => printPatientReceipt(receipt)}
+                  className="rounded-xl p-2 text-slate-500 transition hover:bg-teal-50 hover:text-teal-700"
+                  aria-label={`Reimprimir comprobante N° ${receipt.displayNumber}`}
+                  title="Reimprimir"
+                >
+                  <Printer size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => requestDelete(receipt)}
+                  className="rounded-xl p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
+                  aria-label={`Eliminar comprobante N° ${receipt.displayNumber}`}
+                  title="Eliminar"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
             </li>
           ))}
         </ul>
       )}
+      {ConfirmModalComponent}
     </section>
   );
 }
