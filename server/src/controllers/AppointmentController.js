@@ -417,6 +417,7 @@ export const createAppointment = async (req, res, prisma) => {
     authorizationFileUrl,
     paidInAdvance,
     sessionToken,
+    startNewCycle,
   } = req.body;
 
   // Fallback: si phone o birthDate no están al nivel raíz, buscar en patientData
@@ -457,14 +458,17 @@ export const createAppointment = async (req, res, prisma) => {
             affiliateNumber: patientData.affiliateNumber || undefined,
             phone: phoneToUse || undefined,
             birthDate: birthDateToUse ? normalizeBirthDateOrUnknown(birthDateToUse) : undefined,
-            hasMarcapasos: patientData.hasMarcapasos ?? false, 
+            address: patientData.address || undefined,
+            email: patientData.email || undefined,
+            emergencyPhone: patientData.emergencyPhone || undefined,
+            hasMarcapasos: patientData.hasMarcapasos ?? false,
             usesEA: patientData.usesEA ?? false,
             hasCancer: patientData.hasCancer ?? false,
             usesWheelchair: patientData.usesWheelchair ?? false,
             isRespiratory: patientData.isRespiratory ?? false,
             isIU: patientData.isIU ?? false,
           },
-          create: { 
+          create: {
             dni: String(patientData.dni), 
             fullName: patientData.fullName, 
             healthInsurance: insuranceData.healthInsurance,
@@ -473,7 +477,10 @@ export const createAppointment = async (req, res, prisma) => {
             affiliateNumber: patientData.affiliateNumber || null,
             phone: phoneToUse || null,
             birthDate: normalizeBirthDateOrUnknown(birthDateToUse),
-            hasMarcapasos: patientData.hasMarcapasos ?? false, 
+            address: patientData.address || null,
+            email: patientData.email || null,
+            emergencyPhone: patientData.emergencyPhone || null,
+            hasMarcapasos: patientData.hasMarcapasos ?? false,
             usesEA: patientData.usesEA ?? false,
             hasCancer: patientData.hasCancer ?? false,
             usesWheelchair: patientData.usesWheelchair ?? false,
@@ -626,7 +633,9 @@ export const createAppointment = async (req, res, prisma) => {
                 time,
                 slotNumber: nextSlot,
                 diagnosis: diagnosis ? diagnosis.toUpperCase() : null,
-                isFirstSession: false, // Dejamos que resequencePatientAppointments decida basándose en la historia
+                // "Iniciar ciclo nuevo": el primer turno creado pasa a ser la sesión 1 y corta el
+                // ciclo anterior (paciente que abandonó y retoma). Si no, la renumeración decide.
+                isFirstSession: Boolean(startNewCycle && sessionsCreated === 0),
                 sessionNumber: 0, // Idem
                 patientId: patient.id,
                 professionalId: prof.id,
@@ -753,7 +762,8 @@ export const updateEvolution = async (req, res, prisma) => {
         authorizationNumber,
         authorizationFileUrl,
         paidInAdvance: paidInAdvance ?? currentApt.paidInAdvance,
-        sessionToken: sessionToken ?? currentApt.sessionToken,
+        // undefined = no se tocó (se conserva); null = se borró a propósito.
+        sessionToken: sessionToken !== undefined ? sessionToken : currentApt.sessionToken,
       }, {
         currentAppointment: currentApt,
         preserveCurrentInsurance: !insuranceHasChanged,
@@ -798,6 +808,11 @@ export const updateEvolution = async (req, res, prisma) => {
             affiliateNumber: patientData.affiliateNumber || undefined,
             phone: patientData.phone || undefined,
             birthDate: patientData.birthDate ? normalizeBirthDateOrUnknown(patientData.birthDate) : undefined,
+            // Datos de contacto que también se cargan desde el turno (se cruzan con la ficha).
+            ...(patientData.address !== undefined && { address: patientData.address || null }),
+            ...(patientData.email !== undefined && { email: patientData.email || null }),
+            ...(patientData.emergencyPhone !== undefined && { emergencyPhone: patientData.emergencyPhone || null }),
+            ...(patientData.cudNumber !== undefined && { cudNumber: patientData.cudNumber || null }),
             hasCancer: patientData.hasCancer ?? undefined,
             hasMarcapasos: patientData.hasMarcapasos ?? undefined,
             usesEA: patientData.usesEA ?? undefined,
@@ -916,7 +931,11 @@ export const updateAppointment = async (req, res, prisma) => {
         authorizationNumber,
         authorizationFileUrl,
         paidInAdvance: paidInAdvance ?? currentAppointment.paidInAdvance,
-        sessionToken: sessionToken ?? currentAppointment.sessionToken,
+        // El token valida la sesión de una fecha: si se reprograma y no se manda uno
+        // nuevo, el turno queda sin token. null = borrado a propósito.
+        sessionToken: sessionToken !== undefined
+          ? sessionToken
+          : (hasScheduleChange ? null : currentAppointment.sessionToken),
       }, {
         currentAppointment: currentAppointment,
         preserveCurrentInsurance: !hasScheduleChange,

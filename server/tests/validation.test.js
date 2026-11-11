@@ -304,7 +304,8 @@ describe('centralized zod validation middleware', () => {
       isRespiratory: false,
       isIU: false,
     });
-    expect(response.body.body.sessionToken).toBeUndefined();
+    // Token vacío = borrarlo (null); ausente = no tocarlo (undefined).
+    expect(response.body.body.sessionToken).toBeNull();
     expect(response.body.body.authorizationNumber).toBeUndefined();
     expect(response.body.body.authorizationFileUrl).toBeUndefined();
   });

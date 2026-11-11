@@ -171,3 +171,109 @@ describe('AppointmentModal', () => {
     });
   });
 });
+
+describe('AppointmentModal · último turno, token y ciclos', () => {
+  const appointmentWithPatient = {
+    ...baseAppointment,
+    patientId: 'pat-1',
+    professionalId: 'pro-1',
+    sessionToken: 'TOK-VIEJO',
+  };
+  const lastFutureAppointment = {
+    id: 'apt-1',
+    date: '2026-05-27T12:00:00.000Z',
+    time: '10:00',
+    sessionNumber: 3,
+  };
+
+  const useDefaultHandlers = (overrides = []) => server.use(
+    http.get(getApiUrl('/obras-sociales'), () => HttpResponse.json([], { status: 200 })),
+    http.get(getApiUrl('/patients/pat-1/future-appointments'), () => HttpResponse.json([lastFutureAppointment])),
+    http.get(getApiUrl('/patients/pat-1/session-cycles'), () => HttpResponse.json({
+      cycles: [
+        {
+          cycleNumber: 1,
+          state: 'INTERRUPTED',
+          from: '2026-03-02T12:00:00.000Z',
+          to: '2026-03-06T12:00:00.000Z',
+          totalSessions: 3,
+          attended: 3,
+          noShow: 0,
+          pending: 0,
+          unmarked: 0,
+          sessions: [
+            { id: 's1', date: '2026-03-02T12:00:00.000Z', time: '10:00', status: 'COMPLETED', sessionNumber: 1 },
+            { id: 's2', date: '2026-03-04T12:00:00.000Z', time: '10:00', status: 'COMPLETED', sessionNumber: 2 },
+            { id: 's3', date: '2026-03-06T12:00:00.000Z', time: '10:00', status: 'COMPLETED', sessionNumber: 3 },
+          ],
+        },
+      ],
+      years: [{ year: 2026, totalCompleted: 3 }],
+    })),
+    ...overrides,
+  );
+
+  const renderModal = () => render(
+    <AppointmentModal
+      isOpen
+      onClose={vi.fn()}
+      onSave={vi.fn()}
+      onDelete={vi.fn()}
+      onRefresh={vi.fn()}
+      appointment={appointmentWithPatient}
+    />
+  );
+
+  it('deja editar el último turno aunque se muestre la vista previa de sesiones a programar', async () => {
+    useDefaultHandlers();
+    renderModal();
+
+    expect(await screen.findByRole('button', { name: /editar sesión futura/i })).toBeInTheDocument();
+    expect(screen.getByText(/a programar/i)).toBeInTheDocument();
+  });
+
+  it('muestra en cuántas sesiones quedó un ciclo cortado y sus fechas', async () => {
+    useDefaultHandlers();
+    renderModal();
+
+    expect(await screen.findByText(/quedó en 3 de 10 sesiones/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /ciclo 1/i }));
+    expect(screen.getAllByText(/asistió/i).length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('permite borrar el token del turno', async () => {
+    let capturedPayload = null;
+    useDefaultHandlers([
+      http.patch(getApiUrl('/appointments/apt-1/evolution'), async ({ request }) => {
+        capturedPayload = await request.json();
+        return HttpResponse.json({ success: true });
+      }),
+    ]);
+    renderModal();
+
+    const tokenInput = await screen.findByPlaceholderText('Ingrese el número de token / validación');
+    await waitFor(() => expect(tokenInput).toHaveValue('TOK-VIEJO'));
+    fireEvent.change(tokenInput, { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: /guardar cambios/i }));
+
+    await waitFor(() => expect(capturedPayload).not.toBeNull());
+    expect(capturedPayload.sessionToken).toBe('');
+  });
+
+  it('una sesión agregada no hereda el token del turno', async () => {
+    let createdPayload = null;
+    useDefaultHandlers([
+      http.post(getApiUrl('/appointments'), async ({ request }) => {
+        createdPayload = await request.json();
+        return HttpResponse.json({ appointments: [] }, { status: 201 });
+      }),
+    ]);
+    renderModal();
+
+    fireEvent.click(await screen.findByTitle('Agregar sesión individual'));
+    fireEvent.click(screen.getByRole('button', { name: /^agendar$/i }));
+
+    await waitFor(() => expect(createdPayload).not.toBeNull());
+    expect(createdPayload).not.toHaveProperty('sessionToken');
+  });
+});

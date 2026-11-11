@@ -40,6 +40,24 @@ export const requiredString = (field, { min = 1, max = 255 } = {}) => (
     .max(max, `${field} es demasiado largo`)
 );
 
+// Como optionalString, pero un texto vacío (o null) significa "borrar el valor" y
+// llega como null; solo un campo ausente queda undefined ("no tocar").
+export const clearableString = (field, { max = 255 } = {}) => (
+  z.preprocess(
+    (value) => {
+      if (value === undefined) return undefined;
+      if (value === null) return null;
+      if (typeof value !== 'string') return value;
+      const trimmed = value.trim();
+      return trimmed === '' ? null : trimmed;
+    },
+    z.string()
+      .max(max, `${field} es demasiado largo`)
+      .nullable()
+      .optional(),
+  )
+);
+
 export const optionalString = (field, { max = 255 } = {}) => (
   z.preprocess(
     emptyToUndefined,

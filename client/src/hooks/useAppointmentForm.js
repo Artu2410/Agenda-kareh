@@ -24,6 +24,28 @@ const isUnknownBirthDate = (birthDate) => {
   return dateString <= UNKNOWN_BIRTHDATE;
 };
 
+// Documentación de la ficha del paciente (se sube desde el turno y queda en la ficha).
+export const PATIENT_DOCUMENT_FIELDS = [
+  { field: 'dniImageUrl', label: 'DNI frente' },
+  { field: 'dniBackImageUrl', label: 'DNI dorso' },
+  { field: 'insuranceCardImageUrl', label: 'Credencial frente' },
+  { field: 'insuranceCardBackImageUrl', label: 'Credencial dorso' },
+  { field: 'cudCredentialUrl', label: 'Credencial CUD' },
+];
+
+const createPatientDocuments = (source = {}) => Object.fromEntries(
+  PATIENT_DOCUMENT_FIELDS.map(({ field }) => [field, source[field] || '']),
+);
+
+// Ficha extendida: contacto y documentación, igual en turno y en búsqueda por DNI.
+const pickPatientRecordFields = (source = {}) => ({
+  address: source.address || '',
+  email: source.email || '',
+  emergencyPhone: source.emergencyPhone || '',
+  cudNumber: source.cudNumber || '',
+  ...createPatientDocuments(source),
+});
+
 const createPatientData = () => ({
   dni: '',
   lastName: '',
@@ -34,6 +56,7 @@ const createPatientData = () => ({
   obraSocialId: '',
   treatAsParticular: false,
   affiliateNumber: '',
+  ...pickPatientRecordFields(),
   hasCancer: false,
   hasMarcapasos: false,
   usesEA: false,
@@ -43,6 +66,7 @@ const createPatientData = () => ({
 });
 
 const createManualDraft = () => ({ date: '', time: '' });
+const EMPTY_CYCLES = { cycles: [], years: [] };
 
 const buildChecklistFromInsurance = (obraSocial, currentChecklist = null) => {
   if (currentChecklist?.documents?.length) {
@@ -79,6 +103,7 @@ const normalizePatientFromAppointment = (appointment) => {
     obraSocialId: patient.obraSocialId || '',
     treatAsParticular: patient.treatAsParticular || false,
     affiliateNumber: patient.affiliateNumber || '',
+    ...pickPatientRecordFields(patient),
     hasCancer: patient.hasCancer || false,
     hasMarcapasos: patient.hasMarcapasos || false,
     usesEA: patient.usesEA || false,
@@ -102,6 +127,7 @@ const normalizePatientFromSearch = (previousPatient, data) => {
     obraSocialId: data.obraSocialId || '',
     treatAsParticular: data.treatAsParticular || false,
     affiliateNumber: data.affiliateNumber || '',
+    ...pickPatientRecordFields(data),
     hasCancer: data.hasCancer || false,
     hasMarcapasos: data.hasMarcapasos || false,
     usesEA: data.usesEA || false,
@@ -131,7 +157,7 @@ export const useAppointmentForm = ({
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [createdAppointments, setCreatedAppointments] = useState([]);
   const [futureAppointments, setFutureAppointments] = useState([]);
-  const [sessionCycles, setSessionCycles] = useState([]);
+  const [sessionCycles, setSessionCycles] = useState(EMPTY_CYCLES);
   const [editingFutureId, setEditingFutureId] = useState(null);
   const [futureDraft, setFutureDraft] = useState(createManualDraft);
   const [savingFutureId, setSavingFutureId] = useState('');
@@ -146,12 +172,16 @@ export const useAppointmentForm = ({
   const [paidInAdvance, setPaidInAdvance] = useState(false);
   const [sessionToken, setSessionToken] = useState('');
   const [uploadingAuthorization, setUploadingAuthorization] = useState(false);
+  const [foundPatientId, setFoundPatientId] = useState('');
+  const [uploadingDocumentField, setUploadingDocumentField] = useState('');
 
   const lastSearchedRef = useRef('');
   const searchTimerRef = useRef(null);
   const { ConfirmModalComponent, openModal } = useConfirmModal();
 
   const isEditMode = Boolean(appointment?.id);
+  // Paciente ya existente: el del turno, o el encontrado por DNI al dar un turno nuevo.
+  const knownPatientId = appointment?.patientId || foundPatientId || '';
   const modalDate = selectedSlot?.date || getInputDateValue(appointment?.date);
   const modalTime = selectedSlot?.time || appointment?.time || '';
   const originalIsFirstSession = Boolean(appointment?.isFirstSession);
@@ -173,18 +203,26 @@ export const useAppointmentForm = ({
   }, [appointment?.patientId]);
 
   const loadSessionCycles = useCallback(async () => {
-    if (!appointment?.patientId) {
-      setSessionCycles([]);
+    if (!knownPatientId) {
+      setSessionCycles(EMPTY_CYCLES);
       return;
     }
 
     try {
-      const { data } = await api.get(`/patients/${appointment.patientId}/session-cycles`);
-      setSessionCycles(data || []);
+      const { data } = await api.get(`/patients/${knownPatientId}/session-cycles`);
+      setSessionCycles({
+        cycles: Array.isArray(data?.cycles) ? data.cycles : [],
+        years: Array.isArray(data?.years) ? data.years : [],
+      });
     } catch {
       return;
     }
-  }, [appointment?.patientId]);
+  }, [knownPatientId]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    loadSessionCycles();
+  }, [isOpen, loadSessionCycles]);
 
   const loadObrasSociales = useCallback(async () => {
     try {
@@ -326,7 +364,6 @@ export const useAppointmentForm = ({
       setSessionCount(9);
 
       loadFutureAppointments();
-      loadSessionCycles();
     } else {
       setPatientData(createPatientData());
       setDiagnosis('');
@@ -339,6 +376,7 @@ export const useAppointmentForm = ({
       setSessionToken('');
       setSessionCount(10);
       setFutureAppointments([]);
+      setFoundPatientId('');
       setEditingFutureId(null);
       setFutureDraft(createManualDraft());
       setIsAddingManualSession(false);
@@ -348,7 +386,7 @@ export const useAppointmentForm = ({
         setSelectedDays([new Date(y, m - 1, d, 12, 0, 0).getDay()]);
       }
     }
-  }, [isOpen, isEditMode, appointment, selectedSlot, loadFutureAppointments, loadSessionCycles]);
+  }, [isOpen, isEditMode, appointment, selectedSlot, loadFutureAppointments]);
 
   useEffect(() => {
     if (!selectedObraSocial || patientData.treatAsParticular) {
@@ -383,6 +421,9 @@ export const useAppointmentForm = ({
         });
         if (data) {
           setPatientData((previous) => normalizePatientFromSearch(previous, data));
+          setFoundPatientId(data.id || '');
+        } else {
+          setFoundPatientId('');
         }
       } catch {
         // Si no existe el paciente todavía, dejamos el formulario para alta manual.
@@ -419,6 +460,56 @@ export const useAppointmentForm = ({
     } finally {
       setUploadingAuthorization(false);
     }
+  };
+
+  const handlePatientDocumentUpload = async (field, event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !knownPatientId) return;
+
+    try {
+      setUploadingDocumentField(field);
+      const payload = new FormData();
+      payload.append('file', file);
+      payload.append('patientId', knownPatientId);
+      payload.append('scope', 'patient-documents');
+      const { data } = await api.post('/uploads', payload, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      const url = data?.url || '';
+      await api.patch(`/patients/${knownPatientId}`, { [field]: url });
+      setPatientData((previous) => ({ ...previous, [field]: url }));
+    } catch (error) {
+      alert(error?.friendlyMessage || error?.response?.data?.message || 'No se pudo subir el archivo.');
+    } finally {
+      setUploadingDocumentField('');
+    }
+  };
+
+  const handlePatientDocumentRemove = async (field) => {
+    if (!knownPatientId) return;
+    if (!window.confirm('¿Quitar este archivo de la ficha del paciente?')) return;
+
+    try {
+      setUploadingDocumentField(field);
+      await api.patch(`/patients/${knownPatientId}`, { [field]: null });
+      setPatientData((previous) => ({ ...previous, [field]: '' }));
+    } catch (error) {
+      alert(error?.friendlyMessage || error?.response?.data?.message || 'No se pudo quitar el archivo.');
+    } finally {
+      setUploadingDocumentField('');
+    }
+  };
+
+  const toggleChecklistDocument = (index) => {
+    setDocumentsChecklist((previous) => ({
+      ...previous,
+      documents: (previous.documents || []).map((document, documentIndex) => (
+        documentIndex === index
+          ? { ...document, presented: !document.presented, presentedAt: document.presented ? null : new Date().toISOString() }
+          : document
+      )),
+    }));
   };
 
   const confirmSessionBoundaryChange = useCallback(() => new Promise((resolve) => {
@@ -486,6 +577,8 @@ export const useAppointmentForm = ({
           time: selectedSlot.time,
           sessionCount,
           selectedDays,
+          // Paciente que retoma: el primer turno es la sesión 1 y corta el ciclo anterior.
+          startNewCycle: Boolean(isFirstSession),
         };
         const { data } = await api.post('/appointments', fullPayload);
         setCreatedAppointments(data.appointments || []);
@@ -562,6 +655,7 @@ export const useAppointmentForm = ({
         time: futureDraft.time,
       });
       await loadFutureAppointments();
+      await loadSessionCycles();
       onRefresh?.();
       cancelEditingFutureAppointment();
     } catch (error) {
@@ -590,11 +684,12 @@ export const useAppointmentForm = ({
         authorizationNumber,
         authorizationFileUrl,
         paidInAdvance: false,
-        sessionToken,
+        // Sin token: el token valida solo la sesión en la que se cargó.
         sessionCount: 1,
         selectedDays: [],
       });
       await loadFutureAppointments();
+      await loadSessionCycles();
       onRefresh?.();
       setIsAddingManualSession(false);
       setManualDraft(createManualDraft());
@@ -623,12 +718,13 @@ export const useAppointmentForm = ({
         authorizationNumber,
         authorizationFileUrl,
         paidInAdvance: false,
-        sessionToken,
+        // Sin token: el token valida solo la sesión en la que se cargó.
         sessionCount: Number.parseInt(sessionCount, 10) || 1,
         selectedDays,
       };
       await api.post('/appointments', payload);
       await loadFutureAppointments();
+      await loadSessionCycles();
       onRefresh?.();
       alert('Sesiones adicionales generadas exitosamente.');
     } catch (error) {
@@ -742,6 +838,11 @@ export const useAppointmentForm = ({
     handleOpenTicket,
     handlePrintModalClose,
     handleAuthorizationFileUpload,
+    handlePatientDocumentUpload,
+    handlePatientDocumentRemove,
+    toggleChecklistDocument,
+    uploadingDocumentField,
+    knownPatientId,
     searchPatient,
     setIsAddingManualSession,
     setManualDraft,

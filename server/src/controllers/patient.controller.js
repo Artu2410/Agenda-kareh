@@ -9,6 +9,7 @@ import {
 import { buildProfessionalPatientWhere, assertScopedProfessionalId, withProfessionalScope } from '../utils/accessScope.js';
 import { auditActions, safeWriteAuditLog } from '../utils/audit.js';
 import { createInternalError } from '../errors/AppError.js';
+import { buildAttendedByYear, buildPatientCycles } from '../utils/patientCycles.js';
 
 const parseDateAvoidTZ = (d) => {
   if (!d) return null;
@@ -681,44 +682,29 @@ export const getFutureAppointments = async (req, res, prisma) => {
   }
 };
 
-// Devuelve ciclos de sesiones completadas por anio para control de obra social
+// Ciclos de tratamiento del paciente (cortados en cada sesión de ingreso) con todas
+// sus fechas, más las sesiones asistidas por año para el control de obra social.
 export const getSessionCycles = async (req, res, prisma) => {
   const { patientId } = req.params;
   try {
-    const completedAppointments = await prisma.appointment.findMany({
-      where: mergeWhereClauses(withProfessionalScope(req.user), { patientId, status: 'COMPLETED' }),
-      orderBy: [{ date: 'asc' }],
-      select: { id: true, date: true, diagnosis: true },
+    const appointments = await prisma.appointment.findMany({
+      where: mergeWhereClauses(withProfessionalScope(req.user), { patientId, status: { not: 'CANCELLED' } }),
+      orderBy: [{ date: 'asc' }, { time: 'asc' }, { slotNumber: 'asc' }],
+      select: {
+        id: true,
+        date: true,
+        time: true,
+        status: true,
+        isFirstSession: true,
+        sessionNumber: true,
+        professional: { select: { fullName: true } },
+      },
     });
 
-    const byYear = {};
-    for (const apt of completedAppointments) {
-      const year = new Date(apt.date).getFullYear();
-      if (!byYear[year]) byYear[year] = [];
-      byYear[year].push(apt);
-    }
-
-    const result = Object.entries(byYear)
-      .sort(([a], [b]) => Number(b) - Number(a))
-      .map(([year, apts]) => {
-        const totalCompleted = apts.length;
-        const completedCycles = Math.floor(totalCompleted / 10);
-        const sessionsInCurrentCycle = totalCompleted % 10;
-        return {
-          year: Number(year),
-          totalCompleted,
-          completedCycles,
-          sessionsInCurrentCycle,
-          cycles: Array.from({ length: completedCycles }, (_, i) => ({
-            cycleNumber: i + 1,
-            from: apts[i * 10]?.date,
-            to: apts[i * 10 + 9]?.date,
-          })),
-          currentCycleStart: completedCycles * 10 < totalCompleted
-            ? apts[completedCycles * 10]?.date
-            : null,
-        };
-      });
+    const result = {
+      cycles: buildPatientCycles(appointments).reverse(), // el más reciente primero
+      years: buildAttendedByYear(appointments),
+    };
 
     await safeWriteAuditLog(prisma, req, {
       action: auditActions.appointmentRead,
@@ -726,7 +712,7 @@ export const getSessionCycles = async (req, res, prisma) => {
       resourceId: patientId,
       details: {
         scope: 'SESSION_CYCLES_BY_PATIENT',
-        years: result.length,
+        cycles: result.cycles.length,
       },
     });
     res.status(200).json(result);

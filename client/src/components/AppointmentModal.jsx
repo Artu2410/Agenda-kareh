@@ -1,8 +1,10 @@
 import React from 'react';
-import { Calendar as CalendarIcon, Printer, Loader2, Trash2, History, Pencil, Check, X, Flag, Plus, Banknote } from 'lucide-react';
+import { Calendar as CalendarIcon, Printer, Loader2, Trash2, Pencil, Check, X, Flag, Plus, Banknote } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import PrintSessions from './PrintSessions';
+import AppointmentPatientRecord from './agenda/AppointmentPatientRecord';
+import AppointmentCycleHistory from './agenda/AppointmentCycleHistory';
 import { useAppointmentForm } from '../hooks/useAppointmentForm';
 import { getCoverageLabel, isParticularCoverage } from '../utils/coverage';
 import { getAuthenticatedFileUrl } from '../services/fileUrl';
@@ -115,6 +117,12 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
     handleOpenTicket,
     handlePrintModalClose,
     handleAuthorizationFileUpload,
+    handlePatientDocumentUpload,
+    handlePatientDocumentRemove,
+    toggleChecklistDocument,
+    uploadingDocumentField,
+    knownPatientId,
+    documentsChecklist,
     searchPatient,
     setIsAddingManualSession,
     setManualDraft,
@@ -405,6 +413,17 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                     />
                   </div>
                 </div>
+
+                <AppointmentPatientRecord
+                  patientData={patientData}
+                  setPatientData={setPatientData}
+                  patientId={knownPatientId}
+                  documentsChecklist={documentsChecklist}
+                  onToggleChecklistDocument={toggleChecklistDocument}
+                  onUploadDocument={handlePatientDocumentUpload}
+                  onRemoveDocument={handlePatientDocumentRemove}
+                  uploadingDocumentField={uploadingDocumentField}
+                />
               </section>
 
               <section className="space-y-4">
@@ -477,6 +496,24 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                 </>
               )}
 
+              {!isEditMode && (
+                <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-2xl border border-teal-100 bg-teal-50/50 p-3">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 h-4 w-4 accent-teal-600"
+                    checked={isFirstSession}
+                    onChange={(event) => setIsFirstSession(event.target.checked)}
+                  />
+                  <span>
+                    <span className="block text-[10px] font-black uppercase text-teal-700">Iniciar ciclo nuevo (sesión 1)</span>
+                    <span className="mt-1 block text-[11px] font-semibold text-teal-700/80">
+                      Si el paciente había dejado, el ciclo anterior se corta y queda registrado en cuántas sesiones quedó.
+                      Desmarcalo solo si estos turnos continúan el ciclo que está en curso.
+                    </span>
+                  </span>
+                </label>
+              )}
+
               {(!isEditMode || futureAppointments.length <= 1) && (
                 <div className="grid grid-cols-1 items-center gap-6 rounded-3xl border border-slate-100 bg-slate-50/50 p-4 sm:grid-cols-2">
                   <div className="space-y-2">
@@ -529,71 +566,9 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                 ))}
               </div>
 
-              {/* CICLOS DE SESIONES POR AÑO */}
-              {isEditMode && (
-                <div className="mt-6 border-t border-slate-100 pt-6">
-                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                    <History size={14} className="text-teal-500" /> Ciclos por Año
-                  </h3>
-                  <div className="max-h-[260px] overflow-y-auto pr-1 custom-scrollbar space-y-4">
-                    {sessionCycles.length > 0 ? sessionCycles.map((yearData) => (
-                      <div key={yearData.year} className="rounded-[1.6rem] border border-slate-100 bg-slate-50/60 p-4">
-                        {/* Encabezado año */}
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="text-[11px] font-black text-slate-700 uppercase tracking-wide">{yearData.year}</span>
-                          <span className="text-[10px] font-black text-teal-600 bg-teal-50 border border-teal-100 px-3 py-1 rounded-xl">
-                            {yearData.totalCompleted} sesiones asistidas
-                          </span>
-                        </div>
-                        {/* Ciclos completados */}
-                        {yearData.cycles.length > 0 && (
-                          <div className="flex flex-wrap gap-2 mb-2">
-                            {yearData.cycles.map((cycle) => (
-                              <div key={cycle.cycleNumber} className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-1.5">
-                                <div className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[9px] font-black shrink-0">
-                                  {cycle.cycleNumber}
-                                </div>
-                                <div>
-                                  <p className="text-[9px] font-black text-emerald-700 uppercase leading-none">Ciclo {cycle.cycleNumber}</p>
-                                  <p className="text-[8px] text-emerald-500 font-semibold leading-none mt-0.5">
-                                    {format(new Date(cycle.from), 'dd/MM', { locale: es })} → {format(new Date(cycle.to), 'dd/MM', { locale: es })}
-                                  </p>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        {/* Ciclo en curso */}
-                        {yearData.sessionsInCurrentCycle > 0 && (
-                          <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mt-1">
-                            <div className="w-5 h-5 rounded-full border-2 border-amber-400 border-dashed flex items-center justify-center text-[9px] font-black text-amber-600 shrink-0">
-                              {yearData.completedCycles + 1}
-                            </div>
-                            <div>
-                              <p className="text-[9px] font-black text-amber-700 uppercase leading-none">Ciclo {yearData.completedCycles + 1} en curso</p>
-                              <p className="text-[8px] text-amber-500 font-semibold leading-none mt-0.5">
-                                {yearData.sessionsInCurrentCycle} / 10 sesiones
-                              </p>
-                            </div>
-                            <div className="ml-auto flex gap-0.5">
-                              {Array.from({ length: 10 }, (_, i) => (
-                                <div key={i} className={`w-2 h-2 rounded-full ${i < yearData.sessionsInCurrentCycle ? 'bg-amber-400' : 'bg-amber-100'}`} />
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        {yearData.totalCompleted === 0 && (
-                          <p className="text-[10px] text-slate-400 font-bold italic">Sin sesiones completadas</p>
-                        )}
-                      </div>
-                    )) : (
-                      <div className="rounded-[1.6rem] border border-dashed border-slate-200 bg-slate-50/40 p-5 text-center">
-                        <p className="text-[10px] text-slate-300 font-black uppercase tracking-widest">Sin ciclos registrados</p>
-                        <p className="text-[9px] text-slate-300 font-semibold mt-1">Los ciclos se contabilizan cuando el turno pasa a "Asistió"</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
+              {/* CICLOS: cortados en cada sesión de ingreso, con todas sus fechas */}
+              {knownPatientId && (
+                <AppointmentCycleHistory cycles={sessionCycles.cycles} years={sessionCycles.years} />
               )}
               </section>
 
@@ -628,9 +603,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
             <div className="flex items-center gap-2">
               <CalendarIcon size={14} className="text-teal-500" />
               {isEditMode
-                ? (futureAppointments.length <= 1 && projectedEditSessions.length > 0)
-                  ? `${projectedEditSessions.length} A Programar`
-                  : `${futureAppointments.length} Sesiones Futuras`
+                ? `${futureAppointments.length} Sesiones Futuras`
                 : `${projectedSessions.length} Proyectadas`}
             </div>
             {isEditMode && (
@@ -684,16 +657,8 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
               </div>
             </div>
           )}
-          {isEditMode && futureAppointments.length <= 1 && projectedEditSessions.length > 0 && (
-            <p className="text-[9px] font-bold text-teal-500 uppercase tracking-widest mb-3 -mt-4">
-              Vista previa · Seleccioná días y presioná Generar
-            </p>
-          )}
           <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
-            {(isEditMode
-              ? (futureAppointments.length <= 1 && projectedEditSessions.length > 0) ? projectedEditSessions : futureAppointments
-              : projectedSessions
-            ).map((apt, idx) => {
+            {(isEditMode ? futureAppointments : projectedSessions).map((apt, idx) => {
               const displaySessionNumber = apt.sessionNumber || idx + 1;
 
               return (
@@ -770,6 +735,19 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                 </div>
               );
             })}
+            {isEditMode && futureAppointments.length <= 1 && projectedEditSessions.length > 0 && (
+              <div className="mt-4 space-y-2 border-t border-dashed border-slate-200 pt-3">
+                <p className="text-[9px] font-bold uppercase tracking-widest text-teal-500">
+                  Vista previa · {projectedEditSessions.length} a programar (elegí días y presioná Generar)
+                </p>
+                {projectedEditSessions.map((session, index) => (
+                  <div key={`preview-${index}`} className="flex items-center justify-between rounded-xl border border-dashed border-teal-200 bg-white/70 p-3">
+                    <span className="text-[11px] font-bold text-slate-500">{format(new Date(session.date), "dd 'de' MMMM", { locale: es })}</span>
+                    <span className="rounded-lg bg-teal-50 px-2 py-1 text-[10px] font-black text-teal-600">{session.time} hs</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           <button
             onClick={handleOpenTicket}

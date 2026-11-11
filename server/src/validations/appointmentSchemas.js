@@ -10,6 +10,7 @@ import {
   optionalPhone,
   optionalString,
   timeSchema,
+  clearableString,
 } from './common.js';
 import { createPatientBodySchema, updatePatientBodySchema } from './patientSchemas.js';
 
@@ -63,6 +64,7 @@ export const createAppointmentBodySchema = z.object({
   authorizationFileUrl: optionalString('Archivo de autorización', { max: 2000 }),
   paidInAdvance: booleanFlag(),
   sessionToken: optionalString('Token de sesión', { max: 120 }),
+  startNewCycle: booleanFlag(),
 }).strip().superRefine((data, ctx) => {
   if (!data.patientId && !data.patientData) {
     ctx.addIssue({
@@ -84,7 +86,7 @@ export const updateAppointmentBodySchema = z.object({
   authorizationNumber: optionalString('Número de autorización', { max: 120 }),
   authorizationFileUrl: optionalString('Archivo de autorización', { max: 2000 }),
   paidInAdvance: booleanFlag(),
-  sessionToken: optionalString('Token de sesión', { max: 120 }),
+  sessionToken: clearableString('Token de sesión', { max: 120 }),
   status: appointmentStatusSchema.optional(),
   authorizationStatus: authorizationStatusSchema.optional(),
 }).strip();
@@ -99,6 +101,6 @@ export const updateAppointmentEvolutionBodySchema = z.object({
   authorizationNumber: optionalString('Número de autorización', { max: 120 }),
   authorizationFileUrl: optionalString('Archivo de autorización', { max: 2000 }),
   paidInAdvance: booleanFlag(),
-  sessionToken: optionalString('Token de sesión', { max: 120 }),
+  sessionToken: clearableString('Token de sesión', { max: 120 }),
   authorizationStatus: authorizationStatusSchema.optional(),
 }).strip();

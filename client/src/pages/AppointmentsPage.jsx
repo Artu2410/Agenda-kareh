@@ -339,30 +339,8 @@ const AppointmentsPage = () => {
       </header>
 
       <main className="flex-1 overflow-auto p-3 pt-2 sm:p-4">
-        {calendarEntries.some((entry) => entry.isActive) && (
-          <section aria-label="Excepciones del calendario en este período" className="mb-3 space-y-2">
-            {calendarEntries.filter((entry) => entry.isActive).map((entry) => (
-              <div
-                key={entry.id}
-                role="status"
-                className={`flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border px-4 py-3 text-sm font-semibold ${
-                  entry.type === 'SCHEDULE_EXCEPTION' && entry.isOperational
-                    ? 'border-teal-200 bg-teal-50 text-teal-800'
-                    : 'border-amber-200 bg-amber-50 text-amber-900'
-                }`}
-              >
-                <CalendarClock size={16} />
-                <span>{entry.date}</span>
-                <span>{entry.name}</span>
-                {entry.professionalId && (
-                  <span className="text-xs font-medium">({professionals.find((professional) => professional.id === entry.professionalId)?.fullName || 'Profesional'})</span>
-                )}
-                {entry.isClosedForScope && <span className="font-black uppercase">Cerrado</span>}
-                {!entry.isClosedForScope && entry.type === 'SCHEDULE_EXCEPTION' && entry.isOperational && <span className="font-black uppercase">Abierto excepcionalmente</span>}
-              </div>
-            ))}
-          </section>
-        )}
+        {/* Los feriados y cierres no se listan arriba de la agenda: se ven en los días mismos
+            y se administran desde Configuración. */}
         {viewMode === VIEW_MODE.week && !mobileAgendaViewport && (
           <SlotTimersPanel
             currentTime={currentTime}
