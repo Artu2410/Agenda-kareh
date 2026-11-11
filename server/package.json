@@ -23,7 +23,7 @@
     "compliance-check": "node scripts/compliance-check.js"
   },
   "engines": {
-    "node": ">=22.0.0"
+    "node": "22.x"
   },
   "keywords": [],
   "author": "Jose Arturo Azocar Perez",
@@ -46,6 +46,7 @@
     "multer": "^2.4.0",
     "p-queue": "^8.1.1",
     "pdfkit": "^0.15.2",
+    "prisma": "^5.22.0",
     "puppeteer": "^25.10.0",
     "resend": "^6.9.3",
     "swagger-jsdoc": "^6.3.0",
@@ -59,7 +60,6 @@
     "@types/jest": "^30.0.0",
     "babel-jest": "^30.5.2",
     "jest": "^30.5.2",
-    "prisma": "^5.22.0",
     "supertest": "^7.2.2"
   },
   "overrides": {
