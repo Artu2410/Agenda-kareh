@@ -18,6 +18,7 @@ import RichTextEditor from '../components/clinical/RichTextEditor';
 import KinesicReportModal from '../components/documents/KinesicReportModal';
 import PatientReceiptModal from '../components/documents/PatientReceiptModal';
 import PatientReportsSection from '../components/documents/PatientReportsSection';
+import PatientReceiptsSection from '../components/documents/PatientReceiptsSection';
 import {
   isClinicalRichTextEmpty,
   normalizeClinicalRichTextHtml,
@@ -524,6 +525,7 @@ const ClinicalHistoryPage = () => {
   const [patient, setPatient] = useState(null);
   const [openDocument, setOpenDocument] = useState(null); // 'report' | 'receipt' | null
   const [reportsRefreshKey, setReportsRefreshKey] = useState(0);
+  const [receiptsRefreshKey, setReceiptsRefreshKey] = useState(0);
   const [historyEntries, setHistoryEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dateSearch, setDateSearch] = useState('');
@@ -1085,7 +1087,12 @@ const ClinicalHistoryPage = () => {
                 />
               )}
               {patient && openDocument === 'receipt' && (
-                <PatientReceiptModal key={patient.id} patient={patient} onClose={() => setOpenDocument(null)} />
+                <PatientReceiptModal
+                  key={patient.id}
+                  patient={patient}
+                  onClose={() => setOpenDocument(null)}
+                  onCreated={() => setReceiptsRefreshKey((value) => value + 1)}
+                />
               )}
             </header>
 
@@ -1187,6 +1194,7 @@ const ClinicalHistoryPage = () => {
                 </section>
 
                 {patient?.id && <PatientReportsSection patientId={patient.id} refreshKey={reportsRefreshKey} />}
+                {patient?.id && <PatientReceiptsSection patientId={patient.id} refreshKey={receiptsRefreshKey} />}
               </div>
 
               <div className="md:col-span-3 space-y-6">
