@@ -24,7 +24,7 @@ const buildApp = (prisma) => {
 };
 
 describe('libro de actas', () => {
-  it('marca al paciente como pasado al libro con folio, fecha y usuario', async () => {
+  it('marca al paciente como pasado al libro con folio', async () => {
     const prisma = buildPrisma();
 
     const response = await request(buildApp(prisma))
@@ -35,7 +35,7 @@ describe('libro de actas', () => {
     const { data } = prisma.patient.update.mock.calls[0][0];
     expect(data.actaBookRecordedAt).toBeInstanceOf(Date);
     expect(data.actaBookFolio).toBe('12');
-    expect(data.actaBookRecordedById).toBe('u1');
+    expect(data).not.toHaveProperty('actaBookRecordedById');
     expect(response.body.actaBookFolio).toBe('12');
     expect(prisma.auditLog.create).toHaveBeenCalled();
   });
@@ -63,7 +63,6 @@ describe('libro de actas', () => {
     expect(prisma.patient.update.mock.calls[0][0].data).toEqual({
       actaBookRecordedAt: null,
       actaBookFolio: null,
-      actaBookRecordedById: null,
     });
   });
 

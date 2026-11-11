@@ -3,17 +3,10 @@ import { BookCheck } from 'lucide-react';
 import api from '../../services/api';
 import { showErrorToast } from '../toastHelpers';
 
-// La marca guarda un instante (no una fecha clínica): se muestra en hora local.
-const formatMarkedDate = (value) => {
-  const date = value ? new Date(value) : null;
-  return date && !Number.isNaN(date.getTime())
-    ? date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
-    : '';
-};
-
 /**
  * Casilla "pasado al libro de actas" con folio opcional.
  * `onChange` recibe { actaBookRecordedAt, actaBookFolio } ya guardados.
+ * Solo importa si está pasado o no; la fecha queda guardada pero no se muestra.
  * `onRequestUnmark(confirm)` permite pedir confirmación antes de desmarcar.
  */
 export default function ActaBookToggle({ patient, onChange, onRequestUnmark, compact = false }) {
@@ -69,21 +62,18 @@ export default function ActaBookToggle({ patient, onChange, onRequestUnmark, com
         {recorded ? <><BookCheck size={14} /> En libro</> : 'Pendiente'}
       </label>
       {recorded && (
-        <div className="flex items-center gap-1.5">
-          <input
-            type="text"
-            value={folio}
-            maxLength={40}
-            disabled={saving}
-            placeholder="Folio"
-            onChange={(event) => setFolio(event.target.value)}
-            onBlur={handleFolioCommit}
-            onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }}
-            className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-emerald-400"
-            aria-label={`Folio del libro de actas: ${patient.fullName}`}
-          />
-          <span className="text-[10px] font-semibold text-slate-400">{formatMarkedDate(patient.actaBookRecordedAt)}</span>
-        </div>
+        <input
+          type="text"
+          value={folio}
+          maxLength={40}
+          disabled={saving}
+          placeholder="Folio"
+          onChange={(event) => setFolio(event.target.value)}
+          onBlur={handleFolioCommit}
+          onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }}
+          className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-emerald-400"
+          aria-label={`Folio del libro de actas: ${patient.fullName}`}
+        />
       )}
     </div>
   );

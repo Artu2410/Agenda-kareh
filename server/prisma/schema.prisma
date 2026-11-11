@@ -174,10 +174,9 @@ model Patient {
   isRespiratory             Boolean           @default(false)
   isIU                      Boolean           @default(false)
   medicalNotes              String?           @db.Text
-  // Libro de actas físico: fecha en que se pasó (null = pendiente), folio y quién lo marcó.
+  // Libro de actas físico: cuándo se marcó como pasado (null = pendiente) y folio opcional.
   actaBookRecordedAt        DateTime?
   actaBookFolio             String?
-  actaBookRecordedById      String?
   createdAt                 DateTime          @default(now())
   updatedAt                 DateTime          @updatedAt
   appointments              Appointment[]

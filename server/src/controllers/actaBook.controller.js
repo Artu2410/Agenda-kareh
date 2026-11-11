@@ -24,9 +24,8 @@ export const setActaBookStatus = async (req, res, prisma) => {
         // Si ya estaba marcado se conserva la fecha original; solo se corrige el folio.
         actaBookRecordedAt: patient.actaBookRecordedAt || new Date(),
         actaBookFolio: folio || null,
-        actaBookRecordedById: req.user?.userId || null,
       }
-      : { actaBookRecordedAt: null, actaBookFolio: null, actaBookRecordedById: null };
+      : { actaBookRecordedAt: null, actaBookFolio: null };
 
     const updated = await prisma.patient.update({
       where: { id },
