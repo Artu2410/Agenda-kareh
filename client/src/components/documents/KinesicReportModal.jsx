@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { FileText, Plus, Printer, Trash2 } from 'lucide-react';
 import api from '../../services/api';
 import { getStoredUser } from '../../services/session';
-import { showErrorToast } from '../toastHelpers';
+import { showErrorToast, showSuccessToast } from '../toastHelpers';
 import DocumentModalShell from './DocumentModalShell';
 import {
   fieldLabelClass,
@@ -32,8 +32,9 @@ const buildTechniques = (templateId) => KINESIC_REPORT_TEMPLATES[templateId].tec
  * el resto es texto clínico que escribe el profesional.
  * Montarlo con key={patient.id} para que se reinicie con cada paciente.
  */
-export default function KinesicReportModal({ patient, onClose }) {
+export default function KinesicReportModal({ patient, onClose, onSaved }) {
   const storedUser = getStoredUser();
+  const [saving, setSaving] = useState(false);
   const [templateId, setTemplateId] = useState(() => suggestTemplateId(patient));
   const [date, setDate] = useState(todayISO);
   const [diagnosis, setDiagnosis] = useState(() => getLatestDiagnosis(patient));
@@ -80,9 +81,14 @@ export default function KinesicReportModal({ patient, onClose }) {
     setTechniques((rows) => rows.map((row, rowIndex) => (rowIndex === index ? { ...row, [field]: value } : row)));
   };
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
+    if (saving) return;
     if (!selectedProfessional) {
       showErrorToast('Elegí el profesional que firma el informe.');
+      return;
+    }
+    if (!date) {
+      showErrorToast('Completá la fecha del informe.');
       return;
     }
 
@@ -92,7 +98,7 @@ export default function KinesicReportModal({ patient, onClose }) {
       value: values[metric.key] || '',
     }));
 
-    const html = buildKinesicReportHtml({
+    const reportData = {
       title: template.title,
       treatmentIntro: template.treatmentIntro,
       date,
@@ -118,10 +124,31 @@ export default function KinesicReportModal({ patient, onClose }) {
         fullName: selectedProfessional.fullName,
         licenseLine: buildLicenseLine(selectedProfessional),
       },
-    });
+    };
 
-    if (!openPrintWindow(html)) {
-      showErrorToast('El navegador bloqueó la ventana del informe. Permití ventanas emergentes para este sitio.');
+    // Primero se abre la impresión (tiene que ser en el mismo click o el navegador
+    // bloquea la ventana) y después se guarda en la historia clínica.
+    const printed = openPrintWindow(buildKinesicReportHtml(reportData));
+
+    setSaving(true);
+    try {
+      const { data: saved } = await api.post('/reports', {
+        patientId: patient.id,
+        professionalId: selectedProfessional.id,
+        type: templateId,
+        title: template.title,
+        reportDate: date,
+        data: reportData,
+      });
+      showSuccessToast(printed
+        ? 'Informe guardado en la historia clínica.'
+        : 'Informe guardado. El navegador bloqueó la impresión: reimprimilo desde la historia clínica.');
+      onSaved?.(saved);
+      onClose();
+    } catch (error) {
+      showErrorToast(error?.friendlyMessage || 'No se pudo guardar el informe en la historia clínica. Intentá de nuevo.');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -153,8 +180,8 @@ export default function KinesicReportModal({ patient, onClose }) {
       footer={(
         <>
           <button type="button" className={secondaryButtonClass} onClick={onClose}>Cancelar</button>
-          <button type="button" className={primaryButtonClass} onClick={handleGenerate}>
-            <Printer size={16} /> Generar e imprimir
+          <button type="button" className={primaryButtonClass} onClick={handleGenerate} disabled={saving}>
+            <Printer size={16} /> {saving ? 'Guardando…' : 'Generar, guardar e imprimir'}
           </button>
         </>
       )}
