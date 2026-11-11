@@ -17,6 +17,7 @@ import { getCoverageLabel, isParticularCoverage } from '../utils/coverage';
 import RichTextEditor from '../components/clinical/RichTextEditor';
 import KinesicReportModal from '../components/documents/KinesicReportModal';
 import PatientReceiptModal from '../components/documents/PatientReceiptModal';
+import PatientReportsSection from '../components/documents/PatientReportsSection';
 import {
   isClinicalRichTextEmpty,
   normalizeClinicalRichTextHtml,
@@ -522,6 +523,7 @@ const ClinicalHistoryPage = () => {
   const { ConfirmModalComponent, openModal } = useConfirmModal();
   const [patient, setPatient] = useState(null);
   const [openDocument, setOpenDocument] = useState(null); // 'report' | 'receipt' | null
+  const [reportsRefreshKey, setReportsRefreshKey] = useState(0);
   const [historyEntries, setHistoryEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dateSearch, setDateSearch] = useState('');
@@ -1075,7 +1077,12 @@ const ClinicalHistoryPage = () => {
                 </button>
               </div>
               {patient && openDocument === 'report' && (
-                <KinesicReportModal key={patient.id} patient={patient} onClose={() => setOpenDocument(null)} />
+                <KinesicReportModal
+                  key={patient.id}
+                  patient={patient}
+                  onClose={() => setOpenDocument(null)}
+                  onSaved={() => setReportsRefreshKey((value) => value + 1)}
+                />
               )}
               {patient && openDocument === 'receipt' && (
                 <PatientReceiptModal key={patient.id} patient={patient} onClose={() => setOpenDocument(null)} />
@@ -1178,6 +1185,8 @@ const ClinicalHistoryPage = () => {
                     </div>
                   )}
                 </section>
+
+                {patient?.id && <PatientReportsSection patientId={patient.id} refreshKey={reportsRefreshKey} />}
               </div>
 
               <div className="md:col-span-3 space-y-6">

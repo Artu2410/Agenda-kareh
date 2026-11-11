@@ -182,6 +182,7 @@ model Patient {
   clinicalHistory           ClinicalHistory[]
   treatmentCycles           TreatmentCycle[]
   receipts                  PatientReceipt[]
+  reports                   PatientReport[]
   obraSocial                ObraSocial?       @relation(fields: [obraSocialId], references: [id], onDelete: SetNull)
 
   @@index([phone])
@@ -229,6 +230,7 @@ model Professional {
   clinicalHistories            ClinicalHistory[]
   workSchedule                 WorkSchedule[]
   receipts                     PatientReceipt[]
+  reports                      PatientReport[]
   user                         User?
 }
 
@@ -525,4 +527,25 @@ model PatientReceipt {
 
   @@index([patientId, issueDate])
   @@index([issueDate])
+}
+
+// ---------------------------------------------------------
+// INFORMES KINÉSICOS (quedan en la historia clínica)
+// ---------------------------------------------------------
+// `data` guarda la foto completa del informe tal como se imprimió, para
+// reimprimirlo idéntico aunque después cambie la ficha del paciente.
+model PatientReport {
+  id             String        @id @default(cuid())
+  patientId      String
+  professionalId String?
+  type           String
+  title          String
+  reportDate     DateTime
+  data           Json
+  createdById    String?
+  createdAt      DateTime      @default(now())
+  patient        Patient       @relation(fields: [patientId], references: [id])
+  professional   Professional? @relation(fields: [professionalId], references: [id], onDelete: SetNull)
+
+  @@index([patientId, reportDate])
 }
