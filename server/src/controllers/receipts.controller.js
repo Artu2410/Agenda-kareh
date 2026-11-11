@@ -45,29 +45,30 @@ export const serializeReceipt = (receipt) => ({
   displayNumber: `0001-${String(receipt.number).padStart(8, '0')}`,
 });
 
-// Fecha elegida a mediodía UTC: se imprime el mismo día en cualquier zona horaria.
+// Fecha elegida a mano: a mediodía UTC, así se imprime el mismo día en cualquier zona horaria.
+// Sin fecha elegida: el momento exacto en que el servidor emite el comprobante.
 const toIssueDate = (value) => (value ? new Date(`${value}T12:00:00Z`) : new Date());
 
-const MAX_NUMBER_RETRIES = 5;
+const ARGENTINA_TIME_ZONE = 'America/Argentina/Buenos_Aires';
+const toArgentinaDay = (date) => new Date(date).toLocaleDateString('en-CA', { timeZone: ARGENTINA_TIME_ZONE });
+
+const getLatestReceiptNumber = async (prisma) => {
+  const latest = await prisma.patientReceipt.findFirst({ orderBy: { number: 'desc' }, select: { number: true } });
+  return latest?.number ?? null;
+};
 
 /**
- * Numera como "último + 1" (no con la secuencia de la base), así al eliminar el
- * último comprobante su número se reutiliza y no quedan huecos por pruebas.
- * Reintenta si dos comprobantes se emiten a la vez y chocan con el mismo número.
+ * Solo se puede eliminar el último comprobante emitido, y solo el mismo día en que
+ * se emitió (hora de Argentina). Los números los asigna la secuencia de la base y
+ * nunca se reutilizan: si se elimina uno, queda el hueco justificado en la auditoría.
  */
-const createWithNextNumber = async (prisma, data) => {
-  for (let attempt = 1; ; attempt += 1) {
-    const last = await prisma.patientReceipt.findFirst({ orderBy: { number: 'desc' }, select: { number: true } });
-    try {
-      return await prisma.patientReceipt.create({
-        data: { ...data, number: (last?.number || 0) + 1 },
-        select: receiptSelect,
-      });
-    } catch (error) {
-      if (error?.code !== 'P2002' || attempt >= MAX_NUMBER_RETRIES) throw error;
-    }
-  }
-};
+export const isReceiptDeletable = (receipt, latestNumber, now = new Date()) => (
+  Boolean(receipt)
+  && latestNumber !== null
+  && receipt.number === latestNumber
+  && Boolean(receipt.createdAt)
+  && toArgentinaDay(receipt.createdAt) === toArgentinaDay(now)
+);
 
 export const listReceipts = async (req, res, prisma) => {
   try {
@@ -78,14 +79,20 @@ export const listReceipts = async (req, res, prisma) => {
       ...(scopedProfessionalId ? { professionalId: scopedProfessionalId } : {}),
     };
 
-    const receipts = await prisma.patientReceipt.findMany({
-      where,
-      orderBy: { number: 'desc' },
-      take: limit,
-      select: receiptSelect,
-    });
+    const [receipts, latestNumber] = await Promise.all([
+      prisma.patientReceipt.findMany({
+        where,
+        orderBy: { number: 'desc' },
+        take: limit,
+        select: receiptSelect,
+      }),
+      getLatestReceiptNumber(prisma),
+    ]);
 
-    res.json(receipts.map(serializeReceipt));
+    res.json(receipts.map((receipt) => ({
+      ...serializeReceipt(receipt),
+      canDelete: isReceiptDeletable(receipt, latestNumber),
+    })));
   } catch (error) {
     throw createInternalError(error, 'No se pudieron obtener los comprobantes');
   }
@@ -134,20 +141,24 @@ export const createReceipt = async (req, res, prisma) => {
 
     const diagnosis = patient.appointments.find((appointment) => appointment.diagnosis?.trim())?.diagnosis?.trim() || null;
 
-    const receipt = await createWithNextNumber(prisma, {
-      issueDate: toIssueDate(issueDate),
-      patientId: patient.id,
-      professionalId: professional?.id || null,
-      description,
-      amount,
-      patientName: patient.fullName,
-      patientDni: patient.dni,
-      coverage: resolveCoverage(patient),
-      affiliateNumber: patient.treatAsParticular ? null : (patient.affiliateNumber || null),
-      diagnosis,
-      professionalName: professional?.fullName || null,
-      professionalLicense: formatLicense(professional),
-      createdById: req.user?.userId || null,
+    // El número lo asigna la secuencia de la base (estrictamente creciente).
+    const receipt = await prisma.patientReceipt.create({
+      data: {
+        issueDate: toIssueDate(issueDate),
+        patientId: patient.id,
+        professionalId: professional?.id || null,
+        description,
+        amount,
+        patientName: patient.fullName,
+        patientDni: patient.dni,
+        coverage: resolveCoverage(patient),
+        affiliateNumber: patient.treatAsParticular ? null : (patient.affiliateNumber || null),
+        diagnosis,
+        professionalName: professional?.fullName || null,
+        professionalLicense: formatLicense(professional),
+        createdById: req.user?.userId || null,
+      },
+      select: receiptSelect,
     });
 
     await safeWriteAuditLog(prisma, req, {
@@ -157,7 +168,7 @@ export const createReceipt = async (req, res, prisma) => {
       newValues: { number: receipt.number, patientId: receipt.patientId, amount: String(receipt.amount) },
     });
 
-    res.status(201).json(serializeReceipt(receipt));
+    res.status(201).json({ ...serializeReceipt(receipt), canDelete: true });
   } catch (error) {
     throw createInternalError(error, 'No se pudo emitir el comprobante');
   }
@@ -172,6 +183,10 @@ export const deleteReceipt = async (req, res, prisma) => {
     });
     if (!receipt) {
       throw createPublicError(404, 'Comprobante no encontrado');
+    }
+
+    if (!isReceiptDeletable(receipt, await getLatestReceiptNumber(prisma))) {
+      throw createPublicError(409, 'Solo se puede eliminar el último comprobante emitido y en el mismo día. Los anteriores quedan registrados.');
     }
 
     await prisma.patientReceipt.delete({ where: { id: receipt.id } });

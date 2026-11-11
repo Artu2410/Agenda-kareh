@@ -15,7 +15,7 @@ export default function useDeleteReceipt(onDeleted) {
   const requestDelete = useCallback((receipt) => {
     openModal({
       title: 'Eliminar comprobante',
-      message: `Se eliminará el comprobante N° ${receipt.displayNumber} de ${receipt.patientName} por ${formatCurrencyAR(receipt.amount)}. Si es el último emitido, su número se vuelve a usar en el próximo.`,
+      message: `Se eliminará el comprobante N° ${receipt.displayNumber} de ${receipt.patientName} por ${formatCurrencyAR(receipt.amount)}. El número no se vuelve a usar: queda el hueco registrado en la auditoría.`,
       confirmText: 'Eliminar',
       danger: true,
       icon: Trash2,

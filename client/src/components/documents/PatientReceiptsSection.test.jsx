@@ -50,8 +50,17 @@ describe('PatientReceiptsSection', () => {
     expect(await screen.findByText(/todavía no se emitieron comprobantes/i)).toBeInTheDocument();
   });
 
+  it('no ofrece eliminar comprobantes que el servidor marca como no eliminables', async () => {
+    apiGet.mockResolvedValue({ data: [{ ...receipt, canDelete: false }] });
+
+    render(<PatientReceiptsSection patientId="p1" />);
+
+    expect(await screen.findByText('Sesiones de kinesiología')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /eliminar comprobante/i })).not.toBeInTheDocument();
+  });
+
   it('elimina un comprobante después de confirmar', async () => {
-    apiGet.mockResolvedValue({ data: [receipt] });
+    apiGet.mockResolvedValue({ data: [{ ...receipt, canDelete: true }] });
     apiDelete.mockResolvedValue({});
 
     render(<PatientReceiptsSection patientId="p1" />);

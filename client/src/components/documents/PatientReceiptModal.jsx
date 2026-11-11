@@ -25,6 +25,9 @@ export default function PatientReceiptModal({ patient: initialPatient = null, on
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [issueDate, setIssueDate] = useState(todayISO);
+  // Si no se cambia la fecha, no se envía: el servidor usa el momento exacto de la
+  // emisión (evita quedar con la fecha de ayer si el modal se abrió antes de medianoche).
+  const [issueDateTouched, setIssueDateTouched] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const parsedAmount = parseAmountInput(amount);
@@ -65,7 +68,7 @@ export default function PatientReceiptModal({ patient: initialPatient = null, on
       showErrorToast('Ingresá un monto mayor a 0.');
       return;
     }
-    if (!issueDate) {
+    if (issueDateTouched && !issueDate) {
       showErrorToast('Elegí la fecha del comprobante.');
       return;
     }
@@ -76,7 +79,7 @@ export default function PatientReceiptModal({ patient: initialPatient = null, on
         patientId: patient.id,
         description: description.trim(),
         amount: parsedAmount,
-        issueDate,
+        ...(issueDateTouched ? { issueDate } : {}),
       });
       showSuccessToast(`Comprobante ${data.displayNumber} emitido`);
       printPatientReceipt(data);
@@ -167,7 +170,10 @@ export default function PatientReceiptModal({ patient: initialPatient = null, on
               type="date"
               className={inputClass}
               value={issueDate}
-              onChange={(event) => setIssueDate(event.target.value)}
+              onChange={(event) => {
+                setIssueDate(event.target.value);
+                setIssueDateTouched(true);
+              }}
               disabled={!patient}
             />
           </label>

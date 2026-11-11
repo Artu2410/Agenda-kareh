@@ -70,14 +70,16 @@ export default function ReceiptsSection() {
                 >
                   <Printer size={14} /> Reimprimir
                 </button>
-                <button
-                  type="button"
-                  onClick={() => requestDelete(receipt)}
-                  className="inline-flex items-center gap-1 rounded-lg border border-rose-100 px-3 py-1.5 text-xs font-black text-rose-600 hover:bg-rose-50"
-                  aria-label={`Eliminar comprobante N° ${receipt.displayNumber}`}
-                >
-                  <Trash2 size={14} /> Eliminar
-                </button>
+                {receipt.canDelete && (
+                  <button
+                    type="button"
+                    onClick={() => requestDelete(receipt)}
+                    className="inline-flex items-center gap-1 rounded-lg border border-rose-100 px-3 py-1.5 text-xs font-black text-rose-600 hover:bg-rose-50"
+                    aria-label={`Eliminar comprobante N° ${receipt.displayNumber}`}
+                  >
+                    <Trash2 size={14} /> Eliminar
+                  </button>
+                )}
               </div>
             </li>
           ))}
@@ -87,7 +89,11 @@ export default function ReceiptsSection() {
       {showModal && (
         <PatientReceiptModal
           onClose={() => setShowModal(false)}
-          onCreated={(receipt) => setReceipts((prev) => [receipt, ...prev].slice(0, 20))}
+          // El nuevo pasa a ser el único eliminable (solo se borra el último emitido).
+          onCreated={(receipt) => setReceipts((prev) => [
+            receipt,
+            ...prev.map((item) => ({ ...item, canDelete: false })),
+          ].slice(0, 20))}
         />
       )}
       {ConfirmModalComponent}

@@ -69,15 +69,17 @@ export default function PatientReceiptsSection({ patientId, refreshKey = 0 }) {
                 >
                   <Printer size={16} />
                 </button>
-                <button
-                  type="button"
-                  onClick={() => requestDelete(receipt)}
-                  className="rounded-xl p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
-                  aria-label={`Eliminar comprobante N° ${receipt.displayNumber}`}
-                  title="Eliminar"
-                >
-                  <Trash2 size={16} />
-                </button>
+                {receipt.canDelete && (
+                  <button
+                    type="button"
+                    onClick={() => requestDelete(receipt)}
+                    className="rounded-xl p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
+                    aria-label={`Eliminar comprobante N° ${receipt.displayNumber}`}
+                    title="Eliminar (solo el último emitido, el mismo día)"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                )}
               </div>
             </li>
           ))}
