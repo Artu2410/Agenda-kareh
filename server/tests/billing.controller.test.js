@@ -187,3 +187,36 @@ describe('billing controller', () => {
     expect(res.status).toHaveBeenCalledWith(201);
   });
 });
+
+describe('billing audit trail', () => {
+  it('records deleted payments (and their cash movement) in the audit log', async () => {
+    const { deleteBillingPayment } = await import('../src/controllers/billing.controller.js');
+    const payment = { id: 'pay-1', invoiceId: 'invoice-1', amount: 150, paymentMethod: 'Efectivo', account: 'CASH', cashFlowId: 'cf-1' };
+    const tx = {
+      billingPayment: {
+        delete: jest.fn().mockResolvedValue(payment),
+        aggregate: jest.fn().mockResolvedValue({ _sum: { amount: 0 } }),
+      },
+      cashFlow: { delete: jest.fn().mockResolvedValue({}) },
+      billingInvoice: {
+        findUnique: jest.fn().mockResolvedValue({ id: 'invoice-1', totalAmount: 200, payments: [], items: [] }),
+        update: jest.fn().mockResolvedValue({ id: 'invoice-1', totalAmount: 200, paidAmount: 0, status: 'ISSUED', payments: [], items: [] }),
+      },
+    };
+    const prisma = {
+      billingPayment: { findUnique: jest.fn().mockResolvedValue(payment) },
+      $transaction: jest.fn(async (fn) => fn(tx)),
+      auditLog: { create: jest.fn().mockResolvedValue({}) },
+    };
+    const req = { params: { id: 'pay-1' }, user: { userId: 'u1', role: 'SECRETARIA' }, headers: {} };
+    const res = createResponse();
+
+    await deleteBillingPayment(req, res, prisma);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(prisma.auditLog.create).toHaveBeenCalledTimes(1);
+    const { data } = prisma.auditLog.create.mock.calls[0][0];
+    expect(data.action).toBe('BILLING_PAYMENT_DELETED');
+    expect(JSON.stringify(data)).toContain('cf-1');
+  });
+});

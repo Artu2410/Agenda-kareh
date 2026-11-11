@@ -1,4 +1,26 @@
 import { createInternalError, createPublicError } from '../errors/AppError.js';
+import { auditActions, safeWriteAuditLog } from '../utils/audit.js';
+
+// Resumen de la factura / cobro para el log de auditoría (sin ítems ni relaciones).
+const invoiceAuditSnapshot = (invoice) => (invoice ? {
+  id: invoice.id,
+  invoiceNumber: invoice.invoiceNumber ?? null,
+  payerType: invoice.payerType ?? null,
+  payerName: invoice.payerName ?? null,
+  totalAmount: invoice.totalAmount != null ? Number(invoice.totalAmount) : null,
+  paidAmount: invoice.paidAmount != null ? Number(invoice.paidAmount) : null,
+  status: invoice.status ?? null,
+} : null);
+
+const paymentAuditSnapshot = (payment) => (payment ? {
+  id: payment.id,
+  invoiceId: payment.invoiceId,
+  amount: payment.amount != null ? Number(payment.amount) : null,
+  paymentDate: payment.paymentDate ?? null,
+  paymentMethod: payment.paymentMethod ?? null,
+  account: payment.account ?? null,
+  cashFlowId: payment.cashFlowId ?? null,
+} : null);
 
 const VALID_PAYER_TYPES = new Set(['PATIENT', 'OBRA_SOCIAL', 'OTHER']);
 const VALID_INVOICE_STATUSES = new Set(['DRAFT', 'ISSUED', 'PARTIALLY_PAID', 'PAID', 'OVERDUE', 'CANCELLED']);
@@ -483,6 +505,13 @@ export const createBillingInvoice = async (req, res, prisma) => {
       include: invoiceInclude,
     });
 
+    await safeWriteAuditLog(prisma, req, {
+      action: auditActions.billingInvoiceCreated,
+      resource: 'BILLING_INVOICE',
+      resourceId: invoice.id,
+      newValues: invoiceAuditSnapshot(invoice),
+    });
+
     res.status(201).json(serializeInvoice(invoice));
   } catch (error) {
     if (error.statusCode) throw error;
@@ -601,6 +630,14 @@ export const updateBillingInvoice = async (req, res, prisma) => {
       return updateInvoicePaymentStatus(tx, id);
     });
 
+    await safeWriteAuditLog(prisma, req, {
+      action: auditActions.billingInvoiceUpdated,
+      resource: 'BILLING_INVOICE',
+      resourceId: id,
+      oldValues: invoiceAuditSnapshot(current),
+      newValues: invoiceAuditSnapshot(invoice),
+    });
+
     res.status(200).json(serializeInvoice(invoice));
   } catch (error) {
     if (error.statusCode) throw error;
@@ -631,6 +668,12 @@ export const deleteBillingInvoice = async (req, res, prisma) => {
     }
 
     await prisma.billingInvoice.delete({ where: { id } });
+    await safeWriteAuditLog(prisma, req, {
+      action: auditActions.billingInvoiceDeleted,
+      resource: 'BILLING_INVOICE',
+      resourceId: id,
+      oldValues: invoiceAuditSnapshot(invoice),
+    });
     res.status(200).json({ message: 'Factura eliminada' });
   } catch (error) {
     throw createInternalError(error, 'Error al eliminar factura');
@@ -668,6 +711,7 @@ export const addBillingPayment = async (req, res, prisma) => {
     const paymentDate = parseDate(req.body.paymentDate) || new Date();
     const notes = normalizeText(req.body.notes) || null;
 
+    let createdPayment = null;
     const updatedInvoice = await prisma.$transaction(async (tx) => {
       const cashFlow = await tx.cashFlow.create({
         data: {
@@ -682,7 +726,7 @@ export const addBillingPayment = async (req, res, prisma) => {
         },
       });
 
-      await tx.billingPayment.create({
+      createdPayment = await tx.billingPayment.create({
         data: {
           invoiceId: id,
           amount,
@@ -695,6 +739,13 @@ export const addBillingPayment = async (req, res, prisma) => {
       });
 
       return updateInvoicePaymentStatus(tx, id);
+    });
+
+    await safeWriteAuditLog(prisma, req, {
+      action: auditActions.billingPaymentCreated,
+      resource: 'BILLING_PAYMENT',
+      resourceId: createdPayment?.id || null,
+      newValues: paymentAuditSnapshot(createdPayment),
     });
 
     res.status(201).json(serializeInvoice(updatedInvoice));
@@ -724,6 +775,13 @@ export const deleteBillingPayment = async (req, res, prisma) => {
       }
 
       return updateInvoicePaymentStatus(tx, payment.invoiceId);
+    });
+
+    await safeWriteAuditLog(prisma, req, {
+      action: auditActions.billingPaymentDeleted,
+      resource: 'BILLING_PAYMENT',
+      resourceId: id,
+      oldValues: paymentAuditSnapshot(payment),
     });
 
     res.status(200).json(serializeInvoice(updatedInvoice));
