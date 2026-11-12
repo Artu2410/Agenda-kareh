@@ -3,7 +3,7 @@ import { Calendar as CalendarIcon, Printer, Loader2, Trash2, Pencil, Check, X, F
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import PrintSessions from './PrintSessions';
-import AppointmentPatientRecord from './agenda/AppointmentPatientRecord';
+import AppointmentPatientRecord, { AppointmentPatientDocuments } from './agenda/AppointmentPatientRecord';
 import AppointmentCycleHistory from './agenda/AppointmentCycleHistory';
 import { useAppointmentForm } from '../hooks/useAppointmentForm';
 import { getCoverageLabel, isParticularCoverage } from '../utils/coverage';
@@ -105,7 +105,6 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
     patientChargeBreakdown,
     selectedCoverageValue,
     projectedSessions,
-    projectedEditSessions,
     handleAction,
     handleDelete,
     startEditingFutureAppointment,
@@ -119,10 +118,8 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
     handleAuthorizationFileUpload,
     handlePatientDocumentUpload,
     handlePatientDocumentRemove,
-    toggleChecklistDocument,
     uploadingDocumentField,
     knownPatientId,
-    documentsChecklist,
     searchPatient,
     setIsAddingManualSession,
     setManualDraft,
@@ -418,11 +415,6 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                   patientData={patientData}
                   setPatientData={setPatientData}
                   patientId={knownPatientId}
-                  documentsChecklist={documentsChecklist}
-                  onToggleChecklistDocument={toggleChecklistDocument}
-                  onUploadDocument={handlePatientDocumentUpload}
-                  onRemoveDocument={handlePatientDocumentRemove}
-                  uploadingDocumentField={uploadingDocumentField}
                 />
               </section>
 
@@ -446,6 +438,14 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                 <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Diagnóstico / Evolución</label>
                 <textarea aria-label="Diagnóstico / Evolución" className="w-full min-h-28 resize-none rounded-2xl border bg-slate-50 p-4 font-semibold uppercase outline-none focus:ring-2 ring-teal-500" value={diagnosis} onChange={e => setDiagnosis(e.target.value)} />
               </div>
+
+              <AppointmentPatientDocuments
+                patientData={patientData}
+                patientId={knownPatientId}
+                onUploadDocument={handlePatientDocumentUpload}
+                onRemoveDocument={handlePatientDocumentRemove}
+                uploadingDocumentField={uploadingDocumentField}
+              />
 
               {isEditMode && (
                 <>
@@ -735,19 +735,6 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                 </div>
               );
             })}
-            {isEditMode && futureAppointments.length <= 1 && projectedEditSessions.length > 0 && (
-              <div className="mt-4 space-y-2 border-t border-dashed border-slate-200 pt-3">
-                <p className="text-[9px] font-bold uppercase tracking-widest text-teal-500">
-                  Vista previa · {projectedEditSessions.length} a programar (elegí días y presioná Generar)
-                </p>
-                {projectedEditSessions.map((session, index) => (
-                  <div key={`preview-${index}`} className="flex items-center justify-between rounded-xl border border-dashed border-teal-200 bg-white/70 p-3">
-                    <span className="text-[11px] font-bold text-slate-500">{format(new Date(session.date), "dd 'de' MMMM", { locale: es })}</span>
-                    <span className="rounded-lg bg-teal-50 px-2 py-1 text-[10px] font-black text-teal-600">{session.time} hs</span>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
           <button
             onClick={handleOpenTicket}

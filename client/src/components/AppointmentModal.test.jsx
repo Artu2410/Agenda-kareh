@@ -224,12 +224,12 @@ describe('AppointmentModal · último turno, token y ciclos', () => {
     />
   );
 
-  it('deja editar el último turno aunque se muestre la vista previa de sesiones a programar', async () => {
+  it('deja editar el último turno y no muestra fechas que el paciente todavía no reservó', async () => {
     useDefaultHandlers();
     renderModal();
 
     expect(await screen.findByRole('button', { name: /editar sesión futura/i })).toBeInTheDocument();
-    expect(screen.getByText(/a programar/i)).toBeInTheDocument();
+    expect(screen.queryByText(/a programar/i)).not.toBeInTheDocument();
   });
 
   it('muestra en cuántas sesiones quedó un ciclo cortado y sus fechas', async () => {
