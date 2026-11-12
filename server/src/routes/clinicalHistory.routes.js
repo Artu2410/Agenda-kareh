@@ -29,11 +29,14 @@ export default function createClinicalHistoryRoutes(prisma) {
             select: {
               id: true,
               fullName: true,
-              specialty: true
+              specialty: true,
+              licenseNumber: true,
+              licenseNumberMP: true,
             }
           }
         },
-        orderBy: { createdAt: 'desc' },
+        // Por fecha de la ficha (la del turno), no por cuándo se cargó.
+        orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
       });
       res.json(history);
     } catch (error) {

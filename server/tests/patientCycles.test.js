@@ -40,6 +40,40 @@ describe('patient cycles', () => {
     expect(cycle).toMatchObject({ attended: 1, noShow: 1, unmarked: 1, pending: 0, state: CYCLE_STATES.interrupted });
   });
 
+  it('reports the last session the patient attended when the cycle was abandoned', () => {
+    const cycles = buildPatientCycles([
+      apt('a1', '2026-08-03', 'COMPLETED', true),
+      apt('a2', '2026-08-05', 'SCHEDULED'), // pasó sin marcar: cuenta como que fue
+      apt('a3', '2026-08-07', 'NO_SHOW'),
+      apt('b1', '2026-11-02', 'COMPLETED', true),
+      apt('b2', '2026-11-16', 'SCHEDULED'),
+    ], NOW);
+
+    expect(cycles[0].abandonedAtSession).toBe(2);
+    expect(cycles[1].abandonedAtSession).toBeNull();
+  });
+
+  it('reports 0 when the patient never came to any session of the cycle', () => {
+    const [cycle] = buildPatientCycles([
+      apt('a1', '2026-08-03', 'NO_SHOW', true),
+    ], NOW);
+
+    expect(cycle.abandonedAtSession).toBe(0);
+  });
+
+  it('exposes the professional of the cycle with both licenses', () => {
+    const [cycle] = buildPatientCycles([
+      {
+        ...apt('a1', '2026-11-02', 'COMPLETED', true),
+        professional: { id: 'pro-1', fullName: 'Katia Alumine Romero', licenseNumber: '18900', licenseNumberMP: '10318' },
+      },
+    ], NOW);
+
+    expect(cycle.professional).toEqual({
+      id: 'pro-1', fullName: 'Katia Alumine Romero', licenseNumber: '18900', licenseNumberMP: '10318',
+    });
+  });
+
   it('counts attended sessions per year', () => {
     expect(buildAttendedByYear([
       apt('a', '2025-12-01', 'COMPLETED'),

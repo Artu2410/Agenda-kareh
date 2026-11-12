@@ -834,7 +834,9 @@ export const updateEvolution = async (req, res, prisma) => {
             professionalId: currentApt.professionalId,
             diagnosis: diagnosis || currentApt.diagnosis || "EVOLUCIÓN",
             evolution: evolutionForHistory,
-            date: new Date(),
+            // La ficha lleva la fecha del turno, no la del día en que se carga.
+            date: currentApt.date,
+            createdAt: currentApt.date,
           },
         });
       } else if (diagnosis && diagnosis.toUpperCase() !== (currentApt.diagnosis || '')) {
@@ -845,7 +847,8 @@ export const updateEvolution = async (req, res, prisma) => {
             professionalId: currentApt.professionalId,
             diagnosis: diagnosis.toUpperCase(),
             evolution: "Actualización de diagnóstico/motivo desde la agenda.",
-            date: new Date(),
+            date: currentApt.date,
+            createdAt: currentApt.date,
           },
         });
       }

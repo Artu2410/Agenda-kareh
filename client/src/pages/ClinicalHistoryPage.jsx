@@ -23,6 +23,22 @@ import {
   isClinicalRichTextEmpty,
   normalizeClinicalRichTextHtml,
 } from '../utils/clinicalRichText';
+import {
+  buildAbandonMessagesByEntry,
+  buildProfessionalSignature,
+  findCycleForDate,
+  findMissingIntakes,
+  pickNewEntryDate,
+  resolveEntryProfessional,
+  todayDateKey,
+} from '../utils/clinicalHistoryCycles';
+
+const NEW_ENTRY_TEMPLATE = '<p><strong>Anamnesis:</strong></p><p><br></p><p><strong>Estado Funcional:</strong></p><p><br></p><p><strong>Tto:</strong></p>';
+
+const formatDateKey = (dateKey) => {
+  const [year, month, day] = String(dateKey || '').split('-');
+  return year && month && day ? `${day}/${month}/${year}` : dateKey;
+};
 
 const formatClinicalRecordNumber = (value) => {
   const numericValue = Number(value);
@@ -70,7 +86,14 @@ const buildClinicalHistoryPrintHtml = ({ patientSummary, entries }) => {
           <div class="session-card__body">
             <h2>${entry.diagnosis}</h2>
             <div class="evolution-block">${entry.evolutionHtml}</div>
+            ${entry.abandonMessage ? `<p class="abandon-note">${entry.abandonMessage}</p>` : ''}
             ${attachmentsMarkup}
+            ${entry.signatureName ? `
+              <div class="signature">
+                <div class="signature-name">${entry.signatureName}</div>
+                ${entry.signatureLicenses ? `<div class="signature-licenses">${entry.signatureLicenses}</div>` : ''}
+              </div>
+            ` : ''}
           </div>
         </article>
       `;
@@ -363,6 +386,38 @@ const buildClinicalHistoryPrintHtml = ({ patientSummary, entries }) => {
             font-weight: 900;
           }
 
+          .abandon-note {
+            margin: 18px 0 0;
+            padding: 12px 16px;
+            border: 2px solid #f59e0b;
+            border-radius: 14px;
+            background: #fde047;
+            font-size: 14px;
+            font-weight: 900;
+            text-transform: uppercase;
+            color: #422006;
+          }
+
+          .signature {
+            margin-top: 24px;
+            padding-top: 14px;
+            border-top: 1px solid #e2e8f0;
+            text-align: right;
+          }
+
+          .signature-name {
+            font-size: 13px;
+            font-weight: 900;
+            color: #0f172a;
+          }
+
+          .signature-licenses {
+            margin-top: 2px;
+            font-size: 11px;
+            font-weight: 700;
+            color: #475569;
+          }
+
           .attachments-grid {
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -517,6 +572,19 @@ const buildClinicalHistoryPrintHtml = ({ patientSummary, entries }) => {
   `;
 };
 
+/** Firma al pie de cada ficha: profesional que atiende y sus matrículas. */
+const ProfessionalSignature = ({ signature }) => {
+  if (!signature) return null;
+  return (
+    <div className="border-t border-slate-100 pt-3 text-right">
+      <p className="text-[12px] font-black text-slate-800">{signature.name}</p>
+      {signature.licenses && (
+        <p className="text-[11px] font-bold text-slate-500">{signature.licenses}</p>
+      )}
+    </div>
+  );
+};
+
 const ClinicalHistoryPage = () => {
   const { legacyPatientId } = useParams();
   const navigate = useNavigate();
@@ -527,6 +595,7 @@ const ClinicalHistoryPage = () => {
   const [reportsRefreshKey, setReportsRefreshKey] = useState(0);
   const [receiptsRefreshKey, setReceiptsRefreshKey] = useState(0);
   const [historyEntries, setHistoryEntries] = useState([]);
+  const [sessionCycles, setSessionCycles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dateSearch, setDateSearch] = useState('');
 
@@ -692,12 +761,15 @@ const ClinicalHistoryPage = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const [pRes, hRes] = await Promise.all([
+        const [pRes, hRes, cyclesRes] = await Promise.all([
           api.get(`/patients/${activePatientId}`),
-          api.get(`/clinical-history/${activePatientId}`)
+          api.get(`/clinical-history/${activePatientId}`),
+          // Sin ciclos la historia igual se ve; solo faltan los avisos.
+          api.get(`/patients/${activePatientId}/session-cycles`).catch(() => ({ data: null })),
         ]);
 
         setPatient(pRes.data);
+        setSessionCycles(Array.isArray(cyclesRes.data?.cycles) ? cyclesRes.data.cycles : []);
         persistClinicalHistoryContext({
           patientId: pRes.data.id || activePatientId,
           patientName: pRes.data.fullName || '',
@@ -763,6 +835,8 @@ const ClinicalHistoryPage = () => {
         evolution: normalizeClinicalRichTextHtml(entry.evolution || ''),
         createdAt: entry.date,
         attachments: JSON.stringify(entry.attachments),
+        // Solo al crear: queda firmada por el profesional del ciclo.
+        ...(String(entry.id).startsWith('temp-') && entry.professionalId && { professionalId: entry.professionalId }),
       };
 
       const response = String(entry.id).startsWith('temp-')
@@ -907,7 +981,32 @@ const ClinicalHistoryPage = () => {
     }
   };
 
+  // Ficha nueva con la fecha del turno de ingreso/reingreso (no la del día en que se carga).
+  const addEntry = (dateKey) => {
+    const clientKey = `temp-${Date.now()}`;
+    const cycleProfessional = findCycleForDate(sessionCycles, dateKey)?.professional || null;
+    setHistoryEntries((prev) => [
+      normalizeEntryState({
+        id: clientKey,
+        clientKey,
+        date: dateKey,
+        diagnosis: '',
+        evolution: NEW_ENTRY_TEMPLATE,
+        attachments: [],
+        professionalId: cycleProfessional?.id || null,
+        professional: cycleProfessional,
+        status: 'typing',
+        isVisible: true,
+      }, clientKey),
+      ...prev,
+    ]);
+  };
+
   // --- 4. RENDER ---
+  const todayKey = todayDateKey();
+  const missingIntakes = findMissingIntakes(sessionCycles, historyEntries, todayKey);
+  const abandonMessages = buildAbandonMessagesByEntry(sessionCycles, historyEntries);
+  const getEntrySignature = (entry) => buildProfessionalSignature(resolveEntryProfessional(entry, sessionCycles));
   const filteredEntries = historyEntries.filter(e => e.date.includes(dateSearch));
   const printableEntries = filteredEntries.filter(entry => entry.isVisible !== false);
   const coverageLabel = getCoverageLabel(patient?.healthInsurance, patient?.treatAsParticular);
@@ -950,6 +1049,9 @@ const ClinicalHistoryPage = () => {
     };
 
     const printablePayload = printableEntries.map((entry) => ({
+      abandonMessage: escapePrintHtml(abandonMessages.get(entry.clientKey) || ''),
+      signatureName: escapePrintHtml(getEntrySignature(entry)?.name || ''),
+      signatureLicenses: escapePrintHtml(getEntrySignature(entry)?.licenses || ''),
       dateLabel: escapePrintHtml(formatDisplayDate(entry.date)),
       diagnosis: escapePrintHtml(entry.diagnosis || 'Sin diagnóstico'),
       evolutionHtml: isClinicalRichTextEmpty(entry.evolution)
@@ -1210,27 +1312,35 @@ const ClinicalHistoryPage = () => {
                     />
                   </div>
                   <button
-                    onClick={() => {
-                      const clientKey = `temp-${Date.now()}`;
-                      setHistoryEntries((prev) => [
-                        normalizeEntryState({
-                          id: clientKey,
-                          clientKey,
-                          date: new Date().toISOString().split('T')[0],
-                          diagnosis: '',
-                          evolution: '<p><strong>Anamnesis:</strong></p><p><br></p><p><strong>Estado Funcional:</strong></p><p><br></p><p><strong>Tto:</strong></p>',
-                          attachments: [],
-                          status: 'typing',
-                          isVisible: true,
-                        }, clientKey),
-                        ...prev,
-                      ]);
-                    }}
+                    onClick={() => addEntry(pickNewEntryDate(sessionCycles, historyEntries, todayKey))}
                     className="flex w-full items-center justify-center gap-2 rounded-xl bg-teal-600 px-6 py-2.5 text-[10px] font-black text-white shadow-lg hover:bg-teal-700 md:w-auto"
                   >
                     <PlusCircle size={16} /> NUEVA EVOLUCIÓN
                   </button>
                 </div>
+
+                {missingIntakes.length > 0 && (
+                  <section role="alert" className="no-print rounded-3xl border-2 border-amber-300 bg-amber-50 p-4">
+                    <p className="flex items-center gap-2 text-[11px] font-black uppercase tracking-wide text-amber-800">
+                      <AlertTriangle size={16} />
+                      {missingIntakes.length === 1
+                        ? 'Falta pasar 1 ficha de ingreso / reingreso'
+                        : `Faltan pasar ${missingIntakes.length} fichas de ingreso / reingreso`}
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {missingIntakes.map((intake) => (
+                        <button
+                          key={intake.cycleNumber}
+                          type="button"
+                          onClick={() => addEntry(intake.dateKey)}
+                          className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-amber-300 bg-white px-4 py-2 text-[10px] font-black uppercase text-amber-800 transition hover:bg-amber-100"
+                        >
+                          <PlusCircle size={14} /> {intake.label} del {formatDateKey(intake.dateKey)}
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+                )}
 
                 {filteredEntries.map((entry) => (
                   <div key={entry.clientKey} className={`session-card border-2 transition-all rounded-3xl bg-slate-50 overflow-hidden ${!entry.isVisible ? 'opacity-40 grayscale is-hidden' : 'border-slate-100 shadow-sm'}`}>
@@ -1316,6 +1426,12 @@ const ClinicalHistoryPage = () => {
                         }}
                       />
 
+                      {abandonMessages.has(entry.clientKey) && (
+                        <p className="rounded-2xl border-2 border-amber-400 bg-yellow-300 px-4 py-3 text-sm font-black uppercase text-amber-950">
+                          {abandonMessages.get(entry.clientKey)}
+                        </p>
+                      )}
+
                       {entry.attachments?.length > 0 && (
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-2">
                           {entry.attachments.map((file, idx) => (
@@ -1357,6 +1473,8 @@ const ClinicalHistoryPage = () => {
                           ))}
                         </div>
                       )}
+
+                      <ProfessionalSignature signature={getEntrySignature(entry)} />
 
                       <div className="no-print flex flex-wrap gap-2 border-t border-slate-50 pt-4">
                         <label className="flex items-center gap-2 text-teal-600 text-[9px] font-black cursor-pointer bg-teal-50 px-4 py-2 rounded-xl border border-teal-100 hover:bg-teal-100">
@@ -1465,6 +1583,12 @@ const ClinicalHistoryPage = () => {
                         )}
                       </div>
 
+                      {abandonMessages.has(entry.clientKey) && (
+                        <p className="rounded-2xl border-2 border-amber-400 bg-yellow-300 px-4 py-3 text-sm font-black uppercase text-amber-950">
+                          {abandonMessages.get(entry.clientKey)}
+                        </p>
+                      )}
+
                       {entry.attachments?.length > 0 && (
                         <div className="grid grid-cols-3 gap-4 border-t border-slate-100 pt-6">
                           {entry.attachments.map((file, idx) => (
@@ -1481,6 +1605,8 @@ const ClinicalHistoryPage = () => {
                           ))}
                         </div>
                       )}
+
+                      <ProfessionalSignature signature={getEntrySignature(entry)} />
                     </div>
                   </article>
                 ))}
