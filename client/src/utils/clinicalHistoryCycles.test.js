@@ -3,6 +3,7 @@ import {
   buildAbandonMessagesByEntry,
   buildProfessionalSignature,
   describeEntryAppointment,
+  findAutoFixableEntries,
   findDiagnosisForDate,
   findEntryDateMismatch,
   findMissingIntakes,
@@ -55,6 +56,33 @@ describe('historia clínica y turnos', () => {
       dateKey: '2026-11-13', label: 'Ingreso', diagnosis: 'SME MANGUITO ROTADOR DER',
     });
     expect(findEntryDateMismatch(tomorrow, entry('ok', '2026-11-13'))).toBeNull();
+  });
+
+  it('pasa sola a la fecha del turno una ficha de ingreso cargada antes', () => {
+    const tomorrow = [cycle(1, '2026-11-13', { diagnosis: 'SME MANGUITO ROTADOR DER' })];
+    expect(findAutoFixableEntries(tomorrow, [{ id: 'h1', clientKey: 'vieja', date: '2026-11-10' }])).toEqual([
+      { clientKey: 'vieja', dateKey: '2026-11-13', diagnosis: 'SME MANGUITO ROTADOR DER' },
+    ]);
+  });
+
+  it('pasa sola a la fecha del ingreso una ficha cargada días después por olvido', () => {
+    const fixes = findAutoFixableEntries([cycle(1, '2026-11-02')], [{ id: 'h1', clientKey: 'tarde', date: '2026-11-06' }]);
+    expect(fixes.map((fix) => [fix.clientKey, fix.dateKey])).toEqual([['tarde', '2026-11-02']]);
+  });
+
+  it('no mueve fichas viejas de hace meses, ni evoluciones de un día de sesión, ni si el ingreso ya tiene ficha', () => {
+    const withSessions = [cycle(1, '2026-11-02', {
+      sessions: [
+        { id: 'a', date: '2026-11-02T12:00:00.000Z', sessionNumber: 1 },
+        { id: 'b', date: '2026-11-04T12:00:00.000Z', sessionNumber: 2 },
+      ],
+    })];
+    expect(findAutoFixableEntries(withSessions, [{ id: 'h1', clientKey: 'old', date: '2025-01-10' }])).toEqual([]);
+    expect(findAutoFixableEntries(withSessions, [{ id: 'h1', clientKey: 's2', date: '2026-11-04' }])).toEqual([]);
+    expect(findAutoFixableEntries(withSessions, [
+      { id: 'h1', clientKey: 'ok', date: '2026-11-02' },
+      { id: 'h2', clientKey: 'otra', date: '2026-11-06' },
+    ])).toEqual([]);
   });
 
   it('dice a qué turno corresponde cada ficha', () => {

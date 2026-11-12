@@ -129,6 +129,38 @@ export const findEntryDateMismatch = (cycles, entry) => {
   };
 };
 
+const AUTO_FIX_EARLY_DAYS = 30;
+
+const daysBetween = (fromKey, toKey) => Math.round(
+  (new Date(`${toKey}T12:00:00Z`) - new Date(`${fromKey}T12:00:00Z`)) / 86_400_000,
+);
+
+/**
+ * Fichas de ingreso cargadas con otra fecha, que se pasan solas a la del turno.
+ * Por cada ingreso/reingreso sin ficha en su fecha, toma la primera ficha de su ciclo
+ * que no cae en ningún día de turno: la cargada después (se olvidaron) o hasta 30 días
+ * antes (se cargó antes). Las que caen en un día de sesión no se tocan: son evoluciones.
+ *
+ * @returns {Array<{ clientKey, dateKey, diagnosis }>}
+ */
+export const findAutoFixableEntries = (cycles, entries) => {
+  const fixes = [];
+  const fixedKeys = new Set();
+  withRanges(cycles).forEach((range) => {
+    if (hasEntryOn(entries, range.fromKey)) return;
+    const candidate = entriesInRange(entries, range).find((entry) => (
+      !fixedKeys.has(entry.clientKey)
+      && !String(entry.id || '').startsWith('temp-')
+      && !describeEntryAppointment(cycles, entry.date)
+      && (entry.date > range.fromKey || daysBetween(entry.date, range.fromKey) <= AUTO_FIX_EARLY_DAYS)
+    ));
+    if (!candidate) return;
+    fixedKeys.add(candidate.clientKey);
+    fixes.push({ clientKey: candidate.clientKey, dateKey: range.fromKey, diagnosis: range.cycle.diagnosis || '' });
+  });
+  return fixes;
+};
+
 /** Solo si se marcó "Abandonó tratamiento" en un turno del ciclo. */
 export const buildAbandonMessage = (cycle) => {
   if (!cycle || cycle.abandonedAtSession == null) return null;

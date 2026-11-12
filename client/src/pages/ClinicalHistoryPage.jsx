@@ -28,6 +28,7 @@ import {
   buildProfessionalSignature,
   findCycleForDate,
   describeEntryAppointment,
+  findAutoFixableEntries,
   findDiagnosisForDate,
   findEntryDateMismatch,
   findMissingIntakes,
@@ -606,6 +607,7 @@ const ClinicalHistoryPage = () => {
   const historyEntriesRef = useRef([]);
   const inFlightSaveClientKeysRef = useRef(new Set());
   const pendingResaveClientKeysRef = useRef(new Set());
+  const pendingAutoFixRef = useRef([]);
   const storedHistoryContext = readClinicalHistoryContext();
   const activePatientId = location.state?.patientId || storedHistoryContext?.patientId || legacyPatientId || null;
 
@@ -772,7 +774,8 @@ const ClinicalHistoryPage = () => {
         ]);
 
         setPatient(pRes.data);
-        setSessionCycles(Array.isArray(cyclesRes.data?.cycles) ? cyclesRes.data.cycles : []);
+        const loadedCycles = Array.isArray(cyclesRes.data?.cycles) ? cyclesRes.data.cycles : [];
+        setSessionCycles(loadedCycles);
         persistClinicalHistoryContext({
           patientId: pRes.data.id || activePatientId,
           patientName: pRes.data.fullName || '',
@@ -781,7 +784,26 @@ const ClinicalHistoryPage = () => {
         const formattedEntries = (Array.isArray(hRes.data) ? hRes.data : []).map((entry) => (
           normalizeEntryState(entry, String(entry.id))
         ));
-        setHistoryEntries(formattedEntries);
+
+        // Fichas de ingreso cargadas con otra fecha: pasan solas a la fecha del turno.
+        const fixes = new Map(findAutoFixableEntries(loadedCycles, formattedEntries).map((fix) => [fix.clientKey, fix]));
+        const fixedEntries = formattedEntries.map((entry) => {
+          const fix = fixes.get(entry.clientKey);
+          if (!fix) return entry;
+          return {
+            ...entry,
+            date: fix.dateKey,
+            diagnosis: entry.diagnosis?.trim() ? entry.diagnosis : fix.diagnosis,
+            status: 'typing',
+          };
+        });
+        pendingAutoFixRef.current = [...fixes.keys()];
+        if (fixes.size > 0) {
+          toast.success(fixes.size === 1
+            ? 'Se pasó 1 ficha a la fecha de su turno'
+            : `Se pasaron ${fixes.size} fichas a la fecha de su turno`);
+        }
+        setHistoryEntries(fixedEntries);
       } catch {
         toast.error('Error al conectar con el servidor');
       } finally {
@@ -1004,6 +1026,14 @@ const ClinicalHistoryPage = () => {
       ...prev,
     ]);
   };
+
+  // Guarda las fichas que se pasaron solas a la fecha del turno al cargar.
+  useEffect(() => {
+    if (pendingAutoFixRef.current.length === 0) return;
+    const clientKeys = pendingAutoFixRef.current;
+    pendingAutoFixRef.current = [];
+    clientKeys.forEach((clientKey) => queueSaveEntry(clientKey, 0));
+  });
 
   // Corrige una ficha vieja: fecha del turno y, si no tenía, su diagnóstico.
   const applyAppointmentToEntry = (clientKey, appointmentData) => {

@@ -9,7 +9,7 @@ import {
 import { buildProfessionalPatientWhere, assertScopedProfessionalId, withProfessionalScope } from '../utils/accessScope.js';
 import { auditActions, safeWriteAuditLog } from '../utils/audit.js';
 import { createInternalError } from '../errors/AppError.js';
-import { buildAttendedByYear, buildPatientCycles } from '../utils/patientCycles.js';
+import { buildAttendedByYear, buildPatientCycles, findPendingIntakes } from '../utils/patientCycles.js';
 
 const parseDateAvoidTZ = (d) => {
   if (!d) return null;
@@ -720,6 +720,92 @@ export const getSessionCycles = async (req, res, prisma) => {
     res.status(200).json(result);
   } catch (error) {
     throw createInternalError(error, 'Error al obtener ciclos de sesiones');
+  }
+};
+
+// Fichas de ingreso/reingreso sin hacer: turnos de inicio de ciclo de los últimos
+// PENDING_INTAKES_WINDOW_DAYS días (hasta `until`) sin una ficha con su misma fecha.
+const PENDING_INTAKES_WINDOW_DAYS = 90;
+const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+const shiftDateKey = (dateKey, days) => {
+  const date = new Date(`${dateKey}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+};
+
+export const getPendingIntakes = async (req, res, prisma) => {
+  const untilKey = DATE_KEY_PATTERN.test(String(req.query.until || ''))
+    ? String(req.query.until)
+    : buildDayRange().selectedDate;
+  const fromKey = shiftDateKey(untilKey, -PENDING_INTAKES_WINDOW_DAYS);
+  const professionalScope = withProfessionalScope(req.user);
+
+  try {
+    // Pacientes con turnos en la ventana; sus ciclos se arman con todos sus turnos.
+    const recent = await prisma.appointment.findMany({
+      where: mergeWhereClauses(professionalScope, {
+        status: { not: 'CANCELLED' },
+        date: { gte: new Date(`${fromKey}T00:00:00Z`), lte: new Date(`${untilKey}T23:59:59Z`) },
+      }),
+      distinct: ['patientId'],
+      select: { patientId: true },
+    });
+    const patientIds = recent.map((item) => item.patientId);
+
+    const [appointments, histories] = patientIds.length === 0 ? [[], []] : await Promise.all([
+      prisma.appointment.findMany({
+        where: mergeWhereClauses(professionalScope, { patientId: { in: patientIds }, status: { not: 'CANCELLED' } }),
+        orderBy: [{ date: 'asc' }, { time: 'asc' }, { slotNumber: 'asc' }],
+        select: {
+          id: true, patientId: true, date: true, time: true, status: true,
+          isFirstSession: true, sessionNumber: true, diagnosis: true,
+        },
+      }),
+      prisma.clinicalHistory.findMany({
+        where: { patientId: { in: patientIds }, ...professionalScope },
+        select: { patientId: true, date: true },
+      }),
+    ]);
+
+    const appointmentsByPatient = new Map();
+    appointments.forEach((item) => {
+      if (!appointmentsByPatient.has(item.patientId)) appointmentsByPatient.set(item.patientId, []);
+      appointmentsByPatient.get(item.patientId).push(item);
+    });
+    const historyKeysByPatient = new Map();
+    histories.forEach((item) => {
+      if (!historyKeysByPatient.has(item.patientId)) historyKeysByPatient.set(item.patientId, new Set());
+      historyKeysByPatient.get(item.patientId).add(new Date(item.date).toISOString().slice(0, 10));
+    });
+
+    const pendingByPatient = new Map();
+    appointmentsByPatient.forEach((patientAppointments, patientId) => {
+      const pending = findPendingIntakes(
+        patientAppointments,
+        historyKeysByPatient.get(patientId) || new Set(),
+        { fromKey, untilKey },
+      );
+      if (pending.length > 0) pendingByPatient.set(patientId, pending);
+    });
+
+    const patients = pendingByPatient.size === 0 ? [] : await prisma.patient.findMany({
+      where: { id: { in: [...pendingByPatient.keys()] } },
+      select: patientSelect,
+    });
+
+    const result = patients
+      .map((patient) => ({ ...patient, pendingIntakes: pendingByPatient.get(patient.id) }))
+      .sort((a, b) => b.pendingIntakes[0].dateKey.localeCompare(a.pendingIntakes[0].dateKey));
+
+    await safeWriteAuditLog(prisma, req, {
+      action: auditActions.patientListed,
+      resource: 'PATIENT',
+      details: { scope: 'PENDING_CLINICAL_INTAKES', total: result.length, from: fromKey, until: untilKey },
+    });
+    res.status(200).json({ from: fromKey, until: untilKey, patients: result });
+  } catch (error) {
+    throw createInternalError(error, 'Error al buscar fichas pendientes');
   }
 };
 

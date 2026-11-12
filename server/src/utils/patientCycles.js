@@ -102,6 +102,29 @@ export const buildPatientCycles = (appointments = [], now = new Date()) => {
   });
 };
 
+/** `AAAA-MM-DD` de una fecha guardada (los turnos van al mediodía: no hay corrimiento). */
+export const toDateKey = (value) => new Date(value).toISOString().slice(0, 10);
+
+/**
+ * Ingresos/reingresos sin una ficha de historia clínica con su misma fecha, entre
+ * `fromKey` y `untilKey` (inclusive). El más reciente primero.
+ *
+ * @param {Array} appointments turnos no cancelados del paciente, en orden cronológico
+ * @param {Set<string>} historyDateKeys fechas (AAAA-MM-DD) de las fichas del paciente
+ */
+export const findPendingIntakes = (appointments, historyDateKeys, { fromKey, untilKey }) => (
+  buildPatientCycles(appointments)
+    .map((cycle) => ({ cycle, dateKey: toDateKey(cycle.from) }))
+    .filter(({ dateKey }) => dateKey >= fromKey && dateKey <= untilKey && !historyDateKeys.has(dateKey))
+    .map(({ cycle, dateKey }) => ({
+      cycleNumber: cycle.cycleNumber,
+      dateKey,
+      label: cycle.cycleNumber === 1 ? 'Ingreso' : 'Reingreso',
+      diagnosis: cycle.diagnosis,
+    }))
+    .reverse()
+);
+
 /** Sesiones asistidas por año (control de topes anuales de obra social). */
 export const buildAttendedByYear = (appointments = []) => {
   const byYear = new Map();

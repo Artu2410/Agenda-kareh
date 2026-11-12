@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  AlertTriangle,
   CalendarDays,
   ChevronRight,
   Clock3,
@@ -43,6 +44,11 @@ const formatAgendaDateLabel = (dateString) => {
   }).format(parsedDate);
 };
 
+const formatDateKey = (dateKey) => {
+  const [year, month, day] = String(dateKey || '').split('-');
+  return year && month && day ? `${day}/${month}/${year}` : dateKey;
+};
+
 const buildAppointmentTimesLabel = (dayAppointments = []) => (
   dayAppointments
     .map((appointment) => appointment.time)
@@ -59,12 +65,31 @@ export default function ClinicalHistoriesPage() {
   const [selectedDate, setSelectedDate] = useState(todayValue);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [pendingPatients, setPendingPatients] = useState([]);
+  const [showPendingOnly, setShowPendingOnly] = useState(false);
   const requestIdRef = useRef(0);
 
   const trimmedSearch = searchTerm.trim();
   const isSearching = trimmedSearch.length > 0;
-  const visiblePatients = isSearching ? searchResults : scheduledPatients;
   const dateLabel = formatAgendaDateLabel(selectedDate);
+  const pendingByPatientId = new Map(pendingPatients.map((patient) => [patient.id, patient.pendingIntakes || []]));
+  const visiblePatients = showPendingOnly
+    ? pendingPatients
+    : (isSearching ? searchResults : scheduledPatients);
+
+  // Fichas de ingreso/reingreso sin hacer (hasta hoy, o hasta el día elegido si es posterior).
+  const pendingUntil = selectedDate > todayValue ? selectedDate : todayValue;
+  useEffect(() => {
+    let cancelled = false;
+    api.get('/patients/clinical-histories/pending-intakes', { params: { until: pendingUntil } })
+      .then((response) => {
+        if (!cancelled) setPendingPatients(Array.isArray(response.data?.patients) ? response.data.patients : []);
+      })
+      .catch(() => {
+        if (!cancelled) setPendingPatients([]);
+      });
+    return () => { cancelled = true; };
+  }, [pendingUntil]);
 
   const fetchPatients = useCallback(async () => {
     const requestId = requestIdRef.current + 1;
@@ -199,19 +224,49 @@ export default function ClinicalHistoriesPage() {
           </button>
         </div>
 
+        <button
+          type="button"
+          onClick={() => setShowPendingOnly((current) => !current)}
+          aria-pressed={showPendingOnly}
+          className={`mb-5 flex w-full items-center justify-between gap-3 rounded-3xl border-2 px-5 py-4 text-left transition-all ${
+            showPendingOnly
+              ? 'border-amber-500 bg-amber-500 text-white shadow-md'
+              : pendingPatients.length > 0
+                ? 'border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100'
+                : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
+          }`}
+        >
+          <span className="flex items-center gap-3">
+            <AlertTriangle size={20} />
+            <span>
+              <span className="block text-sm font-black uppercase tracking-wide">
+                Fichas pendientes: {pendingPatients.length === 0
+                  ? 'no hay fichas de ingreso / reingreso sin hacer'
+                  : `${pendingPatients.length} paciente${pendingPatients.length === 1 ? '' : 's'} sin ficha de ingreso / reingreso`}
+              </span>
+              <span className="block text-[11px] font-semibold opacity-80">
+                {showPendingOnly ? 'Mostrando solo fichas por completar. Tocá para volver.' : 'Tocá para ver solo las fichas por completar (últimos 90 días).'}
+              </span>
+            </span>
+          </span>
+          <span className="shrink-0 rounded-2xl bg-white/80 px-3 py-1 text-xl font-black text-amber-700">{pendingPatients.length}</span>
+        </button>
+
         <div className="mb-5 rounded-3xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
           <p className="text-[11px] font-black uppercase tracking-[0.28em] text-slate-400">
-            {isSearching ? 'Resultados globales' : 'Pacientes del día'}
+            {showPendingOnly ? 'Por completar' : (isSearching ? 'Resultados globales' : 'Pacientes del día')}
           </p>
           <div className="mt-2 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
             <div>
               <h2 className="text-2xl font-black text-slate-900">
-                {isSearching ? `Búsqueda: "${trimmedSearch}"` : dateLabel}
+                {showPendingOnly ? 'Fichas de ingreso / reingreso sin hacer' : (isSearching ? `Búsqueda: "${trimmedSearch}"` : dateLabel)}
               </h2>
               <p className="text-sm text-slate-500">
-                {isSearching
-                  ? 'Usa esta búsqueda para abrir historias clínicas fuera del día seleccionado.'
-                  : 'Ordenados según el horario de atención para que la carga diaria no se vuelva caótica.'}
+                {showPendingOnly
+                  ? 'Abrí cada paciente y tocá el botón del ingreso que falta: la ficha se crea con la fecha y el diagnóstico del turno.'
+                  : isSearching
+                    ? 'Usa esta búsqueda para abrir historias clínicas fuera del día seleccionado.'
+                    : 'Ordenados según el horario de atención para que la carga diaria no se vuelva caótica.'}
               </p>
             </div>
             <div className="rounded-2xl bg-slate-100 px-4 py-2 text-right">
@@ -245,6 +300,7 @@ export default function ClinicalHistoriesPage() {
             {visiblePatients.map((patient) => {
               const appointmentTimesLabel = buildAppointmentTimesLabel(patient.dayAppointments);
               const hasAppointmentsOnSelectedDate = Array.isArray(patient.dayAppointments) && patient.dayAppointments.length > 0;
+              const pendingIntakes = pendingByPatientId.get(patient.id) || [];
 
               return (
                 <div
@@ -272,6 +328,23 @@ export default function ClinicalHistoriesPage() {
                     </p>
                   </div>
 
+                  {pendingIntakes.length > 0 && (
+                    <div className="mt-4 rounded-2xl border-2 border-amber-300 bg-amber-50 px-4 py-3">
+                      <p className="flex items-center gap-2 text-[11px] font-black uppercase text-amber-800">
+                        <AlertTriangle size={14} /> Falta ficha
+                      </p>
+                      <ul className="mt-1 space-y-0.5">
+                        {pendingIntakes.map((intake) => (
+                          <li key={intake.cycleNumber} className="text-[11px] font-bold text-amber-900">
+                            {intake.label} del {formatDateKey(intake.dateKey)}
+                            {intake.diagnosis ? ` · ${intake.diagnosis}` : ''}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {!showPendingOnly && (
                   <div className={`mt-4 rounded-2xl border px-4 py-3 ${hasAppointmentsOnSelectedDate ? 'border-teal-100 bg-teal-50' : 'border-slate-200 bg-slate-50'}`}>
                     {hasAppointmentsOnSelectedDate ? (
                       <>
@@ -289,6 +362,7 @@ export default function ClinicalHistoriesPage() {
                       </p>
                     )}
                   </div>
+                  )}
                 </div>
               );
             })}

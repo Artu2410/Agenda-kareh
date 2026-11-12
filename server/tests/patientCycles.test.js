@@ -1,4 +1,4 @@
-import { buildAttendedByYear, buildPatientCycles, CYCLE_STATES } from '../src/utils/patientCycles.js';
+import { buildAttendedByYear, buildPatientCycles, CYCLE_STATES, findPendingIntakes } from '../src/utils/patientCycles.js';
 
 const NOW = new Date('2026-11-11T15:00:00Z');
 const apt = (id, date, status, isFirstSession = false) => ({
@@ -79,6 +79,24 @@ describe('patient cycles', () => {
     ], NOW);
 
     expect(cycle.diagnosis).toBe('ESGUINCE TOBILLO DER');
+  });
+
+  it('lists intakes without a clinical history entry on the same date', () => {
+    const appointments = [
+      { ...apt('a1', '2026-08-03', 'COMPLETED', true), diagnosis: 'LUMBALGIA' },
+      apt('a2', '2026-08-05', 'COMPLETED'),
+      { ...apt('b1', '2026-11-02', 'COMPLETED', true), diagnosis: 'CERVICALGIA' },
+      { ...apt('c1', '2026-11-20', 'SCHEDULED', true), diagnosis: 'FUTURO' },
+    ];
+
+    // La ficha del 05/08 es de una sesión, no del ingreso del 03/08.
+    const pending = findPendingIntakes(appointments, new Set(['2026-08-05']), { fromKey: '2026-08-01', untilKey: '2026-11-12' });
+
+    expect(pending).toEqual([
+      { cycleNumber: 2, dateKey: '2026-11-02', label: 'Reingreso', diagnosis: 'CERVICALGIA' },
+      { cycleNumber: 1, dateKey: '2026-08-03', label: 'Ingreso', diagnosis: 'LUMBALGIA' },
+    ]);
+    expect(findPendingIntakes(appointments, new Set(['2026-08-03', '2026-11-02']), { fromKey: '2026-08-01', untilKey: '2026-11-12' })).toEqual([]);
   });
 
   it('counts attended sessions per year', () => {
