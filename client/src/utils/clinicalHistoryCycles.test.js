@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   buildAbandonMessagesByEntry,
   buildProfessionalSignature,
+  describeEntryAppointment,
   findDiagnosisForDate,
+  findEntryDateMismatch,
   findMissingIntakes,
   pickNewEntryDate,
   resolveEntryProfessional,
@@ -11,7 +13,14 @@ import {
 
 const katia = { id: 'pro-1', fullName: 'Katia Alumine Romero', licenseNumber: '18900', licenseNumberMP: '10318' };
 const cycle = (cycleNumber, from, extra = {}) => ({
-  cycleNumber, from: `${from}T12:00:00.000Z`, state: 'COMPLETE', abandonedAtSession: null, professional: katia, ...extra,
+  cycleNumber,
+  from: `${from}T12:00:00.000Z`,
+  state: 'COMPLETE',
+  abandonedAtSession: null,
+  professional: katia,
+  diagnosis: null,
+  sessions: [{ id: `s-${from}`, date: `${from}T12:00:00.000Z`, sessionNumber: 1 }],
+  ...extra,
 });
 const entry = (clientKey, date) => ({ clientKey, date });
 
@@ -22,30 +31,50 @@ const cycles = [
   cycle(1, '2026-03-02'),
 ];
 
-describe('historia clínica y ciclos', () => {
-  it('avisa los ingresos y reingresos que no tienen ficha, el más reciente primero', () => {
-    const missing = findMissingIntakes(cycles, [entry('e1', '2026-03-02')], '2026-11-12');
+describe('historia clínica y turnos', () => {
+  it('avisa los ingresos y reingresos sin una ficha con su misma fecha', () => {
+    const missing = findMissingIntakes(cycles, [entry('e1', '2026-03-02'), entry('e2', '2026-09-04')], '2026-11-12');
     expect(missing.map((item) => [item.label, item.dateKey])).toEqual([
       ['Reingreso', '2026-11-12'],
       ['Reingreso', '2026-09-01'],
     ]);
   });
 
-  it('cuenta como ficha del ciclo una cargada unos días después del turno', () => {
-    const missing = findMissingIntakes(cycles, [entry('e1', '2026-03-02'), entry('e2', '2026-09-04')], '2026-10-01');
-    expect(missing).toEqual([]);
+  it('avisa también un ingreso de mañana aunque haya una ficha cargada antes con otra fecha', () => {
+    // Paciente que inicia mañana y tiene una ficha vieja con la fecha del día en que se cargó.
+    const tomorrow = [cycle(1, '2026-11-13', { diagnosis: 'SME MANGUITO ROTADOR DER' })];
+    const missing = findMissingIntakes(tomorrow, [entry('vieja', '2026-11-10')], '2026-11-12');
+    expect(missing).toEqual([expect.objectContaining({
+      label: 'Ingreso', dateKey: '2026-11-13', isUpcoming: true, diagnosis: 'SME MANGUITO ROTADOR DER',
+    })]);
   });
 
-  it('no avisa un ingreso reservado que todavía no llegó', () => {
-    expect(findMissingIntakes([cycle(1, '2026-12-01')], [], '2026-11-12')).toEqual([]);
+  it('marca la ficha con una fecha que no es de ningún turno y propone la del ingreso', () => {
+    const tomorrow = [cycle(1, '2026-11-13', { diagnosis: 'SME MANGUITO ROTADOR DER' })];
+    expect(findEntryDateMismatch(tomorrow, entry('vieja', '2026-11-10'))).toEqual({
+      dateKey: '2026-11-13', label: 'Ingreso', diagnosis: 'SME MANGUITO ROTADOR DER',
+    });
+    expect(findEntryDateMismatch(tomorrow, entry('ok', '2026-11-13'))).toBeNull();
   });
 
-  it('una ficha nueva toma la fecha del turno de ingreso aunque se cargue otro día', () => {
+  it('dice a qué turno corresponde cada ficha', () => {
+    const withSessions = [cycle(1, '2026-03-02', {
+      sessions: [
+        { id: 'a', date: '2026-03-02T12:00:00.000Z', sessionNumber: 1 },
+        { id: 'b', date: '2026-03-04T12:00:00.000Z', sessionNumber: 2 },
+      ],
+    })];
+    expect(describeEntryAppointment(withSessions, '2026-03-02')).toEqual({ kind: 'intake', label: 'Ingreso' });
+    expect(describeEntryAppointment(withSessions, '2026-03-04')).toEqual({ kind: 'session', label: 'Sesión 2' });
+    expect(describeEntryAppointment(withSessions, '2026-03-05')).toBeNull();
+  });
+
+  it('una ficha nueva toma la fecha del ingreso sin ficha aunque se cargue otro día', () => {
     expect(pickNewEntryDate(cycles, [entry('e1', '2026-03-02'), entry('e2', '2026-09-01')], '2026-11-20')).toBe('2026-11-12');
   });
 
-  it('si se carga antes, toma la fecha del próximo ingreso reservado', () => {
-    expect(pickNewEntryDate([cycle(1, '2026-11-20')], [], '2026-11-12')).toBe('2026-11-20');
+  it('si el paciente inicia mañana, la ficha nueva toma la fecha de mañana', () => {
+    expect(pickNewEntryDate([cycle(1, '2026-11-13')], [entry('vieja', '2026-11-10')], '2026-11-12')).toBe('2026-11-13');
   });
 
   it('con todas las fichas al día, una evolución nueva va con la fecha del turno de ingreso', () => {
@@ -59,7 +88,7 @@ describe('historia clínica y ciclos', () => {
   it('trae el diagnóstico del turno de ingreso del ciclo', () => {
     const withDiagnosis = [cycle(1, '2026-11-12', { diagnosis: 'ESGUINCE TOBILLO DER' })];
     expect(findDiagnosisForDate(withDiagnosis, '2026-11-12')).toBe('ESGUINCE TOBILLO DER');
-    expect(findDiagnosisForDate(withDiagnosis, '2026-11-01')).toBe('');
+    expect(findDiagnosisForDate([], '2026-11-12')).toBe('');
   });
 
   it('pone el aviso de abandono en la primera ficha del ciclo cortado', () => {

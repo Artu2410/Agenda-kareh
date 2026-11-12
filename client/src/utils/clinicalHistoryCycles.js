@@ -1,10 +1,10 @@
 /**
- * Historia clínica ↔ ciclos de tratamiento.
+ * Historia clínica ↔ turnos del paciente.
  *
  * Cada ciclo empieza en un turno de ingreso (ciclo 1) o reingreso (ciclos siguientes).
- * La ficha de ese ciclo lleva la fecha del turno reservado, aunque se cargue días
- * después o antes. Una ficha pertenece al ciclo cuya fecha de ingreso es la última
- * anterior o igual a la de la ficha.
+ * La ficha de ese ciclo lleva la fecha y el diagnóstico de ese turno: una ficha cuenta
+ * como ingreso/reingreso solo si su fecha coincide exactamente con la del turno.
+ * Una ficha con una fecha que no es la de ningún turno se marca para corregirla.
  *
  * Los ciclos llegan de `/patients/:id/session-cycles`; las fechas de las fichas,
  * como `AAAA-MM-DD`.
@@ -29,7 +29,7 @@ const chronological = (cycles = []) => [...cycles]
 
 /**
  * Rango de fechas de cada ciclo: desde su ingreso hasta el día anterior al siguiente.
- * El primero no tiene límite inferior, así cuenta una ficha cargada antes del primer turno.
+ * El primero no tiene límite inferior (una ficha anterior al primer turno es de ese ciclo).
  */
 const withRanges = (cycles) => {
   const ordered = chronological(cycles);
@@ -49,57 +49,85 @@ const entriesInRange = (entries, range) => (entries || [])
   .filter((entry) => entry?.date && isInRange(entry.date, range))
   .sort((a, b) => a.date.localeCompare(b.date));
 
+const hasEntryOn = (entries, dateKey) => (entries || []).some((entry) => entry?.date === dateKey);
+
 export const getIntakeLabel = (cycle) => (cycle?.cycleNumber === 1 ? 'Ingreso' : 'Reingreso');
 
-/** Ciclo al que pertenece una fecha (null si es anterior al primer ingreso). */
+/** Ciclo al que pertenece una fecha; una fecha anterior al primer ingreso es del primer ciclo. */
 export const findCycleForDate = (cycles, dateKey) => {
-  let match = null;
-  chronological(cycles).forEach((cycle) => {
+  const ordered = chronological(cycles);
+  let match = ordered[0] || null;
+  ordered.forEach((cycle) => {
     if (toDateKey(cycle.from) <= dateKey) match = cycle;
   });
   return match;
 };
 
 /**
- * Ingresos/reingresos que ya ocurrieron (o son hoy) y no tienen ninguna ficha en su
- * ciclo. El más reciente primero.
+ * Ingresos/reingresos sin una ficha con su misma fecha, incluidos los que todavía no
+ * llegaron (la ficha se puede cargar antes). El más reciente primero.
  */
-export const findMissingIntakes = (cycles, entries, todayKey) => withRanges(cycles)
-  .filter((range) => range.fromKey <= todayKey && entriesInRange(entries, range).length === 0)
-  .map((range) => ({
-    cycleNumber: range.cycle.cycleNumber,
-    dateKey: range.fromKey,
-    label: getIntakeLabel(range.cycle),
-    professional: range.cycle.professional || null,
+export const findMissingIntakes = (cycles, entries, todayKey) => chronological(cycles)
+  .filter((cycle) => !hasEntryOn(entries, toDateKey(cycle.from)))
+  .map((cycle) => ({
+    cycleNumber: cycle.cycleNumber,
+    dateKey: toDateKey(cycle.from),
+    label: getIntakeLabel(cycle),
+    isUpcoming: toDateKey(cycle.from) > todayKey,
+    diagnosis: cycle.diagnosis || '',
+    professional: cycle.professional || null,
   }))
   .reverse();
 
 /**
  * Fecha para una ficha nueva, siempre la de un turno de ingreso/reingreso:
- * 1. el ingreso pendiente de ficha más reciente;
+ * 1. el ingreso ya ocurrido sin ficha más reciente;
  * 2. el próximo ingreso reservado sin ficha (se carga antes);
- * 3. el ingreso del ciclo en curso;
- * 4. el próximo ingreso reservado.
+ * 3. el ingreso del ciclo en curso (o el próximo, si todavía no empezó).
  * Solo si el paciente no tiene turnos, hoy.
  */
 export const pickNewEntryDate = (cycles, entries, todayKey) => {
-  const [latestMissing] = findMissingIntakes(cycles, entries, todayKey);
-  if (latestMissing) return latestMissing.dateKey;
-
-  const ranges = withRanges(cycles);
-  const upcomingWithoutEntry = ranges.find((range) => (
-    range.fromKey > todayKey && entriesInRange(entries, range).length === 0
-  ));
-  if (upcomingWithoutEntry) return upcomingWithoutEntry.fromKey;
+  const missing = findMissingIntakes(cycles, entries, todayKey);
+  const latestPastMissing = missing.find((intake) => !intake.isUpcoming);
+  if (latestPastMissing) return latestPastMissing.dateKey;
+  const nextUpcomingMissing = [...missing].reverse().find((intake) => intake.isUpcoming);
+  if (nextUpcomingMissing) return nextUpcomingMissing.dateKey;
 
   const current = findCycleForDate(cycles, todayKey);
-  if (current) return toDateKey(current.from);
-
-  return ranges[0]?.fromKey || todayKey;
+  return current ? toDateKey(current.from) : todayKey;
 };
 
 /** Diagnóstico del turno de ingreso del ciclo al que pertenece la fecha. */
 export const findDiagnosisForDate = (cycles, dateKey) => findCycleForDate(cycles, dateKey)?.diagnosis || '';
+
+/**
+ * A qué turno corresponde la fecha de una ficha:
+ * { kind: 'intake', label: 'Ingreso' | 'Reingreso' } · { kind: 'session', label: 'Sesión 4' } · null
+ */
+export const describeEntryAppointment = (cycles, dateKey) => {
+  for (const cycle of chronological(cycles)) {
+    if (toDateKey(cycle.from) === dateKey) return { kind: 'intake', label: getIntakeLabel(cycle) };
+    const session = (cycle.sessions || []).find((item) => toDateKey(item.date) === dateKey);
+    if (session) return { kind: 'session', label: `Sesión ${session.sessionNumber}` };
+  }
+  return null;
+};
+
+/**
+ * Ficha cuya fecha no es la de ningún turno: propone la fecha y el diagnóstico del
+ * turno de ingreso de su ciclo. null si coincide con un turno o no hay turnos.
+ */
+export const findEntryDateMismatch = (cycles, entry) => {
+  if (!entry?.date || !cycles?.length) return null;
+  if (describeEntryAppointment(cycles, entry.date)) return null;
+  const cycle = findCycleForDate(cycles, entry.date);
+  if (!cycle) return null;
+  return {
+    dateKey: toDateKey(cycle.from),
+    label: getIntakeLabel(cycle),
+    diagnosis: cycle.diagnosis || '',
+  };
+};
 
 /** Solo si se marcó "Abandonó tratamiento" en un turno del ciclo. */
 export const buildAbandonMessage = (cycle) => {

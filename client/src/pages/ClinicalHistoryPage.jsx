@@ -27,7 +27,9 @@ import {
   buildAbandonMessagesByEntry,
   buildProfessionalSignature,
   findCycleForDate,
+  describeEntryAppointment,
   findDiagnosisForDate,
+  findEntryDateMismatch,
   findMissingIntakes,
   pickNewEntryDate,
   resolveEntryProfessional,
@@ -1003,6 +1005,20 @@ const ClinicalHistoryPage = () => {
     ]);
   };
 
+  // Corrige una ficha vieja: fecha del turno y, si no tenía, su diagnóstico.
+  const applyAppointmentToEntry = (clientKey, appointmentData) => {
+    const freshEntry = findEntryByClientKey(clientKey);
+    if (!freshEntry || !appointmentData) return;
+    const entryToSave = {
+      ...freshEntry,
+      date: appointmentData.dateKey,
+      diagnosis: freshEntry.diagnosis?.trim() ? freshEntry.diagnosis : appointmentData.diagnosis,
+      status: 'typing',
+    };
+    updateEntryByClientKey(clientKey, () => entryToSave);
+    void saveEntry(entryToSave);
+  };
+
   // --- 4. RENDER ---
   const todayKey = todayDateKey();
   const missingIntakes = findMissingIntakes(sessionCycles, historyEntries, todayKey);
@@ -1337,6 +1353,7 @@ const ClinicalHistoryPage = () => {
                           className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-amber-300 bg-white px-4 py-2 text-[10px] font-black uppercase text-amber-800 transition hover:bg-amber-100"
                         >
                           <PlusCircle size={14} /> {intake.label} del {formatDateKey(intake.dateKey)}
+                          {intake.isUpcoming && <span className="font-bold normal-case text-amber-600">(próximo turno)</span>}
                         </button>
                       ))}
                     </div>
@@ -1363,6 +1380,11 @@ const ClinicalHistoryPage = () => {
                           }
                         }}
                       />
+                      {describeEntryAppointment(sessionCycles, entry.date) && (
+                        <span className="inline-flex w-fit rounded-xl bg-teal-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-teal-700">
+                          Turno: {describeEntryAppointment(sessionCycles, entry.date).label}
+                        </span>
+                      )}
                       <div className="flex items-center gap-3 no-print">
                         <button onClick={() => setHistoryEntries((prev) => prev.map((currentEntry) => (
                           currentEntry.clientKey === entry.clientKey
@@ -1399,6 +1421,21 @@ const ClinicalHistoryPage = () => {
                         </div>
                       </div>
                     </div>
+
+                    {findEntryDateMismatch(sessionCycles, entry) && (
+                      <div role="alert" className="no-print flex flex-col gap-3 border-b border-amber-200 bg-amber-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-8">
+                        <p className="text-[11px] font-black text-amber-800">
+                          La fecha de esta ficha no coincide con ningún turno. {findEntryDateMismatch(sessionCycles, entry).label}: {formatDateKey(findEntryDateMismatch(sessionCycles, entry).dateKey)}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => applyAppointmentToEntry(entry.clientKey, findEntryDateMismatch(sessionCycles, entry))}
+                          className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-2xl bg-amber-500 px-4 py-2 text-[10px] font-black uppercase text-white hover:bg-amber-600"
+                        >
+                          Usar fecha y diagnóstico del turno
+                        </button>
+                      </div>
+                    )}
 
                     <div className="space-y-4 p-4 sm:p-8">
                       <input
