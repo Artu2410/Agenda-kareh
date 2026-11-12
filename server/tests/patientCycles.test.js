@@ -72,6 +72,15 @@ describe('patient cycles', () => {
     });
   });
 
+  it('carries the diagnosis of the intake appointment', () => {
+    const [cycle] = buildPatientCycles([
+      { ...apt('a1', '2026-11-11', 'COMPLETED', true), diagnosis: 'ESGUINCE TOBILLO DER' },
+      { ...apt('a2', '2026-11-13', 'SCHEDULED'), diagnosis: 'OTRO' },
+    ], NOW);
+
+    expect(cycle.diagnosis).toBe('ESGUINCE TOBILLO DER');
+  });
+
   it('counts attended sessions per year', () => {
     expect(buildAttendedByYear([
       apt('a', '2025-12-01', 'COMPLETED'),

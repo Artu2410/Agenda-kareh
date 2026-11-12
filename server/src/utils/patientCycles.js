@@ -74,11 +74,15 @@ export const buildPatientCycles = (appointments = [], now = new Date()) => {
       }
       : null;
 
+    // Diagnóstico del turno de ingreso (o el primero cargado en el ciclo) para la ficha.
+    const diagnosis = sessions.find((item) => item.diagnosis?.trim())?.diagnosis.trim() || null;
+
     return {
       cycleNumber: index + 1,
       state,
       abandonedAtSession,
       professional,
+      diagnosis,
       from: sessions[0].date,
       to: sessions[sessions.length - 1].date,
       totalSessions: sessions.length,

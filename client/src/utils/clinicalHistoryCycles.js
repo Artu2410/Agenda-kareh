@@ -75,18 +75,31 @@ export const findMissingIntakes = (cycles, entries, todayKey) => withRanges(cycl
   .reverse();
 
 /**
- * Fecha para una ficha nueva: la del ingreso pendiente más reciente; si no hay, la
- * del próximo ingreso reservado sin ficha (se carga antes); si no, hoy.
+ * Fecha para una ficha nueva, siempre la de un turno de ingreso/reingreso:
+ * 1. el ingreso pendiente de ficha más reciente;
+ * 2. el próximo ingreso reservado sin ficha (se carga antes);
+ * 3. el ingreso del ciclo en curso;
+ * 4. el próximo ingreso reservado.
+ * Solo si el paciente no tiene turnos, hoy.
  */
 export const pickNewEntryDate = (cycles, entries, todayKey) => {
   const [latestMissing] = findMissingIntakes(cycles, entries, todayKey);
   if (latestMissing) return latestMissing.dateKey;
 
-  const upcoming = withRanges(cycles).find((range) => (
+  const ranges = withRanges(cycles);
+  const upcomingWithoutEntry = ranges.find((range) => (
     range.fromKey > todayKey && entriesInRange(entries, range).length === 0
   ));
-  return upcoming ? upcoming.fromKey : todayKey;
+  if (upcomingWithoutEntry) return upcomingWithoutEntry.fromKey;
+
+  const current = findCycleForDate(cycles, todayKey);
+  if (current) return toDateKey(current.from);
+
+  return ranges[0]?.fromKey || todayKey;
 };
+
+/** Diagnóstico del turno de ingreso del ciclo al que pertenece la fecha. */
+export const findDiagnosisForDate = (cycles, dateKey) => findCycleForDate(cycles, dateKey)?.diagnosis || '';
 
 /** Solo si se marcó "Abandonó tratamiento" en un turno del ciclo. */
 export const buildAbandonMessage = (cycle) => {

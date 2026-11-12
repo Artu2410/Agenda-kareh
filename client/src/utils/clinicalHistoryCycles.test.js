@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildAbandonMessagesByEntry,
   buildProfessionalSignature,
+  findDiagnosisForDate,
   findMissingIntakes,
   pickNewEntryDate,
   resolveEntryProfessional,
@@ -47,8 +48,18 @@ describe('historia clínica y ciclos', () => {
     expect(pickNewEntryDate([cycle(1, '2026-11-20')], [], '2026-11-12')).toBe('2026-11-20');
   });
 
-  it('con todas las fichas al día, una evolución nueva va con la fecha de hoy', () => {
-    expect(pickNewEntryDate([cycle(1, '2026-03-02')], [entry('e1', '2026-03-02')], '2026-11-12')).toBe('2026-11-12');
+  it('con todas las fichas al día, una evolución nueva va con la fecha del turno de ingreso', () => {
+    expect(pickNewEntryDate([cycle(1, '2026-03-02')], [entry('e1', '2026-03-02')], '2026-11-12')).toBe('2026-03-02');
+  });
+
+  it('sin turnos cargados, usa la fecha de hoy', () => {
+    expect(pickNewEntryDate([], [], '2026-11-12')).toBe('2026-11-12');
+  });
+
+  it('trae el diagnóstico del turno de ingreso del ciclo', () => {
+    const withDiagnosis = [cycle(1, '2026-11-12', { diagnosis: 'ESGUINCE TOBILLO DER' })];
+    expect(findDiagnosisForDate(withDiagnosis, '2026-11-12')).toBe('ESGUINCE TOBILLO DER');
+    expect(findDiagnosisForDate(withDiagnosis, '2026-11-01')).toBe('');
   });
 
   it('pone el aviso de abandono en la primera ficha del ciclo cortado', () => {
