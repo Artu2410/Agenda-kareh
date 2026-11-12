@@ -101,6 +101,7 @@ export const updateAppointmentEvolutionBodySchema = z.object({
   authorizationNumber: optionalString('Número de autorización', { max: 120 }),
   authorizationFileUrl: optionalString('Archivo de autorización', { max: 2000 }),
   paidInAdvance: booleanFlag(),
+  treatmentAbandoned: booleanFlag(),
   sessionToken: clearableString('Token de sesión', { max: 120 }),
   authorizationStatus: authorizationStatusSchema.optional(),
 }).strip();

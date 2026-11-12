@@ -170,6 +170,7 @@ export const useAppointmentForm = ({
   const [authorizationNumber, setAuthorizationNumber] = useState('');
   const [authorizationFileUrl, setAuthorizationFileUrl] = useState('');
   const [paidInAdvance, setPaidInAdvance] = useState(false);
+  const [treatmentAbandoned, setTreatmentAbandoned] = useState(false);
   const [sessionToken, setSessionToken] = useState('');
   const [uploadingAuthorization, setUploadingAuthorization] = useState(false);
   const [foundPatientId, setFoundPatientId] = useState('');
@@ -349,6 +350,7 @@ export const useAppointmentForm = ({
       setAuthorizationNumber(appointment.authorizationNumber || '');
       setAuthorizationFileUrl(appointment.authorizationFileUrl || '');
       setPaidInAdvance(Boolean(appointment.paidInAdvance));
+      setTreatmentAbandoned(Boolean(appointment.treatmentAbandoned));
       setSessionToken(appointment.sessionToken || '');
       setEditingFutureId(null);
       setFutureDraft(createManualDraft());
@@ -373,6 +375,7 @@ export const useAppointmentForm = ({
       setAuthorizationNumber('');
       setAuthorizationFileUrl('');
       setPaidInAdvance(false);
+      setTreatmentAbandoned(false);
       setSessionToken('');
       setSessionCount(10);
       setFutureAppointments([]);
@@ -559,7 +562,7 @@ export const useAppointmentForm = ({
       };
 
       if (isEditMode) {
-        await api.patch(`/appointments/${appointment.id}/evolution`, payload);
+        await api.patch(`/appointments/${appointment.id}/evolution`, { ...payload, treatmentAbandoned });
         await onSave?.();
         await loadFutureAppointments();
         await loadSessionCycles();
@@ -819,6 +822,8 @@ export const useAppointmentForm = ({
     setAuthorizationFileUrl,
     paidInAdvance,
     setPaidInAdvance,
+    treatmentAbandoned,
+    setTreatmentAbandoned,
     sessionToken,
     setSessionToken,
     uploadingAuthorization,

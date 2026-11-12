@@ -57,15 +57,12 @@ export const buildPatientCycles = (appointments = [], now = new Date()) => {
     if (pending > 0) state = CYCLE_STATES.inProgress;
     else if (sessions.length >= CYCLE_LENGTH) state = CYCLE_STATES.complete;
 
-    // Ciclo cortado: última sesión a la que el paciente fue. Las pasadas sin marcar
-    // cuentan como asistidas (muchas veces no se marca la asistencia). 0 = no fue a ninguna.
-    let abandonedAtSession = null;
-    if (state === CYCLE_STATES.interrupted) {
-      const lastPresentIndex = sessions.findLastIndex((item) => item.status !== 'NO_SHOW');
-      abandonedAtSession = lastPresentIndex === -1
-        ? 0
-        : (sessions[lastPresentIndex].sessionNumber || lastPresentIndex + 1);
-    }
+    // Abandono: solo cuando se marcó a mano en un turno del ciclo (no se adivina por
+    // turnos faltantes: un ingreso de hoy sin más sesiones cargadas no es abandono).
+    const abandonedIndex = sessions.findLastIndex((item) => item.treatmentAbandoned);
+    const abandonedAtSession = abandonedIndex === -1
+      ? null
+      : (sessions[abandonedIndex].sessionNumber || abandonedIndex + 1);
 
     const firstProfessional = sessions[0].professional;
     const professional = firstProfessional

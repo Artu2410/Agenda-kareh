@@ -716,9 +716,10 @@ export const updateEvolution = async (req, res, prisma) => {
     authorizationFileUrl,
     paidInAdvance,
     sessionToken,
+    treatmentAbandoned,
   } = req.body;
 
-  if (!diagnosis && !status && !patientData && !evolution && isFirstSession === undefined && paidInAdvance === undefined) {
+  if (!diagnosis && !status && !patientData && !evolution && isFirstSession === undefined && paidInAdvance === undefined && treatmentAbandoned === undefined) {
     return res.status(400).json({ message: "No hay datos para actualizar." });
   }
 
@@ -785,6 +786,7 @@ export const updateEvolution = async (req, res, prisma) => {
           coinsuranceDetails: appointmentWritePayload.coinsuranceDetails,
           paidInAdvance: appointmentWritePayload.paidInAdvance,
           sessionToken: appointmentWritePayload.sessionToken,
+          ...(treatmentAbandoned !== undefined && { treatmentAbandoned: Boolean(treatmentAbandoned) }),
         },
         select: appointmentSelect,
       });

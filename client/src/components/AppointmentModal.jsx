@@ -98,6 +98,8 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
     authorizationFileUrl,
     paidInAdvance,
     setPaidInAdvance,
+    treatmentAbandoned,
+    setTreatmentAbandoned,
     sessionToken,
     setSessionToken,
     uploadingAuthorization,
@@ -465,6 +467,30 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                           {item.label}
                         </button>
                       ))}
+                    </div>
+                  </div>
+                  <div className={`rounded-[1.6rem] border px-4 py-3 ${treatmentAbandoned ? 'border-amber-400 bg-yellow-100' : 'border-slate-200 bg-white'}`}>
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-amber-800">Paciente abandonó tratamiento</p>
+                        <p className="mt-1 text-[11px] font-semibold text-slate-600">
+                          Marcalo en la última sesión a la que vino. En la historia clínica aparece
+                          {' '}<b>PACIENTE ABANDONA TRATAMIENTO EN LA SESIÓN {appointment?.sessionNumber || 'X'} SIN AVISAR</b>.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        aria-pressed={treatmentAbandoned}
+                        aria-label="Paciente abandonó tratamiento"
+                        onClick={() => setTreatmentAbandoned((current) => !current)}
+                        className={`inline-flex min-h-11 shrink-0 items-center rounded-2xl px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all ${
+                          treatmentAbandoned
+                            ? 'bg-amber-500 text-white shadow-md hover:bg-amber-600'
+                            : 'border border-slate-200 bg-white text-slate-500 hover:border-amber-300 hover:text-amber-700'
+                        }`}
+                      >
+                        {treatmentAbandoned ? 'Marcado' : 'Sin marcar'}
+                      </button>
                     </div>
                   </div>
                   <div className="flex items-center gap-3 p-3 bg-teal-50/50 rounded-2xl border border-teal-100">

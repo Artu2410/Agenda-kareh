@@ -1,0 +1,2 @@
+ALTER TABLE "Appointment"
+ADD COLUMN IF NOT EXISTS "treatmentAbandoned" BOOLEAN NOT NULL DEFAULT false;

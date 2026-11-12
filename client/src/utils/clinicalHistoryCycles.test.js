@@ -60,6 +60,11 @@ describe('historia clínica y ciclos', () => {
     ]);
   });
 
+  it('no muestra abandono si nadie lo marcó, aunque el ciclo tenga una sola sesión', () => {
+    const today = [cycle(1, '2026-11-12', { state: 'INTERRUPTED', abandonedAtSession: null })];
+    expect(buildAbandonMessagesByEntry(today, [entry('a', '2026-11-12')]).size).toBe(0);
+  });
+
   it('firma cada ficha con el profesional del ciclo y sus matrículas', () => {
     const professional = resolveEntryProfessional(entry('a', '2026-09-05'), cycles);
     expect(buildProfessionalSignature(professional)).toEqual({

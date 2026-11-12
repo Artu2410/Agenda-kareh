@@ -10,8 +10,6 @@
  * como `AAAA-MM-DD`.
  */
 
-const INTERRUPTED = 'INTERRUPTED';
-
 /** `AAAA-MM-DD` de un ISO o Date (los turnos se guardan al mediodía: no hay corrimiento). */
 export const toDateKey = (value) => {
   if (!value) return '';
@@ -90,11 +88,10 @@ export const pickNewEntryDate = (cycles, entries, todayKey) => {
   return upcoming ? upcoming.fromKey : todayKey;
 };
 
+/** Solo si se marcó "Abandonó tratamiento" en un turno del ciclo. */
 export const buildAbandonMessage = (cycle) => {
-  if (!cycle || cycle.state !== INTERRUPTED || cycle.abandonedAtSession == null) return null;
-  return cycle.abandonedAtSession > 0
-    ? `PACIENTE ABANDONA TRATAMIENTO EN LA SESIÓN ${cycle.abandonedAtSession} SIN AVISAR`
-    : 'PACIENTE ABANDONA TRATAMIENTO SIN ASISTIR A NINGUNA SESIÓN';
+  if (!cycle || cycle.abandonedAtSession == null) return null;
+  return `PACIENTE ABANDONA TRATAMIENTO EN LA SESIÓN ${cycle.abandonedAtSession} SIN AVISAR`;
 };
 
 /** Aviso de abandono por ficha: va en la primera ficha de cada ciclo cortado. */

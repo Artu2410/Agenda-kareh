@@ -40,25 +40,23 @@ describe('patient cycles', () => {
     expect(cycle).toMatchObject({ attended: 1, noShow: 1, unmarked: 1, pending: 0, state: CYCLE_STATES.interrupted });
   });
 
-  it('reports the last session the patient attended when the cycle was abandoned', () => {
+  it('reports abandonment only at the session marked by hand', () => {
     const cycles = buildPatientCycles([
       apt('a1', '2026-08-03', 'COMPLETED', true),
-      apt('a2', '2026-08-05', 'SCHEDULED'), // pasó sin marcar: cuenta como que fue
-      apt('a3', '2026-08-07', 'NO_SHOW'),
+      { ...apt('a2', '2026-08-05', 'COMPLETED'), sessionNumber: 2, treatmentAbandoned: true },
       apt('b1', '2026-11-02', 'COMPLETED', true),
-      apt('b2', '2026-11-16', 'SCHEDULED'),
     ], NOW);
 
     expect(cycles[0].abandonedAtSession).toBe(2);
     expect(cycles[1].abandonedAtSession).toBeNull();
   });
 
-  it('reports 0 when the patient never came to any session of the cycle', () => {
+  it('does not flag an intake of today with no more sessions booked yet', () => {
     const [cycle] = buildPatientCycles([
-      apt('a1', '2026-08-03', 'NO_SHOW', true),
+      apt('a1', '2026-11-11', 'COMPLETED', true),
     ], NOW);
 
-    expect(cycle.abandonedAtSession).toBe(0);
+    expect(cycle.abandonedAtSession).toBeNull();
   });
 
   it('exposes the professional of the cycle with both licenses', () => {

@@ -150,6 +150,7 @@ export const appointmentBaseSelect = {
   patientChargeAmount: true,
   coinsuranceDetails: true,
   paidInAdvance: true,
+  treatmentAbandoned: true,
   sessionToken: true,
 };
 

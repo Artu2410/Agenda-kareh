@@ -260,6 +260,25 @@ describe('AppointmentModal · último turno, token y ciclos', () => {
     expect(capturedPayload.sessionToken).toBe('');
   });
 
+  it('marca a mano que el paciente abandonó el tratamiento', async () => {
+    let capturedPayload = null;
+    useDefaultHandlers([
+      http.patch(getApiUrl('/appointments/apt-1/evolution'), async ({ request }) => {
+        capturedPayload = await request.json();
+        return HttpResponse.json({ success: true });
+      }),
+    ]);
+    renderModal();
+
+    const toggle = await screen.findByRole('button', { name: /paciente abandonó tratamiento/i });
+    expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.click(toggle);
+    fireEvent.click(screen.getByRole('button', { name: /guardar cambios/i }));
+
+    await waitFor(() => expect(capturedPayload).not.toBeNull());
+    expect(capturedPayload.treatmentAbandoned).toBe(true);
+  });
+
   it('una sesión agregada no hereda el token del turno', async () => {
     let createdPayload = null;
     useDefaultHandlers([

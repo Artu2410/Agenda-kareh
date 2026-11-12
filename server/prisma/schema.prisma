@@ -302,6 +302,8 @@ model Appointment {
   patientChargeAmount       Decimal?        @db.Decimal(10, 2)
   coinsuranceDetails        Json?
   paidInAdvance             Boolean         @default(false)
+  // Marcado a mano en la última sesión a la que vino el paciente antes de dejar.
+  treatmentAbandoned        Boolean         @default(false)
   sessionToken              String?
   authorizationReviewedBy   User?           @relation("AppointmentAuthorizationReviewer", fields: [authorizationReviewedById], references: [id], onDelete: SetNull)
   treatmentCycle            TreatmentCycle? @relation(fields: [cycleId], references: [id])
