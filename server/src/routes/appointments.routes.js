@@ -5,6 +5,7 @@ import {
   updateAppointment,
   deleteAppointment, 
   updateEvolution, 
+  updateSessionToken,
   cancelFutureAppointments,
   getAppointmentBatch,
   getAppointmentAuthorizations,
@@ -18,6 +19,7 @@ import {
   createAppointmentBodySchema,
   updateAppointmentBodySchema,
   updateAppointmentEvolutionBodySchema,
+  updateSessionTokenBodySchema,
 } from '../validations/appointmentSchemas.js';
 
 const createRouter = (prisma) => {
@@ -41,6 +43,9 @@ const createRouter = (prisma) => {
 
   // 5. Actualizar evolución (Sincronización total con Paciente e Historia)
   router.patch('/:id/evolution', validate({ params: appointmentIdParamsSchema, body: updateAppointmentEvolutionBodySchema }), (req, res) => updateEvolution(req, res, prisma));
+
+  // 5b. Cargar solo el token de obra social de una sesión
+  router.patch('/:id/session-token', validate({ params: appointmentIdParamsSchema, body: updateSessionTokenBodySchema }), (req, res) => updateSessionToken(req, res, prisma));
 
   // 6. Eliminar cita única
   router.delete('/:id', (req, res) => deleteAppointment(req, res, prisma));

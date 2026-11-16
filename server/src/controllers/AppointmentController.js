@@ -875,6 +875,42 @@ export const updateEvolution = async (req, res, prisma) => {
   }
 };
 
+// Carga/borra solo el token de obra social de una sesión (desde la vista de ciclos).
+export const updateSessionToken = async (req, res, prisma) => {
+  const { id } = req.params;
+  if (!Object.prototype.hasOwnProperty.call(req.body || {}, 'sessionToken')) {
+    return res.status(400).json({ message: 'Falta el token de sesión.' });
+  }
+  const sessionToken = req.body.sessionToken ?? null;
+
+  try {
+    const current = await prisma.appointment.findUnique({
+      where: { id },
+      select: { id: true, professionalId: true, sessionToken: true },
+    });
+    if (!current) return res.status(404).json({ message: 'Turno no encontrado' });
+    ensureAppointmentScope(req, current.professionalId);
+
+    const updated = await prisma.appointment.update({
+      where: { id },
+      data: { sessionToken },
+      select: { id: true, sessionToken: true },
+    });
+
+    await safeWriteAuditLog(prisma, req, {
+      action: auditActions.appointmentUpdated,
+      resource: 'APPOINTMENT',
+      resourceId: id,
+      oldValues: { sessionToken: current.sessionToken },
+      newValues: { sessionToken: updated.sessionToken },
+    });
+
+    res.json({ success: true, appointment: updated });
+  } catch (error) {
+    throw createInternalError(error, 'Error al guardar el token');
+  }
+};
+
 // 4. ACTUALIZAR CITA Y DATOS DEL PACIENTE
 export const updateAppointment = async (req, res, prisma) => {
   const { id } = req.params;

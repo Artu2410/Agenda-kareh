@@ -105,3 +105,8 @@ export const updateAppointmentEvolutionBodySchema = z.object({
   sessionToken: clearableString('Token de sesión', { max: 120 }),
   authorizationStatus: authorizationStatusSchema.optional(),
 }).strip();
+
+// Solo el token de la sesión (se carga desde la vista de ciclos, sin tocar el resto del turno).
+export const updateSessionTokenBodySchema = z.object({
+  sessionToken: clearableString('Token de sesión', { max: 120 }),
+}).strip();

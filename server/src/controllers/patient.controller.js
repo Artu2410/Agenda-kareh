@@ -699,6 +699,7 @@ export const getSessionCycles = async (req, res, prisma) => {
         sessionNumber: true,
         diagnosis: true,
         treatmentAbandoned: true,
+        sessionToken: true,
         professional: { select: { id: true, fullName: true, licenseNumber: true, licenseNumberMP: true } },
       },
     });

@@ -225,6 +225,23 @@ export const useAppointmentForm = ({
     loadSessionCycles();
   }, [isOpen, loadSessionCycles]);
 
+  // Token de obra social cargado desde la vista de ciclos (una sesión por vez).
+  const saveCycleSessionToken = useCallback(async (appointmentId, value) => {
+    const nextToken = String(value ?? '').trim() || null;
+    await api.patch(`/appointments/${appointmentId}/session-token`, { sessionToken: nextToken });
+    setSessionCycles((current) => ({
+      ...current,
+      cycles: current.cycles.map((cycle) => ({
+        ...cycle,
+        sessions: cycle.sessions.map((session) => (
+          session.id === appointmentId ? { ...session, sessionToken: nextToken } : session
+        )),
+      })),
+    }));
+    // Si es el turno abierto, se actualiza el formulario para que "Guardar" no lo pise.
+    if (appointmentId === appointment?.id) setSessionToken(nextToken || '');
+  }, [appointment?.id]);
+
   const loadObrasSociales = useCallback(async () => {
     try {
       const { data } = await api.get('/obras-sociales', {
@@ -806,6 +823,7 @@ export const useAppointmentForm = ({
     createdAppointments,
     futureAppointments,
     sessionCycles,
+    saveCycleSessionToken,
     editingFutureId,
     futureDraft,
     savingFutureId,

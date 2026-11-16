@@ -97,6 +97,7 @@ export const buildPatientCycles = (appointments = [], now = new Date()) => {
         status: item.status,
         sessionNumber: item.sessionNumber || sessionIndex + 1,
         professionalName: item.professional?.fullName || null,
+        sessionToken: item.sessionToken || null,
       })),
     };
   });

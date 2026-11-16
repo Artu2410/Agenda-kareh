@@ -22,6 +22,15 @@ describe('patient cycles', () => {
     expect(cycles[0].sessions.map((s) => s.id)).toEqual(['a1', 'a2', 'a3']);
   });
 
+  it('exposes each session token so it can be loaded from the cycle view', () => {
+    const [cycle] = buildPatientCycles([
+      { ...apt('a1', '2026-11-05', 'COMPLETED', true), sessionToken: 'TK-1' },
+      apt('a2', '2026-11-10', 'COMPLETED'),
+    ], NOW);
+
+    expect(cycle.sessions.map((s) => s.sessionToken)).toEqual(['TK-1', null]);
+  });
+
   it('starts a new cycle after 10 sessions and marks the full one complete', () => {
     const sessions = Array.from({ length: 12 }, (_, i) => apt(`s${i}`, `2026-0${i < 9 ? 3 : 4}-${String(i + 1).padStart(2, '0')}`, 'COMPLETED', i === 0));
     const cycles = buildPatientCycles(sessions, NOW);

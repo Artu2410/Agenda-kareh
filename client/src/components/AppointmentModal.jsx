@@ -85,6 +85,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
     createdAppointments,
     futureAppointments,
     sessionCycles,
+    saveCycleSessionToken,
     editingFutureId,
     futureDraft,
     savingFutureId,
@@ -594,7 +595,11 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
 
               {/* CICLOS: cortados en cada sesión de ingreso, con todas sus fechas */}
               {knownPatientId && (
-                <AppointmentCycleHistory cycles={sessionCycles.cycles} years={sessionCycles.years} />
+                <AppointmentCycleHistory
+                  cycles={sessionCycles.cycles}
+                  years={sessionCycles.years}
+                  onSaveToken={saveCycleSessionToken}
+                />
               )}
               </section>
 
