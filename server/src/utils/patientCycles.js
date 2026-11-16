@@ -6,16 +6,17 @@
  * histórico, un "Reiniciar ciclo", un turno nuevo con "Iniciar ciclo nuevo" o
  * la sesión 11 (los ciclos son de 10).
  *
- * Así un paciente que abandona en la sesión 3 y vuelve más tarde muestra
- * "Ciclo 1: quedó en 3 sesiones" y "Ciclo 2" desde la nueva sesión 1.
+ * La cantidad de sesiones la fija la orden médica / obra social (2, 5, 8 o 10):
+ * un ciclo terminado sin turnos pendientes cuenta como completo aunque sea corto.
+ * Solo queda "cortado" si en algún turno se marcó a mano el abandono.
  */
 
 export const CYCLE_LENGTH = 10;
 
 export const CYCLE_STATES = {
   inProgress: 'IN_PROGRESS', // tiene turnos pendientes
-  complete: 'COMPLETE', // llegó a las 10 sesiones
-  interrupted: 'INTERRUPTED', // sin turnos pendientes y con menos de 10 sesiones
+  complete: 'COMPLETE', // terminado: sin turnos pendientes (ciclo de 10 o corto según la orden)
+  interrupted: 'INTERRUPTED', // el paciente abandonó (marcado a mano en un turno)
 };
 
 const startOfDay = (value) => {
@@ -53,16 +54,16 @@ export const buildPatientCycles = (appointments = [], now = new Date()) => {
     // Turnos pasados que nunca se marcaron (ni asistió ni inasistencia).
     const unmarked = sessions.length - attended - noShow - pending;
 
-    let state = CYCLE_STATES.interrupted;
-    if (pending > 0) state = CYCLE_STATES.inProgress;
-    else if (sessions.length >= CYCLE_LENGTH) state = CYCLE_STATES.complete;
-
     // Abandono: solo cuando se marcó a mano en un turno del ciclo (no se adivina por
     // turnos faltantes: un ingreso de hoy sin más sesiones cargadas no es abandono).
     const abandonedIndex = sessions.findLastIndex((item) => item.treatmentAbandoned);
     const abandonedAtSession = abandonedIndex === -1
       ? null
       : (sessions[abandonedIndex].sessionNumber || abandonedIndex + 1);
+
+    let state = CYCLE_STATES.complete;
+    if (abandonedAtSession != null) state = CYCLE_STATES.interrupted;
+    else if (pending > 0) state = CYCLE_STATES.inProgress;
 
     const firstProfessional = sessions[0].professional;
     const professional = firstProfessional
@@ -80,6 +81,7 @@ export const buildPatientCycles = (appointments = [], now = new Date()) => {
     return {
       cycleNumber: index + 1,
       state,
+      shortCycle: sessions.length < CYCLE_LENGTH,
       abandonedAtSession,
       professional,
       diagnosis,

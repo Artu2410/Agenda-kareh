@@ -17,7 +17,7 @@ describe('patient cycles', () => {
     ], NOW);
 
     expect(cycles).toHaveLength(2);
-    expect(cycles[0]).toMatchObject({ cycleNumber: 1, state: CYCLE_STATES.interrupted, totalSessions: 3, attended: 3 });
+    expect(cycles[0]).toMatchObject({ cycleNumber: 1, state: CYCLE_STATES.complete, shortCycle: true, totalSessions: 3, attended: 3 });
     expect(cycles[1]).toMatchObject({ cycleNumber: 2, state: CYCLE_STATES.inProgress, attended: 1, pending: 1 });
     expect(cycles[0].sessions.map((s) => s.id)).toEqual(['a1', 'a2', 'a3']);
   });
@@ -29,6 +29,28 @@ describe('patient cycles', () => {
     ], NOW);
 
     expect(cycle.sessions.map((s) => s.sessionToken)).toEqual(['TK-1', null]);
+  });
+
+  it('treats a finished short cycle (doctor ordered fewer sessions) as complete', () => {
+    const [cycle] = buildPatientCycles([
+      apt('a1', '2026-10-01', 'COMPLETED', true),
+      apt('a2', '2026-10-03', 'COMPLETED'),
+      apt('a3', '2026-10-05', 'COMPLETED'),
+      apt('a4', '2026-10-07', 'COMPLETED'),
+      apt('a5', '2026-10-09', 'COMPLETED'),
+    ], NOW);
+
+    expect(cycle).toMatchObject({ state: CYCLE_STATES.complete, shortCycle: true, totalSessions: 5 });
+  });
+
+  it('marks the cycle interrupted only when abandonment was marked by hand', () => {
+    const [cycle] = buildPatientCycles([
+      apt('a1', '2026-11-05', 'COMPLETED', true),
+      { ...apt('a2', '2026-11-07', 'COMPLETED'), sessionNumber: 2, treatmentAbandoned: true },
+      apt('a3', '2026-11-20', 'SCHEDULED'),
+    ], NOW);
+
+    expect(cycle).toMatchObject({ state: CYCLE_STATES.interrupted, abandonedAtSession: 2 });
   });
 
   it('starts a new cycle after 10 sessions and marks the full one complete', () => {
@@ -46,7 +68,7 @@ describe('patient cycles', () => {
       apt('a3', '2026-10-05', 'SCHEDULED'),
     ], NOW);
 
-    expect(cycle).toMatchObject({ attended: 1, noShow: 1, unmarked: 1, pending: 0, state: CYCLE_STATES.interrupted });
+    expect(cycle).toMatchObject({ attended: 1, noShow: 1, unmarked: 1, pending: 0, state: CYCLE_STATES.complete });
   });
 
   it('reports abandonment only at the session marked by hand', () => {

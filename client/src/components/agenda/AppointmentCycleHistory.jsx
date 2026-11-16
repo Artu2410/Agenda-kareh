@@ -18,20 +18,23 @@ const STATUS_LABELS = {
 const CYCLE_STYLES = {
   IN_PROGRESS: { label: 'En curso', box: 'border-amber-200 bg-amber-50', badge: 'bg-amber-500 text-white' },
   COMPLETE: { label: 'Completo', box: 'border-emerald-200 bg-emerald-50', badge: 'bg-emerald-500 text-white' },
-  INTERRUPTED: { label: 'Cortado', box: 'border-slate-200 bg-slate-50', badge: 'bg-slate-500 text-white' },
+  INTERRUPTED: { label: 'Abandonó', box: 'border-slate-200 bg-slate-50', badge: 'bg-slate-500 text-white' },
 };
 
 const toDay = (value) => format(new Date(value), 'dd/MM/yy', { locale: es });
+const sessionsText = (count) => `${count} ${count === 1 ? 'sesión' : 'sesiones'}`;
 
+// La cantidad de sesiones depende de la orden médica: un ciclo corto terminado es completo.
 const describeCycle = (cycle) => {
   if (cycle.state === 'INTERRUPTED') {
-    const attendedText = cycle.attended === cycle.totalSessions
-      ? ''
-      : ` (${cycle.attended} asistida${cycle.attended === 1 ? '' : 's'})`;
-    return `Quedó en ${cycle.totalSessions} de ${CYCLE_LENGTH} sesiones${attendedText}`;
+    const where = cycle.abandonedAtSession ? ` en la sesión ${cycle.abandonedAtSession}` : '';
+    return `Abandonó${where} · ${cycle.attended} de ${sessionsText(cycle.totalSessions)} asistidas`;
   }
-  if (cycle.state === 'COMPLETE') return `${cycle.attended} de ${cycle.totalSessions} sesiones asistidas`;
-  return `${cycle.totalSessions} de ${CYCLE_LENGTH} sesiones · ${cycle.pending} pendiente${cycle.pending === 1 ? '' : 's'}`;
+  if (cycle.state === 'COMPLETE') {
+    const shortText = cycle.totalSessions < CYCLE_LENGTH ? ` · ciclo de ${cycle.totalSessions}` : '';
+    return `${cycle.attended} de ${cycle.totalSessions} sesiones asistidas${shortText}`;
+  }
+  return `${sessionsText(cycle.totalSessions)} · ${cycle.pending} pendiente${cycle.pending === 1 ? '' : 's'}`;
 };
 
 /** Token de obra social de una sesión: se ve y se carga/edita en el lugar. */
