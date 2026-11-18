@@ -35,6 +35,7 @@ export const auditActions = {
   receiptCreated: 'PATIENT_RECEIPT_CREATED',
   receiptDeleted: 'PATIENT_RECEIPT_DELETED',
   reportCreated: 'PATIENT_REPORT_CREATED',
+  reportUpdated: 'PATIENT_REPORT_UPDATED',
   billingInvoiceCreated: 'BILLING_INVOICE_CREATED',
   billingInvoiceUpdated: 'BILLING_INVOICE_UPDATED',
   billingInvoiceDeleted: 'BILLING_INVOICE_DELETED',

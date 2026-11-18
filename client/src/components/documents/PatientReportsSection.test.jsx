@@ -52,6 +52,17 @@ describe('PatientReportsSection', () => {
     expect(openPrintWindow.mock.calls[0][0]).toContain('EPOC');
   });
 
+  it('permite abrir un informe guardado para editarlo', async () => {
+    apiGet.mockResolvedValue({ data: [savedReport] });
+    const onEdit = vi.fn();
+
+    render(<PatientReportsSection patientId="p1" onEdit={onEdit} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: /editar/i }));
+
+    expect(onEdit).toHaveBeenCalledWith(savedReport);
+  });
+
   it('avisa cuando el paciente no tiene informes', async () => {
     apiGet.mockResolvedValue({ data: [] });
 

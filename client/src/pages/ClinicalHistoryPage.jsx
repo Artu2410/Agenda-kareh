@@ -597,6 +597,7 @@ const ClinicalHistoryPage = () => {
   const [patient, setPatient] = useState(null);
   const [openDocument, setOpenDocument] = useState(null); // 'report' | 'receipt' | null
   const [reportsRefreshKey, setReportsRefreshKey] = useState(0);
+  const [editingReport, setEditingReport] = useState(null);
   const [receiptsRefreshKey, setReceiptsRefreshKey] = useState(0);
   const [historyEntries, setHistoryEntries] = useState([]);
   const [sessionCycles, setSessionCycles] = useState([]);
@@ -1235,6 +1236,15 @@ const ClinicalHistoryPage = () => {
                   onSaved={() => setReportsRefreshKey((value) => value + 1)}
                 />
               )}
+              {patient && editingReport && (
+                <KinesicReportModal
+                  key={editingReport.id}
+                  patient={patient}
+                  report={editingReport}
+                  onClose={() => setEditingReport(null)}
+                  onSaved={() => setReportsRefreshKey((value) => value + 1)}
+                />
+              )}
               {patient && openDocument === 'receipt' && (
                 <PatientReceiptModal
                   key={patient.id}
@@ -1342,7 +1352,13 @@ const ClinicalHistoryPage = () => {
                   )}
                 </section>
 
-                {patient?.id && <PatientReportsSection patientId={patient.id} refreshKey={reportsRefreshKey} />}
+                {patient?.id && (
+                  <PatientReportsSection
+                    patientId={patient.id}
+                    refreshKey={reportsRefreshKey}
+                    onEdit={setEditingReport}
+                  />
+                )}
                 {patient?.id && <PatientReceiptsSection patientId={patient.id} refreshKey={receiptsRefreshKey} />}
               </div>
 

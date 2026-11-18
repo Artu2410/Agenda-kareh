@@ -1,6 +1,7 @@
 import { createInternalError, createPublicError } from '../errors/AppError.js';
 import { auditActions, safeWriteAuditLog } from '../utils/audit.js';
 import { buildProfessionalPatientWhere, getScopedProfessionalId } from '../utils/accessScope.js';
+import { correctSpelling } from '../services/spellCheck.js';
 
 /**
  * Informes kinésicos guardados en la historia clínica. El cliente arma el
@@ -110,4 +111,53 @@ export const createReport = async (req, res, prisma) => {
   } catch (error) {
     throw createInternalError(error, 'No se pudo guardar el informe');
   }
+};
+
+export const updateReport = async (req, res, prisma) => {
+  const { type, title, reportDate, data } = req.body;
+
+  try {
+    const existing = await prisma.patientReport.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, patientId: true, professionalId: true, type: true, reportDate: true },
+    });
+    const patient = existing ? await findVisiblePatient(prisma, req.user, existing.patientId) : null;
+    if (!existing || !patient) {
+      throw createPublicError(404, 'Informe no encontrado');
+    }
+
+    const professionalId = getScopedProfessionalId(req.user)
+      || (req.body.professionalId === undefined ? existing.professionalId : req.body.professionalId);
+
+    const report = await prisma.patientReport.update({
+      where: { id: existing.id },
+      data: { professionalId, type, title, reportDate, data },
+      select: { ...reportListSelect, data: true },
+    });
+
+    await safeWriteAuditLog(prisma, req, {
+      action: auditActions.reportUpdated,
+      resource: 'PATIENT_REPORT',
+      resourceId: report.id,
+      oldValues: { type: existing.type, reportDate: existing.reportDate },
+      newValues: { type, reportDate: report.reportDate },
+    });
+
+    res.json(serializeReport(report));
+  } catch (error) {
+    throw createInternalError(error, 'No se pudo actualizar el informe');
+  }
+};
+
+export const spellcheckReport = async (req, res, { correct = correctSpelling } = {}) => {
+  let corrected;
+  try {
+    corrected = await correct(req.body.texts);
+  } catch (error) {
+    throw createInternalError(error, 'No se pudo corregir la ortografía. Intentá de nuevo.');
+  }
+  if (corrected === null) {
+    throw createPublicError(503, 'La corrección ortográfica no está configurada en el servidor.');
+  }
+  res.json({ texts: corrected });
 };

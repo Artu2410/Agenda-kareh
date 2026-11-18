@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { FileText, Plus, Printer, Trash2 } from 'lucide-react';
+import { FileText, Plus, Printer, Save, SpellCheck, Trash2 } from 'lucide-react';
 import api from '../../services/api';
 import { getStoredUser } from '../../services/session';
 import { showErrorToast, showSuccessToast } from '../toastHelpers';
@@ -26,28 +26,49 @@ import {
 
 const buildTechniques = (templateId) => KINESIC_REPORT_TEMPLATES[templateId].techniques.map((name) => ({ name, detail: '' }));
 
+/** Pasa las filas de mediciones guardadas ({ label, value }) al formato del formulario ({ key: value }). */
+const metricRowsToValues = (templateId, rows) => {
+  const metrics = KINESIC_REPORT_TEMPLATES[templateId]?.metrics || [];
+  return Object.fromEntries(metrics
+    .map((metric) => [metric.key, (rows || []).find((row) => row?.label === metric.label)?.value || ''])
+    .filter(([, value]) => value));
+};
+
+const toDateInput = (value) => String(value || '').slice(0, 10);
+
 /**
  * Informe kinésico (FKT, respiratorio o piso pélvico). Los datos del paciente,
  * el diagnóstico, las sesiones y el profesional se completan solos desde la ficha;
  * el resto es texto clínico que escribe el profesional.
- * Montarlo con key={patient.id} para que se reinicie con cada paciente.
+ * Con `report` se abre en modo edición de un informe ya guardado.
+ * Montarlo con key={patient.id} (o el id del informe) para que se reinicie.
  */
-export default function KinesicReportModal({ patient, onClose, onSaved }) {
+export default function KinesicReportModal({ patient, report = null, onClose, onSaved }) {
   const storedUser = getStoredUser();
+  const saved = report?.data || null;
+  const isEditing = Boolean(report?.id);
+  const initialTemplateId = KINESIC_REPORT_TEMPLATES[report?.type] ? report.type : suggestTemplateId(patient);
   const [saving, setSaving] = useState(false);
-  const [templateId, setTemplateId] = useState(() => suggestTemplateId(patient));
-  const [date, setDate] = useState(todayISO);
-  const [diagnosis, setDiagnosis] = useState(() => getLatestDiagnosis(patient));
-  const [physician, setPhysician] = useState('');
-  const [anamnesis, setAnamnesis] = useState('');
-  const [sessions, setSessions] = useState(() => String(countTreatmentSessions(patient) || 10));
-  const [metricsIn, setMetricsIn] = useState({});
-  const [metricsOut, setMetricsOut] = useState({});
-  const [techniques, setTechniques] = useState(() => buildTechniques(suggestTemplateId(patient)));
-  const [dischargeStatus, setDischargeStatus] = useState('');
-  const [plan, setPlan] = useState('');
+  const [checkingSpelling, setCheckingSpelling] = useState(false);
+  const [templateId, setTemplateId] = useState(initialTemplateId);
+  const [date, setDate] = useState(() => (saved ? toDateInput(saved.date || report.reportDate) : todayISO()));
+  const [diagnosis, setDiagnosis] = useState(() => (saved ? saved.diagnosis || '' : getLatestDiagnosis(patient)));
+  const [physician, setPhysician] = useState(() => saved?.physician || '');
+  const [anamnesis, setAnamnesis] = useState(() => saved?.anamnesis || '');
+  const [sessions, setSessions] = useState(() => (saved ? String(saved.sessions || '') : String(countTreatmentSessions(patient) || 10)));
+  const [metricsIn, setMetricsIn] = useState(() => (saved ? metricRowsToValues(initialTemplateId, saved.metricsIn) : {}));
+  const [metricsOut, setMetricsOut] = useState(() => (saved ? metricRowsToValues(initialTemplateId, saved.metricsOut) : {}));
+  const [techniques, setTechniques] = useState(() => (
+    saved && Array.isArray(saved.techniques)
+      ? saved.techniques.map((row) => ({ name: row?.name || '', detail: row?.detail || '' }))
+      : buildTechniques(initialTemplateId)
+  ));
+  const [dischargeStatus, setDischargeStatus] = useState(() => saved?.dischargeStatus || '');
+  const [plan, setPlan] = useState(() => saved?.plan || '');
   const [professionals, setProfessionals] = useState([]);
-  const [professionalId, setProfessionalId] = useState(() => storedUser.professionalId || getLatestProfessionalId(patient));
+  const [professionalId, setProfessionalId] = useState(() => (
+    report?.professionalId || storedUser.professionalId || getLatestProfessionalId(patient)
+  ));
 
   const template = KINESIC_REPORT_TEMPLATES[templateId];
   const { coverage, affiliateNumber } = getPatientCoverage(patient);
@@ -126,29 +147,84 @@ export default function KinesicReportModal({ patient, onClose, onSaved }) {
       },
     };
 
+    const payload = {
+      professionalId: selectedProfessional.id,
+      type: templateId,
+      title: template.title,
+      reportDate: date,
+      data: reportData,
+    };
+
+    if (isEditing) {
+      setSaving(true);
+      try {
+        const { data: updated } = await api.put(`/reports/${report.id}`, payload);
+        showSuccessToast('Informe actualizado. Podés reimprimirlo desde la historia clínica.');
+        onSaved?.(updated);
+        onClose();
+      } catch (error) {
+        showErrorToast(error?.friendlyMessage || 'No se pudo actualizar el informe. Intentá de nuevo.');
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
     // Primero se abre la impresión (tiene que ser en el mismo click o el navegador
     // bloquea la ventana) y después se guarda en la historia clínica.
     const printed = openPrintWindow(buildKinesicReportHtml(reportData));
 
     setSaving(true);
     try {
-      const { data: saved } = await api.post('/reports', {
-        patientId: patient.id,
-        professionalId: selectedProfessional.id,
-        type: templateId,
-        title: template.title,
-        reportDate: date,
-        data: reportData,
-      });
+      const { data: created } = await api.post('/reports', { patientId: patient.id, ...payload });
       showSuccessToast(printed
         ? 'Informe guardado en la historia clínica.'
         : 'Informe guardado. El navegador bloqueó la impresión: reimprimilo desde la historia clínica.');
-      onSaved?.(saved);
+      onSaved?.(created);
       onClose();
     } catch (error) {
       showErrorToast(error?.friendlyMessage || 'No se pudo guardar el informe en la historia clínica. Intentá de nuevo.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSpellcheck = async () => {
+    if (checkingSpelling) return;
+    const texts = { diagnosis, anamnesis, dischargeStatus, plan };
+    techniques.forEach((row, index) => {
+      texts[`technique.${index}.name`] = row.name;
+      texts[`technique.${index}.detail`] = row.detail;
+    });
+    const toCheck = Object.fromEntries(Object.entries(texts).filter(([, value]) => String(value || '').trim()));
+    if (Object.keys(toCheck).length === 0) {
+      showErrorToast('No hay texto para corregir todavía.');
+      return;
+    }
+
+    setCheckingSpelling(true);
+    try {
+      const { data } = await api.post('/reports/spellcheck', { texts: toCheck });
+      const fixed = data?.texts || {};
+      const changed = Object.keys(toCheck).filter((key) => typeof fixed[key] === 'string' && fixed[key] !== toCheck[key]);
+      const pick = (key, current) => (changed.includes(key) ? fixed[key] : current);
+
+      setDiagnosis((value) => pick('diagnosis', value));
+      setAnamnesis((value) => pick('anamnesis', value));
+      setDischargeStatus((value) => pick('dischargeStatus', value));
+      setPlan((value) => pick('plan', value));
+      setTechniques((rows) => rows.map((row, index) => ({
+        name: pick(`technique.${index}.name`, row.name),
+        detail: pick(`technique.${index}.detail`, row.detail),
+      })));
+
+      showSuccessToast(changed.length
+        ? `Ortografía corregida en ${changed.length} ${changed.length === 1 ? 'campo' : 'campos'}. Revisá el texto antes de guardar.`
+        : 'No se encontraron errores de ortografía.');
+    } catch (error) {
+      showErrorToast(error?.friendlyMessage || 'No se pudo corregir la ortografía. Intentá de nuevo.');
+    } finally {
+      setCheckingSpelling(false);
     }
   };
 
@@ -173,20 +249,26 @@ export default function KinesicReportModal({ patient, onClose, onSaved }) {
 
   return (
     <DocumentModalShell
-      title="Informe kinésico"
+      title={isEditing ? 'Editar informe kinésico' : 'Informe kinésico'}
       subtitle={`${patient.fullName} · DNI ${formatDniAR(patient.dni)}`}
       onClose={onClose}
       maxWidth="max-w-4xl"
       footer={(
         <>
           <button type="button" className={secondaryButtonClass} onClick={onClose}>Cancelar</button>
-          <button type="button" className={primaryButtonClass} onClick={handleGenerate} disabled={saving}>
-            <Printer size={16} /> {saving ? 'Guardando…' : 'Generar, guardar e imprimir'}
+          <button type="button" className={secondaryButtonClass} onClick={handleSpellcheck} disabled={checkingSpelling || saving}>
+            <SpellCheck size={16} /> {checkingSpelling ? 'Corrigiendo…' : 'Corregir ortografía'}
+          </button>
+          <button type="button" className={primaryButtonClass} onClick={handleGenerate} disabled={saving || checkingSpelling}>
+            {isEditing
+              ? <><Save size={16} /> {saving ? 'Guardando…' : 'Guardar cambios'}</>
+              : <><Printer size={16} /> {saving ? 'Guardando…' : 'Generar, guardar e imprimir'}</>}
           </button>
         </>
       )}
     >
-      <div className="space-y-6">
+      {/* lang + spellCheck: el navegador subraya las palabras mal escritas en español mientras se tipea. */}
+      <div className="space-y-6" lang="es" spellCheck>
         <section>
           <span className={fieldLabelClass}>Tipo de informe</span>
           <div className="grid gap-2 sm:grid-cols-3">

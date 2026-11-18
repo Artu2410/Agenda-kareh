@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { FileText, Printer } from 'lucide-react';
+import { FileText, Pencil, Printer } from 'lucide-react';
 import api from '../../services/api';
 import { showErrorToast } from '../toastHelpers';
 import { formatDateAR } from '../../utils/documents/printDocument';
@@ -8,8 +8,9 @@ import { reprintReport } from './printReport';
 /**
  * Informes kinésicos guardados en la historia clínica del paciente.
  * Cambiar `refreshKey` para volver a cargar (por ejemplo, después de emitir uno).
+ * `onEdit(report)` muestra el botón para editar cada informe.
  */
-export default function PatientReportsSection({ patientId, refreshKey = 0 }) {
+export default function PatientReportsSection({ patientId, refreshKey = 0, onEdit }) {
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -53,15 +54,28 @@ export default function PatientReportsSection({ patientId, refreshKey = 0 }) {
                   {formatDateAR(report.reportDate)}{report.professionalName ? ` · ${report.professionalName}` : ''}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => reprintReport(report)}
-                className="shrink-0 rounded-xl p-2 text-slate-500 transition hover:bg-teal-50 hover:text-teal-700"
-                aria-label={`Reimprimir ${report.title} del ${formatDateAR(report.reportDate)}`}
-                title="Reimprimir"
-              >
-                <Printer size={16} />
-              </button>
+              <div className="flex shrink-0 items-center gap-1">
+                {onEdit && (
+                  <button
+                    type="button"
+                    onClick={() => onEdit(report)}
+                    className="rounded-xl p-2 text-slate-500 transition hover:bg-teal-50 hover:text-teal-700"
+                    aria-label={`Editar ${report.title} del ${formatDateAR(report.reportDate)}`}
+                    title="Editar"
+                  >
+                    <Pencil size={16} />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => reprintReport(report)}
+                  className="rounded-xl p-2 text-slate-500 transition hover:bg-teal-50 hover:text-teal-700"
+                  aria-label={`Reimprimir ${report.title} del ${formatDateAR(report.reportDate)}`}
+                  title="Reimprimir"
+                >
+                  <Printer size={16} />
+                </button>
+              </div>
             </li>
           ))}
         </ul>
