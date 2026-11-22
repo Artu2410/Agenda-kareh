@@ -230,28 +230,51 @@ const buildFutureAgendaSnapshot = async (prisma, now, getDayCapacity = () => 0) 
   };
 };
 
-const buildCommercialMetrics = (appointments = []) => {
-  const consultations = 0;
-  const turnsGranted = 0;
-  const assistances = 0;
-  const continuityCount = 0;
-  const abandonmentCount = 0;
+/**
+ * Embudo comercial del mes desde la agenda real:
+ * - Pacientes nuevos: su primer turno (no cancelado) de la historia cae en el mes.
+ * - Renovaciones: turno marcado como primera sesión de ciclo de un paciente que ya tenía turnos antes.
+ * - Continuidad: pacientes con 2 o más asistencias en el mes.
+ * - Abandonos: turnos del mes marcados a mano como abandono de tratamiento.
+ */
+const buildCommercialMetrics = (appointments = [], firstAppointmentByPatient = new Map(), monthStart) => {
+  const valid = appointments.filter((appointment) => appointment.status !== 'CANCELLED');
+  const patientIds = new Set(valid.map((appointment) => appointment.patientId).filter(Boolean));
+  const newPatientIds = new Set([...patientIds].filter((patientId) => {
+    const first = firstAppointmentByPatient.get(patientId);
+    return first && new Date(first) >= monthStart;
+  }));
+  const renewalPatientIds = new Set(valid
+    .filter((appointment) => appointment.isFirstSession && !newPatientIds.has(appointment.patientId))
+    .map((appointment) => appointment.patientId));
+  const attendedByPatient = new Map();
+  valid.filter((appointment) => appointment.status === 'COMPLETED').forEach((appointment) => {
+    attendedByPatient.set(appointment.patientId, (attendedByPatient.get(appointment.patientId) || 0) + 1);
+  });
+  const assistances = [...attendedByPatient.values()].reduce((sum, count) => sum + count, 0);
+  const attendedPatients = attendedByPatient.size;
+  const continuityCount = [...attendedByPatient.values()].filter((count) => count >= 2).length;
+  const abandonmentCount = new Set(valid.filter((appointment) => appointment.treatmentAbandoned)
+    .map((appointment) => appointment.patientId)).size;
+  const rate = (part, total) => (total > 0 ? Number(((part / total) * 100).toFixed(1)) : null);
 
   return {
-    consultations,
-    turnsGranted,
+    activePatients: patientIds.size,
+    newPatients: newPatientIds.size,
+    renewals: renewalPatientIds.size,
+    turnsGranted: valid.length,
     assistances,
+    attendedPatients,
     continuityCount,
+    singleVisitCount: attendedPatients - continuityCount,
     abandonmentCount,
-    continuityRate: 0,
-    conversions: {
-      consultationsToTurns: 0,
-      turnsToAssistances: 0,
-      assistancesToContinuity: 0,
-    },
-    hasRealData: false,
+    continuityRate: rate(continuityCount, attendedPatients),
+    renewalRate: rate(renewalPatientIds.size, patientIds.size - newPatientIds.size),
+    hasRealData: valid.length > 0,
   };
 };
+
+export const buildCommercialMetricsForTest = buildCommercialMetrics;
 
 const buildBillingByCoverage = async (prisma, { start, nextStart }) => {
   const cashFlowModel = prisma?.cashFlow?.findMany;
@@ -372,12 +395,12 @@ const buildInsights = ({ monthly, commercial, billingByCoverage }) => {
     insights.push(`La cobertura con mayor cantidad de pacientes es ${coverageWithMostPatients.name}.`);
   }
 
-  if (commercial?.hasRealData && commercial?.consultations > 0) {
-    insights.push(`El porcentaje de conversión de consultas a turnos es del ${commercial.conversions.consultationsToTurns.toFixed(1)}%.`);
+  if (commercial?.hasRealData) {
+    insights.push(`Este mes ingresaron ${commercial.newPatients} pacientes nuevos y ${commercial.renewals} renovaron su ciclo.`);
   }
 
-  if (commercial?.assistances > 0 && commercial?.continuityCount > 0) {
-    insights.push(`La tasa de continuidad es del ${commercial.continuityRate.toFixed(1)}%.`);
+  if (commercial?.continuityRate !== null && commercial?.continuityRate !== undefined) {
+    insights.push(`El ${commercial.continuityRate.toFixed(1)}% de los pacientes atendidos vino 2 o más veces en el mes.`);
   }
 
   return insights;
@@ -520,7 +543,16 @@ export const getMetrics = async (req, res, prisma) => {
         },
       },
     });
-    const commercial = buildCommercialMetrics(appointmentRows);
+    const firstAppointments = await prisma.appointment.groupBy({
+      by: ['patientId'],
+      where: { status: { not: 'CANCELLED' } },
+      _min: { date: true },
+    });
+    const commercial = buildCommercialMetrics(
+      appointmentRows,
+      new Map(firstAppointments.map((row) => [row.patientId, row._min?.date || null])),
+      currentMonthSnapshot.start,
+    );
     const canViewFinance = ['SUPER_USER', 'ADMIN', 'SECRETARIA'].includes(String(req?.user?.role || '').toUpperCase());
     const billingByCoverage = canViewFinance ? await buildBillingByCoverage(prisma, currentMonthSnapshot) : [];
     const insights = buildInsights({
@@ -546,6 +578,7 @@ export const getMetrics = async (req, res, prisma) => {
       : null;
 
     const yearStart = startOfYear(now);
+    const registeredPatientCount = prisma.patient?.count ? await prisma.patient.count() : null;
     const [uniquePatients, attendedPatients] = await Promise.all([
       prisma.appointment.groupBy({
         by: ['patientId'],
@@ -671,6 +704,7 @@ export const getMetrics = async (req, res, prisma) => {
       annual: {
         patientCount: uniquePatients.length,
         attendedPatientCount: attendedPatients.length,
+        registeredPatientCount,
         appointmentCount: annualAppointmentCount,
         completedCount: annualCompletedCount,
         noShowCount: annualNoShowCount,

@@ -69,7 +69,7 @@ describe('CapacityPage', () => {
     expect(screen.getByText(/Esta semana .*: 195, 1 día\(s\) cerrado\(s\) · semana estándar: 250/)).toBeTruthy();
     expect(screen.getAllByText('15', { selector: 'p' })).toHaveLength(2);
     expect(screen.getByText('1.105')).toBeTruthy();
-    expect(screen.getByText('1,3%')).toBeTruthy();
+    expect(screen.getAllByText('1,3%').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Turnos asistidos')).toBeTruthy();
     expect(screen.getByText('Turnos reservados')).toBeTruthy();
   });

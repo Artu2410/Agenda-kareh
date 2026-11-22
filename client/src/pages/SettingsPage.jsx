@@ -776,7 +776,7 @@ const SettingsPage = () => {
               </p>
             </div>
 
-            <div className="grid gap-6 p-6 lg:grid-cols-[360px_1fr]">
+            <div className="grid gap-6 p-6 xl:grid-cols-[320px_minmax(0,1fr)]">
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <h3 className="text-sm font-black uppercase tracking-[0.2em] text-slate-500">Nuevo usuario</h3>
                 <div className="mt-4 space-y-3">
@@ -848,10 +848,10 @@ const SettingsPage = () => {
                 ) : (
                   users.map((user) => (
                     <article key={user.id} className="rounded-2xl border border-slate-200 bg-white p-4">
-                      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                        <div>
+                      <div className="flex flex-col gap-3">
+                        <div className="min-w-0">
                           <p className="text-base font-black text-slate-800">{user.fullName}</p>
-                          <p className="text-sm font-semibold text-slate-500">{user.email}</p>
+                          <p className="break-all text-sm font-semibold text-slate-500">{user.email}</p>
                           <p className="mt-1 text-xs font-bold uppercase tracking-[0.18em] text-teal-600">
                             {formatRoleDisplayName(user.role)}
                             {user.professional?.fullName ? ` · ${user.professional.fullName}` : ''}
@@ -861,7 +861,7 @@ const SettingsPage = () => {
                             <p className="mt-1 text-xs font-bold text-amber-700">Sin profesional vinculado: no podrá ver agenda ni pacientes.</p>
                           )}
                         </div>
-                        <div className="flex flex-col gap-2 sm:flex-row">
+                        <div className="flex flex-wrap items-center gap-2">
                           {canManageUsers && (
                             <select
                               value={user.role}

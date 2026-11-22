@@ -189,16 +189,12 @@ describe('getMetrics', () => {
       freeCapacity: expect.any(Number),
     }));
     expect(payload.commercial).toEqual(expect.objectContaining({
-      consultations: expect.any(Number),
+      newPatients: expect.any(Number),
+      renewals: expect.any(Number),
       turnsGranted: expect.any(Number),
       assistances: expect.any(Number),
       continuityCount: expect.any(Number),
       abandonmentCount: expect.any(Number),
-      conversions: expect.objectContaining({
-        consultationsToTurns: expect.any(Number),
-        turnsToAssistances: expect.any(Number),
-        assistancesToContinuity: expect.any(Number),
-      }),
     }));
     expect(payload.billingByCoverage).toEqual(expect.any(Array));
     expect(payload.insights).toEqual(expect.any(Array));
@@ -289,5 +285,21 @@ describe('getMetrics · conciliación del Panel (noviembre en curso)', () => {
     expect(weekly.attendanceRate).toBeNull();
     expect(futureAgenda.daysWithAppointments).toBe(3);
     expect(futureAgenda.calendarDaysToLastAppointment).toBe(5);
+  });
+
+  it('embudo: separa pacientes nuevos, renovaciones y continuidad', async () => {
+    const { buildCommercialMetricsForTest } = await import('../src/controllers/metrics.controller.js');
+    const month = new Date(2026, 10, 1);
+    const rows = [
+      { patientId: 'nuevo', status: 'COMPLETED', isFirstSession: true },
+      { patientId: 'nuevo', status: 'COMPLETED' },
+      { patientId: 'renueva', status: 'COMPLETED', isFirstSession: true },
+      { patientId: 'sigue', status: 'COMPLETED' },
+      { patientId: 'sigue', status: 'SCHEDULED', treatmentAbandoned: true },
+    ];
+    const first = new Map([['nuevo', new Date(2026, 10, 3)], ['renueva', new Date(2026, 5, 1)], ['sigue', new Date(2026, 8, 1)]]);
+    expect(buildCommercialMetricsForTest(rows, first, month)).toEqual(expect.objectContaining({
+      activePatients: 3, newPatients: 1, renewals: 1, assistances: 4, continuityCount: 1, abandonmentCount: 1, continuityRate: 33.3,
+    }));
   });
 });

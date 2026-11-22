@@ -309,11 +309,8 @@ export const buildAdminAssessment = ({ breakdown, patients }) => {
     reasons,
     volume,
     need,
-    // Compatibilidad con la lista de criterios de la UI.
-    criteria: [
-      ...volume.map((item) => ({ ...item, met: false })),
-      ...need.map((item) => ({ ...item, met: false })),
-    ],
+    // La UI solo lista datos medidos; los de necesidad faltantes se explican en `reasons`.
+    criteria: volume.map((item) => ({ ...item, met: false })),
     metCount: 0,
     requiredCount: 0,
   };
@@ -344,7 +341,6 @@ export const buildKinesiologistAssessment = ({
       label: `Franjas saturadas: ${saturation.saturatedSlotCount} de ${saturation.slotCount}`,
       met: false, value: saturation.saturatedShare, measured: true,
     },
-    { key: 'waitlist', label: 'Lista de espera / pacientes rechazados', met: false, measured: false },
   ];
 
   return {
