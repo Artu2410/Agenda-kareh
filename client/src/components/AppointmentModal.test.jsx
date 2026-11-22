@@ -232,11 +232,11 @@ describe('AppointmentModal · último turno, token y ciclos', () => {
     expect(screen.queryByText(/a programar/i)).not.toBeInTheDocument();
   });
 
-  it('muestra en cuántas sesiones quedó un ciclo cortado y sus fechas', async () => {
+  it('muestra en cuántas sesiones quedó un ciclo abandonado y sus fechas', async () => {
     useDefaultHandlers();
     renderModal();
 
-    expect(await screen.findByText(/quedó en 3 de 10 sesiones/i)).toBeInTheDocument();
+    expect(await screen.findByText(/abandonó · 3 de 3 sesiones asistidas/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /ciclo 1/i }));
     expect(screen.getAllByText(/asistió/i).length).toBeGreaterThanOrEqual(3);
   });
