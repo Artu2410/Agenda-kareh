@@ -101,6 +101,27 @@ const toneClassNames = {
 
 const getTone = (tone = 'neutral') => toneClassNames[tone] || toneClassNames.neutral;
 
+const accentClassNames = {
+  teal: { bar: 'from-teal-500 to-emerald-400', chip: 'bg-teal-50 text-teal-700 ring-teal-100', value: 'text-slate-900' },
+  emerald: { bar: 'from-emerald-500 to-lime-400', chip: 'bg-emerald-50 text-emerald-700 ring-emerald-100', value: 'text-emerald-700' },
+  sky: { bar: 'from-sky-500 to-cyan-400', chip: 'bg-sky-50 text-sky-700 ring-sky-100', value: 'text-slate-900' },
+  amber: { bar: 'from-amber-500 to-orange-400', chip: 'bg-amber-50 text-amber-700 ring-amber-100', value: 'text-amber-700' },
+  violet: { bar: 'from-violet-500 to-fuchsia-400', chip: 'bg-violet-50 text-violet-700 ring-violet-100', value: 'text-slate-900' },
+  indigo: { bar: 'from-indigo-500 to-sky-400', chip: 'bg-indigo-50 text-indigo-700 ring-indigo-100', value: 'text-slate-900' },
+  rose: { bar: 'from-rose-500 to-pink-400', chip: 'bg-rose-50 text-rose-700 ring-rose-100', value: 'text-rose-700' },
+};
+
+const toneToAccent = { success: 'emerald', warning: 'amber', danger: 'rose', critical: 'rose', neutral: 'teal' };
+
+const getHeatClassName = (rate) => {
+  const value = Number(rate) || 0;
+  if (value >= 90) return 'bg-rose-500 text-white';
+  if (value >= 70) return 'bg-amber-400 text-amber-950';
+  if (value >= 40) return 'bg-teal-400 text-teal-950';
+  if (value >= 15) return 'bg-teal-200 text-teal-900';
+  return 'bg-teal-50 text-teal-800';
+};
+
 const ChartSurface = ({ children }) => {
   const containerRef = useRef(null);
   const [canRenderChart, setCanRenderChart] = useState(false);
@@ -136,24 +157,30 @@ const ChartSurface = ({ children }) => {
   );
 };
 
-const SummaryCard = ({ label, value, description, definition, icon, tone = 'neutral' }) => {
-  const resolvedTone = getTone(tone);
+const SummaryCard = ({ label, value, description, definition, icon, accent = 'teal' }) => {
+  const resolvedAccent = accentClassNames[accent] || accentClassNames.teal;
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" title={definition || undefined}>
+    <section className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_-12px_rgba(15,23,42,0.12)]">
+      <div className={`absolute inset-x-0 top-0 h-1 bg-linear-to-r ${resolvedAccent.bar}`} aria-hidden="true" />
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">{label}</p>
-          <p className={`mt-2 text-2xl font-black leading-tight ${resolvedTone.text}`}>{value}</p>
-          <p className="mt-1 text-xs font-semibold text-slate-500">{description}</p>
-          {definition && (
-            <p className="mt-2 text-[11px] font-medium leading-snug text-slate-400">{definition}</p>
-          )}
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">{label}</p>
+          <p className={`mt-2 text-3xl font-black leading-tight tracking-tight ${resolvedAccent.value}`}>{value}</p>
+          <p className="mt-1.5 text-xs font-semibold leading-relaxed text-slate-500">{description}</p>
         </div>
-        <div className={`shrink-0 rounded-xl p-3 ${resolvedTone.badge}`}>
+        <div className={`shrink-0 rounded-2xl p-3 ring-1 ${resolvedAccent.chip}`}>
           {React.createElement(icon, { size: 20 })}
         </div>
       </div>
+      {definition && (
+        <details className="group mt-3 border-t border-slate-100 pt-2">
+          <summary className="cursor-pointer list-none text-[11px] font-bold text-teal-700 hover:text-teal-800">
+            ¿Cómo se calcula?
+          </summary>
+          <p className="mt-1.5 text-[11px] font-medium leading-snug text-slate-500">{definition}</p>
+        </details>
+      )}
     </section>
   );
 };
@@ -355,6 +382,7 @@ const CapacityPage = () => {
   const summaryCards = [
     {
       label: 'Capacidad del mes',
+      accent: 'teal',
       value: formatNumber(currentMonth.monthlyCapacity),
       description: `Esta semana (${weekRange}): ${formatNumber(currentWeek.capacity)}${weekClosuresText} · semana estándar: ${formatNumber(currentWeek.standardCapacity)}`,
       definition: definitions.capacity,
@@ -363,6 +391,7 @@ const CapacityPage = () => {
     },
     {
       label: 'Turnos asistidos',
+      accent: 'emerald',
       value: formatCount(currentMonth.completedCount),
       description: currentMonth.isPartial ? `Mes en curso, hasta el ${asOfLabel}` : 'Mes cerrado',
       definition: definitions.attended,
@@ -371,6 +400,7 @@ const CapacityPage = () => {
     },
     {
       label: 'Turnos reservados',
+      accent: 'sky',
       value: formatCount(currentMonthForDisplay.occupiedCount),
       description: `${formatCount(breakdown.attended)} asistidos · ${formatCount(breakdown.noShow)} inasistencias · ${formatCount(breakdown.pendingPast)} sin cerrar · ${formatCount(breakdown.upcoming)} próximos`,
       definition: definitions.reserved,
@@ -379,6 +409,7 @@ const CapacityPage = () => {
     },
     {
       label: 'Ocupación del mes',
+      accent: 'indigo',
       value: formatRate(currentMonth.occupancyRate),
       description: 'Reservados / capacidad (incluye turnos futuros del mes)',
       definition: definitions.occupancy,
@@ -387,6 +418,7 @@ const CapacityPage = () => {
     },
     {
       label: 'Capacidad libre',
+      accent: 'amber',
       value: formatNumber(currentMonth.freeMonthlyCapacity),
       description: `${formatNumber(currentMonth.monthlyCapacity)} − ${formatCount(currentMonthForDisplay.occupiedCount)} reservados`,
       definition: definitions.freeCapacity,
@@ -395,6 +427,7 @@ const CapacityPage = () => {
     },
     {
       label: 'Pacientes activos',
+      accent: 'violet',
       value: formatCount(currentMonth.activePatients),
       description: `${formatCount(patients.attendedThisMonth)} atendidos · ${formatCount(patients.newThisMonth)} nuevos · ${formatCount(patients.withUpcoming)} con próximo turno`,
       definition: definitions.activePatients,
@@ -403,6 +436,7 @@ const CapacityPage = () => {
     },
     {
       label: 'Agenda futura',
+      accent: 'sky',
       value: `${formatCount(futureCoverage.daysWithAppointments)} días con turnos`,
       description: futureCoverage.lastAppointmentDate || futureCoverage.farthestDate
         ? `${formatCount(futureCoverage.appointmentCount)} turnos · último: ${formatDate(futureCoverage.lastAppointmentDate || futureCoverage.farthestDate)} (a ${formatCount(futureCoverage.calendarDaysToLastAppointment ?? futureCoverage.daysCovered)} días calendario)`
@@ -413,6 +447,7 @@ const CapacityPage = () => {
     },
     {
       label: 'Agenda próximos 60 días',
+      accent: 'indigo',
       value: futureWindow.occupancyRate === null || futureWindow.occupancyRate === undefined
         ? 'No disponible'
         : formatRate(futureWindow.occupancyRate),
@@ -423,6 +458,7 @@ const CapacityPage = () => {
     },
     {
       label: 'Estado operativo',
+      accent: toneToAccent[operationalStatus.tone] || 'teal',
       value: operationalStatus.label || 'Datos insuficientes',
       description: operationalStatus.description || 'Faltan datos para clasificar',
       icon: AlertTriangle,
@@ -443,25 +479,39 @@ const CapacityPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 sm:p-6">
+    <div className="min-h-screen bg-linear-to-b from-teal-50/60 via-slate-50 to-slate-50 p-4 sm:p-6">
       <div className="mx-auto max-w-7xl">
-        <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-[11px] font-black uppercase tracking-[0.28em] text-teal-600">KIS · Fase 2</p>
-            <h1 className="mt-2 text-3xl font-black text-slate-900">Capacidad Operativa y Ocupación</h1>
-            <p className="mt-1 max-w-3xl text-sm font-semibold text-slate-500">
-              Mide cuánto puede producir Kareh, qué porcentaje usa y qué soporte operativo se justifica por datos.
-            </p>
+        <header className="relative mb-6 overflow-hidden rounded-3xl bg-linear-to-br from-teal-700 via-teal-600 to-emerald-500 p-6 text-white shadow-lg sm:p-8">
+          <div className="absolute -right-16 -top-16 h-56 w-56 rounded-full bg-white/10 blur-2xl" aria-hidden="true" />
+          <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-teal-100">KIS · Fase 2</p>
+              <h1 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">Capacidad Operativa y Ocupación</h1>
+              <p className="mt-2 max-w-2xl text-sm font-medium text-teal-50/90">
+                Cuánto puede atender Kareh, qué parte de esa capacidad se usa y qué decisiones respaldan los datos.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="rounded-2xl bg-white/15 px-4 py-3 ring-1 ring-white/25 backdrop-blur">
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-teal-100">Estado operativo</p>
+                <p className="mt-0.5 text-lg font-black">{operationalStatus.label || 'Datos insuficientes'}</p>
+              </div>
+              <div className="rounded-2xl bg-white/15 px-4 py-3 ring-1 ring-white/25 backdrop-blur">
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-teal-100">Ocupación del mes</p>
+                <p className="mt-0.5 text-lg font-black">{formatRate(currentMonth.occupancyRate)}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => fetchCapacity()}
+                disabled={loading}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-black text-teal-700 shadow-sm transition hover:bg-teal-50 disabled:opacity-60"
+              >
+                <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+                Actualizar
+              </button>
+            </div>
           </div>
-          <button
-            type="button"
-            onClick={() => fetchCapacity()}
-            disabled={loading}
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-black text-slate-600 shadow-sm transition hover:bg-slate-100 disabled:opacity-60"
-          >
-            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-            Actualizar
-          </button>
+          <p className="relative mt-4 text-xs font-semibold text-teal-100">Datos al {asOfLabel} · el mes en curso todavía no está cerrado.</p>
         </header>
 
         <section className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -471,22 +521,22 @@ const CapacityPage = () => {
         </section>
 
         <section className="mb-6 grid gap-4 lg:grid-cols-3">
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Conciliación del mes · al {asOfLabel}</p>
+          <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_-12px_rgba(15,23,42,0.12)]">
+            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-teal-700">Conciliación del mes · al {asOfLabel}</p>
             <dl className="mt-3 space-y-1 text-sm font-semibold text-slate-600" aria-label="Conciliación de capacidad del mes">
               {[
-                ['Capacidad', breakdown.capacity, 'font-black text-slate-900'],
-                ['Asistidos', breakdown.attended, 'text-teal-700'],
-                ['Inasistencias', breakdown.noShow, ''],
-                ['Pasados sin cerrar', breakdown.pendingPast, breakdown.pendingPast > 0 ? 'text-amber-700' : ''],
-                ['Próximos del mes', breakdown.upcoming, ''],
-                ...(breakdown.otherStatus > 0 ? [['Otros estados', breakdown.otherStatus, 'text-amber-700']] : []),
-                ['= Reservados', breakdown.reserved, 'font-black text-slate-900'],
-                ['Capacidad libre', breakdown.free, 'font-black'],
-                ['Cancelados (liberan lugar)', breakdown.cancelled, 'text-slate-400'],
-              ].map(([label, value, className]) => (
-                <div key={label} className="flex justify-between gap-3">
-                  <dt>{label}</dt>
+                ['Capacidad', breakdown.capacity, 'font-black text-slate-900', 'bg-slate-400'],
+                ['Asistidos', breakdown.attended, 'font-bold text-emerald-700', 'bg-emerald-500'],
+                ['Inasistencias', breakdown.noShow, 'font-bold text-rose-700', 'bg-rose-500'],
+                ['Pasados sin cerrar', breakdown.pendingPast, breakdown.pendingPast > 0 ? 'font-bold text-amber-700' : '', 'bg-amber-400'],
+                ['Próximos del mes', breakdown.upcoming, 'font-bold text-sky-700', 'bg-sky-500'],
+                ...(breakdown.otherStatus > 0 ? [['Otros estados', breakdown.otherStatus, 'text-amber-700', 'bg-amber-300']] : []),
+                ['= Reservados', breakdown.reserved, 'font-black text-slate-900', 'bg-indigo-500'],
+                ['Capacidad libre', breakdown.free, 'font-black text-teal-700', 'bg-teal-400'],
+                ['Cancelados (liberan lugar)', breakdown.cancelled, 'text-slate-400', 'bg-slate-200'],
+              ].map(([label, value, className, dot]) => (
+                <div key={label} className="flex items-center justify-between gap-3 rounded-lg px-2 py-1 hover:bg-slate-50">
+                  <dt className="flex items-center gap-2"><span className={`h-2 w-2 rounded-full ${dot}`} aria-hidden="true" />{label}</dt>
                   <dd className={className}>{formatCount(value)}</dd>
                 </div>
               ))}
@@ -497,7 +547,7 @@ const CapacityPage = () => {
           <div className={`rounded-2xl border bg-white p-5 shadow-sm ${adminAlert.recommended ? 'border-amber-200' : 'border-slate-200'}`}>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Soporte administrativo</p>
+                <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-teal-700">Soporte administrativo</p>
                 <h2 className={`mt-2 text-xl font-black ${adminAlert.recommended ? 'text-amber-700' : 'text-slate-900'}`}>
                   {adminAlert.label || 'En observación'}
                 </h2>
@@ -518,7 +568,7 @@ const CapacityPage = () => {
           <div className={`rounded-2xl border bg-white p-5 shadow-sm ${kinesiologistAlert.recommended ? 'border-rose-200' : 'border-slate-200'}`}>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Segundo kinesiólogo</p>
+                <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-teal-700">Segundo kinesiólogo</p>
                 <h2 className={`mt-2 text-xl font-black ${kinesiologistAlert.recommended ? 'text-rose-700' : 'text-slate-900'}`}>
                   {kinesiologistAlert.label || 'En observación'}
                 </h2>
@@ -533,10 +583,10 @@ const CapacityPage = () => {
         </section>
 
         <section className="mb-6 grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_-12px_rgba(15,23,42,0.12)]">
             <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Histórico mensual</p>
+                <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-teal-700">Histórico mensual</p>
                 <h2 className="mt-2 text-xl font-black text-slate-900">Capacidad, ocupación y asistencia</h2>
                 <p className="mt-1 text-sm font-semibold text-slate-500">
                   La ocupación usa turnos no cancelados; la asistencia, turnos efectivamente atendidos. El mes en curso no está cerrado. La capacidad de meses pasados es una estimación con los horarios actuales.
@@ -600,7 +650,7 @@ const CapacityPage = () => {
 
             {monthlyTrend.length > 0 && (
               <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200">
-                <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
+                <div className="border-b border-teal-100 bg-teal-50/70 px-4 py-3">
                   <h3 className="text-sm font-black text-slate-900">Detalle mensual</h3>
                   <p className="mt-1 text-xs font-semibold text-slate-500">Desde el primer mes con turnos. Capacidad histórica estimada: no hay versiones de horarios anteriores.</p>
                 </div>
@@ -633,10 +683,10 @@ const CapacityPage = () => {
             )}
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_-12px_rgba(15,23,42,0.12)]">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Lectura automática</p>
+                <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-teal-700">Lectura automática</p>
                 <h2 className="mt-2 text-xl font-black text-slate-900">Insights automáticos</h2>
                 <p className="mt-1 text-sm font-semibold text-slate-500">
                   Lo importante del mes, resumido en señales accionables.
@@ -648,8 +698,8 @@ const CapacityPage = () => {
           </div>
         </section>
 
-        <section className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Saturación por día y franja · últimas 8 semanas</p>
+        <section className="mb-6 rounded-3xl border border-slate-200/80 bg-white p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_-12px_rgba(15,23,42,0.12)]">
+          <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-teal-700">Saturación por día y franja · últimas 8 semanas</p>
           <p className="mt-1 text-xs font-semibold text-slate-500">{definitions.slotSaturation}</p>
           {(saturation.byDayOfWeek || []).length === 0 ? (
             <p className="mt-4 text-sm font-semibold text-slate-400">Datos insuficientes.</p>
@@ -657,9 +707,9 @@ const CapacityPage = () => {
             <div className="mt-4 grid gap-4 lg:grid-cols-2">
               <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
                 {saturation.byDayOfWeek.map((day) => (
-                  <div key={day.dayOfWeek} className="rounded-xl bg-slate-50 px-3 py-3 text-center">
-                    <p className="text-[10px] font-black uppercase text-slate-400">{dayLabels[day.dayOfWeek]}</p>
-                    <p className="mt-1 text-lg font-black text-slate-900">{formatRate(day.occupancyRate)}</p>
+                  <div key={day.dayOfWeek} className={`rounded-2xl px-3 py-3 text-center ${getHeatClassName(day.occupancyRate)}`}>
+                    <p className="text-[10px] font-black uppercase opacity-80">{dayLabels[day.dayOfWeek]}</p>
+                    <p className="mt-1 text-lg font-black">{formatRate(day.occupancyRate)}</p>
                   </div>
                 ))}
               </div>
@@ -680,10 +730,10 @@ const CapacityPage = () => {
           )}
         </section>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <section className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_-12px_rgba(15,23,42,0.12)]">
           <div className="mb-4 flex items-start justify-between gap-4">
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Por profesional</p>
+              <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-teal-700">Por profesional</p>
               <h2 className="mt-2 text-xl font-black text-slate-900">Capacidad y ocupación individual</h2>
             </div>
             <Stethoscope className="text-slate-300" size={24} />
