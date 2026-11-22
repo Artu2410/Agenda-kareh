@@ -227,10 +227,15 @@ export const buildSlotSaturation = ({
   }
 
   const windowKeys = new Set(days.map((day) => day.date));
+  const patientsByDay = new Map();
+  const appointmentsByDay = new Map();
   appointments.forEach((appointment) => {
     if (upper(appointment.status) === STATUS.CANCELLED) return;
     if (!windowKeys.has(toKey(appointment.date))) return;
-    const slot = slots.get(`${appointment.date.getDay()}|${appointment.time}`);
+    const dayOfWeek = appointment.date.getDay();
+    appointmentsByDay.set(dayOfWeek, (appointmentsByDay.get(dayOfWeek) || 0) + 1);
+    if (appointment.patientId) ensure(patientsByDay, dayOfWeek, () => new Set()).add(appointment.patientId);
+    const slot = slots.get(`${dayOfWeek}|${appointment.time}`);
     if (slot) slot.reserved += 1;
   });
 
@@ -251,7 +256,14 @@ export const buildSlotSaturation = ({
     windowStart: days[0]?.date || null,
     windowEnd: days[days.length - 1]?.date || null,
     byDayOfWeek: [...byDay.values()]
-      .map((day) => ({ ...day, occupancyRate: roundOne(rate(day.reserved, day.capacity)) }))
+      .map((day) => ({
+        ...day,
+        // Turnos citados ese día (incluye los que no caen en una franja exacta) y pacientes distintos.
+        appointments: appointmentsByDay.get(day.dayOfWeek) || 0,
+        patients: patientsByDay.get(day.dayOfWeek)?.size || 0,
+        date: days.length <= 7 ? (days.find((item) => item.dayOfWeek === day.dayOfWeek)?.date || null) : null,
+        occupancyRate: roundOne(rate(day.reserved, day.capacity)),
+      }))
       .sort((a, b) => a.dayOfWeek - b.dayOfWeek),
     topSlots: [...slotRows].sort((a, b) => b.occupancyRate - a.occupancyRate).slice(0, 5),
     saturatedSlotCount: saturatedSlots.length,
@@ -387,4 +399,50 @@ export const buildBottleneck = ({ capacity, occupancyRate, saturation }) => {
     return { key: 'DEMAND', label: 'Falta demanda', description: 'La capacidad disponible supera claramente los turnos reservados. La palanca principal es captar pacientes.' };
   }
   return { key: 'NO_CRITICAL_BOTTLENECK', label: 'Sin cuello crítico visible', description: 'La operación tiene margen y no muestra una restricción dominante con los datos actuales.' };
+};
+
+/**
+ * Recorrido semanal: una entrada por semana (domingo a sábado) con la ocupación
+ * por día, los pacientes citados y las franjas más ocupadas de esa semana.
+ * `getWeekDays(weekStart)` devuelve los 7 resultados de getCapacityForDate.
+ */
+export const buildWeeklySaturation = ({
+  now = new Date(),
+  weeksBack = THRESHOLDS.saturationWindowWeeks,
+  weeksAhead = 4,
+  getWeekDays,
+  appointments = [],
+  professionals = [],
+  slotDuration = 0,
+  capacityPerSlot = 0,
+}) => {
+  const currentWeekStart = startOfWeek(startOfDay(now));
+  const weeks = [];
+  for (let offset = -weeksBack; offset <= weeksAhead; offset += 1) {
+    const weekStart = addDays(currentWeekStart, offset * 7);
+    const days = getWeekDays(weekStart);
+    const saturation = buildSlotSaturation({ days, appointments, professionals, slotDuration, capacityPerSlot });
+    const capacity = saturation.byDayOfWeek.reduce((sum, day) => sum + day.capacity, 0);
+    const reserved = saturation.byDayOfWeek.reduce((sum, day) => sum + day.reserved, 0);
+    const weekKeys = new Set(days.map((day) => day.date));
+    const weekPatients = new Set(appointments
+      .filter((a) => upper(a.status) !== STATUS.CANCELLED && a.patientId && weekKeys.has(toKey(a.date)))
+      .map((a) => a.patientId));
+    weeks.push({
+      weekStart: toKey(weekStart),
+      weekEnd: toKey(addDays(weekStart, 6)),
+      offset,
+      isCurrent: offset === 0,
+      isFuture: offset > 0,
+      capacity,
+      reserved,
+      patients: weekPatients.size,
+      occupancyRate: roundOne(rate(reserved, capacity)),
+      days: saturation.byDayOfWeek,
+      closedDays: days.filter((day) => day.theoreticalCapacity > 0 && day.capacity === 0).map((day) => day.date),
+      topSlots: saturation.topSlots.filter((slot) => slot.reserved > 0),
+      saturatedSlotCount: saturation.saturatedSlotCount,
+    });
+  }
+  return weeks;
 };
