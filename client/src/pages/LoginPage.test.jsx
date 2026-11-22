@@ -71,7 +71,7 @@ describe('LoginPage', () => {
     const onLoginSuccess = vi.fn();
     render(<LoginPage onLoginSuccess={onLoginSuccess} />);
 
-    fireEvent.change(screen.getByPlaceholderText('centrokareh@gmail.com'), {
+    fireEvent.change(screen.getByPlaceholderText('example@gmail.com'), {
       target: { value: 'admin@kareh.com' },
     });
     fireEvent.click(screen.getByRole('button', { name: /enviar código/i }));
@@ -99,7 +99,7 @@ describe('LoginPage', () => {
 
     render(<LoginPage />);
 
-    fireEvent.change(screen.getByPlaceholderText('centrokareh@gmail.com'), {
+    fireEvent.change(screen.getByPlaceholderText('example@gmail.com'), {
       target: { value: 'admin@kareh.com' },
     });
     fireEvent.click(screen.getByRole('button', { name: /enviar código/i }));

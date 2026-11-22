@@ -3,6 +3,7 @@ import { withProfessionalScope, assertScopedProfessionalId } from '../utils/acce
 import { auditActions, safeWriteAuditLog } from '../utils/audit.js';
 import { createInternalError } from '../errors/AppError.js';
 import { validate } from '../middlewares/validate.js';
+import { checkRole } from '../middlewares/authMiddleware.js';
 import {
   createClinicalHistoryBodySchema,
   idParamsSchema,
@@ -11,6 +12,7 @@ import {
 
 export default function createClinicalHistoryRoutes(prisma) {
   const router = Router();
+  router.use(checkRole('SUPER_USER', 'ADMIN', 'PROFESSIONAL'));
 
   // GET: Obtener historial
   router.get('/:patientId', async (req, res) => {

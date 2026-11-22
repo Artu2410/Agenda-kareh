@@ -78,7 +78,7 @@ const CurrentMonthSection = ({ monthly, weekly, commercial, billingByCoverage, i
               icon={<CheckCircle2 size={16} />}
             />
             <MetricCard
-              label="Pendientes"
+              label="Pendientes (sin cerrar + próximos)"
               value={formatCount(monthly?.scheduled)}
               toneClassName="border-amber-100 bg-amber-50"
               valueClassName="text-amber-700"
@@ -243,7 +243,7 @@ const CurrentMonthSection = ({ monthly, weekly, commercial, billingByCoverage, i
           <div className="flex items-start justify-between gap-4">
             <div>
               <SectionBadge toneClassName="border-slate-200 bg-white text-slate-600">Semana actual</SectionBadge>
-              <h3 className="mt-3 text-xl font-black text-slate-900">Desde lunes hasta domingo</h3>
+              <h3 className="mt-3 text-xl font-black text-slate-900">De domingo a sábado</h3>
               <p className="mt-2 text-sm font-semibold text-slate-500">
                 Turnos activos esta semana.
               </p>

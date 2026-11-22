@@ -108,7 +108,7 @@ describe('getMetrics', () => {
     expect(payload.monthly.capacityMonthly).toBe(1065);
     expect(payload.monthly.capacityDays.find((day) => day.date === '2026-10-12').capacity).toBe(0);
     expect(payload.monthly.occupancyRate).toBe(0);
-    expect(payload.monthly.attendanceRate).toBe(0);
+    expect(payload.monthly.attendanceRate).toBeNull();
   });
 
   it('returns future agenda metrics and filters inactive monthly rows', async () => {
@@ -218,5 +218,76 @@ describe('getMetrics', () => {
       expect.objectContaining({ monthKey: '2026-07', appointmentCount: 2, patientCount: 1 }),
       expect.objectContaining({ monthKey: '2026-08', appointmentCount: 1, patientCount: 1 }),
     ]);
+  });
+});
+
+describe('getMetrics · conciliación del Panel (noviembre en curso)', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date(2026, 10, 22, 12));
+  });
+  afterEach(() => jest.useRealTimers());
+
+  const schedule = [
+    { dayOfWeek: 1, startTime: '14:00', endTime: '19:30' },
+    { dayOfWeek: 2, startTime: '17:30', endTime: '19:30' },
+    { dayOfWeek: 3, startTime: '14:00', endTime: '19:30' },
+    { dayOfWeek: 4, startTime: '17:30', endTime: '19:30' },
+    { dayOfWeek: 5, startTime: '14:00', endTime: '19:30' },
+    { dayOfWeek: 6, startTime: '08:00', endTime: '12:30' },
+  ];
+
+  it('cuenta los turnos con autorización como pendientes y descuenta feriados anteriores a esta semana', async () => {
+    const nov = [
+      buildAppointment({ id: 'a', date: new Date(2026, 10, 3), status: 'COMPLETED', patientId: 'p1' }),
+      buildAppointment({ id: 'b', date: new Date(2026, 10, 4), status: 'NO_SHOW', patientId: 'p2' }),
+      buildAppointment({ id: 'c', date: new Date(2026, 10, 5), status: 'SCHEDULED', patientId: 'p3' }),
+      buildAppointment({ id: 'd', date: new Date(2026, 10, 25), status: 'SCHEDULED', patientId: 'p1' }),
+      buildAppointment({ id: 'e', date: new Date(2026, 10, 26), status: 'PENDING_AUTHORIZATION', patientId: 'p4' }),
+      buildAppointment({ id: 'f', date: new Date(2026, 10, 27), status: 'AUTHORIZED', patientId: 'p5' }),
+    ];
+    const inRange = (where = {}) => nov.filter((row) => {
+      const { gte, lt, lte } = where.date || {};
+      if (gte && row.date < gte) return false;
+      if (lt && row.date >= lt) return false;
+      if (lte && row.date > lte) return false;
+      const status = where.status;
+      if (typeof status === 'string') return row.status === status;
+      if (status?.in) return status.in.includes(row.status);
+      if (status?.not) return row.status !== status.not;
+      return true;
+    });
+    const prisma = {
+      appointment: {
+        findMany: jest.fn(async ({ where }) => inRange(where)),
+        findFirst: jest.fn(async () => ({ date: new Date(2026, 10, 27) })),
+        count: jest.fn(async ({ where }) => inRange(where).length),
+        groupBy: jest.fn(async ({ where }) => [...new Set(inRange(where).map((r) => r.patientId))].map((patientId) => ({ patientId, _min: { date: null } }))),
+      },
+      agendaConfig: { findFirst: jest.fn(async () => ({ slotDuration: 30, capacityPerSlot: 5, nationalHolidaysClose: false })) },
+      agendaCalendarEntry: {
+        findMany: jest.fn(async () => [
+          { id: 'h1', date: '2026-11-09', name: 'Cierre', type: 'CLINIC_CLOSURE', isActive: true, isOperational: false, professionalId: null },
+          { id: 'h2', date: '2026-11-23', name: 'Feriado', type: 'PUBLIC_HOLIDAY', isActive: true, isOperational: false, professionalId: null },
+        ]),
+      },
+      professional: { findMany: jest.fn(async () => [{ id: 'prof-1', workSchedule: schedule }]) },
+    };
+    const res = createResponse();
+
+    await getMetrics({ query: {} }, res, prisma);
+    const { monthly, weekly, futureAgenda } = res.json.mock.calls[0][0];
+
+    expect(monthly.current).toBe(6);
+    expect(monthly.completed + monthly.noShow + monthly.scheduled).toBe(monthly.current);
+    expect(monthly).toEqual(expect.objectContaining({
+      scheduled: 4, pendingPast: 1, upcoming: 3, authorizationAttention: 1, otherStatus: 0, isPartial: true,
+    }));
+    expect(monthly.capacityMonthly).toBe(945); // 1.055 − cierre 09/11 − feriado 23/11
+    expect(monthly.changeLabel).toBe('Sin base');
+    expect(weekly.scheduled).toBe(3);
+    expect(weekly.attendanceRate).toBeNull();
+    expect(futureAgenda.daysWithAppointments).toBe(3);
+    expect(futureAgenda.calendarDaysToLastAppointment).toBe(5);
   });
 });

@@ -5,7 +5,8 @@ import ProfessionalModal from '../components/settings/ProfessionalModal';
 import ScheduleModal from '../components/settings/ScheduleModal';
 import ReleaseVersionBadge from '../components/ReleaseVersionBadge';
 import { getStoredUser } from '../services/session';
-import { formatRoleLabel, getAssignableRoleOptions, isSuperUser, isAdmin } from '../utils/roles';
+import { dedupeCalendarEntries } from '../utils/calendarEntries';
+import { formatRoleDisplayName, getAssignableRoleOptions, isSuperUser, isAdmin } from '../utils/roles';
 
 const DEFAULT_TIMER_DURATION_MINUTES = 25;
 const normalizePositiveInteger = (value, fallbackValue = 1) => Math.max(1, parseInt(value, 10) || fallbackValue);
@@ -42,6 +43,8 @@ const calendarEntryLabels = {
   TOURISM_DAY: 'Día turístico',
   BANK_HOLIDAY: 'Feriado bancario',
   OBSERVANCE: 'Conmemoración',
+  REGIONAL_HOLIDAY: 'Feriado regional',
+  PUBLIC_HOLIDAY: 'Feriado nacional',
   CLINIC_CLOSURE: 'Cierre propio de Kareh',
   SCHEDULE_EXCEPTION: 'Apertura excepcional',
 };
@@ -50,6 +53,15 @@ const manualCalendarEntryLabels = {
   CLINIC_CLOSURE: calendarEntryLabels.CLINIC_CLOSURE,
   SCHEDULE_EXCEPTION: calendarEntryLabels.SCHEDULE_EXCEPTION,
 };
+
+const ROLE_HELP = {
+  SUPER_USER: 'Acceso total, incluida la gestión de administradores.',
+  ADMIN: 'Gestiona configuración, usuarios profesionales/secretaría, finanzas y auditoría.',
+  PROFESSIONAL: 'Agenda, pacientes e historias clínicas de su profesional vinculado.',
+  SECRETARIA: 'Agenda, pacientes, caja y facturación. Sin historias clínicas.',
+};
+
+const formatCount = (value) => new Intl.NumberFormat('es-AR').format(Number(value) || 0);
 
 const getLocalDateKey = () => {
   const today = new Date();
@@ -86,6 +98,8 @@ const SettingsPage = () => {
     isActive: true,
   });
   const currentUser = getStoredUser();
+  const [calendarExpanded, setCalendarExpanded] = useState(false);
+  const [calendarScope, setCalendarScope] = useState('upcoming');
   const canManageUsers = isAdmin(currentUser.role);
   const canManageAdminRoles = isSuperUser(currentUser.role);
   const assignableRoleOptions = getAssignableRoleOptions({ canManageAdminRoles });
@@ -232,9 +246,16 @@ const SettingsPage = () => {
   };
 
   const handleCreateUser = async () => {
+    if (userForm.role === 'PROFESSIONAL' && !userForm.professionalId) {
+      alert('Para el rol Profesional elegí el profesional del staff vinculado.');
+      return;
+    }
     try {
       setUserSaving(true);
-      await instance.post('/users', userForm);
+      await instance.post('/users', {
+        ...userForm,
+        professionalId: userForm.role === 'PROFESSIONAL' ? userForm.professionalId : null,
+      });
       resetUserForm();
       await fetchUsers();
     } catch (err) {
@@ -256,11 +277,20 @@ const SettingsPage = () => {
     }
   };
 
-  const handleChangeUserRole = async (user, role) => {
+  const handleChangeUserRole = async (user, role, professionalId = user.professionalId) => {
+    if (role === 'PROFESSIONAL' && !professionalId) {
+      alert('Para el rol Profesional elegí primero el profesional del staff vinculado.');
+      if (user.role !== 'PROFESSIONAL') {
+        setUsers((previous) => previous.map((item) => (
+          item.id === user.id ? { ...item, role: 'PROFESSIONAL', professionalId: null } : item
+        )));
+      }
+      return;
+    }
     try {
       await instance.put(`/users/${user.id}/role`, {
         role,
-        professionalId: user.professionalId || null,
+        professionalId: role === 'PROFESSIONAL' ? professionalId : null,
       });
       await fetchUsers();
     } catch (err) {
@@ -308,6 +338,14 @@ const SettingsPage = () => {
       };
     });
   };
+
+  const todayKey = getLocalDateKey();
+  const uniqueCalendarEntries = dedupeCalendarEntries(calendarEntries);
+  const manualCalendarEntries = uniqueCalendarEntries.filter((entry) => entry.entrySource !== 'NATIONAL_HOLIDAY_CALENDAR');
+  const upcomingCalendarEntries = uniqueCalendarEntries.filter((entry) => entry.date >= todayKey && entry.isActive !== false);
+  const visibleCalendarEntries = calendarScope === 'all'
+    ? uniqueCalendarEntries
+    : calendarScope === 'manual' ? manualCalendarEntries : upcomingCalendarEntries;
 
   const handleCreateCalendarEntry = async (event) => {
     event.preventDefault();
@@ -578,7 +616,42 @@ const SettingsPage = () => {
           </div>
 
           <div className="space-y-5 p-6">
-            {canManageUsers && (
+            <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0 text-sm font-semibold text-slate-600">
+                <p>
+                  {formatCount(upcomingCalendarEntries.length)} próximos · {formatCount(manualCalendarEntries.length)} cierres y aperturas propias de Kareh
+                </p>
+                {upcomingCalendarEntries[0] && (
+                  <p className="mt-1 text-xs text-slate-500">
+                    Próximo: {upcomingCalendarEntries[0].date} · {upcomingCalendarEntries[0].name}
+                  </p>
+                )}
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                {calendarExpanded && (
+                  <select
+                    value={calendarScope}
+                    onChange={(event) => setCalendarScope(event.target.value)}
+                    aria-label="Filtrar calendario"
+                    className="min-h-10 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-700"
+                  >
+                    <option value="upcoming">Próximos</option>
+                    <option value="manual">Solo propios de Kareh</option>
+                    <option value="all">Todos</option>
+                  </select>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setCalendarExpanded((previous) => !previous)}
+                  aria-expanded={calendarExpanded}
+                  className="min-h-10 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                >
+                  {calendarExpanded ? 'Ocultar calendario' : 'Ver calendario'}
+                </button>
+              </div>
+            </div>
+
+            {canManageUsers && calendarExpanded && (
               <form onSubmit={handleCreateCalendarEntry} className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-2 lg:grid-cols-6">
                 <label className="text-xs font-bold text-slate-600">
                   Fecha
@@ -651,11 +724,11 @@ const SettingsPage = () => {
               </form>
             )}
 
-            {calendarEntries.length === 0 ? (
-              <p className="py-6 text-center text-sm font-medium text-slate-500">No hay feriados, cierres ni excepciones configurados.</p>
+            {!calendarExpanded ? null : visibleCalendarEntries.length === 0 ? (
+              <p className="py-6 text-center text-sm font-medium text-slate-500">No hay entradas para este filtro.</p>
             ) : (
               <ul className="divide-y divide-slate-100">
-                {calendarEntries.map((entry) => {
+                {visibleCalendarEntries.map((entry) => {
                   const professionalName = professionals.find((professional) => professional.id === entry.professionalId)?.fullName;
                   return (
                     <li key={entry.id} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
@@ -723,27 +796,36 @@ const SettingsPage = () => {
                   />
                   <select
                     value={userForm.role}
-                    onChange={(event) => setUserForm((prev) => ({ ...prev, role: event.target.value }))}
+                    onChange={(event) => setUserForm((prev) => ({
+                      ...prev,
+                      role: event.target.value,
+                      professionalId: event.target.value === 'PROFESSIONAL' ? prev.professionalId : '',
+                    }))}
+                    aria-label="Rol del nuevo usuario"
                     className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-teal-200"
                   >
                     {assignableRoleOptions.map((roleOption) => (
                       <option key={roleOption.value} value={roleOption.value}>
-                        {roleOption.label}
+                        {formatRoleDisplayName(roleOption.value)}
                       </option>
                     ))}
                   </select>
+                  <p className="text-xs font-semibold text-slate-500">{ROLE_HELP[userForm.role]}</p>
+                  {userForm.role === 'PROFESSIONAL' && (
                   <select
+                    aria-label="Profesional vinculado"
                     value={userForm.professionalId}
                     onChange={(event) => setUserForm((prev) => ({ ...prev, professionalId: event.target.value }))}
                     className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-teal-200"
                   >
-                    <option value="">Sin vincular</option>
+                    <option value="">Elegí el profesional vinculado</option>
                     {professionals.map((professional) => (
                       <option key={professional.id} value={professional.id}>
                         {professional.fullName}
                       </option>
                     ))}
                   </select>
+                  )}
                   <button
                     type="button"
                     onClick={handleCreateUser}
@@ -771,28 +853,53 @@ const SettingsPage = () => {
                           <p className="text-base font-black text-slate-800">{user.fullName}</p>
                           <p className="text-sm font-semibold text-slate-500">{user.email}</p>
                           <p className="mt-1 text-xs font-bold uppercase tracking-[0.18em] text-teal-600">
-                            {formatRoleLabel(user.role)}
+                            {formatRoleDisplayName(user.role)}
                             {user.professional?.fullName ? ` · ${user.professional.fullName}` : ''}
+                            {user.id === currentUser.id ? ' · Vos' : ''}
                           </p>
+                          {user.role === 'PROFESSIONAL' && !user.professionalId && (
+                            <p className="mt-1 text-xs font-bold text-amber-700">Sin profesional vinculado: no podrá ver agenda ni pacientes.</p>
+                          )}
                         </div>
                         <div className="flex flex-col gap-2 sm:flex-row">
                           {canManageUsers && (
                             <select
                               value={user.role}
+                              disabled={user.id === currentUser.id}
+                              title={user.id === currentUser.id ? 'No podés cambiar tu propio rol' : undefined}
+                              aria-label={`Rol de ${user.fullName}`}
                               onChange={(event) => handleChangeUserRole(user, event.target.value)}
-                              className="min-h-11 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold outline-none"
+                              className="min-h-11 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold outline-none disabled:bg-slate-50 disabled:text-slate-400"
                             >
+                              {!assignableRoleOptions.some((option) => option.value === user.role) && (
+                                <option value={user.role}>{formatRoleDisplayName(user.role)}</option>
+                              )}
                               {assignableRoleOptions.map((roleOption) => (
                                 <option key={roleOption.value} value={roleOption.value}>
-                                  {roleOption.label}
+                                  {formatRoleDisplayName(roleOption.value)}
                                 </option>
+                              ))}
+                            </select>
+                          )}
+                          {canManageUsers && user.role === 'PROFESSIONAL' && (
+                            <select
+                              value={user.professionalId || ''}
+                              aria-label={`Profesional vinculado a ${user.fullName}`}
+                              onChange={(event) => handleChangeUserRole(user, 'PROFESSIONAL', event.target.value)}
+                              className="min-h-11 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold outline-none"
+                            >
+                              <option value="">Sin vincular</option>
+                              {professionals.map((professional) => (
+                                <option key={professional.id} value={professional.id}>{professional.fullName}</option>
                               ))}
                             </select>
                           )}
                           <button
                             type="button"
                             onClick={() => handleToggleUserActive(user)}
-                            className={`min-h-11 rounded-xl px-4 py-2 text-sm font-bold ${
+                            disabled={user.id === currentUser.id}
+                            title={user.id === currentUser.id ? 'No podés desactivar tu propio usuario' : undefined}
+                            className={`min-h-11 rounded-xl px-4 py-2 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-60 ${
                               user.isActive
                                 ? 'bg-emerald-100 text-emerald-700'
                                 : 'bg-slate-100 text-slate-500'
@@ -803,7 +910,9 @@ const SettingsPage = () => {
                           <button
                             type="button"
                             onClick={() => handleDeleteUser(user)}
-                            className="min-h-11 rounded-xl bg-rose-50 px-4 py-2 text-sm font-bold text-rose-700"
+                            disabled={user.id === currentUser.id}
+                            title={user.id === currentUser.id ? 'No podés eliminar tu propio usuario' : undefined}
+                            className="min-h-11 rounded-xl bg-rose-50 px-4 py-2 text-sm font-bold text-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             Eliminar
                           </button>

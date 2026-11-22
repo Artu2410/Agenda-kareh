@@ -110,7 +110,8 @@ const MonthlyCard = ({ monthly }) => (
     }`}
     >
       <p className="text-[10px] font-black uppercase tracking-[0.24em]">Variación vs mes anterior</p>
-      <p className="mt-2 text-2xl font-black">{monthly?.changeLabel || '0%'}</p>
+      <p className="mt-2 text-2xl font-black">{monthly?.changeLabel || 'Sin base'}</p>
+      {monthly?.changeBasis && <p className="mt-1 text-xs font-semibold opacity-80">{monthly.changeBasis}</p>}
     </div>
 
     <div className="mt-5 grid grid-cols-2 gap-3 text-[10px] font-black uppercase tracking-wide">
@@ -165,8 +166,8 @@ const MonthlyCard = ({ monthly }) => (
 const AnnualCard = ({ annual }) => (
   <OverviewCard
     eyebrow="Global del Año"
-    title={formatCount(annual?.patientCount)}
-    description="Pacientes atendidos este año"
+    title={formatCount(annual?.attendedPatientCount ?? annual?.patientCount)}
+    description="Pacientes con al menos una asistencia este año"
     icon={<Users size={22} />}
     iconClassName="bg-slate-100 text-slate-700"
   >

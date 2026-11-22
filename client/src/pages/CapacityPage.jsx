@@ -136,16 +136,19 @@ const ChartSurface = ({ children }) => {
   );
 };
 
-const SummaryCard = ({ label, value, description, icon, tone = 'neutral' }) => {
+const SummaryCard = ({ label, value, description, definition, icon, tone = 'neutral' }) => {
   const resolvedTone = getTone(tone);
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" title={definition || undefined}>
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">{label}</p>
           <p className={`mt-2 text-2xl font-black leading-tight ${resolvedTone.text}`}>{value}</p>
           <p className="mt-1 text-xs font-semibold text-slate-500">{description}</p>
+          {definition && (
+            <p className="mt-2 text-[11px] font-medium leading-snug text-slate-400">{definition}</p>
+          )}
         </div>
         <div className={`shrink-0 rounded-xl p-3 ${resolvedTone.badge}`}>
           {React.createElement(icon, { size: 20 })}
@@ -171,126 +174,60 @@ const CriteriaList = ({ recommendation }) => (
         <div>
           <p className="text-sm font-black">{criterion.label}</p>
           {!criterion.measured && (
-            <p className="mt-1 text-xs font-semibold">Dato pendiente de medir</p>
+            <p className="mt-1 text-xs font-semibold">No disponible: dato no registrado en el sistema</p>
           )}
         </div>
         <span className="shrink-0 text-xs font-black uppercase tracking-[0.16em]">
-          {criterion.met ? 'Cumple' : criterion.measured ? 'No' : 'Sin dato'}
+          {!criterion.measured
+            ? 'Sin dato'
+            : recommendation?.status === 'INSUFFICIENT_DATA'
+              ? formatNumber(criterion.value)
+              : criterion.met ? 'Cumple' : 'No'}
         </span>
       </div>
     ))}
   </div>
 );
 
-const buildOperationalInsights = ({ currentMonth, futureCoverage, bottleneck, adminAlert }) => {
-  const occupancyRate = Number(currentMonth?.occupancyRate) || 0;
-  const freeMonthlyCapacity = Number(currentMonth?.freeMonthlyCapacity) || 0;
-  const daysCovered = Number(futureCoverage?.daysCovered) || 0;
-  const adminRecommended = Boolean(adminAlert?.recommended);
-
-  const occupancyTone = occupancyRate >= 85 ? 'critical' : occupancyRate >= 70 ? 'warning' : 'success';
-  const capacityTone = bottleneck?.key === 'CONFIGURATION'
-    ? 'critical'
-    : freeMonthlyCapacity > 0
-      ? 'success'
-      : 'critical';
-
-  const priorityInsight = (() => {
-    if (bottleneck?.key === 'CONFIGURATION') {
-      return {
-        key: 'priority',
-        badge: 'Config',
-        tone: 'critical',
-        title: 'Prioridad: completar la configuración operativa',
-        detail: bottleneck?.description || 'No hay capacidad calculable con la configuración actual.',
-      };
-    }
-
-    if (occupancyRate < 50) {
-      return {
-        key: 'priority',
-        badge: 'Foco',
-        tone: 'neutral',
-        title: 'Prioridad: aumentar ocupación antes de contratar',
-        detail: 'La capacidad disponible sigue siendo la palanca principal.',
-      };
-    }
-
-    if (bottleneck?.key === 'ADMINISTRATION') {
-      return {
-        key: 'priority',
-        badge: 'Foco',
-        tone: 'warning',
-        title: 'Prioridad: liberar carga administrativa',
-        detail: bottleneck?.description || 'La carga operativa ya justifica soporte administrativo.',
-      };
-    }
-
-    if (bottleneck?.key === 'CLINICAL_CAPACITY') {
-      return {
-        key: 'priority',
-        badge: 'Foco',
-        tone: 'warning',
-        title: 'Prioridad: sumar capacidad clínica',
-        detail: bottleneck?.description || 'La capacidad clínica es el límite principal.',
-      };
-    }
-
-    if (daysCovered > 60) {
-      return {
-        key: 'priority',
-        badge: 'Foco',
-        tone: 'warning',
-        title: 'Prioridad: ordenar demanda futura',
-        detail: `La agenda futura cubre ${formatCount(daysCovered)} días.`,
-      };
-    }
-
-    return {
-      key: 'priority',
-      badge: 'Foco',
-      tone: 'neutral',
-      title: 'Prioridad: monitorear el crecimiento',
-      detail: 'El crecimiento todavía no exige nuevas estructuras.',
-    };
-  })();
-
-  return [
+const buildOperationalInsights = ({ currentMonth, bottleneck, adminAlert, operationalStatus }) => {
+  const breakdown = currentMonth?.breakdown || {};
+  const insights = [
     {
-      key: 'occupancy',
-      badge: occupancyRate >= 85 ? 'Riesgo' : occupancyRate >= 70 ? 'Alerta' : 'OK',
-      tone: occupancyTone,
-      title: `Ocupación actual: ${formatRate(occupancyRate)}`,
-      detail: occupancyRate >= 70
-        ? 'La agenda empieza a tensarse.'
-        : 'Todavía hay margen para crecer.',
+      key: 'status',
+      badge: 'Estado',
+      tone: operationalStatus?.tone || 'neutral',
+      title: operationalStatus?.label || 'Datos insuficientes',
+      detail: operationalStatus?.description || 'No hay datos para clasificar.',
+    },
+    {
+      key: 'bottleneck',
+      badge: 'Foco',
+      tone: bottleneck?.key === 'DEMAND' || bottleneck?.key === 'NO_CRITICAL_BOTTLENECK' ? 'neutral' : 'warning',
+      title: bottleneck?.label || 'Sin diagnóstico',
+      detail: bottleneck?.description || 'Todavía no hay datos suficientes.',
     },
     {
       key: 'admin',
-      badge: adminRecommended ? 'Activado' : 'OK',
-      tone: adminRecommended ? 'warning' : 'success',
-      title: adminRecommended ? 'Se justifica soporte administrativo' : 'Todavía no se justifica administrativo',
-      detail: adminRecommended
-        ? `${adminAlert?.metCount || 0} criterios reales ya lo respaldan.`
-        : 'La carga sigue dentro del rango operativo actual.',
+      badge: 'Sin dato',
+      tone: 'neutral',
+      title: adminAlert?.label || 'Datos insuficientes para recomendar contratación',
+      detail: adminAlert?.suggestedSupport
+        ? `Según el volumen: ${adminAlert.suggestedSupport}. Falta medir la carga administrativa real.`
+        : 'Falta medir la carga administrativa real.',
     },
-    {
-      key: 'capacity',
-      badge: bottleneck?.key === 'CONFIGURATION' ? 'Config' : freeMonthlyCapacity > 0 ? 'Libre' : 'Límite',
-      tone: capacityTone,
-      title: bottleneck?.key === 'CONFIGURATION'
-        ? 'Todavía falta configurar horarios'
-        : freeMonthlyCapacity > 0
-          ? 'Hay capacidad disponible para crecer'
-          : 'La capacidad calculada ya está al límite',
-      detail: bottleneck?.key === 'CONFIGURATION'
-        ? bottleneck?.description || 'No hay capacidad calculable con la configuración actual.'
-        : freeMonthlyCapacity > 0
-          ? `Quedan ${formatNumber(freeMonthlyCapacity)} turnos mensuales libres.`
-          : 'La ocupación actual ya consume toda la capacidad modelada.',
-    },
-    priorityInsight,
   ];
+
+  if (breakdown.pendingPast > 0) {
+    insights.unshift({
+      key: 'unclosed',
+      badge: 'Datos',
+      tone: 'warning',
+      title: `${formatCount(breakdown.pendingPast)} turnos pasados sin cerrar`,
+      detail: 'Marcalos como asistidos o inasistencias para que la asistencia del mes sea real.',
+    });
+  }
+
+  return insights;
 };
 
 const InsightList = ({ insights }) => (
@@ -386,11 +323,19 @@ const CapacityPage = () => {
   const occupationTone = currentMonth?.level?.tone || 'neutral';
   const adminAlert = capacity?.alerts?.admin || {};
   const kinesiologistAlert = capacity?.alerts?.kinesiologist || {};
+  const operationalStatus = capacity?.operationalStatus || {};
+  const definitions = capacity?.definitions || {};
+  const breakdown = currentMonth?.breakdown || {};
+  const patients = currentMonth?.patients || {};
+  const currentWeek = capacity?.currentWeek || {};
+  const saturation = capacity?.saturation || {};
+  const futureWindow = futureCoverage?.window || {};
+  const asOfLabel = formatDate(currentMonth?.asOf ? `${currentMonth.asOf}T12:00:00` : capacity?.generatedAt);
   const operationalInsights = buildOperationalInsights({
     currentMonth,
-    futureCoverage,
     bottleneck,
     adminAlert,
+    operationalStatus,
   });
   const monthlyTrend = (capacity?.monthlyTrend || []).map((row) => ({
     ...row,
@@ -400,69 +345,88 @@ const CapacityPage = () => {
   const visibleMonthlyTrend = historyView === 'year' ? monthlyTrend : monthlyTrend.slice(-6);
   const historicalAxisMax = getHistoricalAxisMax(visibleMonthlyTrend);
 
+  const weekRange = currentWeek.start
+    ? `${formatDate(currentWeek.start)} – ${formatDate(currentWeek.end)}`
+    : 'semana actual';
+  const weekClosuresText = (currentWeek.closures || []).length > 0
+    ? `, ${currentWeek.closures.length} día(s) cerrado(s)`
+    : '';
+
   const summaryCards = [
     {
-      label: 'Capacidad mensual',
+      label: 'Capacidad del mes',
       value: formatNumber(currentMonth.monthlyCapacity),
-      description: `${formatNumber(currentMonth.weeklyCapacity)} turnos máximos por semana`,
+      description: `Esta semana (${weekRange}): ${formatNumber(currentWeek.capacity)}${weekClosuresText} · semana estándar: ${formatNumber(currentWeek.standardCapacity)}`,
+      definition: definitions.capacity,
       icon: Gauge,
       tone: 'neutral',
     },
     {
       label: 'Turnos asistidos',
       value: formatCount(currentMonth.completedCount),
-      description: 'Turnos efectivamente atendidos',
+      description: currentMonth.isPartial ? `Mes en curso, hasta el ${asOfLabel}` : 'Mes cerrado',
+      definition: definitions.attended,
       icon: CheckCircle2,
       tone: 'success',
     },
     {
-      label: 'Turnos ocupados',
+      label: 'Turnos reservados',
       value: formatCount(currentMonthForDisplay.occupiedCount),
-      description: 'Turnos no cancelados que consumen capacidad',
+      description: `${formatCount(breakdown.attended)} asistidos · ${formatCount(breakdown.noShow)} inasistencias · ${formatCount(breakdown.pendingPast)} sin cerrar · ${formatCount(breakdown.upcoming)} próximos`,
+      definition: definitions.reserved,
       icon: Users,
       tone: 'neutral',
     },
     {
-      label: 'Ocupación real',
+      label: 'Ocupación del mes',
       value: formatRate(currentMonth.occupancyRate),
-      description: currentMonth?.level?.label || 'Sin clasificación',
+      description: 'Reservados / capacidad (incluye turnos futuros del mes)',
+      definition: definitions.occupancy,
       icon: TrendingUp,
       tone: occupationTone,
     },
     {
       label: 'Capacidad libre',
       value: formatNumber(currentMonth.freeMonthlyCapacity),
-      description: 'Turnos potenciales no usados',
+      description: `${formatNumber(currentMonth.monthlyCapacity)} − ${formatCount(currentMonthForDisplay.occupiedCount)} reservados`,
+      definition: definitions.freeCapacity,
       icon: Clock3,
       tone: 'warning',
     },
     {
       label: 'Pacientes activos',
       value: formatCount(currentMonth.activePatients),
-      description: 'Con turnos activos en el mes',
+      description: `${formatCount(patients.attendedThisMonth)} atendidos · ${formatCount(patients.newThisMonth)} nuevos · ${formatCount(patients.withUpcoming)} con próximo turno`,
+      definition: definitions.activePatients,
       icon: Users,
       tone: 'neutral',
     },
     {
-      label: 'Días cubiertos',
-      value: formatCount(futureCoverage.daysCovered),
-      description: `Último turno: ${formatDate(futureCoverage.farthestDate)}`,
+      label: 'Agenda futura',
+      value: `${formatCount(futureCoverage.daysWithAppointments)} días con turnos`,
+      description: futureCoverage.lastAppointmentDate || futureCoverage.farthestDate
+        ? `${formatCount(futureCoverage.appointmentCount)} turnos · último: ${formatDate(futureCoverage.lastAppointmentDate || futureCoverage.farthestDate)} (a ${formatCount(futureCoverage.calendarDaysToLastAppointment ?? futureCoverage.daysCovered)} días calendario)`
+        : 'Sin turnos futuros',
+      definition: [definitions.daysWithAppointments, definitions.calendarDaysToLastAppointment].filter(Boolean).join(' '),
       icon: CalendarDays,
-      tone: futureCoverage.daysCovered > 60 ? 'warning' : 'neutral',
+      tone: 'neutral',
     },
     {
-      label: 'Semanas cubiertas',
-      value: formatNumber(futureCoverage.weeksCovered),
-      description: `${formatNumber(futureCoverage.monthsCovered)} meses de agenda`,
+      label: 'Agenda próximos 60 días',
+      value: futureWindow.occupancyRate === null || futureWindow.occupancyRate === undefined
+        ? 'No disponible'
+        : formatRate(futureWindow.occupancyRate),
+      description: `${formatCount(futureWindow.reserved)} de ${formatNumber(futureWindow.capacity)} lugares · ${formatCount(futureCoverage.weeksWithAppointments)} semanas con turnos`,
+      definition: definitions.futureOccupancy,
       icon: BarChart3,
-      tone: futureCoverage.weeksCovered > 8 ? 'warning' : 'neutral',
+      tone: 'neutral',
     },
     {
       label: 'Estado operativo',
-      value: currentMonth?.level?.label || 'Sin datos',
-      description: currentMonth?.level?.description || 'Faltan datos para clasificar',
+      value: operationalStatus.label || 'Datos insuficientes',
+      description: operationalStatus.description || 'Faltan datos para clasificar',
       icon: AlertTriangle,
-      tone: occupationTone,
+      tone: operationalStatus.tone || 'neutral',
     },
   ];
 
@@ -507,10 +471,27 @@ const CapacityPage = () => {
         </section>
 
         <section className="mb-6 grid gap-4 lg:grid-cols-3">
-          <div className={`rounded-2xl border p-5 shadow-sm ${getTone(occupationTone).card}`}>
-            <p className="text-[10px] font-black uppercase tracking-[0.22em] opacity-70">Cuello de botella actual</p>
-            <h2 className="mt-2 text-2xl font-black">{bottleneck.label || 'Sin diagnóstico'}</h2>
-            <p className="mt-2 text-sm font-bold opacity-80">{bottleneck.description || 'Todavía no hay datos suficientes.'}</p>
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Conciliación del mes · al {asOfLabel}</p>
+            <dl className="mt-3 space-y-1 text-sm font-semibold text-slate-600" aria-label="Conciliación de capacidad del mes">
+              {[
+                ['Capacidad', breakdown.capacity, 'font-black text-slate-900'],
+                ['Asistidos', breakdown.attended, 'text-teal-700'],
+                ['Inasistencias', breakdown.noShow, ''],
+                ['Pasados sin cerrar', breakdown.pendingPast, breakdown.pendingPast > 0 ? 'text-amber-700' : ''],
+                ['Próximos del mes', breakdown.upcoming, ''],
+                ...(breakdown.otherStatus > 0 ? [['Otros estados', breakdown.otherStatus, 'text-amber-700']] : []),
+                ['= Reservados', breakdown.reserved, 'font-black text-slate-900'],
+                ['Capacidad libre', breakdown.free, 'font-black'],
+                ['Cancelados (liberan lugar)', breakdown.cancelled, 'text-slate-400'],
+              ].map(([label, value, className]) => (
+                <div key={label} className="flex justify-between gap-3">
+                  <dt>{label}</dt>
+                  <dd className={className}>{formatCount(value)}</dd>
+                </div>
+              ))}
+            </dl>
+            <p className="mt-3 text-xs font-bold text-slate-500">Cuello de botella: {bottleneck.label || 'Sin diagnóstico'}</p>
           </div>
 
           <div className={`rounded-2xl border bg-white p-5 shadow-sm ${adminAlert.recommended ? 'border-amber-200' : 'border-slate-200'}`}>
@@ -520,9 +501,14 @@ const CapacityPage = () => {
                 <h2 className={`mt-2 text-xl font-black ${adminAlert.recommended ? 'text-amber-700' : 'text-slate-900'}`}>
                   {adminAlert.label || 'En observación'}
                 </h2>
-                <p className="mt-1 text-sm font-semibold text-slate-500">
-                  {adminAlert.metCount || 0} de {adminAlert.requiredCount || 3} criterios activos.
-                </p>
+                {adminAlert.suggestedSupport && (
+                  <p className="mt-1 text-sm font-semibold text-slate-500">
+                    Según volumen: {adminAlert.suggestedSupport}.
+                  </p>
+                )}
+                {(adminAlert.reasons || []).map((reason) => (
+                  <p key={reason} className="mt-1 text-xs font-semibold text-slate-400">{reason}</p>
+                ))}
               </div>
               <BriefcaseBusiness className={adminAlert.recommended ? 'text-amber-600' : 'text-slate-300'} size={24} />
             </div>
@@ -537,7 +523,7 @@ const CapacityPage = () => {
                   {kinesiologistAlert.label || 'En observación'}
                 </h2>
                 <p className="mt-1 text-sm font-semibold text-slate-500">
-                  {kinesiologistAlert.metCount || 0} de {kinesiologistAlert.requiredCount || 3} criterios activos.
+                  {kinesiologistAlert.metCount || 0} de {kinesiologistAlert.requiredCount || 3} criterios obligatorios.
                 </p>
               </div>
               <UserPlus className={kinesiologistAlert.recommended ? 'text-rose-600' : 'text-slate-300'} size={24} />
@@ -553,7 +539,7 @@ const CapacityPage = () => {
                 <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Histórico mensual</p>
                 <h2 className="mt-2 text-xl font-black text-slate-900">Capacidad, ocupación y asistencia</h2>
                 <p className="mt-1 text-sm font-semibold text-slate-500">
-                  Revisá cómo evolucionó el consultorio mes a mes. La ocupación usa turnos no cancelados; la asistencia muestra turnos efectivamente atendidos.
+                  La ocupación usa turnos no cancelados; la asistencia, turnos efectivamente atendidos. El mes en curso no está cerrado. La capacidad de meses pasados es una estimación con los horarios actuales.
                 </p>
               </div>
               <div className="flex items-center gap-2 self-start rounded-xl bg-slate-100 p-1" aria-label="Período del histórico">
@@ -616,7 +602,7 @@ const CapacityPage = () => {
               <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200">
                 <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
                   <h3 className="text-sm font-black text-slate-900">Detalle mensual</h3>
-                  <p className="mt-1 text-xs font-semibold text-slate-500">Todo el año disponible para comparar capacidad, demanda y asistencia.</p>
+                  <p className="mt-1 text-xs font-semibold text-slate-500">Desde el primer mes con turnos. Capacidad histórica estimada: no hay versiones de horarios anteriores.</p>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="min-w-full text-left text-sm">
@@ -632,7 +618,7 @@ const CapacityPage = () => {
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {monthlyTrend.map((row) => (
-                        <tr key={row.monthKey} className="bg-white text-slate-600">
+                        <tr key={row.monthKey} className={row.isCurrentMonth ? 'bg-amber-50/60 text-slate-600' : 'bg-white text-slate-600'}>
                           <th scope="row" className="whitespace-nowrap px-4 py-3 font-black text-slate-800">{row.label || row.month}</th>
                           <td className="px-4 py-3 text-right font-semibold">{formatNumber(row.capacity)}</td>
                           <td className="px-4 py-3 text-right font-semibold">{formatCount(row.occupiedCount)}</td>
@@ -660,6 +646,38 @@ const CapacityPage = () => {
             </div>
             <InsightList insights={operationalInsights} />
           </div>
+        </section>
+
+        <section className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Saturación por día y franja · últimas 8 semanas</p>
+          <p className="mt-1 text-xs font-semibold text-slate-500">{definitions.slotSaturation}</p>
+          {(saturation.byDayOfWeek || []).length === 0 ? (
+            <p className="mt-4 text-sm font-semibold text-slate-400">Datos insuficientes.</p>
+          ) : (
+            <div className="mt-4 grid gap-4 lg:grid-cols-2">
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+                {saturation.byDayOfWeek.map((day) => (
+                  <div key={day.dayOfWeek} className="rounded-xl bg-slate-50 px-3 py-3 text-center">
+                    <p className="text-[10px] font-black uppercase text-slate-400">{dayLabels[day.dayOfWeek]}</p>
+                    <p className="mt-1 text-lg font-black text-slate-900">{formatRate(day.occupancyRate)}</p>
+                  </div>
+                ))}
+              </div>
+              <div>
+                <p className="text-xs font-black text-slate-600">
+                  Franjas más ocupadas · {formatCount(saturation.saturatedSlotCount)} saturadas de {formatCount(saturation.slotCount)}
+                </p>
+                <ul className="mt-2 space-y-1 text-sm font-semibold text-slate-600">
+                  {(saturation.topSlots || []).map((slot) => (
+                    <li key={`${slot.dayOfWeek}-${slot.time}`} className="flex justify-between">
+                      <span>{dayLabels[slot.dayOfWeek]} {slot.time}</span>
+                      <span className={slot.saturated ? 'font-black text-rose-700' : 'font-black'}>{formatRate(slot.occupancyRate)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
         </section>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

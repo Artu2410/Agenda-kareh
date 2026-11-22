@@ -7,6 +7,16 @@ export const ROLE_LABELS = Object.freeze({
   SECRETARIA: 'SECRETARIA',
 });
 
+// Nombres legibles para la interfaz. ROLE_LABELS conserva el código canónico del backend.
+export const ROLE_DISPLAY_NAMES = Object.freeze({
+  SUPER_USER: 'Superusuario',
+  ADMIN: 'Administrador',
+  PROFESSIONAL: 'Profesional',
+  SECRETARIA: 'Secretaría',
+});
+
+export const formatRoleDisplayName = (role) => ROLE_DISPLAY_NAMES[normalizeRole(role)] || normalizeRole(role) || 'Sin rol';
+
 export const ROLE_OPTIONS = Object.entries(ROLE_LABELS).map(([value, label]) => ({
   value,
   label,

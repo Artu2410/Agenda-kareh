@@ -115,10 +115,17 @@ export const updateUser = async (req, res, prisma) => {
       return res.status(403).json({ message: 'No autorizado para editar este usuario' });
     }
 
+    if (id === req.user?.userId && req.body.isActive === false) {
+      return res.status(400).json({ message: 'No puedes desactivar tu propio usuario' });
+    }
+
+    const effectiveRole = normalizeUserRole(req.body.role === undefined ? currentUserRecord.role : req.body.role);
     validateUserPayload({
       ...req.body,
+      // Activar/desactivar sin reenviar el vínculo no debe romper a un PROFESSIONAL ya vinculado.
+      professionalId: req.body.professionalId === undefined ? currentUserRecord.professionalId : req.body.professionalId,
       currentRole: currentUserRecord.role,
-      role: req.body.role === undefined ? currentUserRecord.role : req.body.role,
+      role: effectiveRole,
     }, req.user, { allowExistingRole: true });
 
     const updatedUser = await prisma.user.update({
@@ -127,7 +134,9 @@ export const updateUser = async (req, res, prisma) => {
         email: req.body.email === undefined ? undefined : String(req.body.email || '').trim().toLowerCase(),
         fullName: req.body.fullName === undefined ? undefined : String(req.body.fullName || '').trim(),
         isActive: req.body.isActive,
-        professionalId: req.body.professionalId === undefined ? undefined : (req.body.professionalId || null),
+        professionalId: effectiveRole !== 'PROFESSIONAL'
+          ? null
+          : (req.body.professionalId === undefined ? undefined : (req.body.professionalId || null)),
       },
       select: userSelect,
     });
@@ -176,7 +185,10 @@ export const updateUserRole = async (req, res, prisma) => {
       where: { id },
       data: {
         role: nextRole,
-        professionalId: req.body.professionalId === undefined ? undefined : (req.body.professionalId || null),
+        // Solo PROFESSIONAL queda vinculado a un profesional del staff.
+        professionalId: nextRole !== 'PROFESSIONAL'
+          ? null
+          : (req.body.professionalId === undefined ? undefined : (req.body.professionalId || null)),
       },
       select: userSelect,
     });

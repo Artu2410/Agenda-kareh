@@ -1,4 +1,5 @@
 import {
+  addDays,
   addMonths,
   endOfWeek,
   format,
@@ -9,7 +10,13 @@ import {
   subMonths,
 } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { getCapacityForMonth, getCapacityForWeek } from '../domain/metrics/capacity.service.js';
+import { getCapacityForDate, getCapacityForMonth, getCapacityForWeek } from '../domain/metrics/capacity.service.js';
+import {
+  PENDING_STATUSES,
+  buildFutureAgenda,
+  buildPeriodBreakdown,
+  classifyStatus,
+} from '../domain/metrics/operationalAnalysis.js';
 import { getHolidaysForDateRange } from '../services/holidayCalendar.service.js';
 import { getCoverageLabel } from '../utils/coverage.js';
 import { createInternalError } from '../errors/AppError.js';
@@ -27,7 +34,7 @@ const buildMonthlyRange = (baseDate) => {
   return { start, nextStart };
 };
 
-const buildMonthlySnapshot = async (prisma, baseDate) => {
+const buildMonthlySnapshot = async (prisma, baseDate, now = new Date()) => {
   const { start, nextStart } = buildMonthlyRange(baseDate);
 
   const [appointments, completedCount, noShowCount, scheduledCount] = await Promise.all([
@@ -62,7 +69,7 @@ const buildMonthlySnapshot = async (prisma, baseDate) => {
     prisma.appointment.count({
       where: {
         date: { gte: start, lt: nextStart },
-        status: 'SCHEDULED',
+        status: { in: PENDING_STATUSES },
       },
     }),
   ]);
@@ -91,10 +98,12 @@ const buildMonthlySnapshot = async (prisma, baseDate) => {
     .sort((a, b) => b.count - a.count);
 
   const resolvedCount = completedCount + noShowCount;
+  // Sin turnos resueltos no hay tasa de asistencia: null se muestra como "-".
   const attendanceRate = resolvedCount > 0
     ? Number(((completedCount / resolvedCount) * 100).toFixed(1))
-    : 0;
+    : null;
   const totalTurnosMes = appointments.length;
+  const breakdown = buildPeriodBreakdown({ appointments, capacity: 0, now });
 
   return {
     start,
@@ -104,6 +113,10 @@ const buildMonthlySnapshot = async (prisma, baseDate) => {
     completedCount,
     noShowCount,
     scheduledCount,
+    pendingPastCount: breakdown.pendingPast,
+    upcomingCount: breakdown.upcoming,
+    otherStatusCount: breakdown.otherStatus,
+    authorizationAttentionCount: breakdown.authorizationAttention,
     resolvedCount,
     attendanceRate,
     totalTurnosMes,
@@ -115,7 +128,7 @@ const buildMonthlySnapshot = async (prisma, baseDate) => {
 
 const formatFutureMonthLabel = (date) => format(date, 'MMM yy', { locale: es }).replace('.', '').toUpperCase();
 
-const buildFutureAgendaSnapshot = async (prisma, now) => {
+const buildFutureAgendaSnapshot = async (prisma, now, getDayCapacity = () => 0) => {
   const todayStart = startOfDay(now);
 
   const [futureAppointments, firstAppointments] = await Promise.all([
@@ -127,6 +140,7 @@ const buildFutureAgendaSnapshot = async (prisma, now) => {
       select: {
         id: true,
         date: true,
+        status: true,
         patientId: true,
       },
       orderBy: [
@@ -196,7 +210,13 @@ const buildFutureAgendaSnapshot = async (prisma, now) => {
     }))
     .sort((a, b) => a.monthKey.localeCompare(b.monthKey));
 
+  const agenda = buildFutureAgenda({ futureAppointments, now, getDayCapacity });
+
   return {
+    calendarDaysToLastAppointment: agenda.calendarDaysToLastAppointment,
+    daysWithAppointments: agenda.daysWithAppointments,
+    weeksWithAppointments: agenda.weeksWithAppointments,
+    window: agenda.window,
     farthestDate: farthestAppointment?.date || null,
     farthestLabel: farthestAppointment ? format(farthestAppointment.date, "EEEE d 'de' MMMM yyyy", { locale: es }) : null,
     appointmentCount: futureAppointments.length,
@@ -396,7 +416,7 @@ export const getMetrics = async (req, res, prisma) => {
       select: { id: true, date: true, status: true, professionalId: true, slotNumber: true },
     });
 
-    const weeklyScheduled = weeklyAppointments.filter((appointment) => appointment.status === 'SCHEDULED').length;
+    const weeklyScheduled = weeklyAppointments.filter((appointment) => classifyStatus(appointment.status) === 'pending').length;
     const weeklyCompleted = weeklyAppointments.filter((appointment) => appointment.status === 'COMPLETED').length;
     const weeklyNoShow = weeklyAppointments.filter((appointment) => appointment.status === 'NO_SHOW').length;
     const weeklyTotal = weeklyAppointments.length;
@@ -418,9 +438,8 @@ export const getMetrics = async (req, res, prisma) => {
     ]);
     const weeklyResolved = weeklyCompleted + weeklyNoShow;
 
-    const currentMonthSnapshot = await buildMonthlySnapshot(prisma, now);
-    const previousMonthSnapshot = await buildMonthlySnapshot(prisma, subMonths(now, 1));
-    const futureAgendaSnapshot = await buildFutureAgendaSnapshot(prisma, now);
+    const currentMonthSnapshot = await buildMonthlySnapshot(prisma, now, now);
+    const previousMonthSnapshot = await buildMonthlySnapshot(prisma, subMonths(now, 1), now);
     const agendaConfig = prisma?.agendaConfig?.findFirst ? await prisma.agendaConfig.findFirst() : null;
     const calendarEntries = prisma?.agendaCalendarEntry?.findMany
       ? await prisma.agendaCalendarEntry.findMany({
@@ -428,10 +447,20 @@ export const getMetrics = async (req, res, prisma) => {
         orderBy: [{ date: 'asc' }, { name: 'asc' }],
       })
       : [];
-    const capacityRangeStart = startOfWeek(now);
+    // El rango de feriados debe cubrir el mes completo (no solo desde esta
+    // semana) y la agenda futura; antes los feriados previos a la semana actual
+    // no se descontaban y la capacidad mensual quedaba inflada.
+    const lastFutureDate = prisma.appointment.findFirst && await prisma.appointment.findFirst({
+      where: { date: { gte: startOfDay(now) }, status: { not: 'CANCELLED' } },
+      orderBy: { date: 'desc' },
+      select: { date: true },
+    });
+    const capacityRangeStart = new Date(Math.min(weekStart.getTime(), currentMonthSnapshot.start.getTime()));
     const capacityRangeEnd = new Date(Math.max(
       endOfWeek(now).getTime(),
       currentMonthSnapshot.nextStart.getTime() - 1,
+      addDays(startOfDay(now), 60).getTime(),
+      lastFutureDate?.date ? new Date(lastFutureDate.date).getTime() : 0,
     ));
     const holidays = await getHolidaysForDateRange(
       format(capacityRangeStart, 'yyyy-MM-dd'),
@@ -446,6 +475,12 @@ export const getMetrics = async (req, res, prisma) => {
       })
       : [];
     
+    const futureAgendaSnapshot = await buildFutureAgendaSnapshot(
+      prisma,
+      now,
+      (date) => getCapacityForDate({ date, professionals, agendaConfig, calendarEntries, holidays }).capacity,
+    );
+
     const monthlyCapacitySummary = getCapacityForMonth({
       year: now.getFullYear(),
       month: now.getMonth() + 1,
@@ -486,7 +521,8 @@ export const getMetrics = async (req, res, prisma) => {
       },
     });
     const commercial = buildCommercialMetrics(appointmentRows);
-    const billingByCoverage = await buildBillingByCoverage(prisma, currentMonthSnapshot);
+    const canViewFinance = ['SUPER_USER', 'ADMIN', 'SECRETARIA'].includes(String(req?.user?.role || '').toUpperCase());
+    const billingByCoverage = canViewFinance ? await buildBillingByCoverage(prisma, currentMonthSnapshot) : [];
     const insights = buildInsights({
       monthly: {
         capacityMonthly: monthlyCapacity,
@@ -497,18 +533,35 @@ export const getMetrics = async (req, res, prisma) => {
       billingByCoverage,
     });
 
-    const monthlyChange = previousMonthSnapshot.appointmentCount > 0
-      ? Number((((currentMonthSnapshot.appointmentCount - previousMonthSnapshot.appointmentCount) / previousMonthSnapshot.appointmentCount) * 100).toFixed(1))
-      : (currentMonthSnapshot.appointmentCount > 0 ? 100 : 0);
+    // Mes en curso: se compara el mismo tramo (día 1 a hoy) contra el mes anterior,
+    // para no comparar un mes incompleto (con turnos futuros) contra uno cerrado.
+    const isCurrentMonth = format(now, 'yyyy-MM') === format(new Date(), 'yyyy-MM');
+    const cutoffDay = now.getDate();
+    const countUntilDay = (snapshot) => snapshot.appointments
+      .filter((appointment) => new Date(appointment.date).getDate() <= cutoffDay).length;
+    const comparableCurrent = isCurrentMonth ? countUntilDay(currentMonthSnapshot) : currentMonthSnapshot.appointmentCount;
+    const comparablePrevious = isCurrentMonth ? countUntilDay(previousMonthSnapshot) : previousMonthSnapshot.appointmentCount;
+    const monthlyChange = comparablePrevious > 0
+      ? Number((((comparableCurrent - comparablePrevious) / comparablePrevious) * 100).toFixed(1))
+      : null;
 
     const yearStart = startOfYear(now);
-    const uniquePatients = await prisma.appointment.groupBy({
-      by: ['patientId'],
-      where: {
-        date: { gte: yearStart },
-        status: { not: 'CANCELLED' },
-      },
-    });
+    const [uniquePatients, attendedPatients] = await Promise.all([
+      prisma.appointment.groupBy({
+        by: ['patientId'],
+        where: {
+          date: { gte: yearStart },
+          status: { not: 'CANCELLED' },
+        },
+      }),
+      prisma.appointment.groupBy({
+        by: ['patientId'],
+        where: {
+          date: { gte: yearStart },
+          status: 'COMPLETED',
+        },
+      }),
+    ]);
 
     const [annualAppointmentCount, annualCompletedCount, annualNoShowCount] = await Promise.all([
       prisma.appointment.count({
@@ -534,9 +587,14 @@ export const getMetrics = async (req, res, prisma) => {
     const trendDates = Array.from({ length: 12 }, (_, index) => subMonths(now, 11 - index));
     const monthlyTrend = await Promise.all(
       trendDates.map(async (monthDate) => {
-        const snapshot = await buildMonthlySnapshot(prisma, monthDate);
+        const snapshot = await buildMonthlySnapshot(prisma, monthDate, now);
+        const monthKey = format(monthDate, 'yyyy-MM');
 
         return {
+          isCurrentMonth: monthKey === format(new Date(), 'yyyy-MM'),
+          pendingPastCount: snapshot.pendingPastCount,
+          upcomingCount: snapshot.upcomingCount,
+          otherStatusCount: snapshot.otherStatusCount,
           monthKey: format(monthDate, 'yyyy-MM'),
           month: formatChartMonth(monthDate),
           label: formatMonthLabel(monthDate),
@@ -569,8 +627,10 @@ export const getMetrics = async (req, res, prisma) => {
         capacityDays: weeklyCapacitySummary.days,
         respiratory: weeklyRespiratory,
         iu: weeklyIU,
+        start: weekStart,
+        end: weekEnd,
         percentage: weeklyTotal > 0 ? Number(((weeklyCompleted / weeklyTotal) * 100).toFixed(1)) : 0,
-        attendanceRate: weeklyResolved > 0 ? Number(((weeklyCompleted / weeklyResolved) * 100).toFixed(1)) : 0,
+        attendanceRate: weeklyResolved > 0 ? Number(((weeklyCompleted / weeklyResolved) * 100).toFixed(1)) : null,
       },
       monthly: {
         current: currentMonthSnapshot.appointmentCount,
@@ -584,8 +644,16 @@ export const getMetrics = async (req, res, prisma) => {
         reservedCount: monthlyCapacitySummary.reservedCount,
         attendedCount: monthlyCapacitySummary.attendedCount,
         noShowCount: monthlyCapacitySummary.noShowCount,
+        isPartial: isCurrentMonth,
+        pendingPast: currentMonthSnapshot.pendingPastCount,
+        upcoming: currentMonthSnapshot.upcomingCount,
+        otherStatus: currentMonthSnapshot.otherStatusCount,
+        authorizationAttention: currentMonthSnapshot.authorizationAttentionCount,
         change: monthlyChange,
-        changeLabel: monthlyChange >= 0 ? `+${monthlyChange}%` : `${monthlyChange}%`,
+        changeLabel: monthlyChange === null ? 'Sin base' : (monthlyChange >= 0 ? `+${monthlyChange}%` : `${monthlyChange}%`),
+        changeBasis: isCurrentMonth
+          ? `Días 1 a ${cutoffDay}: ${comparableCurrent} vs ${comparablePrevious} del mes anterior`
+          : 'Mes completo vs mes anterior completo',
         label: formatMonthLabel(now),
         insuranceBreakdown: currentMonthSnapshot.insuranceBreakdown,
         respiratory: currentMonthSnapshot.respiratoryCount,
@@ -602,6 +670,7 @@ export const getMetrics = async (req, res, prisma) => {
       insights,
       annual: {
         patientCount: uniquePatients.length,
+        attendedPatientCount: attendedPatients.length,
         appointmentCount: annualAppointmentCount,
         completedCount: annualCompletedCount,
         noShowCount: annualNoShowCount,

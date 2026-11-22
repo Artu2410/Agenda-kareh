@@ -129,11 +129,15 @@ export default function LoginPage({ onLoginSuccess }) {
       >
         <div className="backdrop-blur-xl bg-white/95 rounded-2xl shadow-2xl p-8 border border-white/20">
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-linear-to-br from-teal-500 to-teal-600 mb-4 shadow-lg">
-              <span className="text-2xl">🏥</span>
-            </div>
-            <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Kareh Salud</h1>
-            <p className="text-slate-600 mt-2 font-medium">Centro de Kinesiología</p>
+            <h1 className="sr-only">Kareh Salud</h1>
+            <img
+              src="/kareh-login-logo.png"
+              alt="Kareh"
+              width="480"
+              height="438"
+              className="mx-auto mb-3 h-auto w-44"
+            />
+            <p className="text-slate-600 font-medium">Centro de Kinesiología</p>
           </div>
 
           {step === 'email' ? (
@@ -153,7 +157,7 @@ export default function LoginPage({ onLoginSuccess }) {
                     aria-label="Correo Electrónico"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="centrokareh@gmail.com"
+                    placeholder="example@gmail.com"
                     className="w-full pl-12 pr-4 py-3 rounded-lg border-2 border-slate-200 focus:border-teal-500 focus:ring-2 focus:ring-teal-200 outline-none transition-all"
                     disabled={loading}
                   />

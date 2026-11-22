@@ -19,6 +19,8 @@ import ActaBookToggle from '../components/patients/ActaBookToggle';
 import { buildClinicalHistoryPath, persistClinicalHistoryContext } from '../utils/appRoutes';
 import { getCoverageLabel, isParticularCoverage } from '../utils/coverage';
 import { getAuthenticatedFileUrl } from '../services/fileUrl';
+import { getStoredUser } from '../services/session';
+import { isAdmin } from '../utils/roles';
 
 const UNKNOWN_BIRTHDATE = '1900-01-01';
 
@@ -105,6 +107,8 @@ const renderPatientBadges = (patient) => (
 
 export default function PatientsPage() {
   const navigate = useNavigate();
+  // Eliminar pacientes es solo para administración (la API también lo exige).
+  const canDeletePatients = isAdmin(getStoredUser().role);
   const { ConfirmModalComponent, openModal } = useConfirmModal();
   const [patients, setPatients] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -441,9 +445,11 @@ export default function PatientsPage() {
                         <button type="button" onClick={() => openEditModal(patient)} className="p-2 hover:text-blue-600">
                           <Edit2 size={18} />
                         </button>
-                        <button type="button" onClick={() => deletePatient(patient.id)} className="p-2 hover:text-red-600">
-                          <Trash2 size={18} />
-                        </button>
+                        {canDeletePatients && (
+                          <button type="button" onClick={() => deletePatient(patient.id)} className="p-2 hover:text-red-600" aria-label="Eliminar paciente">
+                            <Trash2 size={18} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -481,9 +487,11 @@ export default function PatientsPage() {
                   <button type="button" onClick={() => openEditModal(patient)} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200 px-3 py-2 text-xs font-black uppercase text-blue-600">
                     Editar
                   </button>
-                  <button type="button" onClick={() => deletePatient(patient.id)} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs font-black uppercase text-red-600">
-                    Borrar
-                  </button>
+                  {canDeletePatients && (
+                    <button type="button" onClick={() => deletePatient(patient.id)} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs font-black uppercase text-red-600">
+                      Borrar
+                    </button>
+                  )}
                 </div>
               </article>
             ))}
