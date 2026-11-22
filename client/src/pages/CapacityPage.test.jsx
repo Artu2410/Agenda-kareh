@@ -118,6 +118,32 @@ describe('CapacityPage', () => {
     expect(screen.getByText('10 turnos pasados sin cerrar')).toBeTruthy();
   });
 
+  it('recorre la saturación semana por semana con pacientes citados por día', async () => {
+    const week = (offset, start, end, patients) => ({
+      weekStart: start, weekEnd: end, offset, isCurrent: offset === 0, isFuture: offset > 0,
+      capacity: 250, reserved: patients, patients, occupancyRate: patients / 2.5, closedDays: [], saturatedSlotCount: 0,
+      topSlots: [{ dayOfWeek: 2, time: '17:30', reserved: patients, capacity: 5, occupancyRate: 40, saturated: false }],
+      days: [{ dayOfWeek: 2, date: start.replace(/..$/, '17'), capacity: 20, reserved: patients, patients, occupancyRate: 20 }],
+    });
+    api.get.mockResolvedValueOnce({
+      data: {
+        currentMonth: {}, currentWeek: {}, futureCoverage: {}, bottleneck: {}, alerts: {}, monthlyTrend: [], professionals: [],
+        weeklySaturation: [week(-1, '2026-11-08', '2026-11-14', 3), week(0, '2026-11-15', '2026-11-21', 7)],
+      },
+    });
+
+    render(<CapacityPage />);
+
+    expect(await screen.findByText('15/11 – 21/11')).toBeTruthy();
+    expect(screen.getByText('Semana actual')).toBeTruthy();
+    expect(screen.getByText('7 pacientes')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Semana anterior' }));
+    expect(screen.getByText('08/11 – 14/11')).toBeTruthy();
+    expect(screen.getByText('3 pacientes')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Hoy' }));
+    expect(screen.getByText('15/11 – 21/11')).toBeTruthy();
+  });
+
   it('shows the complete annual monthly breakdown and can narrow the chart to six months', async () => {
     render(<CapacityPage />);
 

@@ -27,6 +27,7 @@ import {
   buildPatientBreakdown,
   buildPeriodBreakdown,
   buildSlotSaturation,
+  buildWeeklySaturation,
   getOperationalStatus,
   getSustainedGrowth,
 } from '../domain/metrics/operationalAnalysis.js';
@@ -469,6 +470,21 @@ export const getCapacityMetrics = async (req, res, prisma) => {
       capacityPerSlot: operationalCapacity.capacityPerSlot,
     });
 
+    const appointmentsById = new Map();
+    [...historicalAppointments, ...futureAppointments].forEach((appointment) => {
+      appointmentsById.set(appointment.id, appointment);
+    });
+    const weeklySaturation = buildWeeklySaturation({
+      now,
+      getWeekDays: (weekStartDate) => Array.from({ length: 7 }, (_, index) => (
+        getCapacityForDate({ date: addDays(weekStartDate, index), ...capacityOptions })
+      )),
+      appointments: [...appointmentsById.values()],
+      professionals,
+      slotDuration: operationalCapacity.sessionDurationMinutes,
+      capacityPerSlot: operationalCapacity.capacityPerSlot,
+    });
+
     const adminRecommendation = buildAdminAssessment({ breakdown, patients });
     const kinesiologistRecommendation = buildKinesiologistAssessment({
       occupancyRate: breakdown.occupancyRate,
@@ -550,6 +566,7 @@ export const getCapacityMetrics = async (req, res, prisma) => {
       },
       operationalStatus,
       saturation,
+      weeklySaturation,
       professionals: professionalsSummary,
       futureCoverage,
       monthlyTrend,

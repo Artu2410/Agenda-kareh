@@ -113,6 +113,11 @@ const accentClassNames = {
 
 const toneToAccent = { success: 'emerald', warning: 'amber', danger: 'rose', critical: 'rose', neutral: 'teal' };
 
+const formatWeekRange = (week) => {
+  const toLabel = (key) => `${key.slice(8, 10)}/${key.slice(5, 7)}`;
+  return `${toLabel(week.weekStart)} – ${toLabel(week.weekEnd)}`;
+};
+
 const getHeatClassName = (rate) => {
   const value = Number(rate) || 0;
   if (value >= 90) return 'bg-rose-500 text-white';
@@ -321,6 +326,8 @@ const CapacityPage = () => {
   const [capacity, setCapacity] = useState(null);
   const [loading, setLoading] = useState(true);
   const [historyView, setHistoryView] = useState('year');
+  // null = semana actual; si no, índice dentro de weeklySaturation.
+  const [weekIndex, setWeekIndex] = useState(null);
 
   const fetchCapacity = useCallback(async ({ silent = false } = {}) => {
     try {
@@ -355,7 +362,10 @@ const CapacityPage = () => {
   const breakdown = currentMonth?.breakdown || {};
   const patients = currentMonth?.patients || {};
   const currentWeek = capacity?.currentWeek || {};
-  const saturation = capacity?.saturation || {};
+  const weeklySaturation = capacity?.weeklySaturation || [];
+  const currentWeekIndex = Math.max(weeklySaturation.findIndex((week) => week.isCurrent), 0);
+  const resolvedWeekIndex = weekIndex ?? currentWeekIndex;
+  const selectedWeek = weeklySaturation[resolvedWeekIndex] || null;
   const futureWindow = futureCoverage?.window || {};
   const asOfLabel = formatDate(currentMonth?.asOf ? `${currentMonth.asOf}T12:00:00` : capacity?.generatedAt);
   const operationalInsights = buildOperationalInsights({
@@ -699,34 +709,105 @@ const CapacityPage = () => {
         </section>
 
         <section className="mb-6 rounded-3xl border border-slate-200/80 bg-white p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_-12px_rgba(15,23,42,0.12)]">
-          <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-teal-700">Saturación por día y franja · últimas 8 semanas</p>
-          <p className="mt-1 text-xs font-semibold text-slate-500">{definitions.slotSaturation}</p>
-          {(saturation.byDayOfWeek || []).length === 0 ? (
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-teal-700">Saturación semanal por día y franja</p>
+              <p className="mt-1 text-xs font-semibold text-slate-500">
+                Turnos citados / lugares disponibles de cada día. Debajo, los pacientes citados.
+              </p>
+            </div>
+            {selectedWeek && (
+              <div className="flex items-center gap-2 self-start" aria-label="Recorrido semanal">
+                <button
+                  type="button"
+                  onClick={() => setWeekIndex((index) => Math.max(index - 1, 0))}
+                  disabled={resolvedWeekIndex === 0}
+                  aria-label="Semana anterior"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-lg font-black text-slate-600 hover:bg-teal-50 disabled:opacity-40"
+                >
+                  ‹
+                </button>
+                <div className="min-w-[170px] rounded-xl bg-teal-50 px-3 py-2 text-center ring-1 ring-teal-100">
+                  <p className="text-sm font-black text-teal-800">{formatWeekRange(selectedWeek)}</p>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-teal-600">
+                    {selectedWeek.isCurrent ? 'Semana actual' : selectedWeek.isFuture ? 'Agenda futura' : `Hace ${Math.abs(selectedWeek.offset)} sem.`}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setWeekIndex((index) => Math.min(index + 1, weeklySaturation.length - 1))}
+                  disabled={resolvedWeekIndex >= weeklySaturation.length - 1}
+                  aria-label="Semana siguiente"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-lg font-black text-slate-600 hover:bg-teal-50 disabled:opacity-40"
+                >
+                  ›
+                </button>
+                {!selectedWeek.isCurrent && (
+                  <button
+                    type="button"
+                    onClick={() => setWeekIndex(null)}
+                    className="min-h-10 rounded-xl px-3 text-xs font-bold text-teal-700 hover:bg-teal-50"
+                  >
+                    Hoy
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {!selectedWeek ? (
             <p className="mt-4 text-sm font-semibold text-slate-400">Datos insuficientes.</p>
           ) : (
-            <div className="mt-4 grid gap-4 lg:grid-cols-2">
-              <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
-                {saturation.byDayOfWeek.map((day) => (
-                  <div key={day.dayOfWeek} className={`rounded-2xl px-3 py-3 text-center ${getHeatClassName(day.occupancyRate)}`}>
-                    <p className="text-[10px] font-black uppercase opacity-80">{dayLabels[day.dayOfWeek]}</p>
-                    <p className="mt-1 text-lg font-black">{formatRate(day.occupancyRate)}</p>
-                  </div>
-                ))}
+            <>
+              <div className="mt-4 flex flex-wrap gap-2 text-xs font-bold">
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-700">Ocupación de la semana: {formatRate(selectedWeek.occupancyRate)}</span>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-700">{formatCount(selectedWeek.reserved)} turnos de {formatCount(selectedWeek.capacity)} lugares</span>
+                <span className="rounded-full bg-violet-50 px-3 py-1 text-violet-700">{formatCount(selectedWeek.patients)} pacientes distintos</span>
+                {selectedWeek.saturatedSlotCount > 0 && (
+                  <span className="rounded-full bg-rose-50 px-3 py-1 text-rose-700">{formatCount(selectedWeek.saturatedSlotCount)} franjas saturadas</span>
+                )}
               </div>
-              <div>
-                <p className="text-xs font-black text-slate-600">
-                  Franjas más ocupadas · {formatCount(saturation.saturatedSlotCount)} saturadas de {formatCount(saturation.slotCount)}
-                </p>
-                <ul className="mt-2 space-y-1 text-sm font-semibold text-slate-600">
-                  {(saturation.topSlots || []).map((slot) => (
-                    <li key={`${slot.dayOfWeek}-${slot.time}`} className="flex justify-between">
-                      <span>{dayLabels[slot.dayOfWeek]} {slot.time}</span>
-                      <span className={slot.saturated ? 'font-black text-rose-700' : 'font-black'}>{formatRate(slot.occupancyRate)}</span>
-                    </li>
-                  ))}
-                </ul>
+              <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+                <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+                  {selectedWeek.days.map((day) => {
+                    const isClosed = (selectedWeek.closedDays || []).includes(day.date);
+                    return (
+                      <div
+                        key={day.dayOfWeek}
+                        className={`rounded-2xl px-3 py-3 text-center ${isClosed ? 'bg-slate-100 text-slate-400' : getHeatClassName(day.occupancyRate)}`}
+                      >
+                        <p className="text-[10px] font-black uppercase opacity-80">
+                          {dayLabels[day.dayOfWeek]}{day.date ? ` ${day.date.slice(8, 10)}/${day.date.slice(5, 7)}` : ''}
+                        </p>
+                        <p className="mt-1 text-lg font-black">{isClosed ? 'Cerrado' : formatRate(day.occupancyRate)}</p>
+                        {!isClosed && (
+                          <p className="mt-0.5 text-[11px] font-bold opacity-90">
+                            {formatCount(day.patients)} {day.patients === 1 ? 'paciente' : 'pacientes'}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div>
+                  <p className="text-xs font-black text-slate-600">Franjas más ocupadas de la semana</p>
+                  {(selectedWeek.topSlots || []).length === 0 ? (
+                    <p className="mt-2 text-sm font-semibold text-slate-400">Sin turnos citados esta semana.</p>
+                  ) : (
+                    <ul className="mt-2 space-y-1 text-sm font-semibold text-slate-600">
+                      {selectedWeek.topSlots.map((slot) => (
+                        <li key={`${slot.dayOfWeek}-${slot.time}`} className="flex justify-between gap-3">
+                          <span>{dayLabels[slot.dayOfWeek]} {slot.time}</span>
+                          <span className={slot.saturated ? 'font-black text-rose-700' : 'font-black text-slate-800'}>
+                            {formatRate(slot.occupancyRate)} · {formatCount(slot.reserved)}/{formatCount(slot.capacity)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               </div>
-            </div>
+            </>
           )}
         </section>
 

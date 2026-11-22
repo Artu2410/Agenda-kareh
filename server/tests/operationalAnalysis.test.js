@@ -6,6 +6,7 @@ import {
   buildPatientBreakdown,
   buildPeriodBreakdown,
   buildSlotSaturation,
+  buildWeeklySaturation,
   getOperationalStatus,
   getSustainedGrowth,
 } from '../src/domain/metrics/operationalAnalysis.js';
@@ -273,5 +274,33 @@ describe('GET /capacity: noviembre en curso', () => {
     expect(payload.bottleneck.key).not.toBe('ADMINISTRATION');
     expect(payload.operationalStatus.key).toBe('INSUFFICIENT_DATA'); // 1 de 3 turnos pasados sin cerrar
     expect(payload.definitions.occupancy).toMatch(/lugares de turno/);
+  });
+});
+
+describe('buildWeeklySaturation', () => {
+  it('arma una semana por entrada con % y pacientes citados por día', () => {
+    const getWeekDays = (weekStart) => Array.from({ length: 7 }, (_, index) => getCapacityForDate({
+      date: new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + index),
+      professionals,
+      agendaConfig: config,
+      calendarEntries: [holiday('2026-11-23')],
+    }));
+    const appointments = [
+      { date: new Date(2026, 10, 24), time: '17:30', status: 'COMPLETED', patientId: 'a' },
+      { date: new Date(2026, 10, 24), time: '18:00', status: 'SCHEDULED', patientId: 'b' },
+      { date: new Date(2026, 10, 24), time: '18:00', status: 'CANCELLED', patientId: 'c' },
+      { date: new Date(2026, 10, 17), time: '17:30', status: 'COMPLETED', patientId: 'a' },
+    ];
+    const weeks = buildWeeklySaturation({
+      now: NOW, weeksBack: 1, weeksAhead: 1, getWeekDays, appointments, professionals, slotDuration: 30, capacityPerSlot: 5,
+    });
+
+    expect(weeks.map((week) => week.weekStart)).toEqual(['2026-11-15', '2026-11-22', '2026-11-29']);
+    const current = weeks[1];
+    expect(current).toEqual(expect.objectContaining({ isCurrent: true, capacity: 195, reserved: 2, patients: 2 }));
+    expect(current.closedDays).toEqual(['2026-11-23']);
+    const tuesday = current.days.find((day) => day.dayOfWeek === 2);
+    expect(tuesday).toEqual(expect.objectContaining({ date: '2026-11-24', reserved: 2, patients: 2, capacity: 20, occupancyRate: 10 }));
+    expect(weeks[0].patients).toBe(1);
   });
 });
