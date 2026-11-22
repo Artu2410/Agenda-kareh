@@ -1,7 +1,6 @@
 import {
   addDays,
   addMonths,
-  differenceInCalendarDays,
   format,
   startOfDay,
   startOfMonth,
@@ -13,10 +12,24 @@ import {
   getCapacityForMonth,
   getProfessionalCapacityFromSummary,
   getCapacityForWeek,
+  getCapacityForDate,
   isCalendarDateOperational,
 } from '../domain/metrics/capacity.service.js';
 import { getHolidaysForDateRange } from '../services/holidayCalendar.service.js';
 import { createInternalError } from '../errors/AppError.js';
+import {
+  DEFINITIONS,
+  THRESHOLDS,
+  buildAdminAssessment,
+  buildBottleneck,
+  buildFutureAgenda,
+  buildKinesiologistAssessment,
+  buildPatientBreakdown,
+  buildPeriodBreakdown,
+  buildSlotSaturation,
+  getOperationalStatus,
+  getSustainedGrowth,
+} from '../domain/metrics/operationalAnalysis.js';
 
 const COMPLETED_STATUS = 'COMPLETED';
 const CANCELLED_STATUS = 'CANCELLED';
@@ -128,29 +141,6 @@ const buildCoverageByMonth = (futureAppointments = []) => {
     .sort((left, right) => left.monthKey.localeCompare(right.monthKey));
 };
 
-const buildFutureCoverage = (futureAppointments, now) => {
-  const farthestAppointment = futureAppointments[futureAppointments.length - 1] || null;
-  const farthestDate = farthestAppointment?.date || null;
-  const daysCovered = farthestDate
-    ? Math.max(0, differenceInCalendarDays(farthestDate, startOfDay(now)))
-    : 0;
-  const patientIds = new Set(futureAppointments.map((appointment) => appointment.patientId).filter(Boolean));
-
-  return {
-    farthestDate,
-    farthestLabel: farthestDate ? format(farthestDate, "EEEE d 'de' MMMM yyyy", { locale: es }) : null,
-    appointmentCount: futureAppointments.length,
-    patientCount: patientIds.size,
-    daysCovered,
-    weeksCovered: roundOne(daysCovered / 7),
-    monthsCovered: roundOne(daysCovered / 30.44),
-    reaches30: daysCovered >= 30,
-    reaches60: daysCovered >= 60,
-    reaches90: daysCovered >= 90,
-    coverageByMonth: buildCoverageByMonth(futureAppointments),
-  };
-};
-
 const buildMonthlyTrend = ({
   appointments = [],
   professionals = [],
@@ -159,20 +149,21 @@ const buildMonthlyTrend = ({
   holidays = [],
   startDate,
   endDate,
+  now,
 }) => {
   const rowsByKey = new Map();
   appointments.forEach((appointment) => {
+    if (appointment.status === CANCELLED_STATUS) return;
     const monthKey = format(appointment.date, 'yyyy-MM');
-    const current = rowsByKey.get(monthKey) || {
-      occupiedCount: 0,
-      attendedCount: 0,
-    };
+    const current = rowsByKey.get(monthKey) || { occupiedCount: 0, attendedCount: 0, noShowCount: 0 };
 
     current.occupiedCount += 1;
     if (appointment.status === COMPLETED_STATUS) current.attendedCount += 1;
+    if (appointment.status === NO_SHOW_STATUS) current.noShowCount += 1;
     rowsByKey.set(monthKey, current);
   });
 
+  const currentMonthKey = format(now, 'yyyy-MM');
   const rows = [];
   for (let monthStart = startOfMonth(startDate); monthStart < endDate; monthStart = addMonths(monthStart, 1)) {
     const monthKey = format(monthStart, 'yyyy-MM');
@@ -185,176 +176,35 @@ const buildMonthlyTrend = ({
       calendarEntries,
       holidays,
     });
-    const counters = rowsByKey.get(monthKey) || { occupiedCount: 0, attendedCount: 0 };
+    const counters = rowsByKey.get(monthKey) || { occupiedCount: 0, attendedCount: 0, noShowCount: 0 };
     const capacity = monthlySummary.effectiveCapacity;
+    const isCurrentMonth = monthKey === currentMonthKey;
 
     rows.push({
       monthKey,
       month: formatChartMonth(monthStart),
-      label: formatMonthLabel(monthStart),
+      label: isCurrentMonth ? `${formatMonthLabel(monthStart)} (en curso)` : formatMonthLabel(monthStart),
       capacity: roundOne(capacity),
       effectiveCapacity: roundOne(capacity),
       occupiedCount: counters.occupiedCount,
       attendedCount: counters.attendedCount,
+      noShowCount: counters.noShowCount,
       turns: counters.occupiedCount,
       completedCount: counters.attendedCount,
       completed: counters.attendedCount,
       occupancyRate: capacity > 0 ? roundOne((counters.occupiedCount / capacity) * 100) : 0,
+      isCurrentMonth,
+      isClosed: !isCurrentMonth,
+      asOf: isCurrentMonth ? format(now, 'yyyy-MM-dd') : null,
+      capacityIsEstimated: true,
       historicalCapacitySource: 'CURRENT_CONFIGURATION_RECONSTRUCTION',
-      historicalCapacityNote: 'No hay snapshots versionados de AgendaConfig ni WorkSchedule; la capacidad histórica fue reconstruida con la configuración actual.',
+      historicalCapacityNote: DEFINITIONS.historicalCapacity,
       monthStart: format(monthStart, 'yyyy-MM-dd'),
       monthEnd: format(addDays(monthEnd, -1), 'yyyy-MM-dd'),
     });
   }
 
   return rows;
-};
-
-const getSustainedGrowth = (monthlyTrend) => {
-  const lastRows = monthlyTrend.slice(-3);
-  if (lastRows.length < 3 || lastRows.some((row) => row.completedCount <= 0)) return false;
-
-  return lastRows[0].completedCount <= lastRows[1].completedCount
-    && lastRows[1].completedCount <= lastRows[2].completedCount
-    && lastRows[2].completedCount > lastRows[0].completedCount;
-};
-
-const buildAdminRecommendation = ({
-  monthlyAppointmentCount,
-  activePatients,
-  occupancyRate,
-}) => {
-  const criteria = [
-    {
-      key: 'monthly_appointments',
-      label: 'Más de 120 turnos mensuales',
-      met: monthlyAppointmentCount > 120,
-      value: monthlyAppointmentCount,
-      measured: true,
-    },
-    {
-      key: 'active_patients',
-      label: 'Más de 15 pacientes activos',
-      met: activePatients > 15,
-      value: activePatients,
-      measured: true,
-    },
-    {
-      key: 'occupancy',
-      label: 'Más de 60% de ocupación',
-      met: occupancyRate > 60,
-      value: roundOne(occupancyRate),
-      measured: true,
-    },
-  ];
-  const metCount = criteria.filter((criterion) => criterion.met).length;
-
-  return {
-    recommended: metCount >= 2,
-    metCount,
-    requiredCount: 2,
-    label: metCount >= 2 ? 'Administrativo recomendado' : 'Administrativo en observación',
-    criteria,
-  };
-};
-
-const buildKinesiologistRecommendation = ({
-  occupancyRate,
-  coverageDays,
-  sustainedGrowth,
-}) => {
-  const criteria = [
-    {
-      key: 'occupancy',
-      label: 'Ocupación mayor a 85%',
-      met: occupancyRate > 85,
-      value: roundOne(occupancyRate),
-      measured: true,
-    },
-    {
-      key: 'coverage',
-      label: 'Agenda llena más de 60 días',
-      met: coverageDays > 60,
-      value: coverageDays,
-      measured: true,
-    },
-    {
-      key: 'growth',
-      label: 'Crecimiento sostenido 3 meses',
-      met: sustainedGrowth,
-      value: sustainedGrowth ? 'Sí' : 'No',
-      measured: true,
-    },
-  ];
-  const metCount = criteria.filter((criterion) => criterion.met).length;
-
-  return {
-    recommended: metCount >= 3,
-    metCount,
-    requiredCount: 3,
-    label: metCount >= 3 ? 'Segundo kinesiólogo recomendado' : 'Segundo kinesiólogo en observación',
-    criteria,
-  };
-};
-
-const buildBottleneckDiagnosis = ({
-  totalCapacity,
-  occupancyRate,
-  coverageDays,
-  activePatients,
-  adminRecommendation,
-  professionals,
-}) => {
-  if (totalCapacity <= 0) {
-    return {
-      key: 'CONFIGURATION',
-      label: 'Falta configuración operativa',
-      description: 'No hay capacidad calculable porque faltan horarios profesionales o duración de sesión.',
-    };
-  }
-
-  const topProfessional = [...professionals]
-    .sort((left, right) => right.completedCount - left.completedCount)[0] || null;
-
-  if (occupancyRate > 85) {
-    return {
-      key: 'CLINICAL_CAPACITY',
-      label: 'Falta capacidad clínica',
-      description: topProfessional
-        ? `El cuello de botella principal es la capacidad clínica de ${topProfessional.fullName}.`
-        : 'El cuello de botella principal es la capacidad clínica disponible.',
-    };
-  }
-
-  if (adminRecommendation.recommended) {
-    return {
-      key: 'ADMINISTRATION',
-      label: 'Falta administración',
-      description: 'La carga operativa ya justifica liberar tiempo administrativo para proteger producción clínica.',
-    };
-  }
-
-  if (occupancyRate < 50 && activePatients <= 15 && coverageDays < 30) {
-    return {
-      key: 'DEMAND',
-      label: 'Falta demanda',
-      description: 'La capacidad disponible supera claramente el volumen actual de turnos y cobertura futura.',
-    };
-  }
-
-  if (occupancyRate >= 70 && coverageDays >= 45) {
-    return {
-      key: 'NEAR_CLINICAL_CAPACITY',
-      label: 'Capacidad clínica próxima',
-      description: 'Todavía hay margen, pero la agenda futura y la ocupación indican presión creciente.',
-    };
-  }
-
-  return {
-    key: 'NO_CRITICAL_BOTTLENECK',
-    label: 'Sin cuello crítico visible',
-    description: 'La operación tiene margen y no muestra una restricción dominante con los datos actuales.',
-  };
 };
 
 export const getCapacityMetrics = async (req, res, prisma) => {
@@ -370,7 +220,7 @@ export const getCapacityMetrics = async (req, res, prisma) => {
     const [
       agendaConfig,
       professionals,
-      currentMonthAppointments,
+      allMonthAppointments,
       currentWeekAppointments,
       historicalAppointments,
       futureAppointments,
@@ -391,11 +241,11 @@ export const getCapacityMetrics = async (req, res, prisma) => {
       prisma.appointment.findMany({
         where: {
           date: { gte: monthStart, lt: monthEnd },
-          status: { not: CANCELLED_STATUS },
         },
         select: {
           id: true,
           date: true,
+          time: true,
           status: true,
           patientId: true,
           professionalId: true,
@@ -423,7 +273,9 @@ export const getCapacityMetrics = async (req, res, prisma) => {
         select: {
           id: true,
           date: true,
+          time: true,
           status: true,
+          patientId: true,
         },
       }),
       prisma.appointment.findMany({
@@ -434,6 +286,8 @@ export const getCapacityMetrics = async (req, res, prisma) => {
         select: {
           id: true,
           date: true,
+          time: true,
+          status: true,
           patientId: true,
           professionalId: true,
         },
@@ -445,25 +299,33 @@ export const getCapacityMetrics = async (req, res, prisma) => {
       }),
     ]);
 
+    // Cancelados se informan en la conciliación pero nunca consumen capacidad.
+    const currentMonthAppointments = allMonthAppointments.filter(
+      (appointment) => appointment.status !== CANCELLED_STATUS,
+    );
+    const futureWindowEnd = addDays(todayStart, THRESHOLDS.futureWindowDays);
+    const lastFutureAppointment = futureAppointments[futureAppointments.length - 1];
+    const calendarRangeEnd = [
+      addDays(monthEnd, -1),
+      addDays(futureWindowEnd, -1),
+      lastFutureAppointment?.date,
+    ].filter(Boolean).reduce((max, date) => (date > max ? date : max));
+
     const calendarEntries = prisma.agendaCalendarEntry?.findMany
       ? await prisma.agendaCalendarEntry.findMany({
         where: {
           date: {
             gte: format(trendStart, 'yyyy-MM-dd'),
-            lte: format(addDays(monthEnd, -1), 'yyyy-MM-dd'),
+            lte: format(calendarRangeEnd, 'yyyy-MM-dd'),
           },
           isActive: true,
         },
         orderBy: [{ date: 'asc' }, { name: 'asc' }],
       })
       : [];
-    const lastFutureAppointment = futureAppointments[futureAppointments.length - 1];
-    const holidayRangeEnd = lastFutureAppointment?.date && lastFutureAppointment.date > addDays(monthEnd, -1)
-      ? lastFutureAppointment.date
-      : addDays(monthEnd, -1);
     const holidays = await getHolidaysForDateRange(
       format(trendStart, 'yyyy-MM-dd'),
-      format(holidayRangeEnd, 'yyyy-MM-dd'),
+      format(calendarRangeEnd, 'yyyy-MM-dd'),
       { nationalHolidaysClose: agendaConfig?.nationalHolidaysClose !== false },
     );
     const operationalCapacity = calculateOperationalCapacity({
@@ -493,16 +355,6 @@ export const getCapacityMetrics = async (req, res, prisma) => {
     });
     const weeklyCountersByProfessional = countByProfessional(currentWeekAppointments, professionals);
     const monthlyCountersByProfessional = countByProfessional(currentMonthAppointments, professionals);
-    const activePatients = new Set(currentMonthAppointments.map((appointment) => appointment.patientId).filter(Boolean)).size;
-    const totalSummary = {
-      availableHoursWeekly: operationalCapacity.availableHoursWeekly,
-      weeklyCapacity: weeklyCapacitySummary.totalCapacity,
-      monthlyCapacity: monthlyCapacitySummary.totalCapacity,
-      freeMonthlyCapacity: monthlyCapacitySummary.available,
-      occupancyRate: monthlyCapacitySummary.occupancyRate,
-      level: getOccupationLevel(monthlyCapacitySummary.occupancyRate),
-    };
-
     const professionalsSummary = professionals.map((professional) => {
       const capacity = operationalCapacity.professionals.find((row) => row.id === professional.id);
       const monthlyCounters = monthlyCountersByProfessional.get(professional.id) || {
@@ -547,6 +399,9 @@ export const getCapacityMetrics = async (req, res, prisma) => {
       };
     });
 
+    const capacityOptions = {
+      professionals, agendaConfig, calendarEntries, holidays,
+    };
     const futureOperationalAppointments = futureAppointments.filter((appointment) => (
       isCalendarDateOperational({
         date: appointment.date,
@@ -556,39 +411,95 @@ export const getCapacityMetrics = async (req, res, prisma) => {
         holidays,
       })
     ));
-    const futureCoverage = buildFutureCoverage(futureOperationalAppointments, now);
+    const futureAgenda = buildFutureAgenda({
+      futureAppointments: futureOperationalAppointments,
+      now,
+      getDayCapacity: (date) => getCapacityForDate({ date, ...capacityOptions }).capacity,
+    });
+    const futureCoverage = {
+      ...futureAgenda,
+      // Alias de compatibilidad: siempre son días calendario, no días con turnos.
+      farthestDate: futureAgenda.lastAppointmentDate,
+      daysCovered: futureAgenda.calendarDaysToLastAppointment,
+      weeksCovered: futureAgenda.calendarWeeksToLastAppointment,
+      coverageByMonth: buildCoverageByMonth(futureOperationalAppointments),
+    };
+
+    const firstAppointment = historicalAppointments.reduce(
+      (min, appointment) => (!min || appointment.date < min ? appointment.date : min),
+      null,
+    );
+    const effectiveTrendStart = firstAppointment && startOfMonth(firstAppointment) > trendStart
+      ? startOfMonth(firstAppointment)
+      : trendStart;
     const monthlyTrend = buildMonthlyTrend({
       appointments: historicalAppointments,
       professionals,
       agendaConfig,
       calendarEntries,
       holidays,
-      startDate: trendStart,
+      startDate: effectiveTrendStart,
       endDate: monthEnd,
+      now,
     });
-    const sustainedGrowth = getSustainedGrowth(monthlyTrend);
+    const sustainedGrowth = getSustainedGrowth(monthlyTrend.filter((row) => row.isClosed));
 
-    const adminRecommendation = buildAdminRecommendation({
-      monthlyAppointmentCount: currentMonthAppointments.length,
-      activePatients,
-      occupancyRate: totalSummary.occupancyRate,
+    const breakdown = buildPeriodBreakdown({
+      appointments: allMonthAppointments,
+      capacity: monthlyCapacitySummary.totalCapacity,
+      now,
     });
-    const kinesiologistRecommendation = buildKinesiologistRecommendation({
-      occupancyRate: totalSummary.occupancyRate,
-      coverageDays: futureCoverage.daysCovered,
+    const patients = buildPatientBreakdown({
+      monthAppointments: currentMonthAppointments,
+      futureAppointments: futureOperationalAppointments,
+      historicalAppointments,
+      monthStart,
+    });
+    const activePatients = patients.active;
+
+    const saturationDays = [];
+    for (let day = addDays(todayStart, -7 * THRESHOLDS.saturationWindowWeeks); day < todayStart; day = addDays(day, 1)) {
+      saturationDays.push(getCapacityForDate({ date: day, ...capacityOptions }));
+    }
+    const saturation = buildSlotSaturation({
+      days: saturationDays,
+      appointments: historicalAppointments,
+      professionals,
+      slotDuration: operationalCapacity.sessionDurationMinutes,
+      capacityPerSlot: operationalCapacity.capacityPerSlot,
+    });
+
+    const adminRecommendation = buildAdminAssessment({ breakdown, patients });
+    const kinesiologistRecommendation = buildKinesiologistAssessment({
+      occupancyRate: breakdown.occupancyRate,
+      futureOccupancyRate: futureAgenda.window.occupancyRate,
+      sustainedGrowth,
+      saturation,
+    });
+    const operationalStatus = getOperationalStatus({
+      capacity: breakdown.capacity,
+      occupancyRate: breakdown.occupancyRate,
+      unclosedRate: breakdown.unclosedRate,
+      saturation,
       sustainedGrowth,
     });
-    const bottleneck = buildBottleneckDiagnosis({
-      totalCapacity: totalSummary.monthlyCapacity,
-      occupancyRate: totalSummary.occupancyRate,
-      coverageDays: futureCoverage.daysCovered,
-      activePatients,
-      adminRecommendation,
-      professionals: professionalsSummary,
+    const bottleneck = buildBottleneck({
+      capacity: breakdown.capacity,
+      occupancyRate: breakdown.occupancyRate,
+      saturation,
     });
+    const weekClosures = weeklyCapacitySummary.days
+      .filter((day) => day.theoreticalCapacity > 0 && day.capacity < day.theoreticalCapacity)
+      .map((day) => ({
+        date: day.date,
+        lostCapacity: day.theoreticalCapacity - day.capacity,
+        reasons: (day.closureReasons || []).map((reason) => reason.name).filter(Boolean),
+      }));
 
     res.status(200).json({
       referenceDate: now,
+      generatedAt: now,
+      definitions: DEFINITIONS,
       config: {
         sessionDurationMinutes: operationalCapacity.sessionDurationMinutes,
         capacityPerSlot: operationalCapacity.capacityPerSlot,
@@ -604,32 +515,41 @@ export const getCapacityMetrics = async (req, res, prisma) => {
         attendanceRate: roundOne(weeklyCapacitySummary.attendanceRate),
         capacity: weeklyCapacitySummary.totalCapacity,
         theoreticalCapacity: weeklyCapacitySummary.theoreticalCapacity,
+        standardCapacity: weeklyCapacitySummary.theoreticalCapacity,
         effectiveCapacity: weeklyCapacitySummary.effectiveCapacity,
         availableCapacity: weeklyCapacitySummary.available,
         occupancyRate: roundOne(weeklyCapacitySummary.occupancyRate),
+        closures: weekClosures,
         days: weeklyCapacitySummary.days,
       },
       currentMonth: {
         start: monthStart,
         end: addDays(monthEnd, -1),
+        isPartial: true,
+        asOf: breakdown.asOf,
         appointmentCount: currentMonthAppointments.length,
-        occupiedCount: monthlyCapacitySummary.occupied,
-        reservedCount: monthlyCapacitySummary.reservedCount,
+        occupiedCount: breakdown.reserved,
+        reservedCount: breakdown.reserved,
         scheduledCount: monthlyCapacitySummary.scheduledCount,
-        completedCount: currentMonthAppointments.filter((a) => a.status === COMPLETED_STATUS).length,
-        noShowCount: currentMonthAppointments.filter((appointment) => appointment.status === NO_SHOW_STATUS).length,
-        attendanceRate: roundOne(monthlyCapacitySummary.attendanceRate),
+        completedCount: breakdown.attended,
+        noShowCount: breakdown.noShow,
+        attendanceRate: breakdown.attendanceRate ?? 0,
         activePatients,
-        availableHoursWeekly: totalSummary.availableHoursWeekly,
+        patients,
+        breakdown,
+        availableHoursWeekly: operationalCapacity.availableHoursWeekly,
         weeklyCapacity: weeklyCapacitySummary.totalCapacity,
+        standardWeeklyCapacity: weeklyCapacitySummary.theoreticalCapacity,
         monthlyCapacity: monthlyCapacitySummary.totalCapacity,
         theoreticalMonthlyCapacity: monthlyCapacitySummary.theoreticalCapacity,
         effectiveMonthlyCapacity: monthlyCapacitySummary.effectiveCapacity,
-        freeMonthlyCapacity: monthlyCapacitySummary.available,
-        occupancyRate: roundOne(monthlyCapacitySummary.occupancyRate),
-        level: totalSummary.level,
+        freeMonthlyCapacity: breakdown.free,
+        occupancyRate: breakdown.occupancyRate,
+        level: getOccupationLevel(breakdown.occupancyRate),
         days: monthlyCapacitySummary.days,
       },
+      operationalStatus,
+      saturation,
       professionals: professionalsSummary,
       futureCoverage,
       monthlyTrend,

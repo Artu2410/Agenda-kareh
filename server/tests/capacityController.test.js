@@ -163,9 +163,11 @@ describe('getCapacityMetrics', () => {
 
     const payload = res.json.mock.calls[0][0];
     const monthlyTrend = payload.monthlyTrend;
-    expect(monthlyTrend).toHaveLength(8);
-    expect(monthlyTrend[0].monthKey).toBe('2026-03');
-    expect(monthlyTrend.some((row) => row.monthKey === '2026-02')).toBe(false);
+    // El histórico arranca en el primer mes con turnos reales (no en marzo fijo),
+    // para no mostrar capacidad de meses en que la agenda no se usaba.
+    expect(monthlyTrend).toHaveLength(1);
+    expect(monthlyTrend[0].monthKey).toBe('2026-10');
+    expect(monthlyTrend[0]).toEqual(expect.objectContaining({ isCurrentMonth: true, capacityIsEstimated: true }));
     const octoberTrend = monthlyTrend.find((row) => row.monthKey === '2026-10');
     expect(octoberTrend).toEqual(expect.objectContaining({
       turns: 3,
@@ -176,7 +178,6 @@ describe('getCapacityMetrics', () => {
       effectiveCapacity: expect.any(Number),
       historicalCapacitySource: 'CURRENT_CONFIGURATION_RECONSTRUCTION',
     }));
-    expect(new Set(monthlyTrend.map((row) => row.effectiveCapacity)).size).toBeGreaterThan(1);
     expect(payload.professionals[0]).toEqual(expect.objectContaining({
       occupiedCount: 3,
       completedCount: 1,

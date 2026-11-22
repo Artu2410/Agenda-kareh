@@ -38,7 +38,7 @@ export default function createPatientRoutes(prisma) {
   
   // Rutas POST/DELETE
   router.post('/', validate({ body: createPatientBodySchema }), (req, res) => createPatient(req, res, prisma));
-  router.delete('/:id', (req, res) => deletePatient(req, res, prisma));
+  router.delete('/:id', checkRole('SUPER_USER', 'ADMIN'), (req, res) => deletePatient(req, res, prisma));
   router.put('/:id', validate({ params: patientIdParamsSchema, body: updatePatientBodySchema }), (req, res) => updatePatient(req, res, prisma));
   router.patch('/:id/acta-book', validate({ params: patientIdParamsSchema, body: actaBookBodySchema }), (req, res) => setActaBookStatus(req, res, prisma));
   router.patch('/:id', validate({ params: patientIdParamsSchema, body: updatePatientBodySchema }), (req, res) => updatePatient(req, res, prisma));

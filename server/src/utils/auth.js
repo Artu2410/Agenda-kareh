@@ -29,7 +29,6 @@ const normalizeBootstrapRole = (value = '') => {
 
   if (normalizedRole === 'DOCTOR') return 'PROFESSIONAL';
   if (normalizedRole === 'RECEPTIONIST') return 'SECRETARIA';
-  if (normalizedRole === 'PATIENT') return 'ADMIN';
   if (normalizedRole === 'SUPERUSER') return 'SUPER_USER';
   if (normalizedRole === 'KINESIOLOGO') return 'PROFESSIONAL';
 

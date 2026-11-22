@@ -26,7 +26,11 @@ describe('CapacityPage', () => {
           activePatients: 8,
           level: { label: 'Infrautilizado', tone: 'neutral' },
         },
-        currentWeek: { capacity: 250 },
+        currentWeek: {
+          capacity: 195,
+          standardCapacity: 250,
+          closures: [{ date: '2026-11-23', lostCapacity: 55, reasons: ['Feriado'] }],
+        },
         futureCoverage: {},
         bottleneck: { key: 'DEMAND', label: 'Falta demanda' },
         alerts: {},
@@ -61,12 +65,57 @@ describe('CapacityPage', () => {
 
     await waitFor(() => expect(api.get).toHaveBeenCalledWith('/capacity'));
     expect(await screen.findByText('1.120')).toBeTruthy();
-    expect(screen.getByText('250 turnos máximos por semana')).toBeTruthy();
+    expect(screen.queryByText(/turnos máximos por semana/)).toBeNull();
+    expect(screen.getByText(/Esta semana .*: 195, 1 día\(s\) cerrado\(s\) · semana estándar: 250/)).toBeTruthy();
     expect(screen.getAllByText('15', { selector: 'p' })).toHaveLength(2);
     expect(screen.getByText('1.105')).toBeTruthy();
     expect(screen.getByText('1,3%')).toBeTruthy();
     expect(screen.getByText('Turnos asistidos')).toBeTruthy();
-    expect(screen.getAllByText('Turnos ocupados').length).toBeGreaterThan(0);
+    expect(screen.getByText('Turnos reservados')).toBeTruthy();
+  });
+
+  it('shows the reconciled month and never presents hiring without need data', async () => {
+    api.get.mockResolvedValueOnce({
+      data: {
+        currentMonth: {
+          monthlyCapacity: 945,
+          occupiedCount: 133,
+          completedCount: 89,
+          freeMonthlyCapacity: 812,
+          occupancyRate: 14.1,
+          isPartial: true,
+          asOf: '2026-11-22',
+          breakdown: {
+            capacity: 945, attended: 89, noShow: 6, pendingPast: 10, upcoming: 28, otherStatus: 0, reserved: 133, free: 812, cancelled: 7,
+          },
+        },
+        currentWeek: { capacity: 195, standardCapacity: 250, closures: [] },
+        futureCoverage: { window: { occupancyRate: null } },
+        operationalStatus: { key: 'AVAILABLE_CAPACITY', label: 'Capacidad disponible', tone: 'success' },
+        bottleneck: { key: 'DEMAND', label: 'Falta demanda' },
+        alerts: {
+          admin: {
+            status: 'INSUFFICIENT_DATA',
+            recommended: false,
+            label: 'Datos insuficientes para recomendar contratación',
+            suggestedSupport: 'Automatización (recordatorios y confirmaciones)',
+            criteria: [{ key: 'whatsapp', label: 'Consultas de WhatsApp por semana', measured: false, met: false }],
+          },
+        },
+        monthlyTrend: [],
+        professionals: [],
+      },
+    });
+
+    render(<CapacityPage />);
+
+    const reconciliation = await screen.findByLabelText('Conciliación de capacidad del mes');
+    expect(reconciliation.textContent).toContain('Pasados sin cerrar10');
+    expect(reconciliation.textContent).toContain('= Reservados133');
+    expect(screen.getAllByText('Datos insuficientes para recomendar contratación').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Administrativo recomendado')).toBeNull();
+    expect(screen.getByText('No disponible')).toBeTruthy();
+    expect(screen.getByText('10 turnos pasados sin cerrar')).toBeTruthy();
   });
 
   it('shows the complete annual monthly breakdown and can narrow the chart to six months', async () => {

@@ -168,12 +168,12 @@ describe('DashboardPage', () => {
     expect(within(historicalChartSection).getByText('Últimos 12 meses con actividad')).toBeInTheDocument();
     expect(within(historicalTableSection).getByText('Últimos 12 meses con actividad')).toBeInTheDocument();
     expect(within(futureCoverageSection).getByText('Pacientes únicos del mes')).toBeInTheDocument();
-    expect(within(futureSummarySection).getByText('Días cubiertos')).toBeInTheDocument();
-    expect(within(futureSummarySection).getByText('Semanas cubiertas')).toBeInTheDocument();
-    expect(within(futureSummarySection).getByText('Meses cubiertos')).toBeInTheDocument();
-    expect(within(futureSummarySection).getByText('+30 días')).toBeInTheDocument();
-    expect(within(futureSummarySection).getByText('+60 días')).toBeInTheDocument();
-    expect(within(futureSummarySection).getByText('+90 días')).toBeInTheDocument();
+    expect(within(futureSummarySection).getByText('Días con turnos')).toBeInTheDocument();
+    expect(within(futureSummarySection).getByText('Semanas con turnos')).toBeInTheDocument();
+    expect(within(futureSummarySection).getByText('Agenda próximos 60 días')).toBeInTheDocument();
+    expect(within(futureSummarySection).getByText('Turnos a +30 días')).toBeInTheDocument();
+    expect(within(futureSummarySection).getByText('Turnos a +60 días')).toBeInTheDocument();
+    expect(within(futureSummarySection).getByText('Turnos a +90 días')).toBeInTheDocument();
 
     const orderedSections = [
       futureSummarySection,

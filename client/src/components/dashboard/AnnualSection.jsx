@@ -48,8 +48,8 @@ const AnnualSection = ({ annual }) => {
 
       <OverviewCard
         eyebrow="Global del año"
-        title={formatCount(annual?.patientCount)}
-        description="Pacientes atendidos este año"
+        title={formatCount(annual?.attendedPatientCount ?? annual?.patientCount)}
+        description="Pacientes con al menos una asistencia este año"
         icon={<Users size={22} />}
         iconClassName="bg-slate-100 text-slate-700"
       >

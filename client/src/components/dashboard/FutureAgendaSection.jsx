@@ -1,5 +1,5 @@
 import { CalendarClock, CalendarRange, CalendarSearch, CalendarDays, TrendingUp, Users } from 'lucide-react';
-import { formatCount } from './dashboardFormatters';
+import { formatCount, formatRate } from './dashboardFormatters';
 import { formatShortDate, getFutureCoverageStats } from './dashboardPeriods';
 
 const SectionBadge = ({ children, toneClassName = 'border-teal-100 bg-teal-50 text-teal-700' }) => (
@@ -75,41 +75,48 @@ const FutureAgendaSection = ({ futureAgenda }) => {
           toneClassName="border-slate-200 bg-slate-50"
         />
         <StatCard
-          title="Días cubiertos"
-          value={coverageStats ? formatCount(coverageStats.daysCovered) : '0'}
-          description="Desde hoy hasta el último turno"
+          title="Días con turnos"
+          value={formatCount(futureAgenda?.daysWithAppointments)}
+          description={coverageStats
+            ? `De ${formatCount(futureAgenda?.calendarDaysToLastAppointment ?? coverageStats.daysCovered)} días calendario hasta el último turno`
+            : 'Sin turnos futuros'}
           icon={<CalendarDays size={18} />}
           toneClassName="border-slate-200 bg-slate-50"
         />
         <StatCard
-          title="Semanas cubiertas"
-          value={coverageStats ? `${coverageStats.weeksCovered.toFixed(1)}` : '0.0'}
-          description="Cobertura acumulada"
+          title="Semanas con turnos"
+          value={formatCount(futureAgenda?.weeksWithAppointments)}
+          description="Semanas desde hoy con al menos un turno"
           icon={<CalendarSearch size={18} />}
           toneClassName="border-slate-200 bg-slate-50"
         />
         <StatCard
-          title="Meses cubiertos"
-          value={coverageStats ? `${coverageStats.monthsCovered.toFixed(1)}` : '0.0'}
-          description="Horizonte proyectado"
+          title="Agenda próximos 60 días"
+          value={futureAgenda?.window?.occupancyRate === null || futureAgenda?.window?.occupancyRate === undefined
+            ? 'No disponible'
+            : formatRate(futureAgenda.window.occupancyRate)}
+          description={`${formatCount(futureAgenda?.window?.reserved)} turnos sobre ${formatCount(futureAgenda?.window?.capacity)} lugares disponibles`}
           icon={<CalendarRange size={18} />}
           toneClassName="border-slate-200 bg-slate-50"
         />
       </div>
 
-      <div className="mt-5 grid gap-3 md:grid-cols-3">
+      <p className="mt-5 text-xs font-semibold text-slate-500">
+        Indica si hay al menos un turno cargado más allá de ese horizonte. No significa que la agenda esté llena.
+      </p>
+      <div className="mt-2 grid gap-3 md:grid-cols-3">
         <HorizonPill
-          label="+30 días"
+          label="Turnos a +30 días"
           covered={Boolean(coverageStats?.reaches30)}
           farthestDate={futureAgenda?.farthestDate}
         />
         <HorizonPill
-          label="+60 días"
+          label="Turnos a +60 días"
           covered={Boolean(coverageStats?.reaches60)}
           farthestDate={futureAgenda?.farthestDate}
         />
         <HorizonPill
-          label="+90 días"
+          label="Turnos a +90 días"
           covered={Boolean(coverageStats?.reaches90)}
           farthestDate={futureAgenda?.farthestDate}
         />
