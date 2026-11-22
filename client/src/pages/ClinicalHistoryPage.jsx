@@ -14,6 +14,7 @@ import {
   readClinicalHistoryContext,
 } from '../utils/appRoutes';
 import { getCoverageLabel, isParticularCoverage } from '../utils/coverage';
+import { formatPatientAge } from '../utils/patientAge';
 import RichTextEditor from '../components/clinical/RichTextEditor';
 import KinesicReportModal from '../components/documents/KinesicReportModal';
 import PatientReceiptModal from '../components/documents/PatientReceiptModal';
@@ -483,6 +484,69 @@ const buildClinicalHistoryPrintHtml = ({ patientSummary, entries }) => {
             word-break: break-word;
           }
 
+          /* --- Ajustes de impresión (A4) --- */
+          html, body { background: #ffffff; }
+          .print-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 24px;
+          }
+          .print-header__text { min-width: 0; }
+          .print-logo {
+            width: 120px;
+            height: auto;
+            flex-shrink: 0;
+          }
+          .patient-title { font-size: 32px; overflow-wrap: anywhere; }
+          /* Ficha arriba y evoluciones a todo el ancho: una grilla de dos columnas
+             con tarjetas que no se pueden cortar dejaba la primera hoja vacía. */
+          .layout { display: block; }
+          .sidebar {
+            display: grid;
+            grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+            gap: 14px;
+            margin-bottom: 18px;
+          }
+          .sidebar-card { padding: 16px 18px; border-radius: 18px; }
+          .sidebar-card:first-child .field-list,
+          .sidebar-card:first-child {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            column-gap: 18px;
+          }
+          .sidebar-card:first-child .sidebar-title { grid-column: 1 / -1; }
+          .sidebar-card:first-child .field,
+          .sidebar-card:first-child .field:last-child {
+            margin-bottom: 8px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #e2e8f0;
+          }
+          .sessions { display: block; }
+          .session-card {
+            break-inside: auto;
+            margin-bottom: 16px;
+            border: 1px solid #cbd5e1;
+            border-radius: 18px;
+          }
+          .session-card__header,
+          .session-card__body h2,
+          .signature { break-inside: avoid; break-after: auto; }
+          .session-card__body h2 { break-after: avoid; }
+          .attachments-grid {
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+          }
+          .attachment-card { margin: 0; break-inside: avoid; }
+          figure.attachment-card { margin: 0; }
+          .image-card img { height: 140px; }
+          .image-card figcaption,
+          .file-label {
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            word-break: normal;
+          }
+
           @media print {
             body {
               padding: 0;
@@ -497,9 +561,12 @@ const buildClinicalHistoryPrintHtml = ({ patientSummary, entries }) => {
       <body>
         <div class="print-shell">
           <header class="print-header">
-            <div class="eyebrow">Kareh · Historia Clínica</div>
-            <div class="record-badge">${patientSummary.recordNumber}</div>
-            <h1 class="patient-title">${patientSummary.fullName}</h1>
+            <div class="print-header__text">
+              <div class="eyebrow">Kareh · Historia Clínica</div>
+              <div class="record-badge">${patientSummary.recordNumber}</div>
+              <h1 class="patient-title">${patientSummary.fullName}</h1>
+            </div>
+            <img class="print-logo" src="${window.location.origin}/kareh-login-logo.png" alt="Kareh" />
           </header>
 
           <div class="layout">
@@ -520,7 +587,7 @@ const buildClinicalHistoryPrintHtml = ({ patientSummary, entries }) => {
                 </div>
                 <div class="field">
                   <div class="field-label">Edad</div>
-                  <div class="field-value"><span class="age-badge">${patientSummary.age} años</span></div>
+                  <div class="field-value"><span class="age-badge">${patientSummary.age}</span></div>
                 </div>
                 <div class="field">
                   <div class="field-label">OS</div>
@@ -644,23 +711,10 @@ const ClinicalHistoryPage = () => {
     return dateString <= UNKNOWN_BIRTHDATE;
   };
 
+  // Bebés: meses o días en lugar de "0 años".
   const calculateAge = (birthDate) => {
     if (!birthDate || isUnknownBirthDate(birthDate)) return '...';
-    // Normalizamos la fecha eliminando la parte de la hora si existe
-    const dateString = birthDate.includes('T') ? birthDate.split('T')[0] : birthDate;
-    const [year, month, day] = dateString.split('-').map(Number);
-
-    const birth = new Date(year, month - 1, day);
-    if (isNaN(birth.getTime())) return 'N/A';
-
-    const today = new Date();
-    let age = today.getFullYear() - birth.getFullYear();
-    const monthDiff = today.getMonth() - birth.getMonth();
-
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
-      age--;
-    }
-    return age < 0 ? 0 : age;
+    return formatPatientAge(birthDate) || 'N/A';
   };
 
   const ensureArray = (data) => {
@@ -1276,7 +1330,7 @@ const ClinicalHistoryPage = () => {
                     <p className="flex justify-between border-b border-slate-200 pb-2">
                       <b>EDAD:</b>
                       <span className="bg-teal-100 px-2 rounded-lg font-black text-teal-700">
-                        {calculateAge(patient?.birthDate)} años
+                        {calculateAge(patient?.birthDate)}
                       </span>
                     </p>
                     <p className="flex justify-between border-b border-slate-200 pb-2"><b>OS:</b> <span className={`${coverageTextClass} font-black uppercase`}>{coverageLabel}</span></p>
@@ -1608,7 +1662,7 @@ const ClinicalHistoryPage = () => {
                     </div>
                     <div className="border-b border-slate-300 pb-3">
                       <div className="mb-1 text-[9px] font-black uppercase tracking-widest text-slate-400">Edad</div>
-                      <div className="inline-flex rounded-full bg-teal-100 px-3 py-1 font-black text-teal-700">{calculateAge(patient?.birthDate)} años</div>
+                      <div className="inline-flex rounded-full bg-teal-100 px-3 py-1 font-black text-teal-700">{calculateAge(patient?.birthDate)}</div>
                     </div>
                     <div className="border-b border-slate-300 pb-3">
                       <div className="mb-1 text-[9px] font-black uppercase tracking-widest text-slate-400">OS</div>
