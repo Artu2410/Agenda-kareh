@@ -92,3 +92,20 @@ describe('Environment Validation', () => {
     });
   });
 });
+
+describe('ensureTimeZone', () => {
+  it('en producción sin TZ usa la hora de Argentina', async () => {
+    const { ensureTimeZone, DEFAULT_TIME_ZONE } = await import('../src/config/env.js');
+    const environment = { NODE_ENV: 'production' };
+    expect(ensureTimeZone(environment)).toBe(DEFAULT_TIME_ZONE);
+    expect(environment.TZ).toBe(DEFAULT_TIME_ZONE);
+  });
+
+  it('respeta una TZ definida y no toca entornos que no son producción', async () => {
+    const { ensureTimeZone } = await import('../src/config/env.js');
+    expect(ensureTimeZone({ NODE_ENV: 'production', TZ: 'UTC' })).toBe('UTC');
+    const dev = { NODE_ENV: 'development' };
+    expect(ensureTimeZone(dev)).toBeNull();
+    expect(dev.TZ).toBeUndefined();
+  });
+});

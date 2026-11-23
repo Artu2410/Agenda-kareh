@@ -90,7 +90,20 @@ const envSchema = z.object({
  */
 export let env = {};
 
+export const DEFAULT_TIME_ZONE = 'America/Argentina/Buenos_Aires';
+
+// Las fechas de turnos se calculan con la hora local del proceso (setHours(12), getDay()).
+// Si el hosting corre en UTC, un turno cerca de la medianoche puede caer en otro día.
+export const ensureTimeZone = (environment = process.env) => {
+  if (environment.TZ) return environment.TZ;
+  if (environment.NODE_ENV !== 'production') return null;
+  environment.TZ = DEFAULT_TIME_ZONE;
+  logger.warn(`TZ no estaba definida: se usa ${DEFAULT_TIME_ZONE}. Definila en el hosting para dejarlo explícito.`);
+  return environment.TZ;
+};
+
 export const validateEnv = () => {
+  ensureTimeZone();
   try {
     const parsed = envSchema.parse(process.env);
     env = parsed;
