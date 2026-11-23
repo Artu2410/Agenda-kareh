@@ -92,6 +92,54 @@ const createHttpError = (message, statusCode) => {
   return error;
 };
 
+// Bloqueos de transacción (se liberan solos al commit/rollback). Serializan las
+// reservas que compiten por el mismo paciente o el mismo horario de un profesional,
+// para que la segunda vea lo que guardó la primera en lugar de chocar.
+export const lockScheduleKeys = async (tx, keys = []) => {
+  if (typeof tx?.$queryRaw !== 'function') return;
+  const sortedKeys = [...new Set(keys.filter(Boolean))].sort();
+  for (const key of sortedKeys) {
+    await tx.$queryRaw`SELECT 1 AS locked FROM (SELECT pg_advisory_xact_lock(hashtext(${key}))) AS lock_holder`;
+  }
+};
+
+const patientLockKey = (patientId) => (patientId ? `appointment-patient:${patientId}` : null);
+const slotLockKey = ({ professionalId, date, time }) => {
+  const day = date instanceof Date ? date.toISOString().slice(0, 10) : String(date || '').slice(0, 10);
+  return `appointment-slot:${professionalId}:${day}:${time}`;
+};
+
+// Elige el primer número de lugar libre (1..capacidad) entre los turnos activos.
+// Un turno CANCELLED conserva su número y la restricción única lo sigue contando:
+// si bloquea el número elegido, se lo "estaciona" en un número negativo.
+export const claimSlotNumber = async (tx, { date, time, professionalId, capacityPerSlot, excludeId = null }) => {
+  const rows = await tx.appointment.findMany({
+    where: {
+      date,
+      time,
+      professionalId,
+      ...(excludeId ? { id: { not: excludeId } } : {}),
+    },
+    select: { id: true, slotNumber: true, status: true },
+  });
+  const activeNumbers = new Set(rows.filter((row) => row.status !== 'CANCELLED').map((row) => row.slotNumber));
+  const slotNumber = Array.from({ length: capacityPerSlot }, (_, i) => i + 1).find((n) => !activeNumbers.has(n));
+  if (!slotNumber) return null;
+
+  const blockingCancelled = rows.find((row) => row.status === 'CANCELLED' && row.slotNumber === slotNumber);
+  if (blockingCancelled) {
+    const usedNumbers = new Set(rows.map((row) => row.slotNumber));
+    let parkedNumber = -1;
+    while (usedNumbers.has(parkedNumber)) parkedNumber -= 1;
+    await tx.appointment.update({
+      where: { id: blockingCancelled.id },
+      data: { slotNumber: parkedNumber },
+      select: { id: true },
+    });
+  }
+  return slotNumber;
+};
+
 const APPOINTMENT_TRANSACTION_OPTIONS = {
   maxWait: 10000,
   timeout: 30000,
@@ -600,6 +648,10 @@ export const createAppointment = async (req, res, prisma) => {
             continue;
           }
 
+          await lockScheduleKeys(tx, [
+            patientLockKey(patient.id),
+            slotLockKey({ professionalId: prof.id, date: new Date(currentDate.setHours(12, 0, 0, 0)), time }),
+          ]);
           const patientConflict = await findPatientTimeConflict(tx, {
             patientId: patient.id,
             date: new Date(currentDate.setHours(12, 0, 0, 0)),
@@ -614,17 +666,12 @@ export const createAppointment = async (req, res, prisma) => {
             continue;
           }
 
-          const occupied = await tx.appointment.findMany({
-            where: { 
-              date: new Date(currentDate.setHours(12,0,0,0)), 
-              time, 
-              professionalId: prof.id,
-              status: { not: 'CANCELLED' } 
-            },
-            select: { slotNumber: true }
+          const nextSlot = await claimSlotNumber(tx, {
+            date: new Date(currentDate.setHours(12, 0, 0, 0)),
+            time,
+            professionalId: prof.id,
+            capacityPerSlot,
           });
-          const occupiedNumbers = occupied.map(s => s.slotNumber);
-          let nextSlot = Array.from({ length: capacityPerSlot }, (_, i) => i + 1).find(n => !occupiedNumbers.includes(n));
 
           if (nextSlot) {
             const newApt = await tx.appointment.create({
@@ -1034,6 +1081,10 @@ export const updateAppointment = async (req, res, prisma) => {
           throw createHttpError('No se puede mover un turno a un feriado o cierre operativo.', 409);
         }
 
+        await lockScheduleKeys(tx, [
+          patientLockKey(patientId || currentAppointment.patientId),
+          slotLockKey({ professionalId: currentAppointment.professionalId, date: nextDate, time: nextTime }),
+        ]);
         const patientConflict = await findPatientTimeConflict(tx, {
           patientId: patientId || currentAppointment.patientId,
           date: nextDate,
@@ -1046,19 +1097,13 @@ export const updateAppointment = async (req, res, prisma) => {
           throw error;
         }
 
-        const occupiedSlots = await tx.appointment.findMany({
-          where: {
-            id: { not: id },
-            professionalId: currentAppointment.professionalId,
-            date: nextDate,
-            time: nextTime,
-            status: { not: 'CANCELLED' }
-          },
-          select: { slotNumber: true }
+        const nextSlotNumber = await claimSlotNumber(tx, {
+          date: nextDate,
+          time: nextTime,
+          professionalId: currentAppointment.professionalId,
+          capacityPerSlot,
+          excludeId: id,
         });
-
-        const occupiedNumbers = occupiedSlots.map((slot) => slot.slotNumber);
-        const nextSlotNumber = Array.from({ length: capacityPerSlot }, (_, i) => i + 1).find((slot) => !occupiedNumbers.includes(slot));
 
         if (!nextSlotNumber) {
           const error = new Error("No hay cupos disponibles para ese día y horario.");
@@ -1150,6 +1195,28 @@ const resequencePatientAppointments = async (tx, patientId) => {
   }
 };
 
+// Turnos que son historia clínica/operativa/facturable: no se borran físicamente.
+export const PROTECTED_APPOINTMENT_STATUSES = ['COMPLETED', 'NO_SHOW'];
+
+export const getAppointmentDeletionBlocker = (appointment) => {
+  if (PROTECTED_APPOINTMENT_STATUSES.includes(appointment?.status)) {
+    return appointment.status === 'COMPLETED'
+      ? 'No se puede eliminar un turno ya atendido: forma parte de la historia del paciente.'
+      : 'No se puede eliminar un turno marcado como ausente: forma parte de la historia del paciente.';
+  }
+  if (Number(appointment?._count?.billingInvoiceItems) > 0) {
+    return 'No se puede eliminar un turno que ya está facturado.';
+  }
+  return null;
+};
+
+const deletionCheckSelect = {
+  status: true,
+  _count: { select: { billingInvoiceItems: true } },
+};
+
+const stripDeletionCheck = ({ _count, ...appointment }) => appointment;
+
 // 5. ELIMINAR CITA
 export const deleteAppointment = async (req, res, prisma) => {
   try {
@@ -1161,6 +1228,7 @@ export const deleteAppointment = async (req, res, prisma) => {
         where: { id },
         select: {
           ...appointmentBaseSelect,
+          ...deletionCheckSelect,
           patientId: true,
           date: true,
           time: true,
@@ -1175,12 +1243,14 @@ export const deleteAppointment = async (req, res, prisma) => {
       ensureAppointmentScope(req, referenceAppointment.professionalId);
 
       if (!deleteFuture) {
+        const blocker = getAppointmentDeletionBlocker(referenceAppointment);
+        if (blocker) throw createHttpError(blocker, 409);
         await tx.appointment.delete({ where: { id } });
         await resequencePatientAppointments(tx, referenceAppointment.patientId);
-        return { count: 1, deletedAppointments: [referenceAppointment] };
+        return { count: 1, skipped: 0, deletedAppointments: [stripDeletionCheck(referenceAppointment)] };
       }
 
-      const appointmentsToDelete = await tx.appointment.findMany({
+      const candidates = await tx.appointment.findMany({
         where: {
           professionalId: referenceAppointment.professionalId,
           patientId: referenceAppointment.patientId,
@@ -1192,8 +1262,12 @@ export const deleteAppointment = async (req, res, prisma) => {
             }
           ]
         },
-        select: appointmentBaseSelect,
+        select: { ...appointmentBaseSelect, ...deletionCheckSelect },
       });
+      const appointmentsToDelete = candidates
+        .filter((appointment) => !getAppointmentDeletionBlocker(appointment))
+        .map(stripDeletionCheck);
+      const skipped = candidates.length - appointmentsToDelete.length;
 
       const deleteResult = await tx.appointment.deleteMany({
         where: {
@@ -1202,7 +1276,7 @@ export const deleteAppointment = async (req, res, prisma) => {
       });
 
       await resequencePatientAppointments(tx, referenceAppointment.patientId);
-      return { count: deleteResult.count, deletedAppointments: appointmentsToDelete };
+      return { count: deleteResult.count, skipped, deletedAppointments: appointmentsToDelete };
     }, APPOINTMENT_TRANSACTION_OPTIONS);
 
     await Promise.all(
@@ -1214,7 +1288,7 @@ export const deleteAppointment = async (req, res, prisma) => {
       })),
     );
 
-    res.status(200).json({ success: true, count: result.count });
+    res.status(200).json({ success: true, count: result.count, skipped: result.skipped });
   } catch (error) {
     throw createInternalError(error, 'Error al eliminar el turno');
   }
@@ -1224,14 +1298,44 @@ export const deleteAppointment = async (req, res, prisma) => {
 export const cancelFutureAppointments = async (req, res, prisma) => {
   try {
     const { patientId } = req.params;
-    const { fromDate } = req.body;
-    const result = await prisma.appointment.deleteMany({
-      where: mergeWhereClauses(withProfessionalScope(req.user), {
-        patientId,
-        date: { gt: new Date(fromDate) },
-        status: { not: 'COMPLETED' }
-      }),
-    });
+    const fromDate = new Date(req.body?.fromDate ?? '');
+    if (!req.body?.fromDate || Number.isNaN(fromDate.getTime())) {
+      throw createHttpError('fromDate es obligatorio y debe ser una fecha válida.', 400);
+    }
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    if (fromDate < startOfToday) {
+      throw createHttpError('Solo se pueden cancelar turnos desde hoy en adelante.', 400);
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      const candidates = await tx.appointment.findMany({
+        where: mergeWhereClauses(withProfessionalScope(req.user), {
+          patientId,
+          date: { gt: fromDate },
+          status: { notIn: PROTECTED_APPOINTMENT_STATUSES },
+        }),
+        select: { ...appointmentBaseSelect, ...deletionCheckSelect },
+      });
+      const toDelete = candidates.filter((appointment) => !getAppointmentDeletionBlocker(appointment)).map(stripDeletionCheck);
+      if (toDelete.length === 0) return { count: 0, deletedAppointments: [] };
+      const deleteResult = await tx.appointment.deleteMany({
+        where: { id: { in: toDelete.map((appointment) => appointment.id) } },
+      });
+      await resequencePatientAppointments(tx, patientId);
+      return { count: deleteResult.count, deletedAppointments: toDelete };
+    }, APPOINTMENT_TRANSACTION_OPTIONS);
+
+    await Promise.all(
+      result.deletedAppointments.map((appointment) => safeWriteAuditLog(prisma, req, {
+        action: auditActions.appointmentDeleted,
+        resource: 'APPOINTMENT',
+        resourceId: appointment.id,
+        oldValues: appointment,
+        details: { reason: 'cancel-future', fromDate: fromDate.toISOString() },
+      })),
+    );
+
     res.json({ success: true, count: result.count });
   } catch (error) {
     throw createInternalError(error, 'Error al cancelar turnos futuros');
