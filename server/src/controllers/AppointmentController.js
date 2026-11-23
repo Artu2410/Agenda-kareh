@@ -1150,6 +1150,28 @@ const resequencePatientAppointments = async (tx, patientId) => {
   }
 };
 
+// Turnos que son historia clínica/operativa/facturable: no se borran físicamente.
+export const PROTECTED_APPOINTMENT_STATUSES = ['COMPLETED', 'NO_SHOW'];
+
+export const getAppointmentDeletionBlocker = (appointment) => {
+  if (PROTECTED_APPOINTMENT_STATUSES.includes(appointment?.status)) {
+    return appointment.status === 'COMPLETED'
+      ? 'No se puede eliminar un turno ya atendido: forma parte de la historia del paciente.'
+      : 'No se puede eliminar un turno marcado como ausente: forma parte de la historia del paciente.';
+  }
+  if (Number(appointment?._count?.billingInvoiceItems) > 0) {
+    return 'No se puede eliminar un turno que ya está facturado.';
+  }
+  return null;
+};
+
+const deletionCheckSelect = {
+  status: true,
+  _count: { select: { billingInvoiceItems: true } },
+};
+
+const stripDeletionCheck = ({ _count, ...appointment }) => appointment;
+
 // 5. ELIMINAR CITA
 export const deleteAppointment = async (req, res, prisma) => {
   try {
@@ -1161,6 +1183,7 @@ export const deleteAppointment = async (req, res, prisma) => {
         where: { id },
         select: {
           ...appointmentBaseSelect,
+          ...deletionCheckSelect,
           patientId: true,
           date: true,
           time: true,
@@ -1175,12 +1198,14 @@ export const deleteAppointment = async (req, res, prisma) => {
       ensureAppointmentScope(req, referenceAppointment.professionalId);
 
       if (!deleteFuture) {
+        const blocker = getAppointmentDeletionBlocker(referenceAppointment);
+        if (blocker) throw createHttpError(blocker, 409);
         await tx.appointment.delete({ where: { id } });
         await resequencePatientAppointments(tx, referenceAppointment.patientId);
-        return { count: 1, deletedAppointments: [referenceAppointment] };
+        return { count: 1, skipped: 0, deletedAppointments: [stripDeletionCheck(referenceAppointment)] };
       }
 
-      const appointmentsToDelete = await tx.appointment.findMany({
+      const candidates = await tx.appointment.findMany({
         where: {
           professionalId: referenceAppointment.professionalId,
           patientId: referenceAppointment.patientId,
@@ -1192,8 +1217,12 @@ export const deleteAppointment = async (req, res, prisma) => {
             }
           ]
         },
-        select: appointmentBaseSelect,
+        select: { ...appointmentBaseSelect, ...deletionCheckSelect },
       });
+      const appointmentsToDelete = candidates
+        .filter((appointment) => !getAppointmentDeletionBlocker(appointment))
+        .map(stripDeletionCheck);
+      const skipped = candidates.length - appointmentsToDelete.length;
 
       const deleteResult = await tx.appointment.deleteMany({
         where: {
@@ -1202,7 +1231,7 @@ export const deleteAppointment = async (req, res, prisma) => {
       });
 
       await resequencePatientAppointments(tx, referenceAppointment.patientId);
-      return { count: deleteResult.count, deletedAppointments: appointmentsToDelete };
+      return { count: deleteResult.count, skipped, deletedAppointments: appointmentsToDelete };
     }, APPOINTMENT_TRANSACTION_OPTIONS);
 
     await Promise.all(
@@ -1214,7 +1243,7 @@ export const deleteAppointment = async (req, res, prisma) => {
       })),
     );
 
-    res.status(200).json({ success: true, count: result.count });
+    res.status(200).json({ success: true, count: result.count, skipped: result.skipped });
   } catch (error) {
     throw createInternalError(error, 'Error al eliminar el turno');
   }
@@ -1224,14 +1253,44 @@ export const deleteAppointment = async (req, res, prisma) => {
 export const cancelFutureAppointments = async (req, res, prisma) => {
   try {
     const { patientId } = req.params;
-    const { fromDate } = req.body;
-    const result = await prisma.appointment.deleteMany({
-      where: mergeWhereClauses(withProfessionalScope(req.user), {
-        patientId,
-        date: { gt: new Date(fromDate) },
-        status: { not: 'COMPLETED' }
-      }),
-    });
+    const fromDate = new Date(req.body?.fromDate ?? '');
+    if (!req.body?.fromDate || Number.isNaN(fromDate.getTime())) {
+      throw createHttpError('fromDate es obligatorio y debe ser una fecha válida.', 400);
+    }
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    if (fromDate < startOfToday) {
+      throw createHttpError('Solo se pueden cancelar turnos desde hoy en adelante.', 400);
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      const candidates = await tx.appointment.findMany({
+        where: mergeWhereClauses(withProfessionalScope(req.user), {
+          patientId,
+          date: { gt: fromDate },
+          status: { notIn: PROTECTED_APPOINTMENT_STATUSES },
+        }),
+        select: { ...appointmentBaseSelect, ...deletionCheckSelect },
+      });
+      const toDelete = candidates.filter((appointment) => !getAppointmentDeletionBlocker(appointment)).map(stripDeletionCheck);
+      if (toDelete.length === 0) return { count: 0, deletedAppointments: [] };
+      const deleteResult = await tx.appointment.deleteMany({
+        where: { id: { in: toDelete.map((appointment) => appointment.id) } },
+      });
+      await resequencePatientAppointments(tx, patientId);
+      return { count: deleteResult.count, deletedAppointments: toDelete };
+    }, APPOINTMENT_TRANSACTION_OPTIONS);
+
+    await Promise.all(
+      result.deletedAppointments.map((appointment) => safeWriteAuditLog(prisma, req, {
+        action: auditActions.appointmentDeleted,
+        resource: 'APPOINTMENT',
+        resourceId: appointment.id,
+        oldValues: appointment,
+        details: { reason: 'cancel-future', fromDate: fromDate.toISOString() },
+      })),
+    );
+
     res.json({ success: true, count: result.count });
   } catch (error) {
     throw createInternalError(error, 'Error al cancelar turnos futuros');
