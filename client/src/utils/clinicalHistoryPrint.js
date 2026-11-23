@@ -11,28 +11,7 @@ export const escapePrintHtml = (value) => String(value || '')
 export const buildClinicalHistoryPrintHtml = ({ patientSummary, entries }) => {
   const entryMarkup = entries.length > 0
     ? entries.map((entry) => {
-      const attachmentsMarkup = entry.attachments.length > 0
-        ? `
-          <div class="attachments-grid">
-            ${entry.attachments.map((attachment) => (
-          attachment.kind === 'image'
-            ? `
-                  <figure class="attachment-card image-card">
-                    <img src="${attachment.url}" alt="${attachment.label}" />
-                    <figcaption>${attachment.label}</figcaption>
-                  </figure>
-                `
-            : `
-                  <div class="attachment-card file-card">
-                    <div class="file-badge">${attachment.fileType}</div>
-                    <div class="file-label">${attachment.label}</div>
-                  </div>
-                `
-        )).join('')}
-          </div>
-        `
-        : '';
-
+      // Los adjuntos (fotos, PDFs) no se imprimen: la historia va en una sola hoja.
       return `
         <article class="session-card">
           <div class="session-card__header">
@@ -42,7 +21,6 @@ export const buildClinicalHistoryPrintHtml = ({ patientSummary, entries }) => {
             <h2>${entry.diagnosis}</h2>
             <div class="evolution-block">${entry.evolutionHtml}</div>
             ${entry.abandonMessage ? `<p class="abandon-note">${entry.abandonMessage}</p>` : ''}
-            ${attachmentsMarkup}
             ${entry.signatureName ? `
               <div class="signature">
                 <div class="signature-name">${entry.signatureName}</div>
@@ -497,14 +475,28 @@ export const buildClinicalHistoryPrintHtml = ({ patientSummary, entries }) => {
             word-break: normal;
           }
 
-          @media print {
-            body {
-              padding: 0;
-            }
+          /* --- Una sola hoja A4 --- */
+          @page { size: A4; margin: 10mm; }
+          html, body { margin: 0; padding: 0; }
+          .print-shell { width: 190mm; max-width: 190mm; margin: 0 auto; }
+          .print-header { margin-bottom: 10px; padding-bottom: 10px; }
+          .print-logo { width: 90px; }
+          .patient-title { font-size: 26px; }
+          .sidebar { margin-bottom: 10px; gap: 10px; }
+          .sidebar-card { padding: 10px 14px; }
+          .sidebar-card:first-child .field,
+          .sidebar-card:first-child .field:last-child { margin-bottom: 4px; padding-bottom: 4px; }
+          .session-card { margin-bottom: 8px; break-inside: avoid; }
+          .session-card__body h2 { font-size: 18px; margin: 6px 0; }
+          .evolution-block { font-size: 12px; line-height: 1.45; }
+          .session-card__header { padding: 6px 18px; }
+          .session-date { padding: 4px 12px; font-size: 11px; }
+          .session-card__body { padding: 12px 18px; }
+          .signature { margin-top: 8px; padding-top: 6px; }
 
-            .print-shell {
-              max-width: none;
-            }
+          @media print {
+            body { padding: 0; }
+            .print-shell { max-width: none; }
           }
         </style>
       </head>
@@ -547,10 +539,22 @@ export const buildClinicalHistoryPrintHtml = ({ patientSummary, entries }) => {
                   <div class="field-label">N° Afiliado</div>
                   <div class="field-value">${patientSummary.affiliateNumber}</div>
                 </div>
+                <div class="field">
+                  <div class="field-label">Folio</div>
+                  <div class="field-value">${patientSummary.folio}</div>
+                </div>
+                <div class="field">
+                  <div class="field-label">Teléfono</div>
+                  <div class="field-value">${patientSummary.phone}</div>
+                </div>
+                <div class="field">
+                  <div class="field-label">Domicilio</div>
+                  <div class="field-value">${patientSummary.address}</div>
+                </div>
               </section>
 
               <section class="sidebar-card risk-card">
-                <h2 class="sidebar-title" style="color:#d97706;">Riesgos</h2>
+                <h2 class="sidebar-title" style="color:#d97706;">Antecedentes</h2>
                 <div class="risk-list">
                   ${patientSummary.risks.map((risk) => `
                     <div class="risk-item">
@@ -577,7 +581,28 @@ export const buildClinicalHistoryPrintHtml = ({ patientSummary, entries }) => {
             });
           });
 
+          // Si el contenido no entra en una hoja A4 (277 mm útiles), se achica todo
+          // proporcionalmente para que salga en una sola hoja. Mínimo 50% para que siga
+          // siendo legible: si ni así entra, se imprime en más hojas.
+          const fitToOnePage = () => {
+            const shell = document.querySelector('.print-shell');
+            if (!shell) return;
+            shell.style.zoom = '';
+            const mmToPx = 96 / 25.4;
+            const pageHeight = 277 * mmToPx - 4;
+            // Al achicar, el texto se reacomoda: se repite hasta que entre (margen del 3%).
+            let zoom = 1;
+            for (let attempt = 0; attempt < 6; attempt += 1) {
+              const height = shell.getBoundingClientRect().height;
+              if (height <= pageHeight) break;
+              zoom = Math.max(0.5, zoom * (pageHeight / height) * 0.97);
+              shell.style.zoom = String(zoom);
+              if (zoom === 0.5) break;
+            }
+          };
+
           Promise.all(imagePromises).then(() => {
+            fitToOnePage();
             setTimeout(() => {
               window.focus();
               window.print();
