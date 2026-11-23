@@ -8,6 +8,8 @@ const SESSION_STORAGE_KEYS = [
   'userProfessionalId',
   'user_email',
   'user_name',
+  // Paciente de la última historia clínica abierta (dato de salud en PC compartida).
+  'agenda_kareh_selected_patient',
 ];
 
 const LEGACY_SESSION_STORAGE_KEYS = [
