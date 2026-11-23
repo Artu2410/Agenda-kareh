@@ -7,7 +7,7 @@ import {
   startOfMonth,
 } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { getCapacityForMonth } from '../domain/metrics/capacity.service.js';
+import { getCapacityForMonth, getScheduleMinutes } from '../domain/metrics/capacity.service.js';
 import { createInternalError } from '../errors/AppError.js';
 import { getHolidaysForDateRange } from '../services/holidayCalendar.service.js';
 
@@ -198,6 +198,22 @@ const getReceivables = (invoices = [], today) => {
     due60: 0,
     due90: 0,
   });
+};
+
+// Restaurada: el commit 98d7f8b la borró pero getStrategicSimulator la sigue usando.
+const getMonthlyCapacity = ({ professionals, sessionDurationMinutes }) => {
+  const weeklyMinutes = professionals.reduce(
+    (sum, professional) => sum + getScheduleMinutes(professional.workSchedule),
+    0
+  );
+  const weeklyCapacity = sessionDurationMinutes > 0 ? weeklyMinutes / sessionDurationMinutes : 0;
+
+  return {
+    weeklyMinutes,
+    weeklyHours: weeklyMinutes / 60,
+    weeklyCapacity,
+    monthlyCapacity: weeklyCapacity * MONTHLY_WEEK_FACTOR,
+  };
 };
 
 const getCurrentMonthAppointments = (appointments = [], monthStart, monthEnd) => appointments.filter((appointment) => (
