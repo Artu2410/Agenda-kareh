@@ -200,22 +200,6 @@ const getReceivables = (invoices = [], today) => {
   });
 };
 
-// Restaurada: el commit 98d7f8b la borró pero getStrategicSimulator la sigue usando.
-const getMonthlyCapacity = ({ professionals, sessionDurationMinutes }) => {
-  const weeklyMinutes = professionals.reduce(
-    (sum, professional) => sum + getScheduleMinutes(professional.workSchedule),
-    0
-  );
-  const weeklyCapacity = sessionDurationMinutes > 0 ? weeklyMinutes / sessionDurationMinutes : 0;
-
-  return {
-    weeklyMinutes,
-    weeklyHours: weeklyMinutes / 60,
-    weeklyCapacity,
-    monthlyCapacity: weeklyCapacity * MONTHLY_WEEK_FACTOR,
-  };
-};
-
 const getCurrentMonthAppointments = (appointments = [], monthStart, monthEnd) => appointments.filter((appointment) => (
   new Date(appointment.date) >= monthStart && new Date(appointment.date) < monthEnd
 ));
@@ -685,9 +669,30 @@ export const getStrategicSimulator = async (req, res, prisma) => {
       1,
       Number(agendaConfig?.slotDuration || agendaConfig?.timerDurationMinutes || 30)
     );
-    const capacity = getMonthlyCapacity({ professionals, sessionDurationMinutes });
     const currentMonthAppointments = getCurrentMonthAppointments(appointments, monthStart, monthEnd);
     const currentCompletedTurns = getCompletedAppointments(currentMonthAppointments).length;
+    // Misma capacidad que la pantalla de Capacidad y Contratación: franjas × lugares por
+    // franja en días operativos (descuenta feriados y cierres).
+    const monthStartKey = format(monthStart, 'yyyy-MM-dd');
+    const monthEndKey = format(addDays(monthEnd, -1), 'yyyy-MM-dd');
+    const calendarEntries = prisma.agendaCalendarEntry?.findMany
+      ? await prisma.agendaCalendarEntry.findMany({
+        where: { date: { gte: monthStartKey, lte: monthEndKey }, isActive: true },
+      })
+      : [];
+    const holidays = await getHolidaysForDateRange(monthStartKey, monthEndKey, {
+      nationalHolidaysClose: agendaConfig?.nationalHolidaysClose !== false,
+    });
+    const monthSummary = getCapacityForMonth({
+      year: monthStart.getFullYear(),
+      month: monthStart.getMonth() + 1,
+      professionals,
+      agendaConfig,
+      appointments: currentMonthAppointments,
+      calendarEntries,
+      holidays,
+    });
+    const capacity = { monthlyCapacity: monthSummary.effectiveCapacity };
     const completedLast90 = getCompletedAppointments(appointments).length;
     const invoiceRows = allocateInvoiceRows(invoices);
     const recentRows = getRowsFromLastDays(invoiceRows, today, 90);
@@ -701,7 +706,7 @@ export const getStrategicSimulator = async (req, res, prisma) => {
     const monthlyCollected = recentCollected / recentMonths;
     const averageRevenuePerTurn = completedLast90 > 0 ? recentInvoiced / completedLast90 : 0;
     const collectionRate = recentInvoiced > 0 ? Math.min(1, Math.max(0, recentCollected / recentInvoiced)) : 1;
-    const occupancyRate = capacity.monthlyCapacity > 0 ? (currentCompletedTurns / capacity.monthlyCapacity) * 100 : 0;
+    const occupancyRate = monthSummary.occupancyRate;
     const projectedCash30 = currentCash.total + receivables.due30 - fixedExpenses;
     const projectedCash90 = currentCash.total + receivables.due90 - (fixedExpenses * 3);
     const payerRows = groupRowsByPayer(recentRows);
@@ -784,7 +789,7 @@ export const getStrategicSimulator = async (req, res, prisma) => {
         sessionDurationMinutes,
         currentCompletedTurns,
         monthlyCapacity: roundOne(capacity.monthlyCapacity),
-        freeMonthlyCapacity: roundOne(Math.max(0, capacity.monthlyCapacity - currentCompletedTurns)),
+        freeMonthlyCapacity: roundOne(monthSummary.available),
         occupancyRate: roundOne(occupancyRate),
         topPayer,
         topProfessional: katiProfessional || topProfessional,
