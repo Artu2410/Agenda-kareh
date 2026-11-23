@@ -23,6 +23,7 @@ import {
   claimSlotNumber,
   findPatientTimeConflict,
   resequencePatientAppointments,
+  APPOINTMENT_ORDER,
   PROTECTED_APPOINTMENT_STATUSES,
   getAppointmentDeletionBlocker,
   deletionCheckSelect,

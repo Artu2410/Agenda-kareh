@@ -64,7 +64,7 @@ export const findPatientTimeConflict = (tx, { patientId, date, time, excludeId =
   select: { id: true },
 });
 
-const APPOINTMENT_ORDER = [
+export const APPOINTMENT_ORDER = [
   { date: 'asc' },
   { time: 'asc' },
   { slotNumber: 'asc' },
