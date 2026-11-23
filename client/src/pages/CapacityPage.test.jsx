@@ -144,6 +144,32 @@ describe('CapacityPage', () => {
     expect(screen.getByText('15/11 – 21/11')).toBeTruthy();
   });
 
+  it('muestra cada franja con su rango de 30 minutos y marca la franja completa', async () => {
+    api.get.mockResolvedValueOnce({
+      data: {
+        config: { sessionDurationMinutes: 30, capacityPerSlot: 5 },
+        currentMonth: {}, currentWeek: {}, futureCoverage: {}, bottleneck: {}, alerts: {}, monthlyTrend: [], professionals: [],
+        weeklySaturation: [{
+          weekStart: '2026-11-22', weekEnd: '2026-11-28', offset: 0, isCurrent: true, isFuture: false,
+          capacity: 195, reserved: 35, patients: 21, occupancyRate: 17.9, closedDays: [], saturatedSlotCount: 1,
+          days: [{ dayOfWeek: 3, date: '2026-11-25', capacity: 59, reserved: 15, patients: 15, occupancyRate: 25.5 }],
+          topSlots: [
+            { dayOfWeek: 3, time: '14:00', reserved: 5, capacity: 5, occupancyRate: 100, saturated: true },
+            { dayOfWeek: 2, time: '18:00', reserved: 3, capacity: 5, occupancyRate: 60, saturated: false },
+          ],
+        }],
+      },
+    });
+
+    render(<CapacityPage />);
+
+    expect(await screen.findByText('Cada franja dura 30 min y tiene 5 lugares.')).toBeTruthy();
+    expect(screen.getByText(/14:00–14:30/)).toBeTruthy();
+    expect(screen.getByText('Franja completa · 5 de 5')).toBeTruthy();
+    expect(screen.getByText(/18:00–18:30/)).toBeTruthy();
+    expect(screen.getByText('60% · 3 de 5 lugares')).toBeTruthy();
+  });
+
   it('shows the complete annual monthly breakdown and can narrow the chart to six months', async () => {
     render(<CapacityPage />);
 

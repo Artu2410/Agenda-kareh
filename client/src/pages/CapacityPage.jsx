@@ -322,6 +322,14 @@ const formatScheduleSummary = (workSchedule = []) => {
     .join(' · ');
 };
 
+// "14:00" + 30 → "14:30" (para mostrar el rango de cada franja).
+const addMinutesToTime = (time, minutes) => {
+  const [hours, mins] = String(time || '').split(':').map(Number);
+  if (!Number.isFinite(hours) || !Number.isFinite(mins) || !Number.isFinite(minutes)) return '';
+  const total = hours * 60 + mins + minutes;
+  return `${String(Math.floor(total / 60) % 24).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+};
+
 const CapacityPage = () => {
   const [capacity, setCapacity] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -366,6 +374,7 @@ const CapacityPage = () => {
   const currentWeekIndex = Math.max(weeklySaturation.findIndex((week) => week.isCurrent), 0);
   const resolvedWeekIndex = weekIndex ?? currentWeekIndex;
   const selectedWeek = weeklySaturation[resolvedWeekIndex] || null;
+  const slotMinutes = Number(capacity?.config?.sessionDurationMinutes) || 30;
   const futureWindow = futureCoverage?.window || {};
   const asOfLabel = formatDate(currentMonth?.asOf ? `${currentMonth.asOf}T12:00:00` : capacity?.generatedAt);
   const operationalInsights = buildOperationalInsights({
@@ -793,15 +802,20 @@ const CapacityPage = () => {
                 </div>
                 <div>
                   <p className="text-xs font-black text-slate-600">Franjas más ocupadas de la semana</p>
+                  <p className="text-[11px] font-semibold text-slate-400">
+                    Cada franja dura {slotMinutes} min y tiene {formatCount(capacity?.config?.capacityPerSlot)} lugares.
+                  </p>
                   {(selectedWeek.topSlots || []).length === 0 ? (
                     <p className="mt-2 text-sm font-semibold text-slate-400">Sin turnos citados esta semana.</p>
                   ) : (
                     <ul className="mt-2 space-y-1 text-sm font-semibold text-slate-600">
                       {selectedWeek.topSlots.map((slot) => (
                         <li key={`${slot.dayOfWeek}-${slot.time}`} className="flex justify-between gap-3">
-                          <span>{dayLabels[slot.dayOfWeek]} {slot.time}</span>
+                          <span>{dayLabels[slot.dayOfWeek]} {slot.time}–{addMinutesToTime(slot.time, slotMinutes)}</span>
                           <span className={slot.saturated ? 'font-black text-rose-700' : 'font-black text-slate-800'}>
-                            {formatRate(slot.occupancyRate)} · {formatCount(slot.reserved)}/{formatCount(slot.capacity)}
+                            {slot.reserved >= slot.capacity && slot.capacity > 0
+                              ? `Franja completa · ${formatCount(slot.reserved)} de ${formatCount(slot.capacity)}`
+                              : `${formatRate(slot.occupancyRate)} · ${formatCount(slot.reserved)} de ${formatCount(slot.capacity)} lugares`}
                           </span>
                         </li>
                       ))}
