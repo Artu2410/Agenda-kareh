@@ -69,6 +69,17 @@ npx prisma migrate dev --name nombre_del_cambio --schema server/prisma/schema.pr
 
 Verifica siempre `DATABASE_URL` antes de ejecutar migraciones. Una URL de Neon puede apuntar a datos reales.
 
+### Migraciones en producción
+
+El arranque (`npm start` del servidor) aplica las migraciones pendientes salvo que `RUN_MIGRATIONS_ON_START=false`.
+Procedimiento recomendado cuando un deploy trae migraciones:
+
+1. Crear un punto de restauración / branch de Neon (o confirmar que PITR cubre la hora actual).
+2. Revisar el SQL de `server/prisma/migrations/<nueva>/migration.sql`.
+3. Con `RUN_MIGRATIONS_ON_START=false` en el hosting, correr `npm run prisma:migrate:deploy --workspace server` contra producción.
+4. Desplegar. El log de arranque muestra `migrate status` y avisa si quedó algo pendiente.
+5. Si algo falla: restaurar el branch de Neon y volver al commit anterior.
+
 ## Pruebas y calidad
 
 ```bash

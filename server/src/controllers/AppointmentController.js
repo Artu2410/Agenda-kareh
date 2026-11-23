@@ -92,6 +92,54 @@ const createHttpError = (message, statusCode) => {
   return error;
 };
 
+// Bloqueos de transacción (se liberan solos al commit/rollback). Serializan las
+// reservas que compiten por el mismo paciente o el mismo horario de un profesional,
+// para que la segunda vea lo que guardó la primera en lugar de chocar.
+export const lockScheduleKeys = async (tx, keys = []) => {
+  if (typeof tx?.$queryRaw !== 'function') return;
+  const sortedKeys = [...new Set(keys.filter(Boolean))].sort();
+  for (const key of sortedKeys) {
+    await tx.$queryRaw`SELECT 1 AS locked FROM (SELECT pg_advisory_xact_lock(hashtext(${key}))) AS lock_holder`;
+  }
+};
+
+const patientLockKey = (patientId) => (patientId ? `appointment-patient:${patientId}` : null);
+const slotLockKey = ({ professionalId, date, time }) => {
+  const day = date instanceof Date ? date.toISOString().slice(0, 10) : String(date || '').slice(0, 10);
+  return `appointment-slot:${professionalId}:${day}:${time}`;
+};
+
+// Elige el primer número de lugar libre (1..capacidad) entre los turnos activos.
+// Un turno CANCELLED conserva su número y la restricción única lo sigue contando:
+// si bloquea el número elegido, se lo "estaciona" en un número negativo.
+export const claimSlotNumber = async (tx, { date, time, professionalId, capacityPerSlot, excludeId = null }) => {
+  const rows = await tx.appointment.findMany({
+    where: {
+      date,
+      time,
+      professionalId,
+      ...(excludeId ? { id: { not: excludeId } } : {}),
+    },
+    select: { id: true, slotNumber: true, status: true },
+  });
+  const activeNumbers = new Set(rows.filter((row) => row.status !== 'CANCELLED').map((row) => row.slotNumber));
+  const slotNumber = Array.from({ length: capacityPerSlot }, (_, i) => i + 1).find((n) => !activeNumbers.has(n));
+  if (!slotNumber) return null;
+
+  const blockingCancelled = rows.find((row) => row.status === 'CANCELLED' && row.slotNumber === slotNumber);
+  if (blockingCancelled) {
+    const usedNumbers = new Set(rows.map((row) => row.slotNumber));
+    let parkedNumber = -1;
+    while (usedNumbers.has(parkedNumber)) parkedNumber -= 1;
+    await tx.appointment.update({
+      where: { id: blockingCancelled.id },
+      data: { slotNumber: parkedNumber },
+      select: { id: true },
+    });
+  }
+  return slotNumber;
+};
+
 const APPOINTMENT_TRANSACTION_OPTIONS = {
   maxWait: 10000,
   timeout: 30000,
@@ -600,6 +648,10 @@ export const createAppointment = async (req, res, prisma) => {
             continue;
           }
 
+          await lockScheduleKeys(tx, [
+            patientLockKey(patient.id),
+            slotLockKey({ professionalId: prof.id, date: new Date(currentDate.setHours(12, 0, 0, 0)), time }),
+          ]);
           const patientConflict = await findPatientTimeConflict(tx, {
             patientId: patient.id,
             date: new Date(currentDate.setHours(12, 0, 0, 0)),
@@ -614,17 +666,12 @@ export const createAppointment = async (req, res, prisma) => {
             continue;
           }
 
-          const occupied = await tx.appointment.findMany({
-            where: { 
-              date: new Date(currentDate.setHours(12,0,0,0)), 
-              time, 
-              professionalId: prof.id,
-              status: { not: 'CANCELLED' } 
-            },
-            select: { slotNumber: true }
+          const nextSlot = await claimSlotNumber(tx, {
+            date: new Date(currentDate.setHours(12, 0, 0, 0)),
+            time,
+            professionalId: prof.id,
+            capacityPerSlot,
           });
-          const occupiedNumbers = occupied.map(s => s.slotNumber);
-          let nextSlot = Array.from({ length: capacityPerSlot }, (_, i) => i + 1).find(n => !occupiedNumbers.includes(n));
 
           if (nextSlot) {
             const newApt = await tx.appointment.create({
@@ -1034,6 +1081,10 @@ export const updateAppointment = async (req, res, prisma) => {
           throw createHttpError('No se puede mover un turno a un feriado o cierre operativo.', 409);
         }
 
+        await lockScheduleKeys(tx, [
+          patientLockKey(patientId || currentAppointment.patientId),
+          slotLockKey({ professionalId: currentAppointment.professionalId, date: nextDate, time: nextTime }),
+        ]);
         const patientConflict = await findPatientTimeConflict(tx, {
           patientId: patientId || currentAppointment.patientId,
           date: nextDate,
@@ -1046,19 +1097,13 @@ export const updateAppointment = async (req, res, prisma) => {
           throw error;
         }
 
-        const occupiedSlots = await tx.appointment.findMany({
-          where: {
-            id: { not: id },
-            professionalId: currentAppointment.professionalId,
-            date: nextDate,
-            time: nextTime,
-            status: { not: 'CANCELLED' }
-          },
-          select: { slotNumber: true }
+        const nextSlotNumber = await claimSlotNumber(tx, {
+          date: nextDate,
+          time: nextTime,
+          professionalId: currentAppointment.professionalId,
+          capacityPerSlot,
+          excludeId: id,
         });
-
-        const occupiedNumbers = occupiedSlots.map((slot) => slot.slotNumber);
-        const nextSlotNumber = Array.from({ length: capacityPerSlot }, (_, i) => i + 1).find((slot) => !occupiedNumbers.includes(slot));
 
         if (!nextSlotNumber) {
           const error = new Error("No hay cupos disponibles para ese día y horario.");

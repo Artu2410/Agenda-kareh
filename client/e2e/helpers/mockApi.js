@@ -391,8 +391,31 @@ const updateAppointment = (state, id, payload) => {
   return next;
 };
 
-const deleteAppointment = (state, id) => {
-  state.appointments = state.appointments.filter((appointment) => appointment.id !== id);
+// Mismas reglas que el backend (AppointmentController.deleteAppointment).
+const PROTECTED_STATUSES = ['COMPLETED', 'NO_SHOW'];
+const appointmentKey = (appointment) => `${String(appointment.date).slice(0, 10)} ${appointment.time}`;
+
+const deleteAppointment = (state, id, { deleteFuture = false } = {}) => {
+  const reference = state.appointments.find((appointment) => appointment.id === id);
+  if (!reference) return { status: 404, body: { message: 'Turno no encontrado' } };
+
+  if (!deleteFuture) {
+    if (PROTECTED_STATUSES.includes(reference.status)) {
+      return { status: 409, body: { message: 'No se puede eliminar un turno ya atendido: forma parte de la historia del paciente.' } };
+    }
+    state.appointments = state.appointments.filter((appointment) => appointment.id !== id);
+    return { status: 200, body: { success: true, count: 1, skipped: 0 } };
+  }
+
+  const later = state.appointments.filter((appointment) => (
+    appointment.patientId === reference.patientId
+    && appointment.professionalId === reference.professionalId
+    && appointmentKey(appointment) > appointmentKey(reference)
+  ));
+  const removable = later.filter((appointment) => !PROTECTED_STATUSES.includes(appointment.status));
+  const removableIds = new Set(removable.map((appointment) => appointment.id));
+  state.appointments = state.appointments.filter((appointment) => !removableIds.has(appointment.id));
+  return { status: 200, body: { success: true, count: removable.length, skipped: later.length - removable.length } };
 };
 
 const findRouteMatch = (path, pattern) => {
@@ -539,8 +562,10 @@ export const installMockApi = async (page, options = {}) => {
 
     const appointmentIdMatch = findRouteMatch(path, /^\/appointments\/([^/]+)$/);
     if (appointmentIdMatch && method === 'DELETE') {
-      deleteAppointment(state, appointmentIdMatch[0]);
-      return sendJson(route, { success: true });
+      const result = deleteAppointment(state, appointmentIdMatch[0], {
+        deleteFuture: url.searchParams.get('deleteFuture') === 'true',
+      });
+      return sendJson(route, result.body, result.status);
     }
 
     if (appointmentIdMatch && method === 'PUT') {
