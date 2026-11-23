@@ -14,6 +14,8 @@ import {
   getCapacityForWeek,
   getCapacityForDate,
   isCalendarDateOperational,
+  getKinesiologistLoadRule,
+  getWeeklyKinesiologistLoad,
 } from '../domain/metrics/capacity.service.js';
 import { getHolidaysForDateRange } from '../services/holidayCalendar.service.js';
 import { createInternalError } from '../errors/AppError.js';
@@ -491,6 +493,8 @@ export const getCapacityMetrics = async (req, res, prisma) => {
       futureOccupancyRate: futureAgenda.window.occupancyRate,
       sustainedGrowth,
       saturation,
+      loadRule: getKinesiologistLoadRule({ professionals, agendaConfig }),
+      weeklyLoad: getWeeklyKinesiologistLoad([...historicalAppointments, ...futureAppointments], now),
     });
     const operationalStatus = getOperationalStatus({
       capacity: breakdown.capacity,

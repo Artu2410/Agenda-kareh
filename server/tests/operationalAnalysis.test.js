@@ -304,3 +304,32 @@ describe('buildWeeklySaturation', () => {
     expect(weeks[0].patients).toBe(1);
   });
 });
+
+describe('buildKinesiologistAssessment con el tope por kinesiólogo', () => {
+  const base = {
+    occupancyRate: 20,
+    futureOccupancyRate: 10,
+    sustainedGrowth: false,
+    saturation: { saturatedSlotCount: 0, slotCount: 11, saturatedShare: 0 },
+  };
+  const loadRule = { maxPerDay: 27, maxPerWeek: 162 };
+
+  it('superar 27 por día recomienda llamar otro kine aunque la ocupación sea baja', () => {
+    const result = buildKinesiologistAssessment({ ...base, loadRule, weeklyLoad: { maxDay: 28, maxWeek: 100 } });
+    expect(result.recommended).toBe(true);
+    expect(result.loadExceeded).toBe(true);
+    expect(result.label).toMatch(/Llamar otro kinesiólogo/);
+    expect(result.criteria[0]).toMatchObject({ key: 'kine_load', met: true });
+  });
+
+  it('superar 162 por semana también dispara la alerta', () => {
+    const result = buildKinesiologistAssessment({ ...base, loadRule, weeklyLoad: { maxDay: 27, maxWeek: 163 } });
+    expect(result.loadExceeded).toBe(true);
+  });
+
+  it('dentro del tope sigue en observación', () => {
+    const result = buildKinesiologistAssessment({ ...base, loadRule, weeklyLoad: { maxDay: 27, maxWeek: 162 } });
+    expect(result.recommended).toBe(false);
+    expect(result.label).toMatch(/en observación/);
+  });
+});

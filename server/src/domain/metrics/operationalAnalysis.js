@@ -330,6 +330,7 @@ export const buildAdminAssessment = ({ breakdown, patients }) => {
 
 export const buildKinesiologistAssessment = ({
   occupancyRate, futureOccupancyRate, sustainedGrowth, saturation,
+  loadRule = null, weeklyLoad = null,
 }) => {
   const criteria = [
     {
@@ -347,6 +348,18 @@ export const buildKinesiologistAssessment = ({
     },
   ];
   const metCount = criteria.filter((c) => c.met).length;
+  // Regla del consultorio: un kine no atiende más de 27 por día (162 por semana).
+  // Superado el tope hay que llamar otro kinesiólogo aunque la ocupación general tenga margen.
+  const loadExceeded = Boolean(loadRule && weeklyLoad && (
+    weeklyLoad.maxDay > loadRule.maxPerDay || weeklyLoad.maxWeek > loadRule.maxPerWeek
+  ));
+  const loadCriteria = loadRule && weeklyLoad ? [{
+    key: 'kine_load',
+    label: `Carga por kinesiólogo esta semana (tope ${loadRule.maxPerDay}/día · ${loadRule.maxPerWeek}/semana): ${weeklyLoad.maxDay}/día · ${weeklyLoad.maxWeek}/semana`,
+    met: loadExceeded,
+    value: weeklyLoad.maxWeek,
+    measured: true,
+  }] : [];
   const informational = [
     {
       key: 'saturated_slots',
@@ -355,12 +368,20 @@ export const buildKinesiologistAssessment = ({
     },
   ];
 
+  const recommended = loadExceeded || metCount === criteria.length;
+  let label = 'Segundo kinesiólogo en observación';
+  if (loadExceeded) label = 'Llamar otro kinesiólogo: se superó el tope por kine';
+  else if (recommended) label = 'Segundo kinesiólogo recomendado';
+
   return {
-    recommended: metCount === criteria.length,
+    recommended,
+    loadExceeded,
+    maxPatientsPerKinePerDay: loadRule?.maxPerDay ?? null,
+    maxPatientsPerKinePerWeek: loadRule?.maxPerWeek ?? null,
     metCount,
     requiredCount: criteria.length,
-    label: metCount === criteria.length ? 'Segundo kinesiólogo recomendado' : 'Segundo kinesiólogo en observación',
-    criteria: [...criteria, ...informational],
+    label,
+    criteria: [...loadCriteria, ...criteria, ...informational],
   };
 };
 

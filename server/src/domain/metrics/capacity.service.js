@@ -1,3 +1,5 @@
+import { endOfWeek, startOfWeek } from 'date-fns';
+
 const toNumber = (value) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -547,4 +549,61 @@ export const calculateOperationalCapacity = ({
       occupancyRate,
     },
   };
+};
+
+// Tope clínico por kinesiólogo: aunque la agenda admita 5 pacientes por franja,
+// un kine no debe atender más de 27 por día (162 en una semana de 6 días).
+// Superado ese número hay que sumar otro kinesiólogo.
+export const DEFAULT_MAX_PATIENTS_PER_KINE_PER_DAY = 27;
+
+export const getKinesiologistLoadRule = ({ professionals = [], agendaConfig = null, environment = process.env } = {}) => {
+  const configured = Number(environment?.KAREH_MAX_PATIENTS_PER_KINE_DAY);
+  const maxPerDay = Number.isFinite(configured) && configured > 0 ? configured : DEFAULT_MAX_PATIENTS_PER_KINE_PER_DAY;
+  const scheduleDays = professionals.flatMap((professional) => getScheduleMinutesByDay(professional.workSchedule || []))
+    .filter((item) => item.minutes > 0);
+  const operatingDays = new Set(scheduleDays.map((item) => item.dayOfWeek));
+  const operatingDaysPerWeek = operatingDays.size || 6;
+  const averageDailyMinutes = scheduleDays.length > 0
+    ? scheduleDays.reduce((sum, item) => sum + item.minutes, 0) / scheduleDays.length
+    : 300;
+  const dailyHours = averageDailyMinutes / 60;
+  const slotDuration = resolveSessionDurationMinutes(agendaConfig);
+  const capacityPerSlot = resolveCapacityPerSlot(agendaConfig);
+  const slotTurnsPerHour = slotDuration > 0 && capacityPerSlot > 0 ? (60 / slotDuration) * capacityPerSlot : Infinity;
+  const turnsPerHour = Math.min(slotTurnsPerHour, dailyHours > 0 ? maxPerDay / dailyHours : maxPerDay / 5);
+
+  return {
+    maxPerDay,
+    operatingDaysPerWeek,
+    maxPerWeek: maxPerDay * operatingDaysPerWeek,
+    dailyHours,
+    turnsPerHour,
+  };
+};
+
+// Carga real por kinesiólogo en la semana actual (domingo a sábado): el kine más
+// cargado y su día más cargado. Es lo que se compara contra el tope de 27/162.
+export const getWeeklyKinesiologistLoad = (appointments = [], now = new Date()) => {
+  const weekStart = startOfWeek(now);
+  const weekEnd = endOfWeek(now);
+  const seen = new Set();
+  const perProfessional = new Map();
+  for (const appointment of appointments) {
+    if (!appointment?.id || seen.has(appointment.id) || !appointment.professionalId) continue;
+    seen.add(appointment.id);
+    const date = new Date(appointment.date);
+    if (date < weekStart || date > weekEnd) continue;
+    const entry = perProfessional.get(appointment.professionalId) || { week: 0, days: new Map() };
+    const dayKey = normalizeDateKey(date);
+    entry.week += 1;
+    entry.days.set(dayKey, (entry.days.get(dayKey) || 0) + 1);
+    perProfessional.set(appointment.professionalId, entry);
+  }
+  let maxWeek = 0;
+  let maxDay = 0;
+  for (const entry of perProfessional.values()) {
+    maxWeek = Math.max(maxWeek, entry.week);
+    for (const count of entry.days.values()) maxDay = Math.max(maxDay, count);
+  }
+  return { maxWeek, maxDay, weekStart, weekEnd };
 };

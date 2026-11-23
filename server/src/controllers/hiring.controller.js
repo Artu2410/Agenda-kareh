@@ -8,7 +8,9 @@ import {
   subMonths,
 } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { getCapacityForMonth } from '../domain/metrics/capacity.service.js';
+import { getCapacityForMonth, getKinesiologistLoadRule, getWeeklyKinesiologistLoad } from '../domain/metrics/capacity.service.js';
+
+export { getWeeklyKinesiologistLoad };
 import { createInternalError } from '../errors/AppError.js';
 import { getHolidaysForDateRange } from '../services/holidayCalendar.service.js';
 
@@ -249,6 +251,7 @@ const buildAdministrativeDecision = ({
   monthlyTurns,
   receivables,
   sessionDurationMinutes,
+  turnsPerHour = 0,
 }) => {
   const criteria = [
     getCriterion({
@@ -287,9 +290,9 @@ const buildAdministrativeDecision = ({
   const score = Math.min(100, Math.round(criteria.reduce((sum, criterion) => sum + criterion.score, 0)));
   const status = score >= 70 ? 'HIRE' : (score >= 45 ? 'EVALUATE' : 'NO_HIRE');
   const freedHoursWeekly = 12;
-  const additionalTurnsFromFreedTime = sessionDurationMinutes > 0
-    ? (freedHoursWeekly * 60 / sessionDurationMinutes) * MONTHLY_WEEK_FACTOR
-    : 0;
+  const additionalTurnsFromFreedTime = turnsPerHour > 0
+    ? freedHoursWeekly * turnsPerHour * MONTHLY_WEEK_FACTOR
+    : (sessionDurationMinutes > 0 ? (freedHoursWeekly * 60 / sessionDurationMinutes) * MONTHLY_WEEK_FACTOR : 0);
   const revenueFromFreedTime = additionalTurnsFromFreedTime * averageRevenuePerTurn;
   const turnsToBreakEven = averageRevenuePerTurn > 0 ? Math.ceil(adminCost / averageRevenuePerTurn) : null;
   const breakEvenOccupancyOfFreedTime = additionalTurnsFromFreedTime > 0 && turnsToBreakEven
@@ -350,6 +353,8 @@ const buildKinesiologistDecision = ({
   occupancyRate,
   sessionDurationMinutes,
   sustainedGrowth,
+  loadRule = null,
+  weeklyLoad = null,
 }) => {
   const targetTurns85 = monthlyCapacity * 0.85;
   const monthsToSaturation = occupancyRate >= 85
@@ -358,9 +363,10 @@ const buildKinesiologistDecision = ({
   const saturationDate = monthsToSaturation !== null && monthsToSaturation >= 0 && monthsToSaturation <= 36
     ? addMonths(startOfMonth(new Date()), monthsToSaturation)
     : null;
-  const additionalTurns = sessionDurationMinutes > 0
-    ? (newKinesiologistWeeklyHours * 60 / sessionDurationMinutes) * MONTHLY_WEEK_FACTOR
-    : 0;
+  // Turnos que suma un kine nuevo: limitado por el tope clínico (27 por día), no solo por las franjas.
+  const additionalTurns = loadRule
+    ? newKinesiologistWeeklyHours * loadRule.turnsPerHour * MONTHLY_WEEK_FACTOR
+    : (sessionDurationMinutes > 0 ? (newKinesiologistWeeklyHours * 60 / sessionDurationMinutes) * MONTHLY_WEEK_FACTOR : 0);
   const expectedRevenueAt60 = additionalTurns * 0.6 * averageRevenuePerTurn;
   const turnsToBreakEven = averageRevenuePerTurn > 0 ? Math.ceil(kinesiologistCost / averageRevenuePerTurn) : null;
   const occupancyToBreakEven = additionalTurns > 0 && turnsToBreakEven
@@ -408,8 +414,22 @@ const buildKinesiologistDecision = ({
       weight: 15,
     }),
   ];
+  const loadExceeded = Boolean(loadRule && weeklyLoad && (
+    weeklyLoad.maxDay > loadRule.maxPerDay || weeklyLoad.maxWeek > loadRule.maxPerWeek
+  ));
+  if (loadRule && weeklyLoad) {
+    criteria.unshift(getCriterion({
+      key: 'kine_load',
+      label: `Carga por kinesiólogo > ${loadRule.maxPerDay}/día o ${loadRule.maxPerWeek}/semana`,
+      met: loadExceeded,
+      score: 0,
+      value: `${weeklyLoad.maxDay}/día · ${weeklyLoad.maxWeek}/semana`,
+      weight: 0,
+    }));
+  }
   const score = Math.min(100, Math.round(criteria.reduce((sum, criterion) => sum + criterion.score, 0)));
-  const status = score >= 70 ? 'IMMINENT' : (score >= 45 ? 'NEXT_90_DAYS' : 'NO_HIRE');
+  // Regla del consultorio: superado el tope por kinesiólogo hay que sumar otro, sin importar el resto.
+  const status = loadExceeded ? 'IMMINENT' : (score >= 70 ? 'IMMINENT' : (score >= 45 ? 'NEXT_90_DAYS' : 'NO_HIRE'));
 
   return {
     type: 'KINESIOLOGIST',
@@ -429,12 +449,18 @@ const buildKinesiologistDecision = ({
       monthlyTurnGrowth: roundOne(monthlyTurnGrowth),
       saturationTargetTurns: roundOne(targetTurns85),
       monthsToSaturation,
+      maxPatientsPerKinePerDay: loadRule?.maxPerDay ?? null,
+      maxPatientsPerKinePerWeek: loadRule?.maxPerWeek ?? null,
+      busiestKineDay: weeklyLoad?.maxDay ?? null,
+      busiestKineWeek: weeklyLoad?.maxWeek ?? null,
     },
     criteria,
     reasons: criteria
-      .filter((criterion) => criterion.score > 0)
+      .filter((criterion) => criterion.score > 0 || (criterion.key === 'kine_load' && criterion.met))
       .map((criterion) => criterion.label),
-    recommendation: status === 'IMMINENT'
+    recommendation: loadExceeded
+      ? `Un kinesiólogo supera ${loadRule.maxPerDay} pacientes por día o ${loadRule.maxPerWeek} por semana: llamar otro kinesiólogo para no recargarlo.`
+      : status === 'IMMINENT'
       ? 'Preparar incorporación clínica y validar demanda rechazada antes de firmar costo fijo.'
       : (status === 'NEXT_90_DAYS'
           ? 'No contratar todavía; llenar primero la capacidad libre y medir saturación semanalmente.'
@@ -588,6 +614,7 @@ export const getHiringRecommendations = async (req, res, prisma) => {
           id: true,
           date: true,
           patientId: true,
+          professionalId: true,
         },
         orderBy: [
           { date: 'asc' },
@@ -710,6 +737,7 @@ export const getHiringRecommendations = async (req, res, prisma) => {
       receivables,
       currentMonthInvoiced,
     });
+    const kineLoadRule = getKinesiologistLoadRule({ professionals, agendaConfig });
     const administrative = buildAdministrativeDecision({
       activePatients,
       adminCost,
@@ -720,6 +748,7 @@ export const getHiringRecommendations = async (req, res, prisma) => {
       monthlyTurns: currentMonthTurns,
       receivables,
       sessionDurationMinutes,
+      turnsPerHour: kineLoadRule.turnsPerHour,
     });
     const kinesiologist = buildKinesiologistDecision({
       averageRevenuePerTurn,
@@ -733,6 +762,8 @@ export const getHiringRecommendations = async (req, res, prisma) => {
       occupancyRate,
       sessionDurationMinutes,
       sustainedGrowth,
+      loadRule: kineLoadRule,
+      weeklyLoad: getWeeklyKinesiologistLoad([...currentMonthAppointments, ...futureAppointments], now),
     });
     const risk = buildOverallRisk({ administrative, financial, kinesiologist });
 

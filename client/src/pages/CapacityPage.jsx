@@ -583,7 +583,9 @@ const CapacityPage = () => {
                   {kinesiologistAlert.label || 'En observación'}
                 </h2>
                 <p className="mt-1 text-sm font-semibold text-slate-500">
-                  {kinesiologistAlert.metCount || 0} de {kinesiologistAlert.requiredCount || 3} criterios obligatorios.
+                  {kinesiologistAlert.loadExceeded
+                    ? `Un kinesiólogo supera ${kinesiologistAlert.maxPatientsPerKinePerDay ?? 27} pacientes por día o ${kinesiologistAlert.maxPatientsPerKinePerWeek ?? 162} por semana.`
+                    : `${kinesiologistAlert.metCount || 0} de ${kinesiologistAlert.requiredCount || 3} criterios obligatorios.`}
                 </p>
               </div>
               <UserPlus className={kinesiologistAlert.recommended ? 'text-rose-600' : 'text-slate-300'} size={24} />

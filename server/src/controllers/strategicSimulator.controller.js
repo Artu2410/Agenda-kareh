@@ -7,7 +7,7 @@ import {
   startOfMonth,
 } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { getCapacityForMonth, getScheduleMinutes } from '../domain/metrics/capacity.service.js';
+import { getCapacityForMonth, getKinesiologistLoadRule, getScheduleMinutes } from '../domain/metrics/capacity.service.js';
 import { createInternalError } from '../errors/AppError.js';
 import { getHolidaysForDateRange } from '../services/holidayCalendar.service.js';
 
@@ -302,8 +302,8 @@ const buildScenario = ({
 });
 
 const buildAdminScenario = ({ baseline, params }) => {
-  const additionalTurns = baseline.sessionDurationMinutes > 0
-    ? (params.adminFreesKatiHours * 60 / baseline.sessionDurationMinutes) * MONTHLY_WEEK_FACTOR
+  const additionalTurns = baseline.turnsPerHour > 0
+    ? params.adminFreesKatiHours * baseline.turnsPerHour * MONTHLY_WEEK_FACTOR
     : 0;
   const revenuePotential = additionalTurns * baseline.averageRevenuePerTurn;
   const cashDelta = (revenuePotential * baseline.collectionRate) - params.adminCost;
@@ -347,8 +347,8 @@ const buildAdminScenario = ({ baseline, params }) => {
 };
 
 const buildExpandHoursScenario = ({ baseline, params }) => {
-  const additionalTurns = baseline.sessionDurationMinutes > 0
-    ? (params.extraWeeklyHours * 60 / baseline.sessionDurationMinutes) * MONTHLY_WEEK_FACTOR
+  const additionalTurns = baseline.turnsPerHour > 0
+    ? params.extraWeeklyHours * baseline.turnsPerHour * MONTHLY_WEEK_FACTOR
     : 0;
   const projectedUtilization = Math.min(0.85, Math.max(0.5, baseline.occupancyRate / 100));
   const expectedTurns = additionalTurns * projectedUtilization;
@@ -388,8 +388,8 @@ const buildExpandHoursScenario = ({ baseline, params }) => {
 };
 
 const buildKinesiologistScenario = ({ baseline, params }) => {
-  const additionalTurns = baseline.sessionDurationMinutes > 0
-    ? (params.kinesiologistWeeklyHours * 60 / baseline.sessionDurationMinutes) * MONTHLY_WEEK_FACTOR
+  const additionalTurns = baseline.turnsPerHour > 0
+    ? params.kinesiologistWeeklyHours * baseline.turnsPerHour * MONTHLY_WEEK_FACTOR
     : 0;
   const expectedTurnsAt60 = additionalTurns * 0.6;
   const expectedRevenueAt60 = expectedTurnsAt60 * baseline.averageRevenuePerTurn;
@@ -719,9 +719,11 @@ export const getStrategicSimulator = async (req, res, prisma) => {
       monthlyCollected: roundCurrency(row.collected / recentMonths),
       share: totalRecentByPayer > 0 ? (row.invoiced / totalRecentByPayer) * 100 : 0,
     }));
+    // Tope clínico por kinesiólogo (27/día): una hora de kine rinde ~27 / horas de jornada turnos.
+    const loadRule = getKinesiologistLoadRule({ professionals, agendaConfig });
     const professionalCapacityById = new Map(professionals.map((professional) => [
       professional.id,
-      (getScheduleMinutes(professional.workSchedule) / sessionDurationMinutes) * MONTHLY_WEEK_FACTOR,
+      (getScheduleMinutes(professional.workSchedule) / 60) * loadRule.turnsPerHour * MONTHLY_WEEK_FACTOR,
     ]));
     const professionalRowsWithShares = professionalRows.map((row) => ({
       ...row,
@@ -753,6 +755,7 @@ export const getStrategicSimulator = async (req, res, prisma) => {
       recentPending,
       receivables,
       sessionDurationMinutes,
+      turnsPerHour: loadRule.turnsPerHour,
       topPayer,
       topProfessional,
       katiProfessional,
