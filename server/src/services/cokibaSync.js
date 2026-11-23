@@ -1,3 +1,4 @@
+/* global document, window, location, DOMParser -- código que corre dentro del navegador (page.evaluate) */
 import { PrismaClient } from '@prisma/client';
 import puppeteer from 'puppeteer';
 import { loadSupplementalCokibaCatalog, matchSupplementalCokibaEntry } from './cokibaTextCatalog.js';

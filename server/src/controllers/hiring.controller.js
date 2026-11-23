@@ -34,6 +34,7 @@ const roundOne = (value) => Math.round(toNumber(value) * 10) / 10;
 
 const normalizeUpper = (value) => String(value || '').trim().toUpperCase();
 const formatMonthKey = (date) => format(date, 'yyyy-MM');
+const formatMonthLabel = (date) => format(date, 'MMMM yyyy', { locale: es });
 
 const getConfigValue = (queryValue, envValue, fallback) => {
   const requested = toNumber(queryValue);

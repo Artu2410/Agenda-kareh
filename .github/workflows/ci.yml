@@ -29,6 +29,9 @@ jobs:
         run: npm ci --workspace client --include-workspace-root --ignore-scripts
       - name: Lint
         run: npm run lint --workspace client
+      - name: Lint del servidor (nombres sin definir o sin importar)
+        working-directory: server
+        run: ../node_modules/.bin/eslint .
       - name: Tests
         run: npm run test:unit --workspace client
       - name: Build
