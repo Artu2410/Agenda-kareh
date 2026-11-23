@@ -552,10 +552,12 @@ const ClinicalHistoryPage = () => {
         ? 'coverage-blue'
         : 'coverage-teal',
       affiliateNumber: escapePrintHtml(patient?.affiliateNumber || 'Sin número'),
+      folio: escapePrintHtml(patient?.actaBookFolio || 'Sin asignar'),
+      phone: escapePrintHtml(patient?.phone || 'Sin dato'),
+      address: escapePrintHtml(patient?.address || 'Sin dato'),
       risks: [
         { label: 'Cáncer', active: !!patient?.hasCancer },
         { label: 'Marcapasos', active: !!patient?.hasMarcapasos },
-        { label: 'Usa EA', active: !!patient?.usesEA },
       ],
     };
 
@@ -568,12 +570,6 @@ const ClinicalHistoryPage = () => {
       evolutionHtml: isClinicalRichTextEmpty(entry.evolution)
         ? 'Sin evolución registrada.'
         : normalizeClinicalRichTextHtml(entry.evolution),
-      attachments: (entry.attachments || []).map((file) => ({
-        kind: isImageAttachment(file) ? 'image' : 'file',
-        url: escapePrintHtml(getAttachmentUrl(file)),
-        label: escapePrintHtml(getAttachmentLabel(file)),
-        fileType: isPdfAttachment(file) ? 'PDF' : 'ARCHIVO',
-      })),
     }));
 
     printWindow.document.write(buildClinicalHistoryPrintHtml({
