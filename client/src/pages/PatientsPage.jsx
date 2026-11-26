@@ -21,6 +21,7 @@ import { getCoverageLabel, isParticularCoverage } from '../utils/coverage';
 import { getAuthenticatedFileUrl } from '../services/fileUrl';
 import { getStoredUser } from '../services/session';
 import { isAdmin } from '../utils/roles';
+import AddressAutocomplete from '../components/patients/AddressAutocomplete';
 
 const UNKNOWN_BIRTHDATE = '1900-01-01';
 
@@ -44,6 +45,7 @@ const EMPTY_FORM = {
   phone: '',
   email: '',
   address: '',
+  locality: '',
   birthDate: '',
   healthInsurance: '',
   obraSocialId: '',
@@ -193,6 +195,7 @@ export default function PatientsPage() {
       ...patient,
       obraSocialId: patient.obraSocialId || '',
       birthDate: formatBirthDateForInput(patient.birthDate),
+      locality: patient.locality || '',
       emergencyPhone: patient.emergencyPhone || '',
       medicalHistory: patient.medicalHistory || '',
       medicalNotes: patient.medicalNotes || '',
@@ -581,16 +584,14 @@ export default function PatientsPage() {
                       />
                     </div>
 
-                    <div className="md:col-span-2">
-                      <label className="mb-1 block text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Dirección</label>
-                      <input
-                        type="text"
-                        name="address"
-                        value={formData.address || ''}
-                        onChange={handleInputChange}
-                        className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 font-semibold outline-none transition focus:ring-2 ring-teal-500"
-                      />
-                    </div>
+                    <AddressAutocomplete
+                      className="md:col-span-2"
+                      address={formData.address || ''}
+                      locality={formData.locality || ''}
+                      onChange={(patch) => setFormData((prev) => ({ ...prev, ...patch }))}
+                      labelClassName="mb-1 block text-[10px] font-black uppercase tracking-[0.22em] text-slate-400"
+                      inputClassName="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 font-semibold outline-none transition focus:ring-2 ring-teal-500"
+                    />
                   </div>
                 </section>
 

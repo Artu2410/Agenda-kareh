@@ -54,6 +54,7 @@ export const patientSelect = {
   cudNumber: true,
   phone: true,
   address: true,
+  locality: true,
   emergencyPhone: true,
   medicalHistory: true,
   hasCancer: true,

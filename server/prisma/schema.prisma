@@ -165,6 +165,7 @@ model Patient {
   cudNumber                 String?
   phone                     String?
   address                   String?
+  locality                  String?
   emergencyPhone            String?
   medicalHistory            String?
   hasCancer                 Boolean           @default(false)

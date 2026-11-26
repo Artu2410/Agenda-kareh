@@ -40,6 +40,7 @@ const createPatientDocuments = (source = {}) => Object.fromEntries(
 // Ficha extendida: contacto y documentación, igual en turno y en búsqueda por DNI.
 const pickPatientRecordFields = (source = {}) => ({
   address: source.address || '',
+  locality: source.locality || '',
   email: source.email || '',
   emergencyPhone: source.emergencyPhone || '',
   cudNumber: source.cudNumber || '',
@@ -113,16 +114,24 @@ const normalizePatientFromAppointment = (appointment) => {
   };
 };
 
-const normalizePatientFromSearch = (previousPatient, data) => {
+// Datos de contacto que, si la ficha los tiene vacíos, se completan con lo que ya se tipeó.
+const TYPED_FALLBACK_FIELDS = ['phone', 'birthDate', 'affiliateNumber', 'address', 'locality', 'email', 'emergencyPhone', 'cudNumber'];
+
+/**
+ * Carga en el formulario la ficha del paciente encontrado por DNI. La ficha manda: sus
+ * datos reemplazan a los del formulario. Con `keepTypedValues` (lo cargado a mano, no
+ * venía de otro paciente) los campos vacíos de la ficha conservan lo que ya se tipeó.
+ */
+export const normalizePatientFromSearch = (previousPatient, data, { keepTypedValues = false } = {}) => {
   const nameParts = String(data.fullName || '').split(' ');
 
-  return {
+  const next = {
     ...previousPatient,
     lastName: nameParts[0] || '',
     firstName: nameParts.slice(1).join(' ') || '',
     dni: data.dni || previousPatient.dni,
     phone: data.phone || '',
-    birthDate: data.birthDate && !isUnknownBirthDate(data.birthDate) ? data.birthDate.split('T')[0] : previousPatient.birthDate,
+    birthDate: data.birthDate && !isUnknownBirthDate(data.birthDate) ? data.birthDate.split('T')[0] : '',
     healthInsurance: data.healthInsurance || '',
     obraSocialId: data.obraSocialId || '',
     treatAsParticular: data.treatAsParticular || false,
@@ -135,7 +144,21 @@ const normalizePatientFromSearch = (previousPatient, data) => {
     isRespiratory: data.isRespiratory || false,
     isIU: data.isIU || false,
   };
+
+  if (keepTypedValues) {
+    TYPED_FALLBACK_FIELDS.forEach((field) => {
+      if (!next[field] && previousPatient[field]) next[field] = previousPatient[field];
+    });
+  }
+
+  return next;
 };
+
+// El DNI ya no corresponde al paciente cargado: se vacía su ficha para no copiarla a otro.
+const clearPatientRecordKeepingDni = (previousPatient) => ({
+  ...createPatientData(),
+  dni: previousPatient.dni,
+});
 
 export const useAppointmentForm = ({
   isOpen,
@@ -175,8 +198,11 @@ export const useAppointmentForm = ({
   const [uploadingAuthorization, setUploadingAuthorization] = useState(false);
   const [foundPatientId, setFoundPatientId] = useState('');
   const [uploadingDocumentField, setUploadingDocumentField] = useState('');
+  const [searchingPatient, setSearchingPatient] = useState(false);
 
   const lastSearchedRef = useRef('');
+  // Paciente cuya ficha está cargada en el formulario (null = datos tipeados a mano).
+  const filledFromPatientIdRef = useRef(null);
   const searchTimerRef = useRef(null);
   const { ConfirmModalComponent, openModal } = useConfirmModal();
 
@@ -358,7 +384,9 @@ export const useAppointmentForm = ({
   useEffect(() => {
     if (!isOpen) return;
 
+    setSearchingPatient(false);
     if (isEditMode && appointment) {
+      filledFromPatientIdRef.current = appointment.patientId || null;
       setPatientData(normalizePatientFromAppointment(appointment));
       setDiagnosis(appointment.diagnosis || '');
       setStatus(appointment.status || 'SCHEDULED');
@@ -384,6 +412,7 @@ export const useAppointmentForm = ({
 
       loadFutureAppointments();
     } else {
+      filledFromPatientIdRef.current = null;
       setPatientData(createPatientData());
       setDiagnosis('');
       setStatus('SCHEDULED');
@@ -428,28 +457,45 @@ export const useAppointmentForm = ({
       clearTimeout(searchTimerRef.current);
     }
 
-    if (normalizedValue.length < 6) return;
+    const searchKey = `${field}:${normalizedValue}`;
+    // Mismo valor que la última búsqueda: se conserva el paciente ya encontrado.
+    if (searchKey === lastSearchedRef.current) return;
 
+    // El DNI cambió: el paciente encontrado antes ya no aplica (evita adjuntar a otra ficha).
+    lastSearchedRef.current = '';
+    setFoundPatientId('');
+
+    if (normalizedValue.length < 6) {
+      setSearchingPatient(false);
+      return;
+    }
+
+    setSearchingPatient(true);
     searchTimerRef.current = setTimeout(async () => {
-      const searchKey = `${field}:${normalizedValue}`;
-      if (searchKey === lastSearchedRef.current) return;
       lastSearchedRef.current = searchKey;
 
       try {
         const { data } = await api.get('/patients/search', {
           params: { [field]: normalizedValue },
         });
-        if (data) {
-          setPatientData((previous) => normalizePatientFromSearch(previous, data));
-          setFoundPatientId(data.id || '');
-        } else {
-          setFoundPatientId('');
+        const filledFrom = filledFromPatientIdRef.current;
+        if (data?.id) {
+          const keepTypedValues = !filledFrom || filledFrom === data.id;
+          setPatientData((previous) => normalizePatientFromSearch(previous, data, { keepTypedValues }));
+          filledFromPatientIdRef.current = data.id;
+          setFoundPatientId(data.id);
+        } else if (filledFrom && !isEditMode) {
+          // Paciente nuevo después de haber cargado otro: no arrastrar la ficha anterior.
+          setPatientData(clearPatientRecordKeepingDni);
+          filledFromPatientIdRef.current = null;
         }
       } catch {
         // Si no existe el paciente todavía, dejamos el formulario para alta manual.
+      } finally {
+        if (lastSearchedRef.current === searchKey) setSearchingPatient(false);
       }
     }, 500);
-  }, []);
+  }, [isEditMode]);
 
   const uploadDocumentToStorage = async (file, scope = 'appointment-documents') => {
     const payload = new FormData();
@@ -867,6 +913,7 @@ export const useAppointmentForm = ({
     uploadingDocumentField,
     knownPatientId,
     searchPatient,
+    searchingPatient,
     setIsAddingManualSession,
     setManualDraft,
     setEditingFutureId,

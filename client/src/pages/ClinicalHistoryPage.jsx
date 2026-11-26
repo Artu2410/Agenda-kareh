@@ -554,7 +554,7 @@ const ClinicalHistoryPage = () => {
       affiliateNumber: escapePrintHtml(patient?.affiliateNumber || 'Sin número'),
       folio: escapePrintHtml(patient?.actaBookFolio || 'Sin asignar'),
       phone: escapePrintHtml(patient?.phone || 'Sin dato'),
-      address: escapePrintHtml(patient?.address || 'Sin dato'),
+      address: escapePrintHtml([patient?.address, patient?.locality].filter(Boolean).join(', ') || 'Sin dato'),
       risks: [
         { label: 'Cáncer', active: !!patient?.hasCancer },
         { label: 'Marcapasos', active: !!patient?.hasMarcapasos },

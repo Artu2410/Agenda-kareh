@@ -27,5 +27,12 @@ export const createHandlers = ({
     http.post(getApiUrl('/auth/logout'), () =>
       HttpResponse.json({ success: true }, { status: 200 })
     ),
+    // Georef (sugerencias de domicilio): sin resultados salvo que el test lo pise.
+    http.post('https://apis.datos.gob.ar/georef/api/direcciones', () =>
+      HttpResponse.json({ resultados: [] })
+    ),
+    http.post('https://apis.datos.gob.ar/georef/api/calles', () =>
+      HttpResponse.json({ resultados: [] })
+    ),
   ];
 };

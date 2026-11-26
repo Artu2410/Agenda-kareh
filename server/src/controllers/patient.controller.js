@@ -385,6 +385,7 @@ export const createPatient = async (req, res, prisma) => {
     phone,
     email,
     address,
+    locality,
     birthDate,
     healthInsurance,
     treatAsParticular,
@@ -425,7 +426,7 @@ export const createPatient = async (req, res, prisma) => {
 
     const patient = await prisma.patient.create({
       data: {
-        fullName, dni, phone, email, address,
+        fullName, dni, phone, email, address, locality,
         birthDate: normalizeBirthDateOrUnknown(birthDate),
         healthInsurance: insuranceData.healthInsurance,
         obraSocialId: insuranceData.obraSocialId,
@@ -470,7 +471,7 @@ export const updatePatient = async (req, res, prisma) => {
   const { id } = req.params;
   // EXPANDIR PARA INCLUIR TODOS LOS CAMPOS SINCRONIZABLES
   const { 
-    fullName, dni, phone, email, address, birthDate, healthInsurance,
+    fullName, dni, phone, email, address, locality, birthDate, healthInsurance,
     treatAsParticular, affiliateNumber, emergencyPhone, medicalHistory, hasMarcapasos, usesEA, hasCancer, medicalNotes,
     usesWheelchair, isRespiratory, isIU,
     dniImageUrl, dniBackImageUrl, insuranceCardImageUrl, insuranceCardBackImageUrl,
@@ -502,7 +503,7 @@ export const updatePatient = async (req, res, prisma) => {
     const patient = await prisma.patient.update({
       where: { id },
       data: {
-        fullName, dni, phone, email, address,
+        fullName, dni, phone, email, address, locality,
         birthDate: birthDate ? normalizeBirthDateOrUnknown(birthDate) : undefined,
         healthInsurance: insuranceData.healthInsurance,
         obraSocialId: insuranceData.obraSocialId,

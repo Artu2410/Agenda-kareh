@@ -1,13 +1,19 @@
 import React from 'react';
-import { Calendar as CalendarIcon, Printer, Loader2, Trash2, Pencil, Check, X, Flag, Plus, Banknote } from 'lucide-react';
+import { Calendar as CalendarIcon, Printer, Loader2, Trash2, Pencil, Check, X, Flag, Plus, Banknote, UserCheck, UserPlus, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import PrintSessions from './PrintSessions';
-import AppointmentPatientRecord, { AppointmentPatientDocuments } from './agenda/AppointmentPatientRecord';
+import AppointmentPatientRecord, {
+  AppointmentPatientDocuments,
+  ClinicalHistoryLink,
+  formInputClass,
+  formLabelClass,
+} from './agenda/AppointmentPatientRecord';
 import AppointmentCycleHistory from './agenda/AppointmentCycleHistory';
 import { useAppointmentForm } from '../hooks/useAppointmentForm';
 import { getCoverageLabel, isParticularCoverage } from '../utils/coverage';
 import { getAuthenticatedFileUrl } from '../services/fileUrl';
+import { calculateAge } from '../utils/documents/printDocument';
 
 const WEEK_DAYS = [
   { label: 'L', value: 1 }, { label: 'Ma', value: 2 }, { label: 'Mi', value: 3 },
@@ -51,6 +57,16 @@ const formatCurrency = (value) => new Intl.NumberFormat('es-AR', {
   currency: 'ARS',
 }).format(Number(value || 0));
 
+// Condiciones clínicas de la ficha (mismas claves del modelo Patient).
+const CLINICAL_CONDITIONS = [
+  { key: 'hasCancer', label: 'Oncológico', color: 'accent-red-500', activeClasses: 'border-red-200 bg-red-50' },
+  { key: 'hasMarcapasos', label: 'Marcapasos', color: 'accent-blue-500', activeClasses: 'border-blue-200 bg-blue-50' },
+  { key: 'usesEA', label: 'E.A.', color: 'accent-amber-500', activeClasses: 'border-amber-200 bg-amber-50' },
+  { key: 'usesWheelchair', label: 'Silla de ruedas 🦽', color: 'accent-slate-600', activeClasses: 'border-slate-300 bg-slate-100' },
+  { key: 'isRespiratory', label: 'Respiratorio 🫁', color: 'accent-rose-500', activeClasses: 'border-rose-200 bg-rose-50' },
+  { key: 'isIU', label: 'I.U. · Piso pélvico 💧', color: 'accent-orange-500', activeClasses: 'border-orange-200 bg-orange-50' },
+];
+
 const SectionHeader = ({ title, description }) => (
   <div className="space-y-1">
     <p className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">{title}</p>
@@ -59,6 +75,52 @@ const SectionHeader = ({ title, description }) => (
     )}
   </div>
 );
+
+/** Bloque numerado del formulario. */
+const FormSection = ({ step, title, description, children }) => (
+  <section aria-label={title} className="space-y-4 rounded-[1.6rem] border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+    <div className="flex items-start gap-3 border-b border-slate-100 pb-3">
+      <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-teal-600 text-[11px] font-black text-white">
+        {step}
+      </span>
+      <div className="min-w-0">
+        <h3 className="text-sm font-black uppercase tracking-wide text-slate-700">{title}</h3>
+        {description && <p className="mt-0.5 text-xs font-medium text-slate-500">{description}</p>}
+      </div>
+    </div>
+    {children}
+  </section>
+);
+
+/** Indica si el DNI corresponde a una ficha existente o a un paciente nuevo. */
+const PatientLookupStatus = ({ searching, patientId, dni, action }) => {
+  const hasSearchableDni = String(dni || '').trim().length >= 6;
+  let tone = 'border-slate-200 bg-slate-50 text-slate-500';
+  let icon = <Search size={14} className="shrink-0" />;
+  let text = 'Ingresá el DNI para buscar al paciente en las fichas.';
+
+  if (searching) {
+    icon = <Loader2 size={14} className="shrink-0 animate-spin" />;
+    text = 'Buscando en las fichas…';
+  } else if (patientId) {
+    tone = 'border-teal-200 bg-teal-50 text-teal-700';
+    icon = <UserCheck size={14} className="shrink-0" />;
+    text = 'Paciente existente: sus datos se trajeron de la ficha.';
+  } else if (hasSearchableDni) {
+    tone = 'border-blue-200 bg-blue-50 text-blue-700';
+    icon = <UserPlus size={14} className="shrink-0" />;
+    text = 'Paciente nuevo: completá sus datos y se crea la ficha al guardar.';
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <p role="status" className={`flex min-h-11 flex-1 items-center gap-2 rounded-2xl border px-3 py-2 text-[11px] font-bold ${tone}`}>
+        {icon} {text}
+      </p>
+      {!searching && action}
+    </div>
+  );
+};
 
 const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, selectedSlot, appointment = null, professional = null }) => {
   const {
@@ -124,6 +186,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
     uploadingDocumentField,
     knownPatientId,
     searchPatient,
+    searchingPatient,
     setIsAddingManualSession,
     setManualDraft,
   } = useAppointmentForm({
@@ -139,24 +202,23 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
 
   if (!isOpen) return null;
 
+  const patientAge = calculateAge(patientData.birthDate);
+
   return (
     <div className="fixed inset-0 z-[999] flex items-stretch justify-center bg-slate-900/70 backdrop-blur-sm p-0 sm:items-center sm:p-4">
       <div className="flex h-[100dvh] w-full max-w-5xl flex-col overflow-hidden rounded-none border border-white/20 bg-white shadow-2xl sm:h-[90vh] sm:rounded-4xl md:flex-row">
 
-        {/* COLUMNA IZQUIERDA: FORMULARIO + HISTORIA */}
-        <div className="flex flex-1 flex-col overflow-hidden border-b border-slate-100 bg-white md:border-b-0 md:border-r">
-          <div className="flex-1 overflow-y-auto p-4 custom-scrollbar sm:p-6 lg:p-8">
-            <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <h2 className="text-xl font-black italic uppercase tracking-tighter text-slate-800 sm:text-2xl">
-                  {isEditMode
-                    ? `Sesión ${isFirstSession ? '1' : (appointment.sessionNumber || '')}${isFirstSession ? ' (Ingreso)' : ''}`
-                    : 'Nuevo Turno'}
-                </h2>
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">
-                    {modalDate ? format(new Date(`${modalDate}T12:00:00`), "eeee dd 'de' MMMM", { locale: es }) : ''}
-                  </p>
+        {/* COLUMNA IZQUIERDA: FORMULARIO EN BLOQUES */}
+        <div className="flex flex-1 flex-col overflow-hidden border-b border-slate-100 bg-slate-50/60 md:border-b-0 md:border-r">
+          <div className="flex-1 overflow-y-auto p-4 custom-scrollbar sm:p-6">
+            <div className="mb-4 flex flex-col gap-2">
+              <h2 className="text-xl font-black italic uppercase tracking-tighter text-slate-800 sm:text-2xl">
+                {isEditMode
+                  ? `Sesión ${isFirstSession ? '1' : (appointment.sessionNumber || '')}${isFirstSession ? ' (Ingreso)' : ''}`
+                  : 'Nuevo Turno'}
+              </h2>
+              {(isEditMode || paidInAdvance) && (
+                <div className="flex flex-wrap items-center gap-2">
                   {isEditMode && !isFirstSession && (
                     <button
                       type="button"
@@ -186,32 +248,88 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                     </span>
                   )}
                 </div>
-                <p className="text-teal-600 text-[10px] font-black uppercase tracking-widest mt-2">
-                  {isEditMode ? appointment?.professional?.fullName : professional?.fullName || 'Profesional no seleccionado'}
-                </p>
-              </div>
-              <div className="self-start rounded-2xl border border-teal-100 bg-teal-50 px-5 py-3 text-center">
-                <p className="text-teal-600 font-black text-xl leading-none">{modalTime}</p>
-                <p className="text-[9px] text-teal-500 font-bold uppercase tracking-widest">Horario</p>
-              </div>
+              )}
             </div>
 
-            <div className="space-y-6">
-              <section className="space-y-4">
-                <SectionHeader
-                  title="Paciente"
-                  description="Datos personales y cobertura principal del turno."
-                />
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">DNI del Paciente</label>
-                    <input aria-label="DNI del Paciente" className="w-full min-h-11 rounded-2xl border bg-slate-50 p-3 font-bold outline-none focus:ring-2 ring-teal-500" value={patientData.dni} onChange={e => { setPatientData({ ...patientData, dni: e.target.value }); searchPatient('dni', e.target.value); }} />
+            <div className="space-y-4">
+              {/* BLOQUE 1 — HORARIO Y PACIENTE */}
+              <FormSection
+                step={1}
+                title="Horario y paciente"
+                description="Cuándo es el turno, con quién, y a qué paciente se le asigna."
+              >
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Fecha del turno</p>
+                    <p className="mt-1 text-sm font-black capitalize text-slate-700">
+                      {modalDate ? format(new Date(`${modalDate}T12:00:00`), "eeee dd 'de' MMMM", { locale: es }) : '—'}
+                    </p>
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Obra Social</label>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Profesional</p>
+                    <p className="mt-1 text-sm font-black text-teal-700">
+                      {isEditMode ? appointment?.professional?.fullName : professional?.fullName || 'Profesional no seleccionado'}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-teal-100 bg-teal-50 px-4 py-3">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-teal-500">Horario</p>
+                    <p className="mt-1 text-xl font-black leading-none text-teal-600">{modalTime}</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2">
+                  <label className="space-y-1">
+                    <span className={formLabelClass}>DNI del Paciente</span>
+                    <input
+                      aria-label="DNI del Paciente"
+                      inputMode="numeric"
+                      autoComplete="off"
+                      placeholder="Buscar paciente por DNI"
+                      className={formInputClass}
+                      value={patientData.dni}
+                      onChange={e => { setPatientData({ ...patientData, dni: e.target.value }); searchPatient('dni', e.target.value); }}
+                    />
+                  </label>
+                  <PatientLookupStatus
+                    searching={searchingPatient}
+                    patientId={knownPatientId}
+                    dni={patientData.dni}
+                    action={<ClinicalHistoryLink patientData={patientData} patientId={knownPatientId} />}
+                  />
+                </div>
+              </FormSection>
+
+              {/* BLOQUE 2 — DATOS PERSONALES Y COBERTURA */}
+              <FormSection
+                step={2}
+                title="Datos personales y cobertura"
+                description="Identidad del paciente y con qué cobertura se atiende."
+              >
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <label className="space-y-1">
+                    <span className={formLabelClass}>Apellido</span>
+                    <input aria-label="Apellido" placeholder="Apellido" className={formInputClass} value={patientData.lastName} onChange={e => setPatientData({ ...patientData, lastName: e.target.value })} />
+                  </label>
+                  <label className="space-y-1">
+                    <span className={formLabelClass}>Nombre</span>
+                    <input aria-label="Nombre" placeholder="Nombre" className={formInputClass} value={patientData.firstName} onChange={e => setPatientData({ ...patientData, firstName: e.target.value })} />
+                  </label>
+                  <label className="space-y-1">
+                    <span className="flex items-center justify-between gap-2">
+                      <span className={formLabelClass}>Fecha de Nacimiento</span>
+                      {patientAge && (
+                        <span className="rounded-lg bg-teal-50 px-2 py-0.5 text-[10px] font-black uppercase text-teal-700">
+                          {patientAge} años
+                        </span>
+                      )}
+                    </span>
+                    <input type="date" aria-label="Fecha de Nacimiento" className={formInputClass} value={patientData.birthDate || ''} onChange={e => setPatientData({ ...patientData, birthDate: e.target.value })} />
+                  </label>
+                  <label className="space-y-1">
+                    <span className={formLabelClass}>Obra Social</span>
                     <select
                       aria-label="Obra Social"
-                      className="w-full min-h-11 rounded-2xl border bg-slate-50 p-3 font-bold outline-none focus:ring-2 ring-teal-500"
+                      className={formInputClass}
                       value={selectedCoverageValue}
                       onChange={(e) => {
                         const obraSocialId = e.target.value;
@@ -249,85 +367,59 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                           </option>
                       ))}
                     </select>
-                  </div>
-                </div>
-                <input aria-label="Apellido" placeholder="Apellido" className="min-h-11 rounded-2xl border bg-slate-50 p-3 font-bold" value={patientData.lastName} onChange={e => setPatientData({ ...patientData, lastName: e.target.value })} />
-                <input aria-label="Nombre" placeholder="Nombre" className="min-h-11 rounded-2xl border bg-slate-50 p-3 font-bold" value={patientData.firstName} onChange={e => setPatientData({ ...patientData, firstName: e.target.value })} />
-                <div className="space-y-1 sm:col-span-2">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">N° Afiliado</label>
-                  <input aria-label="Número de Afiliado" className="w-full min-h-11 rounded-2xl border bg-slate-50 p-3 font-bold outline-none focus:ring-2 ring-teal-500" value={patientData.affiliateNumber || ''} onChange={e => setPatientData({ ...patientData, affiliateNumber: e.target.value })} />
-                </div>
-                <div className="sm:col-span-2 rounded-[1.6rem] border border-slate-200 bg-slate-50 px-4 py-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Tratamiento Particular</p>
-                      <p className="mt-1 text-[11px] font-semibold text-slate-500">
-                        {patientData.treatAsParticular
-                          ? `Se tomará como ${getCoverageLabel(patientData.healthInsurance, true)}`
-                          : 'Usa la cobertura cargada'}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setPatientData((prev) => {
-                        const nextValue = !prev.treatAsParticular;
-                        if (nextValue) {
-                          const hasCoverageLoaded = Boolean(prev.obraSocialId || prev.healthInsurance);
+                  </label>
+                  <label className="space-y-1">
+                    <span className={formLabelClass}>N° Afiliado</span>
+                    <input aria-label="Número de Afiliado" className={formInputClass} value={patientData.affiliateNumber || ''} onChange={e => setPatientData({ ...patientData, affiliateNumber: e.target.value })} />
+                  </label>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Tratamiento Particular</p>
+                        <p className="mt-1 text-[11px] font-semibold text-slate-500">
+                          {patientData.treatAsParticular
+                            ? `Se tomará como ${getCoverageLabel(patientData.healthInsurance, true)}`
+                            : 'Usa la cobertura cargada'}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setPatientData((prev) => {
+                          const nextValue = !prev.treatAsParticular;
+                          if (nextValue) {
+                            const hasCoverageLoaded = Boolean(prev.obraSocialId || prev.healthInsurance);
+                            return {
+                              ...prev,
+                              obraSocialId: prev.obraSocialId || '',
+                              healthInsurance: hasCoverageLoaded ? prev.healthInsurance : 'PARTICULAR',
+                              treatAsParticular: true,
+                            };
+                          }
+
                           return {
                             ...prev,
-                            obraSocialId: prev.obraSocialId || '',
-                            healthInsurance: hasCoverageLoaded ? prev.healthInsurance : 'PARTICULAR',
-                            treatAsParticular: true,
+                            healthInsurance: prev.healthInsurance === 'PARTICULAR' ? '' : prev.healthInsurance,
+                            treatAsParticular: false,
                           };
-                        }
-
-                        return {
-                          ...prev,
-                          healthInsurance: prev.healthInsurance === 'PARTICULAR' ? '' : prev.healthInsurance,
-                          treatAsParticular: false,
-                        };
-                      })}
-                      className={`inline-flex min-h-11 items-center rounded-2xl px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all ${patientData.treatAsParticular
-                          ? 'bg-blue-600 text-white shadow-md hover:bg-blue-700'
-                          : 'bg-white text-slate-500 border border-slate-200 hover:border-blue-300 hover:text-blue-700'
-                        }`}
-                    >
-                      {patientData.treatAsParticular ? 'Activo' : 'Desactivado'}
-                    </button>
-                  </div>
-                  {!!patientData.healthInsurance?.trim() && !isParticularCoverage(patientData.healthInsurance) && (
-                    <p className="mt-2 text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                      Cobertura original: {getCoverageLabel(patientData.healthInsurance)}
-                    </p>
-                  )}
-                </div>
-
-                <div className="sm:col-span-2 rounded-[1.6rem] border border-emerald-200 bg-emerald-50 px-4 py-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-[9px] font-black text-emerald-700 uppercase tracking-widest">Sesión pagada por adelantado</p>
-                      <p className="mt-1 text-[11px] font-semibold text-emerald-700/80">
-                        {isEditMode
-                          ? 'Marcá este turno si ya quedó cobrado.'
-                          : 'Si generás varias sesiones, se marca solo el primer turno.'}
-                      </p>
+                        })}
+                        className={`inline-flex min-h-11 shrink-0 items-center rounded-2xl px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all ${patientData.treatAsParticular
+                            ? 'bg-blue-600 text-white shadow-md hover:bg-blue-700'
+                            : 'bg-white text-slate-500 border border-slate-200 hover:border-blue-300 hover:text-blue-700'
+                          }`}
+                      >
+                        {patientData.treatAsParticular ? 'Activo' : 'Desactivado'}
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setPaidInAdvance((current) => !current)}
-                      className={`inline-flex min-h-11 items-center rounded-2xl px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all ${
-                        paidInAdvance
-                          ? 'bg-emerald-600 text-white shadow-md hover:bg-emerald-700'
-                          : 'bg-white text-emerald-700 border border-emerald-200 hover:border-emerald-300'
-                      }`}
-                    >
-                      {paidInAdvance ? 'Marcada' : 'Sin marcar'}
-                    </button>
+                    {!!patientData.healthInsurance?.trim() && !isParticularCoverage(patientData.healthInsurance) && (
+                      <p className="mt-2 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                        Cobertura original: {getCoverageLabel(patientData.healthInsurance)}
+                      </p>
+                    )}
                   </div>
                 </div>
 
                 {selectedObraSocial && selectedObraSocial.isActive === false && (
-                  <div className="sm:col-span-2 rounded-[1.6rem] border border-amber-200 bg-amber-50 px-4 py-4">
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4">
                     <div className="flex items-start gap-3">
                       <div className="flex-1">
                         <p className="text-[11px] font-black uppercase tracking-wide text-amber-800">
@@ -352,9 +444,9 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                 )}
 
                 {!!selectedObraSocial && !patientData.treatAsParticular && (
-                  <div className="sm:col-span-2 rounded-[1.6rem] border border-teal-100 bg-teal-50/70 px-4 py-4">
+                  <div className="rounded-2xl border border-teal-100 bg-teal-50/70 px-4 py-4">
                     <p className="text-[9px] font-black uppercase tracking-[0.22em] text-teal-600">Coseguro calculado</p>
-                    <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                    <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
                       <div className="rounded-2xl bg-white px-3 py-3">
                         <p className="text-[9px] font-black uppercase text-slate-400">Base</p>
                         <p className="mt-1 text-sm font-black text-slate-800">{formatCurrency(patientChargeBreakdown.baseCopay)}</p>
@@ -376,7 +468,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                 )}
 
                 {!!selectedObraSocial?.requiresAuthorization && !patientData.treatAsParticular && (
-                  <div className="sm:col-span-2 rounded-[1.6rem] border border-amber-200 bg-amber-50 px-4 py-4">
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4">
                     <p className="text-[9px] font-black uppercase tracking-[0.22em] text-amber-700">Autorización requerida</p>
                     <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto]">
                       <input
@@ -399,62 +491,30 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                     )}
                   </div>
                 )}
+              </FormSection>
 
-                <div className="sm:col-span-2 rounded-[1.6rem] border border-orange-200 bg-orange-50 px-4 py-3">
-                  <div className="flex flex-col gap-2">
-                    <label className="text-[9px] font-black text-orange-700 uppercase tracking-widest ml-1">Token de Sesión (Obra Social)</label>
-                      <input
-                        type="text"
-                        aria-label="Token de Sesión (Obra Social)"
-                        placeholder="Ingrese el número de token / validación"
-                        className="w-full min-h-11 rounded-2xl border border-orange-200 bg-white p-3 font-bold text-orange-800 outline-none focus:ring-2 ring-orange-500"
-                        value={sessionToken}
-                        onChange={(e) => setSessionToken(e.target.value)}
-                    />
-                  </div>
-                </div>
-
+              {/* BLOQUE 3 — FICHA DEL PACIENTE */}
+              <FormSection
+                step={3}
+                title="Ficha del paciente"
+                description="Domicilio y contacto. Se guardan en la ficha y se reutilizan en los próximos turnos."
+              >
                 <AppointmentPatientRecord
                   patientData={patientData}
                   setPatientData={setPatientData}
-                  patientId={knownPatientId}
                 />
-              </section>
+              </FormSection>
 
-              <section className="space-y-4">
-                <SectionHeader
-                  title="Sesiones"
-                  description="Contacto, evolución y controles del turno."
-                />
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Teléfono</label>
-                    <input type="tel" aria-label="Teléfono" placeholder="+54 9 11 2345-6789" className="w-full min-h-11 rounded-2xl border bg-slate-50 p-3 font-bold outline-none focus:ring-2 ring-teal-500" value={patientData.phone || ''} onChange={e => setPatientData({ ...patientData, phone: e.target.value })} />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Fecha de Nacimiento</label>
-                    <input type="date" aria-label="Fecha de Nacimiento" className="w-full min-h-11 rounded-2xl border bg-slate-50 p-3 font-bold outline-none focus:ring-2 ring-teal-500" value={patientData.birthDate || ''} onChange={e => setPatientData({ ...patientData, birthDate: e.target.value })} />
-                  </div>
-                </div>
-
-              <div className="space-y-1">
-                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Diagnóstico / Evolución</label>
-                <textarea aria-label="Diagnóstico / Evolución" className="w-full min-h-28 resize-none rounded-2xl border bg-slate-50 p-4 font-semibold uppercase outline-none focus:ring-2 ring-teal-500" value={diagnosis} onChange={e => setDiagnosis(e.target.value)} />
-              </div>
-
-              <AppointmentPatientDocuments
-                patientData={patientData}
-                patientId={knownPatientId}
-                onUploadDocument={handlePatientDocumentUpload}
-                onRemoveDocument={handlePatientDocumentRemove}
-                uploadingDocumentField={uploadingDocumentField}
-              />
-
-              {isEditMode && (
-                <>
+              {/* BLOQUE 4 — SESIONES Y PLANIFICACIÓN */}
+              <FormSection
+                step={4}
+                title="Sesiones y planificación"
+                description={isEditMode ? 'Estado de esta sesión, cobro, token y ciclo.' : 'Cobro, token, ciclo y cuántas sesiones se generan.'}
+              >
+                {isEditMode && (
                   <div className="space-y-2">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Estado del Turno</label>
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+                    <span className={formLabelClass}>Estado del Turno</span>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                       {APPOINTMENT_STATUSES.map((item) => (
                         <button
                           key={item.value}
@@ -470,162 +530,234 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                       ))}
                     </div>
                   </div>
-                  <div className={`rounded-[1.6rem] border px-4 py-3 ${treatmentAbandoned ? 'border-amber-400 bg-yellow-100' : 'border-slate-200 bg-white'}`}>
+                )}
+
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="text-[9px] font-black uppercase tracking-widest text-amber-800">Paciente abandonó tratamiento</p>
-                        <p className="mt-1 text-[11px] font-semibold text-slate-600">
-                          Marcalo en la última sesión a la que vino. En la historia clínica aparece
-                          {' '}<b>PACIENTE ABANDONA TRATAMIENTO EN LA SESIÓN {appointment?.sessionNumber || 'X'} SIN AVISAR</b>.
+                        <p className="text-[9px] font-black text-emerald-700 uppercase tracking-widest">Sesión pagada por adelantado</p>
+                        <p className="mt-1 text-[11px] font-semibold text-emerald-700/80">
+                          {isEditMode
+                            ? 'Marcá este turno si ya quedó cobrado.'
+                            : 'Si generás varias sesiones, se marca solo el primer turno.'}
                         </p>
                       </div>
                       <button
                         type="button"
-                        aria-pressed={treatmentAbandoned}
-                        aria-label="Paciente abandonó tratamiento"
-                        onClick={() => setTreatmentAbandoned((current) => !current)}
+                        onClick={() => setPaidInAdvance((current) => !current)}
                         className={`inline-flex min-h-11 shrink-0 items-center rounded-2xl px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all ${
-                          treatmentAbandoned
-                            ? 'bg-amber-500 text-white shadow-md hover:bg-amber-600'
-                            : 'border border-slate-200 bg-white text-slate-500 hover:border-amber-300 hover:text-amber-700'
+                          paidInAdvance
+                            ? 'bg-emerald-600 text-white shadow-md hover:bg-emerald-700'
+                            : 'bg-white text-emerald-700 border border-emerald-200 hover:border-emerald-300'
                         }`}
                       >
-                        {treatmentAbandoned ? 'Marcado' : 'Sin marcar'}
+                        {paidInAdvance ? 'Marcada' : 'Sin marcar'}
                       </button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 p-3 bg-teal-50/50 rounded-2xl border border-teal-100">
+
+                  <div className="flex flex-col gap-2 rounded-2xl border border-orange-200 bg-orange-50 px-4 py-3">
+                    <label htmlFor="appointment-session-token" className="text-[9px] font-black text-orange-700 uppercase tracking-widest ml-1">Token de Sesión (Obra Social)</label>
                     <input
-                      type="checkbox"
-                      id="isFirstSession"
-                      checked={isFirstSession}
-                      onChange={e => setIsFirstSession(e.target.checked)}
-                      className="w-4 h-4 accent-teal-600"
+                      id="appointment-session-token"
+                      type="text"
+                      aria-label="Token de Sesión (Obra Social)"
+                      placeholder="Ingrese el número de token / validación"
+                      className="w-full min-h-11 rounded-2xl border border-orange-200 bg-white p-3 font-bold text-orange-800 outline-none focus:ring-2 ring-orange-500"
+                      value={sessionToken}
+                      onChange={(e) => setSessionToken(e.target.value)}
                     />
-                    <label htmlFor="isFirstSession" className="text-[10px] font-black uppercase text-teal-700 cursor-pointer">
-                      Marcar como Sesión de Ingreso (Reinicia contador)
-                    </label>
                   </div>
-                  {hasSessionBoundaryChange && (
-                    <div className={`flex items-start gap-2 rounded-2xl border px-3 py-3 text-[10px] font-black ${
-                      isPendingCycleReset
-                        ? 'border-amber-200 bg-amber-50 text-amber-800'
-                        : 'border-rose-200 bg-rose-50 text-rose-700'
-                    }`}>
-                      <Flag size={14} className="mt-0.5 shrink-0" />
-                      <p>
-                        {isPendingCycleReset
-                          ? 'Al guardar, este turno pasará a ser la nueva sesión 1 y se renumerarán las sesiones siguientes.'
-                          : 'Al guardar, este turno dejará de ser inicio de ciclo y se renumerarán las sesiones siguientes.'}
-                      </p>
-                    </div>
-                  )}
-                </>
-              )}
-
-              {!isEditMode && (
-                <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-2xl border border-teal-100 bg-teal-50/50 p-3">
-                  <input
-                    type="checkbox"
-                    className="mt-0.5 h-4 w-4 accent-teal-600"
-                    checked={isFirstSession}
-                    onChange={(event) => setIsFirstSession(event.target.checked)}
-                  />
-                  <span>
-                    <span className="block text-[10px] font-black uppercase text-teal-700">Iniciar ciclo nuevo (sesión 1)</span>
-                    <span className="mt-1 block text-[11px] font-semibold text-teal-700/80">
-                      Si el paciente había dejado, el ciclo anterior se corta y queda registrado en cuántas sesiones quedó.
-                      Desmarcalo solo si estos turnos continúan el ciclo que está en curso.
-                    </span>
-                  </span>
-                </label>
-              )}
-
-              {(!isEditMode || futureAppointments.length <= 1) && (
-                <div className="grid grid-cols-1 items-center gap-6 rounded-3xl border border-slate-100 bg-slate-50/50 p-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Días Semanales</label>
-                    <div className="grid w-full grid-cols-7 gap-2">
-                      {WEEK_DAYS.map(day => (
-                        <button
-                          key={day.value}
-                          type="button"
-                          onClick={() => setSelectedDays(prev => prev.includes(day.value) ? prev.filter(d => d !== day.value) : [...prev, day.value])}
-                          className={`inline-flex min-h-11 w-full items-center justify-center rounded-xl px-2 py-3 text-[10px] font-black leading-none transition-all ${selectedDays.includes(day.value) ? 'bg-teal-600 text-white shadow-md' : 'bg-slate-100 text-slate-400'}`}
-                        >
-                          {day.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="space-y-2 flex flex-col justify-center">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">{isEditMode ? 'Generar más sesiones' : 'Cantidad Sesiones'}</label>
-                    <div className="flex gap-2 items-center">
-                      <input type="number" className="min-h-11 w-20 rounded-xl border bg-white px-2 py-2 text-center font-black text-teal-700 shadow-sm" value={sessionCount} onChange={e => setSessionCount(e.target.value)} />
-                      {isEditMode && (
-                        <button
-                          type="button"
-                          onClick={handleGenerateAdditionalSessions}
-                          disabled={loading}
-                          className="min-h-11 rounded-xl bg-teal-100 px-4 py-2 text-[10px] font-black uppercase text-teal-700 transition-all hover:bg-teal-200"
-                        >
-                          Generar
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 gap-3 rounded-4xl border border-slate-100 bg-slate-50 p-4 sm:grid-cols-2 lg:grid-cols-3">
-                {[
-                  { key: 'hasCancer', label: 'Oncológico', color: 'accent-red-500' },
-                  { key: 'hasMarcapasos', label: 'Marcapasos', color: 'accent-blue-500' },
-                  { key: 'usesEA', label: 'E.A.', color: 'accent-amber-500' },
-                  { key: 'usesWheelchair', label: 'Silla Ruedas 🦽', color: 'accent-slate-600' },
-                  { key: 'isRespiratory', label: 'Respiratorio 🫁', color: 'accent-rose-500' },
-                  { key: 'isIU', label: 'I.U. Piso Pélvico 💧', color: 'accent-orange-500' }
-                ].map((item) => (
-                  <label key={item.key} className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" className={`${item.color} w-4 h-4`} checked={patientData[item.key]} onChange={e => setPatientData({ ...patientData, [item.key]: e.target.checked })} />
-                    <span className={`text-[10px] font-black uppercase ${patientData[item.key] ? 'text-slate-800' : 'text-slate-400'}`}>{item.label}</span>
-                  </label>
-                ))}
-              </div>
-
-              {/* CICLOS: cortados en cada sesión de ingreso, con todas sus fechas */}
-              {knownPatientId && (
-                <AppointmentCycleHistory
-                  cycles={sessionCycles.cycles}
-                  years={sessionCycles.years}
-                  onSaveToken={saveCycleSessionToken}
-                />
-              )}
-              </section>
-
-              <div className="sticky bottom-0 z-10 -mx-4 mt-6 border-t border-slate-100 bg-white/95 px-4 pb-4 pt-4 backdrop-blur sm:-mx-8 sm:px-8">
-                <div className="mb-3">
-                  <SectionHeader
-                    title="Acciones"
-                    description="Guardar, cancelar o eliminar sesiones."
-                  />
-                </div>
-                <div className="flex flex-col gap-3 sm:flex-row">
-                  <button onClick={onClose} className="inline-flex min-h-11 flex-1 items-center justify-center rounded-3xl border border-slate-200 py-4 text-xs font-black uppercase tracking-widest text-slate-400 transition hover:border-slate-300 hover:text-slate-600">Cancelar</button>
-                  <button onClick={handleAction} disabled={loading} className="inline-flex min-h-11 flex-[2] items-center justify-center gap-2 rounded-3xl bg-teal-600 py-4 text-xs font-black uppercase tracking-widest text-white shadow-xl transition-all hover:bg-teal-700">
-                    {loading ? <Loader2 className="animate-spin" size={18} /> : (isEditMode ? 'Guardar Cambios' : 'Confirmar y Agendar')}
-                  </button>
                 </div>
 
                 {isEditMode && (
-                  <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <button onClick={() => handleDelete('single')} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-[10px] font-black uppercase text-red-600 transition hover:bg-red-100"><Trash2 size={14} /> Solo hoy</button>
-                    <button onClick={() => handleDelete('future')} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-red-600 px-4 py-3 text-[10px] font-black uppercase text-white shadow-md transition hover:bg-red-700"><Trash2 size={14} /> Sesiones futuras</button>
+                  <>
+                    <div className={`rounded-2xl border px-4 py-3 ${treatmentAbandoned ? 'border-amber-400 bg-yellow-100' : 'border-slate-200 bg-white'}`}>
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-[9px] font-black uppercase tracking-widest text-amber-800">Paciente abandonó tratamiento</p>
+                          <p className="mt-1 text-[11px] font-semibold text-slate-600">
+                            Marcalo en la última sesión a la que vino. En la historia clínica aparece
+                            {' '}<b>PACIENTE ABANDONA TRATAMIENTO EN LA SESIÓN {appointment?.sessionNumber || 'X'} SIN AVISAR</b>.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          aria-pressed={treatmentAbandoned}
+                          aria-label="Paciente abandonó tratamiento"
+                          onClick={() => setTreatmentAbandoned((current) => !current)}
+                          className={`inline-flex min-h-11 shrink-0 items-center rounded-2xl px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all ${
+                            treatmentAbandoned
+                              ? 'bg-amber-500 text-white shadow-md hover:bg-amber-600'
+                              : 'border border-slate-200 bg-white text-slate-500 hover:border-amber-300 hover:text-amber-700'
+                          }`}
+                        >
+                          {treatmentAbandoned ? 'Marcado' : 'Sin marcar'}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 p-3 bg-teal-50/50 rounded-2xl border border-teal-100">
+                      <input
+                        type="checkbox"
+                        id="isFirstSession"
+                        checked={isFirstSession}
+                        onChange={e => setIsFirstSession(e.target.checked)}
+                        className="w-4 h-4 accent-teal-600"
+                      />
+                      <label htmlFor="isFirstSession" className="text-[10px] font-black uppercase text-teal-700 cursor-pointer">
+                        Marcar como Sesión de Ingreso (Reinicia contador)
+                      </label>
+                    </div>
+                    {hasSessionBoundaryChange && (
+                      <div className={`flex items-start gap-2 rounded-2xl border px-3 py-3 text-[10px] font-black ${
+                        isPendingCycleReset
+                          ? 'border-amber-200 bg-amber-50 text-amber-800'
+                          : 'border-rose-200 bg-rose-50 text-rose-700'
+                      }`}>
+                        <Flag size={14} className="mt-0.5 shrink-0" />
+                        <p>
+                          {isPendingCycleReset
+                            ? 'Al guardar, este turno pasará a ser la nueva sesión 1 y se renumerarán las sesiones siguientes.'
+                            : 'Al guardar, este turno dejará de ser inicio de ciclo y se renumerarán las sesiones siguientes.'}
+                        </p>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {!isEditMode && (
+                  <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-2xl border border-teal-100 bg-teal-50/50 p-3">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 h-4 w-4 accent-teal-600"
+                      checked={isFirstSession}
+                      onChange={(event) => setIsFirstSession(event.target.checked)}
+                    />
+                    <span>
+                      <span className="block text-[10px] font-black uppercase text-teal-700">Iniciar ciclo nuevo (sesión 1)</span>
+                      <span className="mt-1 block text-[11px] font-semibold text-teal-700/80">
+                        Si el paciente había dejado, el ciclo anterior se corta y queda registrado en cuántas sesiones quedó.
+                        Desmarcalo solo si estos turnos continúan el ciclo que está en curso.
+                      </span>
+                    </span>
+                  </label>
+                )}
+
+                {(!isEditMode || futureAppointments.length <= 1) && (
+                  <div className="grid grid-cols-1 items-end gap-4 rounded-2xl border border-slate-100 bg-slate-50/50 p-4 sm:grid-cols-[1fr_auto]">
+                    <div className="space-y-2">
+                      <span className={formLabelClass}>Días Semanales</span>
+                      <div className="grid w-full grid-cols-7 gap-2">
+                        {WEEK_DAYS.map(day => (
+                          <button
+                            key={day.value}
+                            type="button"
+                            onClick={() => setSelectedDays(prev => prev.includes(day.value) ? prev.filter(d => d !== day.value) : [...prev, day.value])}
+                            className={`inline-flex min-h-11 w-full items-center justify-center rounded-xl px-2 py-3 text-[10px] font-black leading-none transition-all ${selectedDays.includes(day.value) ? 'bg-teal-600 text-white shadow-md' : 'bg-slate-100 text-slate-400'}`}
+                          >
+                            {day.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <label htmlFor="appointment-session-count" className={formLabelClass}>{isEditMode ? 'Generar más sesiones' : 'Cantidad Sesiones'}</label>
+                      <div className="flex gap-2 items-center">
+                        <input id="appointment-session-count" type="number" className="min-h-11 w-20 rounded-xl border bg-white px-2 py-2 text-center font-black text-teal-700 shadow-sm" value={sessionCount} onChange={e => setSessionCount(e.target.value)} />
+                        {isEditMode && (
+                          <button
+                            type="button"
+                            onClick={handleGenerateAdditionalSessions}
+                            disabled={loading}
+                            className="min-h-11 rounded-xl bg-teal-100 px-4 py-2 text-[10px] font-black uppercase text-teal-700 transition-all hover:bg-teal-200"
+                          >
+                            Generar
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 )}
-              </div>
+
+                {/* CICLOS: cortados en cada sesión de ingreso, con todas sus fechas */}
+                {knownPatientId && (
+                  <AppointmentCycleHistory
+                    cycles={sessionCycles.cycles}
+                    years={sessionCycles.years}
+                    onSaveToken={saveCycleSessionToken}
+                  />
+                )}
+              </FormSection>
+
+              {/* BLOQUE 5 — INFORMACIÓN CLÍNICA */}
+              <FormSection
+                step={5}
+                title="Información clínica"
+                description="Diagnóstico y condiciones que el equipo tiene que tener presentes."
+              >
+                <label className="block space-y-1">
+                  <span className={formLabelClass}>Diagnóstico / Evolución</span>
+                  <textarea aria-label="Diagnóstico / Evolución" className="w-full min-h-28 resize-none rounded-2xl border bg-slate-50 p-4 font-semibold uppercase outline-none focus:ring-2 ring-teal-500" value={diagnosis} onChange={e => setDiagnosis(e.target.value)} />
+                </label>
+                <div className="space-y-2">
+                  <span className={formLabelClass}>Condiciones clínicas</span>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    {CLINICAL_CONDITIONS.map((item) => {
+                      const checked = Boolean(patientData[item.key]);
+                      return (
+                        <label
+                          key={item.key}
+                          className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-2xl border px-3 py-2 transition-all ${checked ? item.activeClasses : 'border-slate-200 bg-white hover:border-slate-300'}`}
+                        >
+                          <input type="checkbox" className={`${item.color} h-4 w-4 shrink-0`} checked={checked} onChange={e => setPatientData({ ...patientData, [item.key]: e.target.checked })} />
+                          <span className={`text-[10px] font-black uppercase leading-tight ${checked ? 'text-slate-800' : 'text-slate-400'}`}>{item.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              </FormSection>
+
+              {/* BLOQUE 6 — DOCUMENTACIÓN */}
+              <FormSection
+                step={6}
+                title="Documentación"
+                description="DNI, credencial y CUD. Quedan guardados en la ficha del paciente."
+              >
+                <AppointmentPatientDocuments
+                  patientData={patientData}
+                  patientId={knownPatientId}
+                  onUploadDocument={handlePatientDocumentUpload}
+                  onRemoveDocument={handlePatientDocumentRemove}
+                  uploadingDocumentField={uploadingDocumentField}
+                />
+              </FormSection>
             </div>
-        </div>
+
+            {/* BLOQUE 7 — ACCIONES */}
+            <div className="sticky bottom-0 z-10 -mx-4 mt-4 border-t border-slate-200 bg-white/95 px-4 pb-4 pt-3 backdrop-blur sm:-mx-6 sm:px-6">
+              <div className="mb-3">
+                <SectionHeader
+                  title="Acciones"
+                  description="Guardar, cancelar o eliminar sesiones."
+                />
+              </div>
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <button onClick={onClose} className="inline-flex min-h-11 flex-1 items-center justify-center rounded-3xl border border-slate-200 py-4 text-xs font-black uppercase tracking-widest text-slate-400 transition hover:border-slate-300 hover:text-slate-600">Cancelar</button>
+                <button onClick={handleAction} disabled={loading} className="inline-flex min-h-11 flex-[2] items-center justify-center gap-2 rounded-3xl bg-teal-600 py-4 text-xs font-black uppercase tracking-widest text-white shadow-xl transition-all hover:bg-teal-700">
+                  {loading ? <Loader2 className="animate-spin" size={18} /> : (isEditMode ? 'Guardar Cambios' : 'Confirmar y Agendar')}
+                </button>
+              </div>
+
+              {isEditMode && (
+                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <button onClick={() => handleDelete('single')} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-[10px] font-black uppercase text-red-600 transition hover:bg-red-100"><Trash2 size={14} /> Solo hoy</button>
+                  <button onClick={() => handleDelete('future')} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-red-600 px-4 py-3 text-[10px] font-black uppercase text-white shadow-md transition hover:bg-red-700"><Trash2 size={14} /> Sesiones futuras</button>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* COLUMNA DERECHA: SESIONES */}

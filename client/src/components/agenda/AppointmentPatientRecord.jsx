@@ -3,44 +3,46 @@ import { ExternalLink, FileText, Loader2, Paperclip, X } from 'lucide-react';
 import { getAuthenticatedFileUrl } from '../../services/fileUrl';
 import { buildClinicalHistoryPath, persistClinicalHistoryContext } from '../../utils/appRoutes';
 import { PATIENT_DOCUMENT_FIELDS } from '../../hooks/useAppointmentForm';
+import AddressAutocomplete from '../patients/AddressAutocomplete';
 
-const labelClass = 'text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1';
-const inputClass = 'w-full min-h-11 rounded-2xl border bg-slate-50 p-3 font-bold outline-none focus:ring-2 ring-teal-500';
+export const formLabelClass = 'text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1';
+export const formInputClass = 'w-full min-h-11 rounded-2xl border bg-slate-50 p-3 font-bold outline-none focus:ring-2 ring-teal-500';
+const labelClass = formLabelClass;
+const inputClass = formInputClass;
+
+/** Acceso a la historia clínica del paciente (en otra pestaña). */
+export function ClinicalHistoryLink({ patientData, patientId }) {
+  if (!patientId) return null;
+  const fullName = `${patientData.lastName} ${patientData.firstName}`.trim();
+
+  return (
+    <a
+      href={buildClinicalHistoryPath(fullName || 'paciente')}
+      target="_blank"
+      rel="noreferrer"
+      onClick={() => persistClinicalHistoryContext({ patientId, patientName: fullName })}
+      className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-teal-200 bg-teal-50 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-teal-700 transition hover:bg-teal-100"
+    >
+      <FileText size={14} /> Historia clínica <ExternalLink size={12} />
+    </a>
+  );
+}
 
 /**
  * Ficha del paciente dentro del turno: datos de contacto que se guardan en la ficha
  * del paciente al guardar el turno y se ven igual en Pacientes.
  */
-export default function AppointmentPatientRecord({ patientData, setPatientData, patientId }) {
-  const fullName = `${patientData.lastName} ${patientData.firstName}`.trim();
-
+export default function AppointmentPatientRecord({ patientData, setPatientData }) {
   return (
-    <div className="space-y-4 rounded-[1.6rem] border border-slate-200 bg-white p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[9px] font-black uppercase tracking-[0.22em] text-slate-500">Ficha del paciente</p>
-        {patientId && (
-          <a
-            href={buildClinicalHistoryPath(fullName || 'paciente')}
-            target="_blank"
-            rel="noreferrer"
-            onClick={() => persistClinicalHistoryContext({ patientId, patientName: fullName })}
-            className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-teal-200 bg-teal-50 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-teal-700 transition hover:bg-teal-100"
-          >
-            <FileText size={14} /> Historia clínica <ExternalLink size={12} />
-          </a>
-        )}
-      </div>
-
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <label className="space-y-1 sm:col-span-2">
-          <span className={labelClass}>Dirección</span>
-          <input
-            aria-label="Dirección"
-            className={inputClass}
-            value={patientData.address || ''}
-            onChange={(event) => setPatientData((previous) => ({ ...previous, address: event.target.value }))}
-          />
-        </label>
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <AddressAutocomplete
+          className="sm:col-span-2"
+          address={patientData.address || ''}
+          locality={patientData.locality || ''}
+          onChange={(patch) => setPatientData((previous) => ({ ...previous, ...patch }))}
+          inputClassName={inputClass}
+          labelClassName={`block ${labelClass}`}
+        />
         <label className="space-y-1">
           <span className={labelClass}>Email</span>
           <input
@@ -49,6 +51,17 @@ export default function AppointmentPatientRecord({ patientData, setPatientData, 
             className={inputClass}
             value={patientData.email || ''}
             onChange={(event) => setPatientData((previous) => ({ ...previous, email: event.target.value }))}
+          />
+        </label>
+        <label className="space-y-1">
+          <span className={labelClass}>Teléfono</span>
+          <input
+            type="tel"
+            aria-label="Teléfono"
+            placeholder="+54 9 11 2345-6789"
+            className={inputClass}
+            value={patientData.phone || ''}
+            onChange={(event) => setPatientData((previous) => ({ ...previous, phone: event.target.value }))}
           />
         </label>
         <label className="space-y-1">
@@ -61,7 +74,7 @@ export default function AppointmentPatientRecord({ patientData, setPatientData, 
             onChange={(event) => setPatientData((previous) => ({ ...previous, emergencyPhone: event.target.value }))}
           />
         </label>
-        <label className="space-y-1 sm:col-span-2">
+        <label className="space-y-1">
           <span className={labelClass}>N° de CUD</span>
           <input
             aria-label="Número de CUD"
@@ -70,7 +83,6 @@ export default function AppointmentPatientRecord({ patientData, setPatientData, 
             onChange={(event) => setPatientData((previous) => ({ ...previous, cudNumber: event.target.value }))}
           />
         </label>
-      </div>
     </div>
   );
 }
@@ -87,8 +99,7 @@ export function AppointmentPatientDocuments({
   uploadingDocumentField,
 }) {
   return (
-      <div className="space-y-2 rounded-[1.6rem] border border-slate-200 bg-white p-4">
-        <p className={labelClass}>Documentación</p>
+      <div className="space-y-2">
         {!patientId ? (
           <p className="rounded-2xl bg-slate-50 px-3 py-3 text-[11px] font-semibold text-slate-500">
             Guardá el turno para poder adjuntar DNI, credencial y CUD.

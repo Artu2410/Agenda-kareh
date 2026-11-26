@@ -16,6 +16,7 @@ export const patientBodySchema = z.object({
   phone: optionalPhone('Teléfono'),
   email: optionalEmail('Email'),
   address: optionalString('Dirección', { max: 200 }),
+  locality: optionalString('Localidad', { max: 120 }),
   birthDate: optionalDateInput('Fecha de nacimiento'),
   healthInsurance: optionalString('Cobertura', { max: 150 }),
   obraSocialId: optionalIdSchema('Obra social'),

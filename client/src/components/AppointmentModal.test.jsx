@@ -81,7 +81,7 @@ describe('AppointmentModal', () => {
       />
     );
 
-    await waitFor(() => expect(screen.getByRole('combobox')).toHaveValue('osde-1'));
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Obra Social' })).toHaveValue('osde-1'));
 
     fireEvent.click(screen.getByRole('button', { name: /asistió/i }));
     fireEvent.change(screen.getByPlaceholderText('Ingrese el número de token / validación'), {
@@ -132,7 +132,7 @@ describe('AppointmentModal', () => {
       />
     );
 
-    await waitFor(() => expect(screen.getByRole('combobox')).toHaveValue('osde-1'));
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Obra Social' })).toHaveValue('osde-1'));
     fireEvent.click(screen.getByRole('button', { name: /guardar cambios/i }));
 
     await waitFor(() => expect(alertSpy).toHaveBeenCalledWith('No se pudo guardar'));
@@ -160,7 +160,7 @@ describe('AppointmentModal', () => {
       />
     );
 
-    await waitFor(() => expect(screen.getByRole('combobox')).toHaveValue('osde-1'));
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Obra Social' })).toHaveValue('osde-1'));
 
     ['L', 'Ma', 'Mi', 'J', 'V', 'S', 'D'].forEach((label) => {
       const button = screen.getByRole('button', { name: label });
@@ -169,6 +169,140 @@ describe('AppointmentModal', () => {
       expect(button.className).toContain('px-2');
       expect(button.className).toContain('py-3');
     });
+  });
+});
+
+describe('AppointmentModal · Nuevo Turno y ficha del paciente', () => {
+  const existingPatient = {
+    id: 'pat-9',
+    dni: '30111222',
+    fullName: 'Gomez Ana Maria',
+    phone: '1155550000',
+    birthDate: '1980-03-15T00:00:00.000Z',
+    healthInsurance: '',
+    obraSocialId: '',
+    treatAsParticular: false,
+    affiliateNumber: '',
+    address: 'Av. Siempre Viva 742',
+    locality: 'Moreno, Buenos Aires',
+    email: 'ana@example.com',
+    emergencyPhone: '1144443333',
+    cudNumber: '',
+    hasCancer: true,
+  };
+
+  const useNewTurnHandlers = ({ onCreate } = {}) => server.use(
+    http.get(getApiUrl('/obras-sociales'), () => HttpResponse.json([])),
+    http.get(getApiUrl('/patients/search'), ({ request }) => {
+      const dni = new URL(request.url).searchParams.get('dni');
+      return HttpResponse.json(dni === existingPatient.dni ? existingPatient : null);
+    }),
+    http.get(getApiUrl('/patients/pat-9/session-cycles'), () => HttpResponse.json({ cycles: [], years: [] })),
+    http.post(getApiUrl('/appointments'), async ({ request }) => {
+      onCreate?.(await request.json());
+      return HttpResponse.json({ appointments: [] }, { status: 201 });
+    }),
+  );
+
+  const renderNewTurn = () => render(
+    <AppointmentModal
+      isOpen
+      onClose={vi.fn()}
+      onSave={vi.fn()}
+      onDelete={vi.fn()}
+      onRefresh={vi.fn()}
+      selectedSlot={{ date: '2026-05-27', time: '10:00' }}
+      professional={{ id: 'pro-1', fullName: 'Dra. Demo' }}
+    />
+  );
+
+  const typeDni = (value) => fireEvent.change(screen.getByLabelText('DNI del Paciente'), { target: { value } });
+
+  it('ordena el formulario en los bloques pedidos', () => {
+    useNewTurnHandlers();
+    renderNewTurn();
+
+    const titles = screen.getAllByRole('region').map((node) => node.getAttribute('aria-label'));
+    expect(titles).toEqual([
+      'Horario y paciente',
+      'Datos personales y cobertura',
+      'Ficha del paciente',
+      'Sesiones y planificación',
+      'Información clínica',
+      'Documentación',
+    ]);
+    expect(screen.getByText('Guardá el turno para poder adjuntar DNI, credencial y CUD.')).toBeInTheDocument();
+    expect(screen.getByText('Usa la cobertura cargada')).toBeInTheDocument();
+  });
+
+  it('paciente existente: trae domicilio, contacto, condiciones y edad desde la ficha', async () => {
+    useNewTurnHandlers();
+    renderNewTurn();
+
+    typeDni('30111222');
+
+    expect(await screen.findByText(/paciente existente/i, {}, { timeout: 2000 })).toBeInTheDocument();
+    expect(screen.getByLabelText('Dirección')).toHaveValue('Av. Siempre Viva 742');
+    expect(screen.getByLabelText('Localidad')).toHaveValue('Moreno, Buenos Aires');
+    expect(screen.getByLabelText('Email')).toHaveValue('ana@example.com');
+    expect(screen.getByLabelText('Teléfono')).toHaveValue('1155550000');
+    expect(screen.getByLabelText('Teléfono de emergencia')).toHaveValue('1144443333');
+    expect(screen.getByLabelText('Apellido')).toHaveValue('Gomez');
+    expect(screen.getByLabelText('Fecha de Nacimiento')).toHaveValue('1980-03-15');
+    expect(screen.getByText(/\d+ años/)).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: /oncológico/i })).toBeChecked();
+  });
+
+  it('no borra lo ya tipeado cuando la ficha tiene ese dato vacío', async () => {
+    useNewTurnHandlers();
+    renderNewTurn();
+
+    fireEvent.change(screen.getByLabelText('Número de CUD'), { target: { value: 'CUD-77' } });
+    typeDni('30111222');
+
+    expect(await screen.findByText(/paciente existente/i, {}, { timeout: 2000 })).toBeInTheDocument();
+    expect(screen.getByLabelText('Número de CUD')).toHaveValue('CUD-77');
+    expect(screen.getByLabelText('Dirección')).toHaveValue('Av. Siempre Viva 742');
+  });
+
+  it('paciente nuevo después de uno existente: no arrastra la ficha anterior', async () => {
+    useNewTurnHandlers();
+    renderNewTurn();
+
+    typeDni('30111222');
+    expect(await screen.findByText(/paciente existente/i, {}, { timeout: 2000 })).toBeInTheDocument();
+
+    typeDni('40999888');
+    expect(await screen.findByText(/paciente nuevo/i, {}, { timeout: 2000 })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByLabelText('Dirección')).toHaveValue(''));
+    expect(screen.getByLabelText('Apellido')).toHaveValue('');
+    expect(screen.getByLabelText('DNI del Paciente')).toHaveValue('40999888');
+  });
+
+  it('alta de paciente nuevo: envía la ficha completa con el turno', async () => {
+    let createdPayload = null;
+    useNewTurnHandlers({ onCreate: (payload) => { createdPayload = payload; } });
+    renderNewTurn();
+
+    typeDni('40999888');
+    expect(await screen.findByText(/paciente nuevo/i, {}, { timeout: 2000 })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Apellido'), { target: { value: 'Lopez' } });
+    fireEvent.change(screen.getByLabelText('Nombre'), { target: { value: 'Juan' } });
+    fireEvent.change(screen.getByLabelText('Dirección'), { target: { value: 'Calle 1 123' } });
+    fireEvent.change(screen.getByLabelText('Localidad'), { target: { value: 'Merlo' } });
+    fireEvent.change(screen.getByLabelText('Número de CUD'), { target: { value: 'CUD-1' } });
+    fireEvent.click(screen.getByRole('button', { name: /confirmar y agendar/i }));
+
+    await waitFor(() => expect(createdPayload).not.toBeNull());
+    expect(createdPayload.patientData).toMatchObject({
+      dni: '40999888',
+      fullName: 'Lopez Juan',
+      address: 'Calle 1 123',
+      locality: 'Merlo',
+      cudNumber: 'CUD-1',
+    });
+    expect(createdPayload.isFirstSession).toBe(true);
+    expect(createdPayload.professionalId).toBe('pro-1');
   });
 });
 
