@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar as CalendarIcon, Printer, Loader2, Trash2, Pencil, Check, X, Flag, Plus, Banknote, UserCheck, UserPlus, Search } from 'lucide-react';
+import { Calendar as CalendarIcon, Printer, Loader2, Trash2, Pencil, Check, X, Flag, Plus, Banknote } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import PrintSessions from './PrintSessions';
@@ -52,11 +52,6 @@ const buildChecklistFromInsurance = (obraSocial, currentChecklist = null) => {
   };
 };
 
-const formatCurrency = (value) => new Intl.NumberFormat('es-AR', {
-  style: 'currency',
-  currency: 'ARS',
-}).format(Number(value || 0));
-
 // Condiciones clínicas de la ficha (mismas claves del modelo Patient).
 const CLINICAL_CONDITIONS = [
   { key: 'hasCancer', label: 'Oncológico', color: 'accent-red-500', activeClasses: 'border-red-200 bg-red-50' },
@@ -91,36 +86,6 @@ const FormSection = ({ step, title, description, children }) => (
     {children}
   </section>
 );
-
-/** Indica si el DNI corresponde a una ficha existente o a un paciente nuevo. */
-const PatientLookupStatus = ({ searching, patientId, dni, action }) => {
-  const hasSearchableDni = String(dni || '').trim().length >= 6;
-  let tone = 'border-slate-200 bg-slate-50 text-slate-500';
-  let icon = <Search size={14} className="shrink-0" />;
-  let text = 'Ingresá el DNI para buscar al paciente en las fichas.';
-
-  if (searching) {
-    icon = <Loader2 size={14} className="shrink-0 animate-spin" />;
-    text = 'Buscando en las fichas…';
-  } else if (patientId) {
-    tone = 'border-teal-200 bg-teal-50 text-teal-700';
-    icon = <UserCheck size={14} className="shrink-0" />;
-    text = 'Paciente existente: sus datos se trajeron de la ficha.';
-  } else if (hasSearchableDni) {
-    tone = 'border-blue-200 bg-blue-50 text-blue-700';
-    icon = <UserPlus size={14} className="shrink-0" />;
-    text = 'Paciente nuevo: completá sus datos y se crea la ficha al guardar.';
-  }
-
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <p role="status" className={`flex min-h-11 flex-1 items-center gap-2 rounded-2xl border px-3 py-2 text-[11px] font-bold ${tone}`}>
-        {icon} {text}
-      </p>
-      {!searching && action}
-    </div>
-  );
-};
 
 const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, selectedSlot, appointment = null, professional = null }) => {
   const {
@@ -167,7 +132,6 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
     setSessionToken,
     uploadingAuthorization,
     selectedObraSocial,
-    patientChargeBreakdown,
     selectedCoverageValue,
     projectedSessions,
     handleAction,
@@ -186,7 +150,6 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
     uploadingDocumentField,
     knownPatientId,
     searchPatient,
-    searchingPatient,
     setIsAddingManualSession,
     setManualDraft,
   } = useAppointmentForm({
@@ -252,6 +215,29 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
             </div>
 
             <div className="space-y-4">
+              {/* ESTADO DEL TURNO: primero, para marcar asistencia rápido */}
+              {isEditMode && (
+                <section aria-label="Estado del Turno" className="space-y-2 rounded-[1.6rem] border border-slate-200 bg-white p-4 shadow-sm">
+                  <span className={formLabelClass}>Estado del Turno</span>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    {APPOINTMENT_STATUSES.map((item) => (
+                      <button
+                        key={item.value}
+                        type="button"
+                        aria-pressed={status === item.value}
+                        onClick={() => setStatus(item.value)}
+                        className={`min-h-11 rounded-2xl border px-3 py-3 text-[10px] font-black uppercase transition-all ${status === item.value
+                            ? item.classes
+                            : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300'
+                          }`}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              )}
+
               {/* BLOQUE 1 — HORARIO Y PACIENTE */}
               <FormSection
                 step={1}
@@ -290,12 +276,9 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                       onChange={e => { setPatientData({ ...patientData, dni: e.target.value }); searchPatient('dni', e.target.value); }}
                     />
                   </label>
-                  <PatientLookupStatus
-                    searching={searchingPatient}
-                    patientId={knownPatientId}
-                    dni={patientData.dni}
-                    action={<ClinicalHistoryLink patientData={patientData} patientId={knownPatientId} />}
-                  />
+                  <div className="flex items-end">
+                    <ClinicalHistoryLink patientData={patientData} patientId={knownPatientId} />
+                  </div>
                 </div>
               </FormSection>
 
@@ -443,30 +426,6 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
                   </div>
                 )}
 
-                {!!selectedObraSocial && !patientData.treatAsParticular && (
-                  <div className="rounded-2xl border border-teal-100 bg-teal-50/70 px-4 py-4">
-                    <p className="text-[9px] font-black uppercase tracking-[0.22em] text-teal-600">Coseguro calculado</p>
-                    <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
-                      <div className="rounded-2xl bg-white px-3 py-3">
-                        <p className="text-[9px] font-black uppercase text-slate-400">Base</p>
-                        <p className="mt-1 text-sm font-black text-slate-800">{formatCurrency(patientChargeBreakdown.baseCopay)}</p>
-                      </div>
-                      <div className="rounded-2xl bg-white px-3 py-3">
-                        <p className="text-[9px] font-black uppercase text-slate-400">% adicional</p>
-                        <p className="mt-1 text-sm font-black text-slate-800">{formatCurrency(patientChargeBreakdown.percentageAmount)}</p>
-                      </div>
-                      <div className="rounded-2xl bg-white px-3 py-3">
-                        <p className="text-[9px] font-black uppercase text-slate-400">Copago fijo</p>
-                        <p className="mt-1 text-sm font-black text-slate-800">{formatCurrency(patientChargeBreakdown.fixedCopay)}</p>
-                      </div>
-                      <div className="rounded-2xl bg-slate-900 px-3 py-3 text-white">
-                        <p className="text-[9px] font-black uppercase text-slate-300">Total paciente</p>
-                        <p className="mt-1 text-sm font-black">{formatCurrency(patientChargeBreakdown.total)}</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
                 {!!selectedObraSocial?.requiresAuthorization && !patientData.treatAsParticular && (
                   <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4">
                     <p className="text-[9px] font-black uppercase tracking-[0.22em] text-amber-700">Autorización requerida</p>
@@ -509,29 +468,8 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, onRefresh, select
               <FormSection
                 step={4}
                 title="Sesiones y planificación"
-                description={isEditMode ? 'Estado de esta sesión, cobro, token y ciclo.' : 'Cobro, token, ciclo y cuántas sesiones se generan.'}
+                description={isEditMode ? 'Cobro, token y ciclo de esta sesión.' : 'Cobro, token, ciclo y cuántas sesiones se generan.'}
               >
-                {isEditMode && (
-                  <div className="space-y-2">
-                    <span className={formLabelClass}>Estado del Turno</span>
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                      {APPOINTMENT_STATUSES.map((item) => (
-                        <button
-                          key={item.value}
-                          type="button"
-                          onClick={() => setStatus(item.value)}
-                          className={`min-h-11 rounded-2xl border px-3 py-3 text-[10px] font-black uppercase transition-all ${status === item.value
-                              ? item.classes
-                              : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300'
-                            }`}
-                        >
-                          {item.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
                 <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                   <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
                     <div className="flex items-center justify-between gap-3">

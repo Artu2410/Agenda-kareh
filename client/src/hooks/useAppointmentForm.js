@@ -198,7 +198,6 @@ export const useAppointmentForm = ({
   const [uploadingAuthorization, setUploadingAuthorization] = useState(false);
   const [foundPatientId, setFoundPatientId] = useState('');
   const [uploadingDocumentField, setUploadingDocumentField] = useState('');
-  const [searchingPatient, setSearchingPatient] = useState(false);
 
   const lastSearchedRef = useRef('');
   // Paciente cuya ficha está cargada en el formulario (null = datos tipeados a mano).
@@ -384,7 +383,6 @@ export const useAppointmentForm = ({
   useEffect(() => {
     if (!isOpen) return;
 
-    setSearchingPatient(false);
     if (isEditMode && appointment) {
       filledFromPatientIdRef.current = appointment.patientId || null;
       setPatientData(normalizePatientFromAppointment(appointment));
@@ -465,12 +463,8 @@ export const useAppointmentForm = ({
     lastSearchedRef.current = '';
     setFoundPatientId('');
 
-    if (normalizedValue.length < 6) {
-      setSearchingPatient(false);
-      return;
-    }
+    if (normalizedValue.length < 6) return;
 
-    setSearchingPatient(true);
     searchTimerRef.current = setTimeout(async () => {
       lastSearchedRef.current = searchKey;
 
@@ -491,8 +485,6 @@ export const useAppointmentForm = ({
         }
       } catch {
         // Si no existe el paciente todavía, dejamos el formulario para alta manual.
-      } finally {
-        if (lastSearchedRef.current === searchKey) setSearchingPatient(false);
       }
     }, 500);
   }, [isEditMode]);
@@ -913,7 +905,6 @@ export const useAppointmentForm = ({
     uploadingDocumentField,
     knownPatientId,
     searchPatient,
-    searchingPatient,
     setIsAddingManualSession,
     setManualDraft,
     setEditingFutureId,

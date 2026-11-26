@@ -97,6 +97,7 @@ describe('AppointmentModal', () => {
       affiliateNumber: 'A-123',
     });
     expect(capturedPayload.sessionToken).toBe('TOKEN-123');
+    expect(screen.queryByText(/coseguro calculado/i)).not.toBeInTheDocument();
     expect(capturedPayload.status).toBe('COMPLETED');
     expect(onSave).toHaveBeenCalledTimes(1);
     expect(onRefresh).toHaveBeenCalledTimes(1);
@@ -136,6 +137,16 @@ describe('AppointmentModal', () => {
     fireEvent.click(screen.getByRole('button', { name: /guardar cambios/i }));
 
     await waitFor(() => expect(alertSpy).toHaveBeenCalledWith('No se pudo guardar'));
+  });
+
+  it('al editar, Estado del Turno es lo primero del formulario', async () => {
+    server.use(http.get(getApiUrl('/obras-sociales'), () => HttpResponse.json([])));
+    render(<AppointmentModal isOpen onClose={vi.fn()} onSave={vi.fn()} onDelete={vi.fn()} onRefresh={vi.fn()} appointment={baseAppointment} />);
+
+    const [firstRegion] = screen.getAllByRole('region');
+    expect(firstRegion).toHaveAttribute('aria-label', 'Estado del Turno');
+    expect(screen.getByRole('button', { name: /programado/i })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByText(/paciente existente/i)).not.toBeInTheDocument();
   });
 
   it('mantiene uniformes los botones de días semanales', async () => {
@@ -241,7 +252,7 @@ describe('AppointmentModal · Nuevo Turno y ficha del paciente', () => {
 
     typeDni('30111222');
 
-    expect(await screen.findByText(/paciente existente/i, {}, { timeout: 2000 })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: /historia clínica/i }, { timeout: 2000 })).toBeInTheDocument();
     expect(screen.getByLabelText('Dirección')).toHaveValue('Av. Siempre Viva 742');
     expect(screen.getByLabelText('Localidad')).toHaveValue('Moreno, Buenos Aires');
     expect(screen.getByLabelText('Email')).toHaveValue('ana@example.com');
@@ -260,7 +271,7 @@ describe('AppointmentModal · Nuevo Turno y ficha del paciente', () => {
     fireEvent.change(screen.getByLabelText('Número de CUD'), { target: { value: 'CUD-77' } });
     typeDni('30111222');
 
-    expect(await screen.findByText(/paciente existente/i, {}, { timeout: 2000 })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: /historia clínica/i }, { timeout: 2000 })).toBeInTheDocument();
     expect(screen.getByLabelText('Número de CUD')).toHaveValue('CUD-77');
     expect(screen.getByLabelText('Dirección')).toHaveValue('Av. Siempre Viva 742');
   });
@@ -270,11 +281,11 @@ describe('AppointmentModal · Nuevo Turno y ficha del paciente', () => {
     renderNewTurn();
 
     typeDni('30111222');
-    expect(await screen.findByText(/paciente existente/i, {}, { timeout: 2000 })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: /historia clínica/i }, { timeout: 2000 })).toBeInTheDocument();
 
     typeDni('40999888');
-    expect(await screen.findByText(/paciente nuevo/i, {}, { timeout: 2000 })).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByLabelText('Dirección')).toHaveValue(''));
+    await waitFor(() => expect(screen.getByLabelText('Dirección')).toHaveValue(''), { timeout: 2000 });
+    expect(screen.queryByRole('link', { name: /historia clínica/i })).not.toBeInTheDocument();
     expect(screen.getByLabelText('Apellido')).toHaveValue('');
     expect(screen.getByLabelText('DNI del Paciente')).toHaveValue('40999888');
   });
@@ -285,7 +296,6 @@ describe('AppointmentModal · Nuevo Turno y ficha del paciente', () => {
     renderNewTurn();
 
     typeDni('40999888');
-    expect(await screen.findByText(/paciente nuevo/i, {}, { timeout: 2000 })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Apellido'), { target: { value: 'Lopez' } });
     fireEvent.change(screen.getByLabelText('Nombre'), { target: { value: 'Juan' } });
     fireEvent.change(screen.getByLabelText('Dirección'), { target: { value: 'Calle 1 123' } });
