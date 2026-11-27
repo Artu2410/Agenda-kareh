@@ -77,6 +77,13 @@ describe('documentos imprimibles', () => {
     expect(html).toMatch(/150\.000,50/);
   });
 
+  it('imprime cantidad, precio unitario y total del comprobante', () => {
+    const html = buildPatientReceiptHtml({ ...receipt, quantity: 10, unitPrice: 22000, amount: 220000 });
+    expect(html).toMatch(/<td>10<\/td>/);
+    expect(html).toMatch(/22\.000,00/);
+    expect(html).toMatch(/Total a Abonar:<\/td><td>[^<]*220\.000,00/);
+  });
+
   it('formatea fechas, DNI, edad y HC', () => {
     expect(formatDateAR('2026-11-10T12:00:00.000Z')).toBe('10/11/2026');
     expect(formatDniAR('30111222')).toBe('30.111.222');

@@ -16,6 +16,13 @@ const NAVY = '#0f172a';
  */
 export const buildPatientReceiptHtml = (receipt) => {
   const amount = formatCurrencyAR(receipt.amount);
+  // Comprobantes viejos no traen cantidad ni unitario: se imprimen como 1 × total.
+  const quantity = Number(receipt.quantity) > 0 ? Number(receipt.quantity) : 1;
+  const unitPrice = formatCurrencyAR(
+    receipt.unitPrice !== undefined && receipt.unitPrice !== null
+      ? receipt.unitPrice
+      : Number(receipt.amount || 0) / quantity,
+  );
   const professionalName = receipt.professionalName
     ? `Lic. ${String(receipt.professionalName).replace(/^Lic\.?\s*/i, '')}`
     : '';
@@ -101,7 +108,7 @@ export const buildPatientReceiptHtml = (receipt) => {
   <table class="items">
     <thead><tr><th style="width:8%">Cant.</th><th>Descripción de la Práctica / Prestación</th><th class="num" style="width:18%">Unitario</th><th class="num" style="width:18%">Subtotal</th></tr></thead>
     <tbody>
-      <tr><td>1</td><td>${multiline(receipt.description)}</td><td class="num">${escapeHtml(amount)}</td><td class="num">${escapeHtml(amount)}</td></tr>
+      <tr><td>${escapeHtml(quantity)}</td><td>${multiline(receipt.description)}</td><td class="num">${escapeHtml(unitPrice)}</td><td class="num">${escapeHtml(amount)}</td></tr>
     </tbody>
   </table>
 

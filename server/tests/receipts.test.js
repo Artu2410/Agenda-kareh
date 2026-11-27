@@ -66,6 +66,26 @@ describe('patient receipts', () => {
     expect(response.body.displayNumber).toBe('0001-00000042');
   });
 
+  it('calculates the total from the session price and the number of sessions', async () => {
+    const prisma = buildPrisma();
+
+    const response = await request(buildApp(prisma))
+      .post('/api/receipts')
+      .send({ patientId: 'p1', description: 'Sesiones de kinesiología', unitPrice: '22000', quantity: 10 })
+      .expect(201);
+
+    expect(prisma.patientReceipt.create.mock.calls[0][0].data).toMatchObject({ unitPrice: 22000, quantity: 10, amount: 220000 });
+    expect(response.body).toMatchObject({ unitPrice: 22000, quantity: 10, amount: 220000 });
+  });
+
+  it('keeps accepting a single amount as 1 × amount', () => {
+    expect(createReceiptBodySchema.parse({ patientId: 'p1', description: 'x', amount: 15000 }))
+      .toMatchObject({ quantity: 1, unitPrice: 15000, amount: 15000 });
+    expect(createReceiptBodySchema.safeParse({ patientId: 'p1', description: 'x' }).success).toBe(false);
+    expect(createReceiptBodySchema.safeParse({ patientId: 'p1', description: 'x', unitPrice: 100, quantity: 0 }).success).toBe(false);
+    expect(createReceiptBodySchema.safeParse({ patientId: 'p1', description: 'x', unitPrice: 100, quantity: 2.5 }).success).toBe(false);
+  });
+
   it('only accepts a description and a positive amount as manual input', () => {
     expect(createReceiptBodySchema.safeParse({ patientId: 'p1', description: '', amount: 10 }).success).toBe(false);
     expect(createReceiptBodySchema.safeParse({ patientId: 'p1', description: 'x', amount: 0 }).success).toBe(false);
@@ -85,7 +105,10 @@ describe('patient receipts', () => {
   });
 
   it('serializes amounts and the receipt number for printing', () => {
-    expect(serializeReceipt({ number: 7, amount: '1200.50' })).toMatchObject({ amount: 1200.5, displayNumber: '0001-00000007' });
+    expect(serializeReceipt({ number: 7, amount: '1200.50' }))
+      .toMatchObject({ amount: 1200.5, quantity: 1, unitPrice: 1200.5, displayNumber: '0001-00000007' });
+    expect(serializeReceipt({ number: 8, amount: '220000', quantity: 10, unitPrice: '22000' }))
+      .toMatchObject({ amount: 220000, quantity: 10, unitPrice: 22000 });
   });
 
   it('lets the database sequence assign the number (never reused)', async () => {

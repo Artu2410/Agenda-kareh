@@ -5,7 +5,8 @@ import { buildProfessionalPatientWhere, getScopedProfessionalId } from '../utils
 /**
  * Comprobantes no fiscales: documento interno para el paciente, NO válido como
  * factura ante ARCA. Se completan solos con los datos del paciente; a mano van
- * la descripción, el monto y (opcional) la fecha de emisión.
+ * la descripción, el precio por sesión, la cantidad y (opcional) la fecha de emisión.
+ * "amount" es siempre el total a abonar (unitario × cantidad).
  */
 
 const receiptSelect = {
@@ -16,6 +17,8 @@ const receiptSelect = {
   professionalId: true,
   description: true,
   amount: true,
+  quantity: true,
+  unitPrice: true,
   patientName: true,
   patientDni: true,
   coverage: true,
@@ -39,11 +42,21 @@ const resolveCoverage = (patient) => {
   return patient.obraSocial?.nombreOs || patient.healthInsurance || 'Particular';
 };
 
-export const serializeReceipt = (receipt) => ({
-  ...receipt,
-  amount: receipt.amount === null || receipt.amount === undefined ? 0 : Number(receipt.amount),
-  displayNumber: `0001-${String(receipt.number).padStart(8, '0')}`,
-});
+export const serializeReceipt = (receipt) => {
+  const amount = receipt.amount === null || receipt.amount === undefined ? 0 : Number(receipt.amount);
+  const quantity = Number(receipt.quantity) > 0 ? Number(receipt.quantity) : 1;
+  // Comprobantes anteriores a la cantidad: unitario = total / cantidad (1 × monto).
+  const unitPrice = receipt.unitPrice === null || receipt.unitPrice === undefined
+    ? Math.round((amount / quantity) * 100) / 100
+    : Number(receipt.unitPrice);
+  return {
+    ...receipt,
+    amount,
+    quantity,
+    unitPrice,
+    displayNumber: `0001-${String(receipt.number).padStart(8, '0')}`,
+  };
+};
 
 // Fecha elegida a mano: a mediodía UTC, así se imprime el mismo día en cualquier zona horaria.
 // Sin fecha elegida: el momento exacto en que el servidor emite el comprobante.
@@ -99,7 +112,7 @@ export const listReceipts = async (req, res, prisma) => {
 };
 
 export const createReceipt = async (req, res, prisma) => {
-  const { patientId, description, amount, issueDate } = req.body;
+  const { patientId, description, amount, quantity, unitPrice, issueDate } = req.body;
 
   try {
     const scopedProfessionalId = getScopedProfessionalId(req.user);
@@ -149,6 +162,8 @@ export const createReceipt = async (req, res, prisma) => {
         professionalId: professional?.id || null,
         description,
         amount,
+        quantity,
+        unitPrice,
         patientName: patient.fullName,
         patientDni: patient.dni,
         coverage: resolveCoverage(patient),
@@ -165,7 +180,13 @@ export const createReceipt = async (req, res, prisma) => {
       action: auditActions.receiptCreated,
       resource: 'PATIENT_RECEIPT',
       resourceId: receipt.id,
-      newValues: { number: receipt.number, patientId: receipt.patientId, amount: String(receipt.amount) },
+      newValues: {
+        number: receipt.number,
+        patientId: receipt.patientId,
+        quantity: receipt.quantity,
+        unitPrice: String(receipt.unitPrice),
+        amount: String(receipt.amount),
+      },
     });
 
     res.status(201).json({ ...serializeReceipt(receipt), canDelete: true });

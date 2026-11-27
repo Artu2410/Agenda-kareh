@@ -520,6 +520,8 @@ model PatientReceipt {
   professionalId      String?
   description         String
   amount              Decimal       @db.Decimal(12, 2)
+  quantity            Int           @default(1)
+  unitPrice           Decimal?      @db.Decimal(12, 2)
   patientName         String
   patientDni          String
   coverage            String?

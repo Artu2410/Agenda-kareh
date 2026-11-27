@@ -15,7 +15,8 @@ import { printPatientReceipt } from './printReceipt';
 
 /**
  * Comprobante no válido como factura ante ARCA. Todo sale de la ficha del paciente;
- * a mano solo se cargan la descripción, el monto y la fecha (por defecto, hoy).
+ * a mano se cargan la descripción, el precio por sesión, la cantidad de sesiones y la
+ * fecha (por defecto, hoy). El total a abonar es precio × cantidad.
  * Si no recibe paciente, permite buscarlo por DNI.
  */
 export default function PatientReceiptModal({ patient: initialPatient = null, onClose, onCreated }) {
@@ -23,15 +24,21 @@ export default function PatientReceiptModal({ patient: initialPatient = null, on
   const [dniQuery, setDniQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const [description, setDescription] = useState('');
-  const [amount, setAmount] = useState('');
+  const [unitPrice, setUnitPrice] = useState('');
+  const [quantity, setQuantity] = useState('1');
   const [issueDate, setIssueDate] = useState(todayISO);
   // Si no se cambia la fecha, no se envía: el servidor usa el momento exacto de la
   // emisión (evita quedar con la fecha de ayer si el modal se abrió antes de medianoche).
   const [issueDateTouched, setIssueDateTouched] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const parsedAmount = parseAmountInput(amount);
-  const amountIsValid = Number.isFinite(parsedAmount) && parsedAmount > 0;
+  const parsedUnitPrice = parseAmountInput(unitPrice);
+  const unitPriceIsValid = Number.isFinite(parsedUnitPrice) && parsedUnitPrice > 0;
+  const parsedQuantity = /^\d+$/.test(quantity.trim()) ? Number(quantity.trim()) : NaN;
+  const quantityIsValid = Number.isInteger(parsedQuantity) && parsedQuantity >= 1 && parsedQuantity <= 999;
+  const total = unitPriceIsValid && quantityIsValid
+    ? Math.round(Math.round(parsedUnitPrice * 100) * parsedQuantity) / 100
+    : null;
   const coverageData = patient ? getPatientCoverage(patient) : null;
 
   const handleSearch = async (event) => {
@@ -64,8 +71,12 @@ export default function PatientReceiptModal({ patient: initialPatient = null, on
       showErrorToast('Escribí la descripción de la prestación.');
       return;
     }
-    if (!amountIsValid) {
-      showErrorToast('Ingresá un monto mayor a 0.');
+    if (!unitPriceIsValid) {
+      showErrorToast('Ingresá el precio de la sesión (mayor a 0).');
+      return;
+    }
+    if (!quantityIsValid) {
+      showErrorToast('La cantidad de sesiones debe ser un número entero entre 1 y 999.');
       return;
     }
     if (issueDateTouched && !issueDate) {
@@ -78,7 +89,8 @@ export default function PatientReceiptModal({ patient: initialPatient = null, on
       const { data } = await api.post('/receipts', {
         patientId: patient.id,
         description: description.trim(),
-        amount: parsedAmount,
+        unitPrice: parsedUnitPrice,
+        quantity: parsedQuantity,
         ...(issueDateTouched ? { issueDate } : {}),
       });
       showSuccessToast(`Comprobante ${data.displayNumber} emitido`);
@@ -149,22 +161,6 @@ export default function PatientReceiptModal({ patient: initialPatient = null, on
             />
           </label>
           <label className="block">
-            <span className={fieldLabelClass}>Monto</span>
-            <input
-              className={inputClass}
-              inputMode="decimal"
-              placeholder="15.000,00"
-              value={amount}
-              onChange={(event) => setAmount(event.target.value)}
-              disabled={!patient}
-            />
-            {amount && (
-              <span className={`mt-1 block text-xs font-bold ${amountIsValid ? 'text-slate-500' : 'text-rose-600'}`}>
-                {amountIsValid ? formatCurrencyAR(parsedAmount) : 'Monto inválido'}
-              </span>
-            )}
-          </label>
-          <label className="block">
             <span className={fieldLabelClass}>Fecha del comprobante</span>
             <input
               type="date"
@@ -177,6 +173,52 @@ export default function PatientReceiptModal({ patient: initialPatient = null, on
               disabled={!patient}
             />
           </label>
+          <div className="grid gap-4 sm:col-span-2 sm:grid-cols-3">
+            <label className="block">
+              <span className={fieldLabelClass}>Precio por sesión</span>
+              <input
+                className={inputClass}
+                inputMode="decimal"
+                placeholder="22.000"
+                value={unitPrice}
+                onChange={(event) => setUnitPrice(event.target.value)}
+                disabled={!patient}
+              />
+              {unitPrice && (
+                <span className={`mt-1 block text-xs font-bold ${unitPriceIsValid ? 'text-slate-500' : 'text-rose-600'}`}>
+                  {unitPriceIsValid ? formatCurrencyAR(parsedUnitPrice) : 'Precio inválido'}
+                </span>
+              )}
+            </label>
+            <label className="block">
+              <span className={fieldLabelClass}>Cantidad de sesiones</span>
+              <input
+                type="number"
+                min={1}
+                max={999}
+                step={1}
+                className={inputClass}
+                inputMode="numeric"
+                value={quantity}
+                onChange={(event) => setQuantity(event.target.value)}
+                disabled={!patient}
+              />
+              {quantity && !quantityIsValid && (
+                <span className="mt-1 block text-xs font-bold text-rose-600">Cantidad inválida</span>
+              )}
+            </label>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3" aria-live="polite">
+              <span className={fieldLabelClass}>Total a abonar</span>
+              <p className="text-xl font-black text-slate-900" data-testid="receipt-total">
+                {total !== null ? formatCurrencyAR(total) : '—'}
+              </p>
+              {total !== null && parsedQuantity > 1 && (
+                <p className="text-xs font-semibold text-slate-500">
+                  {parsedQuantity} × {formatCurrencyAR(parsedUnitPrice)}
+                </p>
+              )}
+            </div>
+          </div>
         </form>
       </div>
     </DocumentModalShell>
